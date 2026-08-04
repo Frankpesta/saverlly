@@ -11,6 +11,13 @@ import { KiosksModule } from './kiosks/kiosks.module';
 import { KioskUsersModule } from './kiosk-users/kiosk-users.module';
 import { LocationsModule } from './locations/locations.module';
 import { DevicesModule } from './devices/devices.module';
+import { BullmqConfigModule } from './jobs/bullmq-config.module';
+import { AffiliateProgramsModule } from './affiliate-programs/affiliate-programs.module';
+import { MerchantsModule } from './merchants/merchants.module';
+import { CouponsModule } from './coupons/coupons.module';
+import { ScrapeSourcesModule } from './scrape-sources/scrape-sources.module';
+import { AffiliateSyncModule } from './affiliate-sync/affiliate-sync.module';
+import { PublicApiModule } from './public-api/public-api.module';
 
 @Module({
   imports: [
@@ -20,12 +27,19 @@ import { DevicesModule } from './devices/devices.module';
     }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 10 }]),
     PrismaModule,
+    BullmqConfigModule,
     AuthModule,
     UsersModule,
     KiosksModule,
     KioskUsersModule,
     LocationsModule,
     DevicesModule,
+    AffiliateProgramsModule,
+    MerchantsModule,
+    CouponsModule,
+    ScrapeSourcesModule,
+    AffiliateSyncModule,
+    PublicApiModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

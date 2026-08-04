@@ -38,14 +38,14 @@ model User {
 }
 
 model Kiosk {
-  id              String        @id @default(uuid())
+  id              String      @id @default(uuid())
   name            String
-  status          KioskStatus   @default(ACTIVE) // admin sets directly, no approval workflow
-  revenueSharePct Decimal       @db.Decimal(5, 2) // e.g. 30.00 = 30%
+  status          KioskStatus @default(ACTIVE) // admin sets directly, no approval workflow
+  revenueSharePct Decimal     @db.Decimal(5, 2) // e.g. 30.00 = 30%
   contactEmail    String
   stripeAccountId String? // Stripe Connect account, set once kiosk connects payouts (Phase 5)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
   locations       Location[]
   users           User[]
 }
@@ -82,26 +82,117 @@ model LocationSetupCode {
 }
 
 model Device {
-  id           String        @id @default(uuid())
-  locationId   String
-  location     Location      @relation(fields: [locationId], references: [id])
-  label        String // e.g. "Computer 4"
-  active       Boolean       @default(true) // kill-switch — no approval needed to start, but can be disabled any time
-  lastSeenAt   DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deviceTokens DeviceToken[]
+  id               String            @id @default(uuid())
+  locationId       String
+  location         Location          @relation(fields: [locationId], references: [id])
+  label            String // e.g. "Computer 4"
+  active           Boolean           @default(true) // kill-switch — no approval needed to start, but can be disabled any time
+  lastSeenAt       DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deviceTokens     DeviceToken[]
+  couponTestEvents CouponTestEvent[]
 
   @@index([locationId])
 }
 
 model DeviceToken {
+  id        String   @id @default(uuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id])
+  tokenHash String   @unique // opaque, high-entropy token stored hashed — never plaintext
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([deviceId])
+}
+
+enum CouponSource {
+  API
+  SCRAPE
+  MANUAL
+}
+
+enum AttributionMethod {
+  COOKIE
+  URL_PARAM
+  BOTH
+}
+
+model AffiliateProgram {
+  id             String     @id @default(uuid())
+  networkName    String // e.g. "Impact", "CJ Affiliate", "Rakuten" — nullable/omitted if merchant has no network, just a direct tracking link
+  programId      String?
+  apiCredentials String? // encrypted at rest (AES-256-GCM) — never store plaintext keys; null if no API available
+  hasCouponApi   Boolean    @default(false) // explicit flag: this program can feed coupon codes automatically
+  merchants      Merchant[]
+  createdAt      DateTime   @default(now())
+}
+
+model Merchant {
+  id                     String            @id @default(uuid())
+  name                   String
+  domain                 String            @unique // e.g. "target.com"
+  affiliateProgramId     String?
+  affiliateProgram       AffiliateProgram? @relation(fields: [affiliateProgramId], references: [id])
+  attributionMethod      AttributionMethod // required — every merchant needs a tracking method to earn commission at all
+  affiliateTrackingUrl   String? // base URL used to set the tracking cookie, if COOKIE or BOTH
+  affiliateUrlParamKey   String? // query param name to append (e.g. "irclickid"), if URL_PARAM or BOTH
+  affiliateUrlParamValue String? // the platform's own affiliate/tracking ID value to inject
+  active                 Boolean           @default(true)
+  checkoutRecipe         Json? // see "Merchant Recipe" — couponFieldSelector, applyButtonSelector, etc.
+  coupons                Coupon[]
+  scrapeSources          ScrapeSource[]
+  couponTestEvents       CouponTestEvent[]
+  createdAt              DateTime          @default(now())
+
+  @@index([affiliateProgramId])
+}
+
+model Coupon {
+  id               String            @id @default(uuid())
+  merchantId       String
+  merchant         Merchant          @relation(fields: [merchantId], references: [id])
+  code             String
+  description      String?
+  source           CouponSource
+  discountType     String? // "percent" | "fixed" | "unknown"
+  discountValue    Float?
+  successCount     Int               @default(0)
+  failCount        Int               @default(0)
+  lastTestedAt     DateTime?
+  expiresAt        DateTime?
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  couponTestEvents CouponTestEvent[]
+
+  @@unique([merchantId, code]) // dedup across sources — repeat scrape/sync runs must upsert, never duplicate
+}
+
+model ScrapeSource {
+  id              String    @id @default(uuid())
+  url             String
+  merchantId      String? // optional — some scrape sources cover multiple merchants
+  merchant        Merchant? @relation(fields: [merchantId], references: [id])
+  selectorConfig  Json // CSS selectors for code extraction
+  intervalMinutes Int       @default(1440) // schedule cadence, configurable per source — default daily
+  lastRunAt       DateTime?
+  active          Boolean   @default(true)
+
+  @@index([merchantId])
+}
+
+model CouponTestEvent {
   id         String   @id @default(uuid())
   deviceId   String
   device     Device   @relation(fields: [deviceId], references: [id])
-  tokenHash  String   @unique // opaque, high-entropy token stored hashed — never plaintext
-  revoked    Boolean  @default(false)
+  couponId   String? // nullable — a step-down suppression event or a manual trigger with no matching coupon has no couponId
+  coupon     Coupon?  @relation(fields: [couponId], references: [id])
+  merchantId String
+  merchant   Merchant @relation(fields: [merchantId], references: [id])
+  result     String // "applied" | "failed" | "suppressed_stepdown" | "no_coupons_available"
   createdAt  DateTime @default(now())
 
   @@index([deviceId])
+  @@index([merchantId])
 }

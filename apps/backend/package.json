@@ -25,9 +25,11 @@
     "prisma:studio": "prisma studio",
     "docs:api:openapi": "ts-node --compiler-options \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/generate-openapi.ts",
     "docs:api:markdown": "widdershins ../../docs/api/openapi.json -o ../../docs/api/README.md --language_tabs http:HTTP --summary",
-    "docs:api": "npm run docs:api:openapi && npm run docs:api:markdown"
+    "docs:api": "npm run docs:api:openapi && npm run docs:api:markdown",
+    "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -38,10 +40,13 @@
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "6.19.3",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.81.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "ioredis": "5.11.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "playwright": "^1.62.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
