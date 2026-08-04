@@ -1,0 +1,11 @@
+{
+  "name": "@saverlly/dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo \"dashboard: not yet scaffolded (built in Phase 6, see 07-FRONTEND.md)\" && exit 0",
+    "dev": "echo \"dashboard: not yet scaffolded (built in Phase 6, see 07-FRONTEND.md)\" && exit 0",
+    "lint": "echo \"dashboard: not yet scaffolded\" && exit 0",
+    "test": "echo \"dashboard: not yet scaffolded\" && exit 0"
+  }
+}

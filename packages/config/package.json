@@ -1,0 +1,11 @@
+{
+  "name": "@saverlly/config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.js",
+  "files": [
+    "base.tsconfig.json",
+    "eslint.base.js",
+    "prettier.base.js"
+  ]
+}

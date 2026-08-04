@@ -1,0 +1,11 @@
+{
+  "name": "@saverlly/extension",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "echo \"extension: not yet scaffolded (built in Phase 3, see 03-PHASE-3-chrome-extension.md)\" && exit 0",
+    "dev": "echo \"extension: not yet scaffolded (built in Phase 3, see 03-PHASE-3-chrome-extension.md)\" && exit 0",
+    "lint": "echo \"extension: not yet scaffolded\" && exit 0",
+    "test": "echo \"extension: not yet scaffolded\" && exit 0"
+  }
+}

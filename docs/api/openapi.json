@@ -1,0 +1,1115 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login succeeded"
+          },
+          "401": {
+            "description": "Invalid credentials, or account disabled"
+          }
+        },
+        "summary": "Log in with email + password, get an access/refresh token pair",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A fresh token pair; the old refresh token is now invalid"
+          },
+          "401": {
+            "description": "Invalid, expired, or already-rotated refresh token"
+          }
+        },
+        "summary": "Exchange a refresh token for a new access/refresh token pair",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Logged out"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Invalidate the current refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/users/me": {
+      "get": {
+        "operationId": "UsersController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The current user (password/refresh-token hashes never included)"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get the current authenticated user's own profile",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/kiosks": {
+      "post": {
+        "operationId": "KiosksController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKioskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Kiosk created"
+          },
+          "403": {
+            "description": "Caller is not an admin"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Create a kiosk (admin only, defaults to ACTIVE, no approval step)",
+        "tags": [
+          "Kiosks"
+        ]
+      },
+      "get": {
+        "operationId": "KiosksController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All kiosks across every tenant"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List all kiosks (admin only)",
+        "tags": [
+          "Kiosks"
+        ]
+      }
+    },
+    "/kiosks/{id}": {
+      "get": {
+        "operationId": "KiosksController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The kiosk"
+          },
+          "403": {
+            "description": "Not this kiosk's owner and not an admin"
+          },
+          "404": {
+            "description": "Kiosk not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get a kiosk by id (admin, or the owning kiosk-owner)",
+        "tags": [
+          "Kiosks"
+        ]
+      },
+      "patch": {
+        "operationId": "KiosksController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKioskDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Kiosk updated"
+          },
+          "404": {
+            "description": "Kiosk not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a kiosk, including revenueSharePct and status (admin only)",
+        "tags": [
+          "Kiosks"
+        ]
+      }
+    },
+    "/kiosks/{id}/status": {
+      "patch": {
+        "operationId": "KiosksController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKioskStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated — takes effect on the kiosk's devices immediately"
+          },
+          "404": {
+            "description": "Kiosk not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Toggle a kiosk between ACTIVE and INACTIVE (admin only)",
+        "tags": [
+          "Kiosks"
+        ]
+      }
+    },
+    "/kiosks/{kioskId}/users": {
+      "post": {
+        "description": "Admin can create KIOSK_OWNER or LOCATION_MANAGER accounts. A kiosk-owner may only create LOCATION_MANAGER accounts under their own kiosk — never a peer owner.",
+        "operationId": "KioskUsersController_create",
+        "parameters": [
+          {
+            "name": "kioskId",
+            "required": true,
+            "in": "path",
+            "description": "The kiosk these user accounts belong to",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKioskUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created"
+          },
+          "403": {
+            "description": "Cross-tenant, or a kiosk-owner attempting to assign a disallowed role"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Create a user under this kiosk",
+        "tags": [
+          "Kiosk Users"
+        ]
+      },
+      "get": {
+        "operationId": "KioskUsersController_findAll",
+        "parameters": [
+          {
+            "name": "kioskId",
+            "required": true,
+            "in": "path",
+            "description": "The kiosk these user accounts belong to",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users under this kiosk (password hashes never included)"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List all users belonging to this kiosk",
+        "tags": [
+          "Kiosk Users"
+        ]
+      }
+    },
+    "/kiosks/{kioskId}/users/{userId}": {
+      "patch": {
+        "operationId": "KioskUsersController_update",
+        "parameters": [
+          {
+            "name": "kioskId",
+            "required": true,
+            "in": "path",
+            "description": "The kiosk these user accounts belong to",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateKioskUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated"
+          },
+          "403": {
+            "description": "Cross-tenant, or a kiosk-owner acting on a non-location-manager account"
+          },
+          "404": {
+            "description": "User does not belong to this kiosk"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a kiosk user — role, disabled flag, or managedLocationIds",
+        "tags": [
+          "Kiosk Users"
+        ]
+      }
+    },
+    "/locations": {
+      "post": {
+        "operationId": "LocationsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Location created"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Create a location (admin specifies kioskId; kiosk-owner's own kiosk is implied)",
+        "tags": [
+          "Locations"
+        ]
+      },
+      "get": {
+        "description": "Admin sees all locations; kiosk-owner sees their own kiosk's locations; location-manager sees only their assigned locations.",
+        "operationId": "LocationsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Locations visible to the caller"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List locations",
+        "tags": [
+          "Locations"
+        ]
+      }
+    },
+    "/locations/{id}": {
+      "get": {
+        "operationId": "LocationsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The location"
+          },
+          "403": {
+            "description": "Not in the caller's tenant scope"
+          },
+          "404": {
+            "description": "Location not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get a location by id",
+        "tags": [
+          "Locations"
+        ]
+      },
+      "patch": {
+        "operationId": "LocationsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLocationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Location updated"
+          },
+          "403": {
+            "description": "Not in the caller's tenant scope"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a location, including tags",
+        "tags": [
+          "Locations"
+        ]
+      },
+      "delete": {
+        "operationId": "LocationsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Location deleted"
+          },
+          "403": {
+            "description": "Not allowed for this role or tenant"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete a location (admin or kiosk-owner only, not location-manager)",
+        "tags": [
+          "Locations"
+        ]
+      }
+    },
+    "/locations/{id}/setup-codes": {
+      "post": {
+        "operationId": "LocationsController_createSetupCode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Setup code created"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Generate a new reusable device setup code for this location",
+        "tags": [
+          "Locations"
+        ]
+      },
+      "get": {
+        "operationId": "LocationsController_findSetupCodes",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Setup codes"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List setup codes for this location",
+        "tags": [
+          "Locations"
+        ]
+      }
+    },
+    "/locations/{id}/setup-codes/{codeId}": {
+      "patch": {
+        "operationId": "LocationsController_updateSetupCode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "codeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSetupCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Setup code updated"
+          },
+          "404": {
+            "description": "Setup code does not belong to this location"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Revoke or reactivate a setup code",
+        "tags": [
+          "Locations"
+        ]
+      }
+    },
+    "/devices/register": {
+      "post": {
+        "description": "No human auth — gated by a valid, active LocationSetupCode whose parent kiosk is ACTIVE. Returns a device token immediately, no approval step. Rate-limited (5/min) to blunt setup-code guessing.",
+        "operationId": "DevicesController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Device registered; token returned once, store it — it is not retrievable again"
+          },
+          "400": {
+            "description": "Setup code invalid/inactive, or parent kiosk not ACTIVE"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Machine-initiated device registration",
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/devices": {
+      "get": {
+        "description": "Admin sees all devices; kiosk-owner sees their own kiosk's devices; location-manager sees only devices at their assigned locations.",
+        "operationId": "DevicesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Devices visible to the caller"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List devices",
+        "tags": [
+          "Devices"
+        ]
+      }
+    },
+    "/devices/{id}": {
+      "get": {
+        "operationId": "DevicesController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The device"
+          },
+          "403": {
+            "description": "Not in the caller's tenant scope"
+          },
+          "404": {
+            "description": "Device not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get a device by id",
+        "tags": [
+          "Devices"
+        ]
+      },
+      "patch": {
+        "operationId": "DevicesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device updated — active:false blocks its token on next use"
+          },
+          "403": {
+            "description": "Not in the caller's tenant scope"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a device, including the active kill-switch",
+        "tags": [
+          "Devices"
+        ]
+      },
+      "delete": {
+        "operationId": "DevicesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Device deleted"
+          },
+          "403": {
+            "description": "Not allowed for this role or tenant"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete a device and revoke its tokens (admin or kiosk-owner only)",
+        "tags": [
+          "Devices"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Saverlly API",
+    "description": "Multi-tenant SaaS platform for internet kiosk businesses — admin console, kiosk portal, and machine (Chrome extension / desktop agent) endpoints.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "jwt": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "device-token": {
+        "scheme": "bearer",
+        "bearerFormat": "device-token",
+        "type": "http",
+        "description": "Opaque device token issued at /devices/register — used by machine clients only."
+      }
+    },
+    "schemas": {
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "owner@kiosk.com"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "CreateKioskDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Downtown Internet Cafe"
+          },
+          "revenueSharePct": {
+            "type": "number",
+            "example": 30,
+            "description": "Percentage of commission the kiosk keeps (0-100)"
+          },
+          "contactEmail": {
+            "type": "string",
+            "example": "owner@kiosk.com"
+          }
+        },
+        "required": [
+          "name",
+          "revenueSharePct",
+          "contactEmail"
+        ]
+      },
+      "UpdateKioskDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "revenueSharePct": {
+            "type": "number",
+            "description": "Percentage of commission the kiosk keeps (0-100)"
+          },
+          "contactEmail": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        }
+      },
+      "UpdateKioskStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "CreateKioskUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 8
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "KIOSK_OWNER",
+              "LOCATION_MANAGER"
+            ]
+          },
+          "managedLocationIds": {
+            "description": "Location ids this user manages — only meaningful for LOCATION_MANAGER",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "role"
+        ]
+      },
+      "UpdateKioskUserDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "KIOSK_OWNER",
+              "LOCATION_MANAGER"
+            ]
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "Disable/re-enable this user account"
+          },
+          "managedLocationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateLocationDto": {
+        "type": "object",
+        "properties": {
+          "kioskId": {
+            "type": "string",
+            "description": "Required when the caller is ADMIN; ignored for KIOSK_OWNER (their own kioskId is always used)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "tags": {
+            "example": [
+              "mall",
+              "downtown",
+              "high-traffic"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "city",
+          "state",
+          "country"
+        ]
+      },
+      "UpdateLocationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "tags": {
+            "example": [
+              "mall",
+              "downtown",
+              "high-traffic"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UpdateSetupCodeDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "Set false to revoke the code, true to reactivate it"
+          }
+        },
+        "required": [
+          "active"
+        ]
+      },
+      "RegisterDeviceDto": {
+        "type": "object",
+        "properties": {
+          "setupCode": {
+            "type": "string",
+            "description": "Reusable per-location setup code generated by the kiosk owner/admin"
+          },
+          "label": {
+            "type": "string",
+            "example": "Computer 4"
+          },
+          "hostname": {
+            "type": "string",
+            "description": "Falls back to this if no label is given"
+          }
+        },
+        "required": [
+          "setupCode"
+        ]
+      },
+      "UpdateDeviceDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Kill-switch — false immediately blocks this device's token"
+          }
+        }
+      }
+    }
+  }
+}

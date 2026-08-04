@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: saverlly-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: saverlly
+      POSTGRES_PASSWORD: saverlly_dev_password
+      POSTGRES_DB: saverlly
+    ports:
+      - "5432:5432"
+    volumes:
+      - saverlly-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saverlly -d saverlly"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: saverlly-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - saverlly-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  saverlly-postgres-data:
+  saverlly-redis-data:

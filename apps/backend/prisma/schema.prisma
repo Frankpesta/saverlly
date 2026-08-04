@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  KIOSK_OWNER
+  LOCATION_MANAGER
+}
+
+enum KioskStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  passwordHash       String
+  role               UserRole
+  kioskId            String? // null for ADMIN
+  kiosk              Kiosk?   @relation(fields: [kioskId], references: [id])
+  managedLocationIds String[] // used only for LOCATION_MANAGER role
+  disabled           Boolean  @default(false)
+  refreshTokenHash   String? // hashed current refresh token; cleared on logout, rotated on refresh
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([kioskId])
+}
+
+model Kiosk {
+  id              String        @id @default(uuid())
+  name            String
+  status          KioskStatus   @default(ACTIVE) // admin sets directly, no approval workflow
+  revenueSharePct Decimal       @db.Decimal(5, 2) // e.g. 30.00 = 30%
+  contactEmail    String
+  stripeAccountId String? // Stripe Connect account, set once kiosk connects payouts (Phase 5)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  locations       Location[]
+  users           User[]
+}
+
+model Location {
+  id                 String              @id @default(uuid())
+  kioskId            String
+  kiosk              Kiosk               @relation(fields: [kioskId], references: [id])
+  name               String
+  address            String
+  city               String
+  state              String
+  country            String
+  latitude           Float?
+  longitude          Float?
+  tags               String[] // e.g. ["mall", "downtown", "high-traffic"] — used for future ad targeting
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  devices            Device[]
+  locationSetupCodes LocationSetupCode[]
+
+  @@index([kioskId])
+}
+
+model LocationSetupCode {
+  id         String   @id @default(uuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+  code       String   @unique // short, human-enterable (e.g. 8 chars, unambiguous charset)
+  active     Boolean  @default(true) // kiosk owner can revoke/regenerate
+  createdAt  DateTime @default(now())
+
+  @@index([locationId])
+}
+
+model Device {
+  id           String        @id @default(uuid())
+  locationId   String
+  location     Location      @relation(fields: [locationId], references: [id])
+  label        String // e.g. "Computer 4"
+  active       Boolean       @default(true) // kill-switch — no approval needed to start, but can be disabled any time
+  lastSeenAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deviceTokens DeviceToken[]
+
+  @@index([locationId])
+}
+
+model DeviceToken {
+  id         String   @id @default(uuid())
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id])
+  tokenHash  String   @unique // opaque, high-entropy token stored hashed — never plaintext
+  revoked    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([deviceId])
+}
