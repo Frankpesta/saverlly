@@ -17,6 +17,7 @@ import { MerchantsModule } from './merchants/merchants.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { ScrapeSourcesModule } from './scrape-sources/scrape-sources.module';
 import { AffiliateSyncModule } from './affiliate-sync/affiliate-sync.module';
+import { PublicApiModule } from './public-api/public-api.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AffiliateSyncModule } from './affiliate-sync/affiliate-sync.module';
     CouponsModule,
     ScrapeSourcesModule,
     AffiliateSyncModule,
+    PublicApiModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
