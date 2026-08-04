@@ -32,6 +32,12 @@ export class SyncAffiliateFeedProcessor extends WorkerHost {
         continue;
       }
       const adapter = this.adapterRegistry.getAdapter(merchant.affiliateProgram.networkName);
+      if (!adapter) {
+        this.logger.warn(
+          `No adapter available for network "${merchant.affiliateProgram.networkName}" — skipping merchant ${merchant.id}`,
+        );
+        continue;
+      }
       const coupons = await adapter.fetchCoupons(merchant.affiliateProgram.id);
 
       for (const coupon of coupons) {

@@ -45,9 +45,16 @@ describe('Scrape + affiliate sync jobs (e2e, real BullMQ + Redis)', () => {
     await new Promise((resolve) => fixtureServer.close(resolve));
     await app.close();
     await testPrisma.$disconnect();
+    // Flush repeatable jobs/schedules this suite created — otherwise they leak into whichever
+    // spec file runs next in the shared (maxWorkers: 1) process and gets its own BullMQ workers
+    // processing stale jobs against a freshly-reset test DB.
+    await resetRedisTestDb();
   });
 
   beforeEach(async () => {
+    // Flush before the DB reset so no leftover repeatable job (e.g. this file's own
+    // scrape-source schedule from a prior test) fires mid-test against the new fixtures.
+    await resetRedisTestDb();
     await resetDatabase();
     await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
     adminToken = await loginAs(app, 'admin@test.com');
@@ -73,14 +80,28 @@ describe('Scrape + affiliate sync jobs (e2e, real BullMQ + Redis)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(201);
 
+      // Coupon upserts happen before the processor's finally block stamps lastRunAt, so also wait
+      // for lastRunAt to land — otherwise the rerun's completion check below could be satisfied by
+      // this run finishing late instead of the rerun, letting the test move on while the rerun's
+      // job is still in flight.
       await waitFor(async () => {
         const count = await testPrisma.coupon.count({ where: { merchantId: merchant.id } });
-        return count === 2;
+        if (count !== 2) return false;
+        const source = await testPrisma.scrapeSource.findUniqueOrThrow({ where: { id: createRes.body.id } });
+        return source.lastRunAt !== null;
       }, 20_000);
 
       const coupons = await testPrisma.coupon.findMany({ where: { merchantId: merchant.id } });
       expect(coupons.map((c) => c.code).sort()).toEqual(['SUMMER25', 'WELCOME10']);
       expect(coupons.every((c) => c.source === 'SCRAPE')).toBe(true);
+
+      // The processor stamps lastRunAt in a finally block after every run (success or failure) —
+      // use it as the completion signal for the rerun instead of a fixed sleep. Confirmed non-null
+      // by the wait above, so this is a safe baseline for detecting the rerun's own completion.
+      const beforeRerun = await testPrisma.scrapeSource.findUniqueOrThrow({
+        where: { id: createRes.body.id },
+      });
+      const beforeRerunTime = beforeRerun.lastRunAt!.getTime();
 
       // Run again — dedup means the count must not grow.
       await request(app.getHttpServer())
@@ -88,7 +109,11 @@ describe('Scrape + affiliate sync jobs (e2e, real BullMQ + Redis)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(201);
 
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await waitFor(async () => {
+        const source = await testPrisma.scrapeSource.findUniqueOrThrow({ where: { id: createRes.body.id } });
+        return !!source.lastRunAt && source.lastRunAt.getTime() > beforeRerunTime;
+      }, 20_000);
+
       const countAfterRerun = await testPrisma.coupon.count({ where: { merchantId: merchant.id } });
       expect(countAfterRerun).toBe(2);
     },

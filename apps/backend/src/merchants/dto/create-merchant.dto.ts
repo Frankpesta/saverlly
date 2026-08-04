@@ -34,19 +34,34 @@ export class CreateMerchantDto {
   attributionMethod: AttributionMethod;
 
   @ApiPropertyOptional({ description: 'Required if attributionMethod is COOKIE or BOTH' })
-  @ValidateIf((o) => o.attributionMethod === AttributionMethod.COOKIE || o.attributionMethod === AttributionMethod.BOTH)
+  @ValidateIf(
+    (o) =>
+      o.affiliateTrackingUrl !== undefined ||
+      o.attributionMethod === AttributionMethod.COOKIE ||
+      o.attributionMethod === AttributionMethod.BOTH,
+  )
   @IsString()
   @MinLength(1)
   affiliateTrackingUrl?: string;
 
   @ApiPropertyOptional({ example: 'irclickid', description: 'Required if attributionMethod is URL_PARAM or BOTH' })
-  @ValidateIf((o) => o.attributionMethod === AttributionMethod.URL_PARAM || o.attributionMethod === AttributionMethod.BOTH)
+  @ValidateIf(
+    (o) =>
+      o.affiliateUrlParamKey !== undefined ||
+      o.attributionMethod === AttributionMethod.URL_PARAM ||
+      o.attributionMethod === AttributionMethod.BOTH,
+  )
   @IsString()
   @MinLength(1)
   affiliateUrlParamKey?: string;
 
   @ApiPropertyOptional({ description: 'Required if attributionMethod is URL_PARAM or BOTH' })
-  @ValidateIf((o) => o.attributionMethod === AttributionMethod.URL_PARAM || o.attributionMethod === AttributionMethod.BOTH)
+  @ValidateIf(
+    (o) =>
+      o.affiliateUrlParamValue !== undefined ||
+      o.attributionMethod === AttributionMethod.URL_PARAM ||
+      o.attributionMethod === AttributionMethod.BOTH,
+  )
   @IsString()
   @MinLength(1)
   affiliateUrlParamValue?: string;

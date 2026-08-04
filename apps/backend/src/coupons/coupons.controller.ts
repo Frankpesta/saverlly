@@ -26,10 +26,10 @@ export class CouponsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List coupons, optionally filtered by merchantId' })
+  @ApiOperation({ summary: 'List coupons, optionally filtered by merchantId. Paginated via limit/cursor.' })
   @ApiResponse({ status: 200, description: 'Coupons' })
   findAll(@Query() query: CouponsQueryDto) {
-    return this.couponsService.findAll(query.merchantId);
+    return this.couponsService.findAll(query.merchantId, query.limit, query.cursor);
   }
 
   @Patch(':id')

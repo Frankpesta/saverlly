@@ -25,7 +25,8 @@
     "prisma:studio": "prisma studio",
     "docs:api:openapi": "ts-node --compiler-options \"{\\\"module\\\":\\\"commonjs\\\"}\" scripts/generate-openapi.ts",
     "docs:api:markdown": "widdershins ../../docs/api/openapi.json -o ../../docs/api/README.md --language_tabs http:HTTP --summary",
-    "docs:api": "npm run docs:api:openapi && npm run docs:api:markdown"
+    "docs:api": "npm run docs:api:openapi && npm run docs:api:markdown",
+    "postinstall": "playwright install chromium"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",

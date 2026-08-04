@@ -26,6 +26,16 @@ export class PublicApiService {
   }
 
   async recordCouponTestEvent(deviceId: string, dto: CreateCouponTestEventDto) {
+    if (dto.couponId) {
+      const coupon = await this.prisma.coupon.findUnique({
+        where: { id: dto.couponId },
+        select: { merchantId: true },
+      });
+      if (!coupon || coupon.merchantId !== dto.merchantId) {
+        throw new BadRequestException('couponId does not belong to merchantId');
+      }
+    }
+
     let event;
     try {
       event = await this.prisma.couponTestEvent.create({

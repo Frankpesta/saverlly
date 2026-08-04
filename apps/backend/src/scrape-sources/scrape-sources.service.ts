@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../jobs/queue-names';
@@ -11,6 +11,8 @@ const SCRAPE_JOB_NAME = 'scrape-coupons';
 
 @Injectable()
 export class ScrapeSourcesService implements OnModuleInit {
+  private readonly logger = new Logger(ScrapeSourcesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_NAMES.SCRAPE_COUPONS) private readonly scrapeQueue: Queue,
@@ -18,8 +20,12 @@ export class ScrapeSourcesService implements OnModuleInit {
 
   /** Resyncs repeatable jobs on boot — self-healing if Redis's job schedule was ever lost/reset. */
   async onModuleInit() {
-    const activeSources = await this.prisma.scrapeSource.findMany({ where: { active: true } });
-    await Promise.all(activeSources.map((s) => this.scheduleRepeat(s.id, s.intervalMinutes)));
+    try {
+      const activeSources = await this.prisma.scrapeSource.findMany({ where: { active: true } });
+      await Promise.all(activeSources.map((s) => this.scheduleRepeat(s.id, s.intervalMinutes)));
+    } catch (err) {
+      this.logger.error('Failed to resync scrape-source repeat jobs on boot — continuing without scheduling', err);
+    }
   }
 
   async create(dto: CreateScrapeSourceDto) {

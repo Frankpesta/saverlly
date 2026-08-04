@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsIn, IsNumber, IsOptional, IsString, MinLength } from 'class-validator';
 
 const DISCOUNT_TYPES = ['percent', 'fixed', 'unknown'] as const;
@@ -6,6 +7,7 @@ const DISCOUNT_TYPES = ['percent', 'fixed', 'unknown'] as const;
 export class UpdateCouponDto {
   @ApiPropertyOptional()
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1)
   code?: string;

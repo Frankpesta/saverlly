@@ -28,10 +28,12 @@ export class CouponsService {
     }
   }
 
-  findAll(merchantId?: string) {
+  findAll(merchantId?: string, limit = 50, cursor?: string) {
     return this.prisma.coupon.findMany({
       where: merchantId ? { merchantId } : undefined,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
   }
 
