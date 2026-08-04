@@ -14,9 +14,10 @@ out/
 .turbo/
 
 # Env
-.env
+.env*
 .env.local
 .env.*.local
+.env.test
 
 # Prisma
 apps/backend/prisma/dev.db

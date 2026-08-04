@@ -9,6 +9,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const redisUrl = new URL(configService.getOrThrow<string>('REDIS_URL'));
+        // Path segment (if present) selects the Redis logical DB, e.g. "/1" — used to keep
+        // test-run queues fully isolated from dev's on the same Redis instance.
+        const dbIndex = redisUrl.pathname.replace(/^\//, '');
         return {
           // Plain connection options (not a manually-created ioredis instance) so BullMQ owns
           // the connection's lifecycle itself and closes it cleanly on Nest app shutdown —
@@ -17,6 +20,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             host: redisUrl.hostname,
             port: Number(redisUrl.port || 6379),
             password: redisUrl.password || undefined,
+            db: dbIndex ? Number(dbIndex) : undefined,
             maxRetriesPerRequest: null,
           },
         };

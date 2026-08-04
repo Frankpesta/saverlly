@@ -814,6 +814,563 @@
           "Devices"
         ]
       }
+    },
+    "/affiliate-programs": {
+      "post": {
+        "operationId": "AffiliateProgramsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAffiliateProgramDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Program created — apiCredentials never returned, only hasCredentials"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Register an affiliate network/program (admin only)",
+        "tags": [
+          "Affiliate Programs"
+        ]
+      },
+      "get": {
+        "operationId": "AffiliateProgramsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All programs"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List all affiliate programs",
+        "tags": [
+          "Affiliate Programs"
+        ]
+      }
+    },
+    "/affiliate-programs/{id}": {
+      "patch": {
+        "operationId": "AffiliateProgramsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAffiliateProgramDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Program updated"
+          },
+          "404": {
+            "description": "Program not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update an affiliate program, including rotating credentials or the hasCouponApi flag",
+        "tags": [
+          "Affiliate Programs"
+        ]
+      }
+    },
+    "/merchants": {
+      "post": {
+        "description": "Tracking method is required — even for a merchant with no coupon API at all, since that is what makes commission attribution work. Coupon sourcing (affiliateProgramId) is optional.",
+        "operationId": "MerchantsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMerchantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Merchant created"
+          },
+          "400": {
+            "description": "Tracking fields missing for the chosen attributionMethod"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Add a store",
+        "tags": [
+          "Merchants"
+        ]
+      },
+      "get": {
+        "operationId": "MerchantsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All merchants"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List all merchants",
+        "tags": [
+          "Merchants"
+        ]
+      }
+    },
+    "/merchants/{id}": {
+      "get": {
+        "operationId": "MerchantsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The merchant"
+          },
+          "404": {
+            "description": "Merchant not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get a merchant by id",
+        "tags": [
+          "Merchants"
+        ]
+      },
+      "patch": {
+        "operationId": "MerchantsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMerchantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Merchant updated"
+          },
+          "400": {
+            "description": "Tracking fields missing for the resulting attributionMethod"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a merchant, including checkoutRecipe, attributionMethod, and tracking fields",
+        "tags": [
+          "Merchants"
+        ]
+      },
+      "delete": {
+        "operationId": "MerchantsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Merchant deleted"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete a merchant",
+        "tags": [
+          "Merchants"
+        ]
+      }
+    },
+    "/coupons": {
+      "post": {
+        "operationId": "CouponsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCouponDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Coupon created with source: MANUAL"
+          },
+          "409": {
+            "description": "This merchant already has a coupon with this code"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Manually add a coupon code for a merchant",
+        "tags": [
+          "Coupons"
+        ]
+      },
+      "get": {
+        "operationId": "CouponsController_findAll",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coupons"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List coupons, optionally filtered by merchantId",
+        "tags": [
+          "Coupons"
+        ]
+      }
+    },
+    "/coupons/{id}": {
+      "patch": {
+        "operationId": "CouponsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCouponDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Coupon updated"
+          },
+          "404": {
+            "description": "Coupon not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a coupon",
+        "tags": [
+          "Coupons"
+        ]
+      },
+      "delete": {
+        "operationId": "CouponsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Coupon deleted"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete a coupon",
+        "tags": [
+          "Coupons"
+        ]
+      }
+    },
+    "/scrape-sources": {
+      "post": {
+        "operationId": "ScrapeSourcesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScrapeSourceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Scrape source created and scheduled"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Add a scrape source (URL + selector config), scheduled on creation",
+        "tags": [
+          "Scrape Sources"
+        ]
+      },
+      "get": {
+        "operationId": "ScrapeSourcesController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Scrape sources"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List all scrape sources",
+        "tags": [
+          "Scrape Sources"
+        ]
+      }
+    },
+    "/scrape-sources/{id}": {
+      "patch": {
+        "operationId": "ScrapeSourcesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScrapeSourceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scrape source updated"
+          },
+          "404": {
+            "description": "Scrape source not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a scrape source — reschedules automatically if interval or active state changes",
+        "tags": [
+          "Scrape Sources"
+        ]
+      }
+    },
+    "/scrape-sources/{id}/run-now": {
+      "post": {
+        "operationId": "ScrapeSourcesController_runNow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Job queued"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Manually trigger a scrape run outside the regular schedule",
+        "tags": [
+          "Scrape Sources"
+        ]
+      }
+    },
+    "/public/merchants/by-domain/{domain}": {
+      "get": {
+        "operationId": "PublicApiController_getMerchantByDomain",
+        "parameters": [
+          {
+            "name": "domain",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Merchant with its active coupons, sorted most-likely-to-succeed first"
+          },
+          "401": {
+            "description": "Missing/invalid device token, device disabled, or kiosk inactive"
+          },
+          "404": {
+            "description": "No active merchant for this domain"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Look up an active merchant by domain — merchant + active coupons + checkoutRecipe + attribution config",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
+    },
+    "/public/coupon-test-events": {
+      "post": {
+        "operationId": "PublicApiController_recordCouponTestEvent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCouponTestEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Event recorded"
+          },
+          "400": {
+            "description": "merchantId or couponId does not exist"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Report the result of a coupon-apply attempt (applied/failed/suppressed/no-coupons)",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
     }
   },
   "info": {
@@ -1109,6 +1666,323 @@
             "description": "Kill-switch — false immediately blocks this device's token"
           }
         }
+      },
+      "CreateAffiliateProgramDto": {
+        "type": "object",
+        "properties": {
+          "networkName": {
+            "type": "string",
+            "example": "Impact",
+            "description": "e.g. \"Impact\", \"CJ Affiliate\", \"Rakuten\""
+          },
+          "programId": {
+            "type": "string"
+          },
+          "apiCredentials": {
+            "type": "object",
+            "description": "Raw credentials (e.g. { apiKey, apiSecret }) — encrypted before storage, never returned by any read endpoint",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "hasCouponApi": {
+            "type": "boolean",
+            "description": "Explicit flag: can this program feed coupon codes automatically?"
+          }
+        },
+        "required": [
+          "networkName",
+          "hasCouponApi"
+        ]
+      },
+      "UpdateAffiliateProgramDto": {
+        "type": "object",
+        "properties": {
+          "networkName": {
+            "type": "string"
+          },
+          "programId": {
+            "type": "string"
+          },
+          "apiCredentials": {
+            "type": "object",
+            "description": "Replaces any existing stored credentials entirely — re-encrypted before storage",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "hasCouponApi": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CheckoutRecipeDto": {
+        "type": "object",
+        "properties": {
+          "couponFieldSelector": {
+            "type": "string",
+            "example": "input[name='promoCode']"
+          },
+          "applyButtonSelector": {
+            "type": "string",
+            "example": "button[data-testid='apply-promo']"
+          },
+          "successIndicatorSelector": {
+            "type": "string",
+            "example": ".promo-success-message"
+          },
+          "failureIndicatorSelector": {
+            "type": "string",
+            "example": ".promo-error-message"
+          },
+          "cartTotalSelector": {
+            "type": "string",
+            "example": ".order-summary-total"
+          },
+          "checkoutUrlPatterns": {
+            "example": [
+              "/checkout",
+              "/cart/checkout"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateMerchantDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Target"
+          },
+          "domain": {
+            "type": "string",
+            "example": "target.com"
+          },
+          "attributionMethod": {
+            "type": "string",
+            "enum": [
+              "COOKIE",
+              "URL_PARAM",
+              "BOTH"
+            ],
+            "description": "Required even if the store has no coupon API at all — this is what makes commission tracking work"
+          },
+          "affiliateTrackingUrl": {
+            "type": "string",
+            "description": "Required if attributionMethod is COOKIE or BOTH"
+          },
+          "affiliateUrlParamKey": {
+            "type": "string",
+            "example": "irclickid",
+            "description": "Required if attributionMethod is URL_PARAM or BOTH"
+          },
+          "affiliateUrlParamValue": {
+            "type": "string",
+            "description": "Required if attributionMethod is URL_PARAM or BOTH"
+          },
+          "affiliateProgramId": {
+            "type": "string",
+            "description": "Optional coupon-sourcing config — connects this merchant to an existing affiliate program"
+          },
+          "checkoutRecipe": {
+            "$ref": "#/components/schemas/CheckoutRecipeDto"
+          }
+        },
+        "required": [
+          "name",
+          "domain",
+          "attributionMethod"
+        ]
+      },
+      "UpdateMerchantDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string",
+            "example": "target.com"
+          },
+          "attributionMethod": {
+            "type": "string",
+            "enum": [
+              "COOKIE",
+              "URL_PARAM",
+              "BOTH"
+            ]
+          },
+          "affiliateTrackingUrl": {
+            "type": "string"
+          },
+          "affiliateUrlParamKey": {
+            "type": "string",
+            "example": "irclickid"
+          },
+          "affiliateUrlParamValue": {
+            "type": "string"
+          },
+          "affiliateProgramId": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "checkoutRecipe": {
+            "$ref": "#/components/schemas/CheckoutRecipeDto"
+          }
+        }
+      },
+      "CreateCouponDto": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "SAVE20"
+          },
+          "description": {
+            "type": "string"
+          },
+          "discountType": {
+            "type": "string",
+            "enum": [
+              "percent",
+              "fixed",
+              "unknown"
+            ]
+          },
+          "discountValue": {
+            "type": "number"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "merchantId",
+          "code"
+        ]
+      },
+      "UpdateCouponDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "discountType": {
+            "type": "string",
+            "enum": [
+              "percent",
+              "fixed",
+              "unknown"
+            ]
+          },
+          "discountValue": {
+            "type": "number"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SelectorConfigDto": {
+        "type": "object",
+        "properties": {
+          "codeSelector": {
+            "type": "string",
+            "description": "CSS selector matching each coupon code element on the page",
+            "example": ".coupon-code"
+          },
+          "descriptionSelector": {
+            "type": "string",
+            "description": "CSS selector for a description near each code, if present"
+          }
+        },
+        "required": [
+          "codeSelector"
+        ]
+      },
+      "CreateScrapeSourceDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string",
+            "description": "Leave unset only if this page cannot yet be attributed to one merchant"
+          },
+          "selectorConfig": {
+            "$ref": "#/components/schemas/SelectorConfigDto"
+          },
+          "intervalMinutes": {
+            "type": "number",
+            "default": 1440,
+            "description": "Scrape cadence in minutes — defaults to daily (1440)"
+          }
+        },
+        "required": [
+          "url",
+          "selectorConfig"
+        ]
+      },
+      "UpdateScrapeSourceDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "selectorConfig": {
+            "$ref": "#/components/schemas/SelectorConfigDto"
+          },
+          "intervalMinutes": {
+            "type": "number"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateCouponTestEventDto": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string"
+          },
+          "couponId": {
+            "type": "string",
+            "description": "Nullable — a step-down suppression or a manual trigger with no matching coupon has no couponId"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "failed",
+              "suppressed_stepdown",
+              "no_coupons_available"
+            ]
+          }
+        },
+        "required": [
+          "merchantId",
+          "result"
+        ]
       }
     }
   }

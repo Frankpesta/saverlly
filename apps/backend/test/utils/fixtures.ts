@@ -1,8 +1,13 @@
 import { INestApplication } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { AttributionMethod, CouponSource, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomBytes, createHash } from 'crypto';
 import request from 'supertest';
 import { testPrisma } from './db';
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 export const TEST_PASSWORD = 'TestPassword123!';
 
@@ -51,6 +56,61 @@ export async function seedLocation(kioskId: string, overrides: Partial<{ name: s
 
 export async function seedDevice(locationId: string, label = 'Test Device') {
   return testPrisma.device.create({ data: { locationId, label } });
+}
+
+export async function seedDeviceWithToken(locationId: string, label = 'Test Device') {
+  const device = await seedDevice(locationId, label);
+  const rawToken = randomBytes(32).toString('base64url');
+  await testPrisma.deviceToken.create({ data: { deviceId: device.id, tokenHash: hashToken(rawToken) } });
+  return { device, rawToken };
+}
+
+export async function seedMerchant(
+  overrides: Partial<{
+    name: string;
+    domain: string;
+    attributionMethod: AttributionMethod;
+    affiliateTrackingUrl: string;
+    active: boolean;
+    checkoutRecipe: object;
+    affiliateProgramId: string;
+  }> = {},
+) {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return testPrisma.merchant.create({
+    data: {
+      name: overrides.name ?? `Merchant ${suffix}`,
+      domain: overrides.domain ?? `merchant-${suffix}.test`,
+      attributionMethod: overrides.attributionMethod ?? AttributionMethod.COOKIE,
+      affiliateTrackingUrl: overrides.affiliateTrackingUrl ?? 'https://track.example.com',
+      active: overrides.active ?? true,
+      checkoutRecipe: overrides.checkoutRecipe as never,
+      affiliateProgramId: overrides.affiliateProgramId,
+    },
+  });
+}
+
+export async function seedCoupon(
+  merchantId: string,
+  overrides: Partial<{ code: string; source: CouponSource; active: boolean }> = {},
+) {
+  return testPrisma.coupon.create({
+    data: {
+      merchantId,
+      code: overrides.code ?? `CODE${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      source: overrides.source ?? CouponSource.MANUAL,
+      active: overrides.active ?? true,
+    },
+  });
+}
+
+export async function seedAffiliateProgram(overrides: Partial<{ networkName: string; hasCouponApi: boolean }> = {}) {
+  return testPrisma.affiliateProgram.create({
+    data: {
+      networkName: overrides.networkName ?? 'TestNetwork',
+      hasCouponApi: overrides.hasCouponApi ?? false,
+    },
+  });
 }
 
 export async function loginAs(app: INestApplication, email: string): Promise<string> {
