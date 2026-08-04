@@ -14,6 +14,7 @@ import { DevicesModule } from './devices/devices.module';
 import { BullmqConfigModule } from './jobs/bullmq-config.module';
 import { AffiliateProgramsModule } from './affiliate-programs/affiliate-programs.module';
 import { MerchantsModule } from './merchants/merchants.module';
+import { CouponsModule } from './coupons/coupons.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { MerchantsModule } from './merchants/merchants.module';
     DevicesModule,
     AffiliateProgramsModule,
     MerchantsModule,
+    CouponsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

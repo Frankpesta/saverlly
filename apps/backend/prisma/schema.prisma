@@ -170,13 +170,14 @@ model Coupon {
 }
 
 model ScrapeSource {
-  id             String    @id @default(uuid())
-  url            String
-  merchantId     String? // optional — some scrape sources cover multiple merchants
-  merchant       Merchant? @relation(fields: [merchantId], references: [id])
-  selectorConfig Json // CSS selectors for code extraction
-  lastRunAt      DateTime?
-  active         Boolean   @default(true)
+  id              String    @id @default(uuid())
+  url             String
+  merchantId      String? // optional — some scrape sources cover multiple merchants
+  merchant        Merchant? @relation(fields: [merchantId], references: [id])
+  selectorConfig  Json // CSS selectors for code extraction
+  intervalMinutes Int       @default(1440) // schedule cadence, configurable per source — default daily
+  lastRunAt       DateTime?
+  active          Boolean   @default(true)
 
   @@index([merchantId])
 }
