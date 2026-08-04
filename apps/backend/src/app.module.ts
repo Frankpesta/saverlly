@@ -15,6 +15,7 @@ import { BullmqConfigModule } from './jobs/bullmq-config.module';
 import { AffiliateProgramsModule } from './affiliate-programs/affiliate-programs.module';
 import { MerchantsModule } from './merchants/merchants.module';
 import { CouponsModule } from './coupons/coupons.module';
+import { ScrapeSourcesModule } from './scrape-sources/scrape-sources.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { CouponsModule } from './coupons/coupons.module';
     AffiliateProgramsModule,
     MerchantsModule,
     CouponsModule,
+    ScrapeSourcesModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
