@@ -9,6 +9,11 @@ export const testPrisma = new PrismaClient();
 
 export async function resetDatabase(): Promise<void> {
   // Delete order respects FK constraints (children before parents).
+  await testPrisma.couponTestEvent.deleteMany();
+  await testPrisma.coupon.deleteMany();
+  await testPrisma.scrapeSource.deleteMany();
+  await testPrisma.merchant.deleteMany();
+  await testPrisma.affiliateProgram.deleteMany();
   await testPrisma.deviceToken.deleteMany();
   await testPrisma.device.deleteMany();
   await testPrisma.locationSetupCode.deleteMany();
