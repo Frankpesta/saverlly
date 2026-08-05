@@ -4,6 +4,7 @@ import type { Device } from '@prisma/client';
 import { CurrentDevice } from '../common/decorators/current-device.decorator';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
+import { DeviceStatusDto } from './dto/device-status.dto';
 import { PublicApiService } from './public-api.service';
 
 @ApiTags('Public (device-facing)')
@@ -12,6 +13,17 @@ import { PublicApiService } from './public-api.service';
 @UseGuards(DeviceAuthGuard)
 export class PublicApiController {
   constructor(private readonly publicApiService: PublicApiService) {}
+
+  @Get('devices/me/status')
+  @ApiOperation({
+    summary:
+      'Confirm the calling device is active and its parent kiosk is ACTIVE. Poll on startup and periodically; a 401 here means fail-safe/go-dormant.',
+  })
+  @ApiResponse({ status: 200, description: 'Device and kiosk status', type: DeviceStatusDto })
+  @ApiResponse({ status: 401, description: 'Missing/invalid device token, device disabled, or kiosk inactive' })
+  getDeviceStatus(@CurrentDevice() device: Device): Promise<DeviceStatusDto> {
+    return this.publicApiService.getDeviceStatus(device.id);
+  }
 
   @Get('merchants/by-domain/:domain')
   @ApiOperation({

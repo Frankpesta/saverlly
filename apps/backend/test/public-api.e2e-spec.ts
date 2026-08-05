@@ -26,6 +26,21 @@ describe('Public device-facing API (e2e)', () => {
     return seedDeviceWithToken(location.id);
   }
 
+  it('returns kioskStatus ACTIVE and deviceActive true for a valid device token', async () => {
+    const { rawToken } = await seedDeviceToken();
+
+    const res = await request(app.getHttpServer())
+      .get('/public/devices/me/status')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    expect(res.body).toEqual({ kioskStatus: 'ACTIVE', deviceActive: true });
+  });
+
+  it('401s a status check with no device token', async () => {
+    await request(app.getHttpServer()).get('/public/devices/me/status').expect(401);
+  });
+
   it('401s a merchant lookup with no device token', async () => {
     await request(app.getHttpServer()).get('/public/merchants/by-domain/example.test').expect(401);
   });
