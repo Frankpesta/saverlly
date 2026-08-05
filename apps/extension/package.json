@@ -1,11 +1,23 @@
 {
   "name": "@saverlly/extension",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "echo \"extension: not yet scaffolded (built in Phase 3, see 03-PHASE-3-chrome-extension.md)\" && exit 0",
-    "dev": "echo \"extension: not yet scaffolded (built in Phase 3, see 03-PHASE-3-chrome-extension.md)\" && exit 0",
-    "lint": "echo \"extension: not yet scaffolded\" && exit 0",
-    "test": "echo \"extension: not yet scaffolded\" && exit 0"
+    "build": "node scripts/build.js",
+    "dev": "node scripts/build.js --watch",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "test": "jest",
+    "package": "node scripts/package.js"
+  },
+  "dependencies": {
+    "@saverlly/shared-types": "*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/jest": "^30.0.0",
+    "esbuild": "^0.24.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.3"
   }
 }

@@ -1,0 +1,10 @@
+{
+  "extends": "../../packages/config/base.tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": ["chrome", "jest"],
+    "noEmit": true,
+    "outDir": "./dist"
+  },
+  "include": ["src"]
+}
