@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsUUID } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
 
 export const COUPON_TEST_RESULTS = [
   'applied',
@@ -23,4 +23,12 @@ export class CreateCouponTestEventDto {
   @ApiProperty({ enum: COUPON_TEST_RESULTS })
   @IsIn(COUPON_TEST_RESULTS)
   result: (typeof COUPON_TEST_RESULTS)[number];
+
+  @ApiPropertyOptional({
+    description: 'Confirmed cart-total delta for an "applied" result — ignored for any other result',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discountAmount?: number;
 }

@@ -117,4 +117,73 @@ describe('Public device-facing API (e2e)', () => {
 
     expect(res.body.couponId).toBeNull();
   });
+
+  it('persists discountAmount on an "applied" event', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+
+    const res = await request(app.getHttpServer())
+      .post('/public/coupon-test-events')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied', discountAmount: 16 })
+      .expect(201);
+
+    expect(res.body.discountAmount).toBe(16);
+  });
+
+  it('ignores a discountAmount sent alongside a non-"applied" result', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+
+    const res = await request(app.getHttpServer())
+      .post('/public/coupon-test-events')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'failed', discountAmount: 16 })
+      .expect(201);
+
+    expect(res.body.discountAmount).toBeNull();
+  });
+
+  it('returns 0 lifetime savings for a device with no applied events', async () => {
+    const { rawToken } = await seedDeviceToken();
+
+    const res = await request(app.getHttpServer())
+      .get('/public/devices/me/savings')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    expect(res.body).toEqual({ lifetimeSaved: 0 });
+  });
+
+  it('401s a lifetime savings check with no device token', async () => {
+    await request(app.getHttpServer()).get('/public/devices/me/savings').expect(401);
+  });
+
+  it('sums discountAmount across applied events, ignoring failed/suppressed events and other devices', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const { rawToken: otherDeviceToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+
+    const record = (token: string, result: string, discountAmount?: number) =>
+      request(app.getHttpServer())
+        .post('/public/coupon-test-events')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ merchantId: merchant.id, couponId: coupon.id, result, discountAmount })
+        .expect(201);
+
+    await record(rawToken, 'applied', 10);
+    await record(rawToken, 'applied', 6.5);
+    await record(rawToken, 'failed');
+    await record(otherDeviceToken, 'applied', 100); // must not count toward the first device's total
+
+    const res = await request(app.getHttpServer())
+      .get('/public/devices/me/savings')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    expect(res.body).toEqual({ lifetimeSaved: 16.5 });
+  });
 });

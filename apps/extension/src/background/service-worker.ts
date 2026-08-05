@@ -1,5 +1,5 @@
 import type { PublicMerchant } from '@saverlly/shared-types';
-import { fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
+import { fetchLifetimeSaved, fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
 import { runAttribution } from '../lib/attribution';
 import { STATUS_CHECK_INTERVAL_MINUTES, MERCHANT_CACHE_TTL_MS } from '../lib/config';
 import type { ExtensionMessage, InjectedCheckoutContext, TabCheckoutState } from '../lib/messages';
@@ -158,6 +158,19 @@ async function triggerApply(tabId: number): Promise<void> {
 
   if (!state.coupons.length) {
     await reportCouponTestEvent({ merchantId: state.merchantId, result: 'no_coupons_available' });
+    chrome.runtime
+      .sendMessage({
+        type: 'APPLY_DONE',
+        result: {
+          type: 'COUPON_APPLY_RESULT',
+          merchantId: state.merchantId,
+          couponId: null,
+          code: null,
+          result: 'no_coupons_available',
+          isFinal: true,
+        },
+      })
+      .catch(() => {});
     return;
   }
 
@@ -196,9 +209,18 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
         merchantId: message.merchantId,
         couponId: message.couponId ?? undefined,
         result: message.result,
+        discountAmount: message.discountAmount,
       });
-      // Fire-and-forget: notifies an open popup, if any, to update its UI. No-op if none is open.
-      chrome.runtime.sendMessage({ type: 'APPLY_DONE', result: message.result }).catch(() => {});
+      // Only the last attempt in the sequence should flip the popup out of "applying" —
+      // intermediate failures keep reporting to the backend but must not surface yet.
+      if (message.isFinal) {
+        chrome.runtime.sendMessage({ type: 'APPLY_DONE', result: message }).catch(() => {});
+      }
+      return;
+    }
+    case 'COUPON_APPLY_PROGRESS': {
+      // Fire-and-forget relay — popup listens for this to render live apply progress.
+      chrome.runtime.sendMessage(message).catch(() => {});
       return;
     }
     case 'GET_TAB_STATE': {
@@ -210,6 +232,13 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
       const tabId = await getActiveTabId();
       if (tabId !== undefined) await triggerApply(tabId);
       return;
+    }
+    case 'GET_LIFETIME_SAVED': {
+      try {
+        return await fetchLifetimeSaved();
+      } catch {
+        return null;
+      }
     }
     default:
       return;

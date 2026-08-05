@@ -1,5 +1,5 @@
 import { parseCartTotal, sortCouponsBySuccessLikelihood } from '../lib/cart-total';
-import type { CouponApplyResultMessage } from '../lib/messages';
+import type { CouponApplyProgressMessage, CouponApplyResultMessage } from '../lib/messages';
 
 const POLL_INTERVAL_MS = 250;
 const POLL_TIMEOUT_MS = 4000;
@@ -45,11 +45,21 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
 
   const { merchantId, recipe, coupons } = context;
   const ordered = sortCouponsBySuccessLikelihood(coupons);
+  const total = ordered.length;
 
-  for (const coupon of ordered) {
+  for (const [i, coupon] of ordered.entries()) {
     const field = document.querySelector<HTMLInputElement>(recipe.couponFieldSelector);
     const applyButton = document.querySelector<HTMLElement>(recipe.applyButtonSelector);
     if (!field || !applyButton) continue;
+
+    const testingProgress: CouponApplyProgressMessage = {
+      type: 'COUPON_APPLY_PROGRESS',
+      phase: 'testing',
+      code: coupon.code,
+      index: i + 1,
+      total,
+    };
+    chrome.runtime.sendMessage(testingProgress);
 
     const preApplyTotal = readTotal(recipe.cartTotalSelector);
     setFieldValue(field, coupon.code);
@@ -58,8 +68,18 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
     const outcome = await waitForIndicator(recipe.successIndicatorSelector, recipe.failureIndicatorSelector);
 
     let result: CouponApplyResultMessage['result'] = 'failed';
+    let postApplyTotal: number | null = null;
     if (outcome === 'success') {
-      const postApplyTotal = readTotal(recipe.cartTotalSelector);
+      const applyingProgress: CouponApplyProgressMessage = {
+        type: 'COUPON_APPLY_PROGRESS',
+        phase: 'applying',
+        code: coupon.code,
+        index: i + 1,
+        total,
+      };
+      chrome.runtime.sendMessage(applyingProgress);
+
+      postApplyTotal = readTotal(recipe.cartTotalSelector);
       const discountConfirmed =
         preApplyTotal !== null && postApplyTotal !== null && postApplyTotal < preApplyTotal;
       result = discountConfirmed ? 'applied' : 'failed';
@@ -69,7 +89,12 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
       type: 'COUPON_APPLY_RESULT',
       merchantId,
       couponId: coupon.id,
+      code: coupon.code,
       result,
+      isFinal: result === 'applied' || i === total - 1,
+      ...(result === 'applied' && preApplyTotal !== null && postApplyTotal !== null
+        ? { discountAmount: preApplyTotal - postApplyTotal, originalTotal: preApplyTotal, newTotal: postApplyTotal }
+        : {}),
     };
     chrome.runtime.sendMessage(message);
 

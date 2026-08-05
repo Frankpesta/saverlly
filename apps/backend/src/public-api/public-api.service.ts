@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
 import { DeviceStatusDto } from './dto/device-status.dto';
+import { LifetimeSavingsDto } from './dto/lifetime-savings.dto';
 
 @Injectable()
 export class PublicApiService {
@@ -21,6 +22,15 @@ export class PublicApiService {
       kioskStatus: device.location.kiosk.status,
       deviceActive: device.active,
     };
+  }
+
+  async getLifetimeSavings(deviceId: string): Promise<LifetimeSavingsDto> {
+    const result = await this.prisma.couponTestEvent.aggregate({
+      where: { deviceId, result: 'applied' },
+      _sum: { discountAmount: true },
+    });
+
+    return { lifetimeSaved: result._sum.discountAmount ?? 0 };
   }
 
   async getMerchantByDomain(domain: string) {
@@ -60,6 +70,7 @@ export class PublicApiService {
           merchantId: dto.merchantId,
           couponId: dto.couponId,
           result: dto.result,
+          discountAmount: dto.result === 'applied' ? dto.discountAmount : undefined,
         },
       });
     } catch (err) {
