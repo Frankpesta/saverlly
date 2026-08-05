@@ -14,11 +14,20 @@ function readTotal(selector: string): number | null {
   return parseCartTotal(el.textContent);
 }
 
+// Merchant checkout pages commonly pre-render both indicators hidden (display:none) and
+// only reveal one after the apply request resolves — matching on DOM presence alone would
+// report success/failure immediately regardless of which one the page actually surfaces.
+function isVisible(el: Element): boolean {
+  return (el as HTMLElement).offsetParent !== null;
+}
+
 async function waitForIndicator(successSelector: string, failureSelector: string): Promise<'success' | 'failure' | 'timeout'> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (document.querySelector(successSelector)) return 'success';
-    if (document.querySelector(failureSelector)) return 'failure';
+    const successEl = document.querySelector(successSelector);
+    if (successEl && isVisible(successEl)) return 'success';
+    const failureEl = document.querySelector(failureSelector);
+    if (failureEl && isVisible(failureEl)) return 'failure';
     await sleep(POLL_INTERVAL_MS);
   }
   return 'timeout';

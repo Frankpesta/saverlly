@@ -16,6 +16,14 @@ describe('parseCartTotal', () => {
   it('returns null when no number is present', () => {
     expect(parseCartTotal('Free')).toBeNull();
   });
+
+  it('picks the price over an item count that appears before it', () => {
+    expect(parseCartTotal('3 items - $42.50')).toBe(42.5);
+  });
+
+  it('picks the price over an item count that appears after it', () => {
+    expect(parseCartTotal('$42.50 - 3 items')).toBe(42.5);
+  });
 });
 
 describe('sortCouponsBySuccessLikelihood', () => {

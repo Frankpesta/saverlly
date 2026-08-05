@@ -65,8 +65,18 @@ async function injectWithContext(tabId: number, files: string[], context: Inject
   await chrome.scripting.executeScript({ target: { tabId }, files });
 }
 
-chrome.webNavigation.onCommitted.addListener(async (details) => {
+// Shared by onCommitted (full document navigations) and onHistoryStateUpdated (SPA route
+// changes via the History API, e.g. a cart page routing to checkout without a reload) —
+// both need the same merchant-resolution, attribution, and checkout-detector injection flow.
+async function handleTopFrameNavigation(details: chrome.webNavigation.WebNavigationTransitionCallbackDetails): Promise<void> {
   if (details.frameId !== 0) return;
+
+  // Any top-frame navigation invalidates the previous page's checkout state, regardless of
+  // whether this new page turns out dormant/non-merchant/coupon-less — clear it unconditionally
+  // rather than only in the branches below, so stale state can't linger past a dormant check.
+  tabState.delete(details.tabId);
+  setBadge(details.tabId, null);
+
   if (await isDormant()) return;
 
   let hostname: string;
@@ -77,21 +87,13 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   }
 
   const merchant = await resolveMerchant(hostname);
-  if (!merchant || !merchant.active) {
-    tabState.delete(details.tabId);
-    setBadge(details.tabId, null);
-    return;
-  }
+  if (!merchant || !merchant.active) return;
 
   // Attribution fires on every active-merchant visit, independent of coupon availability.
   const redirectedTo = await runAttribution(details.tabId, details.url, merchant);
   if (redirectedTo) return; // the redirect re-triggers onCommitted for the param-appended URL
 
-  if (!merchant.coupons.length || !merchant.checkoutRecipe) {
-    tabState.delete(details.tabId);
-    setBadge(details.tabId, null);
-    return;
-  }
+  if (!merchant.coupons.length || !merchant.checkoutRecipe) return;
 
   try {
     await injectWithContext(
@@ -102,7 +104,10 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   } catch {
     // Restricted page (chrome://, webstore) or tab closed mid-navigation — ignore.
   }
-});
+}
+
+chrome.webNavigation.onCommitted.addListener(handleTopFrameNavigation);
+chrome.webNavigation.onHistoryStateUpdated.addListener(handleTopFrameNavigation);
 
 async function onCheckoutConfirmed(tabId: number, merchantId: string): Promise<void> {
   if (await isDormant()) return;

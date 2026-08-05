@@ -1,4 +1,4 @@
-import type { CouponTestResult, PublicCoupon } from '@saverlly/shared-types';
+import type { CheckoutRecipe, CouponTestResult, PublicCoupon } from '@saverlly/shared-types';
 
 export interface CheckoutConfirmedMessage {
   type: 'CHECKOUT_CONFIRMED';
@@ -44,14 +44,7 @@ export interface TabCheckoutState {
 // the content script reads it off `window.__SAVERLLY__` once injected.
 export interface InjectedCheckoutContext {
   merchantId: string;
-  recipe: {
-    couponFieldSelector: string;
-    applyButtonSelector: string;
-    successIndicatorSelector: string;
-    failureIndicatorSelector: string;
-    cartTotalSelector: string;
-    checkoutUrlPatterns: string[];
-  };
+  recipe: CheckoutRecipe;
   coupons?: PublicCoupon[];
 }
 

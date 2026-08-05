@@ -3,7 +3,7 @@ import type {
   DeviceStatusResponse,
   PublicMerchant,
 } from '@saverlly/shared-types';
-import { getApiBaseUrl } from './config';
+import { getApiBaseUrl, STATUS_GRACE_PERIOD_MS } from './config';
 import { getDeviceToken, setDormant } from './storage';
 
 export class AuthError extends Error {
@@ -12,14 +12,25 @@ export class AuthError extends Error {
   }
 }
 
+// Well under STATUS_GRACE_PERIOD_MS — a stalled request must fail fast enough for the
+// grace-period fallback in status-check.ts to actually kick in rather than hanging.
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function withTimeout(signal: AbortSignal | null | undefined): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+}
+
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getDeviceToken()]);
   if (!token) {
+    await setDormant(true);
     throw new AuthError(401);
   }
 
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,
+    signal: withTimeout(init.signal),
     headers: {
       ...init.headers,
       Authorization: `Bearer ${token}`,

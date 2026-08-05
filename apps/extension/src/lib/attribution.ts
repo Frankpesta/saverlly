@@ -10,6 +10,10 @@ function usesUrlParam(method: AttributionMethod): boolean {
   return method === AttributionMethod.URL_PARAM || method === AttributionMethod.BOTH;
 }
 
+// Bounded so a stalled tracking request can't hold up navigation — this is a best-effort
+// ping, not something the checkout flow should ever wait long on.
+const TRACKING_FETCH_TIMEOUT_MS = 5_000;
+
 /**
  * Fires attribution tracking for an active-merchant-domain visit. Runs independent of
  * coupon availability — a merchant with zero coupons still needs its tracking cookie/
@@ -23,9 +27,13 @@ export async function runAttribution(tabId: number, currentUrl: string, merchant
     // Fire-and-forget background request so the network's tracking cookie gets set
     // for this domain before checkout — no navigation, no visible effect to the user.
     try {
-      await fetch(affiliateTrackingUrl, { credentials: 'include', mode: 'no-cors' });
+      await fetch(affiliateTrackingUrl, {
+        credentials: 'include',
+        mode: 'no-cors',
+        signal: AbortSignal.timeout(TRACKING_FETCH_TIMEOUT_MS),
+      });
     } catch {
-      // Best-effort — a failed tracking ping shouldn't block URL-param attribution below.
+      // Best-effort — a failed or timed-out tracking ping shouldn't block URL-param attribution below.
     }
   }
 
