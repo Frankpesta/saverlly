@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mock Merchant — Checkout</title>
+    <style>
+      body { font-family: sans-serif; max-width: 480px; margin: 40px auto; }
+      .order-summary-total { font-size: 20px; font-weight: bold; }
+      .promo-success-message { color: green; display: none; }
+      .promo-error-message { color: red; display: none; }
+      input, button { font-size: 14px; padding: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>Mock Merchant Checkout</h1>
+    <p>Simulates a checkout page for manual QA of the Saverlly extension's checkout
+      detection, step-down, and coupon-apply flows. Matches the checkoutRecipe seeded
+      by <code>scratch-seed-extension-verify.js</code>.</p>
+
+    <p class="order-summary-total">Total: $100.00</p>
+
+    <div>
+      <input type="text" name="promoCode" placeholder="Promo code" />
+      <button data-testid="apply-promo" type="button">Apply</button>
+    </div>
+
+    <p class="promo-success-message">Promo applied!</p>
+    <p class="promo-error-message">Invalid promo code.</p>
+
+    <script>
+      // WORKS10 is the only "valid" code for this mock page — everything else fails.
+      // A working discount actually changes the displayed total so coupon-applier.ts's
+      // "confirm an actual discount was applied" check has something real to verify.
+      document.querySelector('[data-testid="apply-promo"]').addEventListener('click', () => {
+        const code = document.querySelector('input[name="promoCode"]').value.trim();
+        const success = document.querySelector('.promo-success-message');
+        const failure = document.querySelector('.promo-error-message');
+        success.style.display = 'none';
+        failure.style.display = 'none';
+        if (code === 'WORKS10') {
+          document.querySelector('.order-summary-total').textContent = 'Total: $90.00';
+          success.style.display = 'block';
+        } else {
+          failure.style.display = 'block';
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -15,6 +15,7 @@
   "devDependencies": {
     "@types/chrome": "^0.0.287",
     "@types/jest": "^30.0.0",
+    "archiver": "^7.0.1",
     "esbuild": "^0.24.0",
     "jest": "^30.0.0",
     "ts-jest": "^29.2.5",
