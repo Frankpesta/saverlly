@@ -2,10 +2,26 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
+import { DeviceStatusDto } from './dto/device-status.dto';
 
 @Injectable()
 export class PublicApiService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getDeviceStatus(deviceId: string): Promise<DeviceStatusDto> {
+    const device = await this.prisma.device.findUniqueOrThrow({
+      where: { id: deviceId },
+      select: {
+        active: true,
+        location: { select: { kiosk: { select: { status: true } } } },
+      },
+    });
+
+    return {
+      kioskStatus: device.location.kiosk.status,
+      deviceActive: device.active,
+    };
+  }
 
   async getMerchantByDomain(domain: string) {
     const merchant = await this.prisma.merchant.findUnique({
