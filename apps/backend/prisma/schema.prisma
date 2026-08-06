@@ -188,10 +188,11 @@ model CouponTestEvent {
   device     Device   @relation(fields: [deviceId], references: [id])
   couponId   String? // nullable — a step-down suppression event or a manual trigger with no matching coupon has no couponId
   coupon     Coupon?  @relation(fields: [couponId], references: [id])
-  merchantId String
-  merchant   Merchant @relation(fields: [merchantId], references: [id])
-  result     String // "applied" | "failed" | "suppressed_stepdown" | "no_coupons_available"
-  createdAt  DateTime @default(now())
+  merchantId     String
+  merchant       Merchant @relation(fields: [merchantId], references: [id])
+  result         String // "applied" | "failed" | "suppressed_stepdown" | "no_coupons_available"
+  discountAmount Decimal? @db.Decimal(10, 2) // only set when result = "applied" — actual cart-total delta the extension confirmed, used for lifetime-savings totals
+  createdAt      DateTime @default(now())
 
   @@index([deviceId])
   @@index([merchantId])

@@ -5,6 +5,7 @@ import { CurrentDevice } from '../common/decorators/current-device.decorator';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
 import { DeviceStatusDto } from './dto/device-status.dto';
+import { LifetimeSavingsDto } from './dto/lifetime-savings.dto';
 import { PublicApiService } from './public-api.service';
 
 @ApiTags('Public (device-facing)')
@@ -23,6 +24,14 @@ export class PublicApiController {
   @ApiResponse({ status: 401, description: 'Missing/invalid device token, device disabled, or kiosk inactive' })
   getDeviceStatus(@CurrentDevice() device: Device): Promise<DeviceStatusDto> {
     return this.publicApiService.getDeviceStatus(device.id);
+  }
+
+  @Get('devices/me/savings')
+  @ApiOperation({ summary: "Lifetime savings total for this device — sum of confirmed discounts across every 'applied' event" })
+  @ApiResponse({ status: 200, description: 'Lifetime savings total', type: LifetimeSavingsDto })
+  @ApiResponse({ status: 401, description: 'Missing/invalid device token, device disabled, or kiosk inactive' })
+  getLifetimeSavings(@CurrentDevice() device: Device): Promise<LifetimeSavingsDto> {
+    return this.publicApiService.getLifetimeSavings(device.id);
   }
 
   @Get('merchants/by-domain/:domain')

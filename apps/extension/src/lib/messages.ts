@@ -9,7 +9,24 @@ export interface CouponApplyResultMessage {
   type: 'COUPON_APPLY_RESULT';
   merchantId: string;
   couponId: string | null;
+  code: string | null;
   result: CouponTestResult;
+  /** True when this is the last attempt in the sequence (a success, or the final failure after
+   *  exhausting every coupon) — only these should flip the popup out of the "applying" view.
+   *  Every attempt is still reported to the backend regardless of this flag. */
+  isFinal: boolean;
+  /** Only set when result === 'applied'. */
+  discountAmount?: number;
+  originalTotal?: number;
+  newTotal?: number;
+}
+
+export interface CouponApplyProgressMessage {
+  type: 'COUPON_APPLY_PROGRESS';
+  phase: 'testing' | 'applying';
+  code: string;
+  index: number;
+  total: number;
 }
 
 export interface GetTabStateMessage {
@@ -22,15 +39,21 @@ export interface ApplyBestCouponMessage {
 
 export interface ApplyDoneMessage {
   type: 'APPLY_DONE';
-  result: CouponTestResult;
+  result: CouponApplyResultMessage;
+}
+
+export interface GetLifetimeSavedMessage {
+  type: 'GET_LIFETIME_SAVED';
 }
 
 export type ExtensionMessage =
   | CheckoutConfirmedMessage
   | CouponApplyResultMessage
+  | CouponApplyProgressMessage
   | GetTabStateMessage
   | ApplyBestCouponMessage
-  | ApplyDoneMessage;
+  | ApplyDoneMessage
+  | GetLifetimeSavedMessage;
 
 export interface TabCheckoutState {
   merchantId: string;

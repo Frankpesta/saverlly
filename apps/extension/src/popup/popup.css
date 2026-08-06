@@ -1,10 +1,26 @@
-/* Placeholder styling — no Figma design pulled in yet. Swap for the real design system once available. */
+/* Colors sampled directly from the exported Figma screens (extension_figma_files/) —
+   #58C3B7 (buttons/accents) and #FF4649 (alert ring) were confirmed by pixel-sampling
+   the PNG exports, not guessed. */
+
+/* Inter, self-hosted (single variable-font file covers every weight 100-900) so it
+   renders consistently on kiosk PCs that don't have it installed system-wide. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/inter.woff2') format('woff2-variations');
+}
+
 :root {
-  --saverlly-green: #15803d;
-  --saverlly-green-dark: #166534;
-  --text: #1f2937;
+  --teal: #58c3b7;
+  --teal-dark: #43a99d;
+  --teal-tint: #eaf7f5;
+  --red: #ff4649;
+  --text: #000000;
   --muted: #6b7280;
   --border: #e5e7eb;
+  --track: #f3f4f6;
   --bg: #ffffff;
 }
 
@@ -14,89 +30,393 @@
 
 body {
   margin: 0;
-  width: 320px;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  width: 360px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
 }
 
+button {
+  font-family: inherit;
+}
+
+/* ---------- Header ---------- */
+
 .popup__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
+}
+
+.popup__brand {
+  display: flex;
+  align-items: center;
 }
 
 .popup__logo {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--saverlly-green);
+  height: 22px;
+  width: auto;
+  display: block;
 }
+
+.popup__close {
+  border: none;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.popup__lifetime {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.popup__lifetime-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.popup__lifetime-label {
+  color: var(--muted);
+}
+
+.popup__lifetime-value {
+  font-weight: 700;
+}
+
+/* ---------- Shared content layout ---------- */
 
 .popup__content {
-  padding: 16px;
-  min-height: 80px;
+  padding: 20px 16px;
+  text-align: center;
 }
 
-.popup__status {
-  margin: 0;
-  color: var(--muted);
+.popup__hero {
+  margin: 4px 0 18px;
+}
+
+.popup__hero img {
+  max-width: 190px;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.popup__heading {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.popup__heading--lg {
+  font-size: 26px;
+}
+
+.popup__accent {
+  color: var(--teal);
+}
+
+.popup__subtext {
+  margin: 0 0 18px;
   font-size: 13px;
-}
-
-.popup__merchant {
-  margin: 0 0 4px;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.popup__coupon-count {
-  margin: 0 0 14px;
-  font-size: 13px;
   color: var(--muted);
-}
-
-.popup__note {
-  margin: 0 0 14px;
-  font-size: 12px;
-  color: var(--muted);
-  background: #f3f4f6;
-  border-radius: 6px;
-  padding: 8px 10px;
+  line-height: 1.5;
 }
 
 .popup__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 13px 16px;
   border: none;
-  border-radius: 8px;
-  background: var(--saverlly-green);
+  border-radius: 999px;
+  background: var(--teal);
   color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .popup__button:hover {
-  background: var(--saverlly-green-dark);
+  background: var(--teal-dark);
 }
 
 .popup__button:disabled {
-  background: var(--border);
+  background: var(--track);
   color: var(--muted);
   cursor: default;
 }
 
-.popup__result {
-  margin-top: 12px;
-  font-size: 13px;
-  text-align: center;
+.popup__button--outline {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
 }
 
-.popup__result--success {
-  color: var(--saverlly-green-dark);
+.popup__button--outline:hover {
+  background: var(--track);
+}
+
+.popup__button-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.popup__button--outline .popup__button-arrow {
+  background: var(--track);
+}
+
+.popup__link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text);
+  text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.popup__link--muted {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.popup__back {
+  display: block;
+  text-align: left;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---------- Paused / step-down state ---------- */
+
+.popup__alert-icon {
+  width: 88px;
+  height: 88px;
+  margin: 4px auto 18px;
+  border-radius: 999px;
+  border: 3px solid var(--red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------- Applying state ---------- */
+
+.popup__progress-card {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.popup__progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
   font-weight: 600;
 }
 
-.popup__result--failure {
-  color: #b91c1c;
+.popup__progress-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.popup__progress-icon--active svg {
+  animation: popup-spin 0.9s linear infinite;
+}
+
+.popup__progress-icon--done {
+  border-color: var(--border);
+  background: #f4fbfa;
+}
+
+@keyframes popup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.popup__pill-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.popup__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--track);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.popup__pill svg {
+  flex-shrink: 0;
+}
+
+.popup__pill--testing,
+.popup__pill--applying,
+.popup__pill--applied {
+  background: var(--teal-tint);
+  color: var(--teal-dark);
+}
+
+.popup__pill--testing svg {
+  animation: popup-spin 0.9s linear infinite;
+}
+
+.popup__progress-caption {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* ---------- Success state ---------- */
+
+.popup__savings-box {
+  background: var(--teal-tint);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.popup__savings-total {
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.popup__savings-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.popup__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 13px;
+  text-align: left;
+}
+
+.popup__row + .popup__row {
+  border-top: 1px solid var(--border);
+}
+
+.popup__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--teal);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.popup__chip svg {
+  flex-shrink: 0;
+}
+
+.popup__discount-value {
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+
+.popup__result-note {
+  text-align: left;
+  margin-top: 14px;
+  margin-bottom: 16px;
+}
+
+.popup__result-note strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.popup__result-note span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- Coupon list state ---------- */
+
+.popup__list-card {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.popup__list-card h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.popup__list-card p {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.popup__coupon-row {
+  padding: 10px 0;
+}
+
+.popup__coupon-row + .popup__coupon-row {
+  border-top: 1px solid var(--border);
+}
+
+.popup__coupon-desc {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
 }

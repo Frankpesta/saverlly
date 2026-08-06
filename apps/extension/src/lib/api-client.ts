@@ -1,6 +1,7 @@
 import type {
   CreateCouponTestEventPayload,
   DeviceStatusResponse,
+  LifetimeSavingsResponse,
   PublicMerchant,
 } from '@saverlly/shared-types';
 import { getApiBaseUrl, STATUS_GRACE_PERIOD_MS } from './config';
@@ -65,6 +66,15 @@ export async function fetchMerchantByDomain(domain: string): Promise<PublicMerch
     throw new Error(`Unexpected status ${res.status} from merchant lookup`);
   }
   return res.json();
+}
+
+export async function fetchLifetimeSaved(): Promise<number> {
+  const res = await apiFetch('/public/devices/me/savings');
+  if (!res.ok) {
+    throw new Error(`Unexpected status ${res.status} from lifetime savings lookup`);
+  }
+  const body: LifetimeSavingsResponse = await res.json();
+  return body.lifetimeSaved;
 }
 
 export async function reportCouponTestEvent(payload: CreateCouponTestEventPayload): Promise<void> {

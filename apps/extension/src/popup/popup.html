@@ -8,10 +8,18 @@
   <body>
     <div class="popup">
       <header class="popup__header">
-        <span class="popup__logo">Saverlly</span>
+        <span class="popup__brand">
+          <img class="popup__logo" src="assets/logo.png" alt="Saverlly" />
+        </span>
+        <button class="popup__close" id="close-btn" aria-label="Close" type="button">&times;</button>
       </header>
+      <div class="popup__lifetime">
+        <img class="popup__lifetime-icon" src="assets/gift-icon.png" alt="" />
+        <span class="popup__lifetime-label">Lifetime Saved:</span>
+        <span class="popup__lifetime-value" id="lifetime-value">—</span>
+      </div>
       <main id="content" class="popup__content">
-        <p class="popup__status">Checking this page…</p>
+        <p class="popup__subtext">Checking this page…</p>
       </main>
     </div>
     <script src="popup.js"></script>
