@@ -48,6 +48,7 @@ model Kiosk {
   updatedAt       DateTime    @updatedAt
   locations       Location[]
   users           User[]
+  announcements   Announcement[]
 }
 
 model Location {
@@ -180,6 +181,30 @@ model ScrapeSource {
   active          Boolean   @default(true)
 
   @@index([merchantId])
+}
+
+enum AnnouncementRepeatPolicy {
+  ONCE
+  EVERY_LOGIN
+  MAX_N_TIMES
+}
+
+model Announcement {
+  id              String                   @id @default(uuid())
+  kioskId         String
+  kiosk           Kiosk                    @relation(fields: [kioskId], references: [id])
+  locationIds     String[] // empty array = all locations for this kiosk
+  title           String
+  body            String
+  mediaUrl        String? // image/asset for the visual editor
+  startAt         DateTime
+  endAt           DateTime
+  repeatPolicy    AnnouncementRepeatPolicy @default(ONCE)
+  maxDisplayCount Int? // used when repeatPolicy = MAX_N_TIMES
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@index([kioskId])
 }
 
 model CouponTestEvent {

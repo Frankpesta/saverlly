@@ -46,6 +46,7 @@ export async function resetDatabase(): Promise<void> {
   await testPrisma.scrapeSource.deleteMany();
   await testPrisma.merchant.deleteMany();
   await testPrisma.affiliateProgram.deleteMany();
+  await testPrisma.announcement.deleteMany();
   await testPrisma.deviceToken.deleteMany();
   await testPrisma.device.deleteMany();
   await testPrisma.locationSetupCode.deleteMany();

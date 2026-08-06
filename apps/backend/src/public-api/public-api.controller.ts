@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import type { Device } from '@prisma/client';
 import { CurrentDevice } from '../common/decorators/current-device.decorator';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
+import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
 import { DeviceStatusDto } from './dto/device-status.dto';
 import { LifetimeSavingsDto } from './dto/lifetime-savings.dto';
@@ -32,6 +33,17 @@ export class PublicApiController {
   @ApiResponse({ status: 401, description: 'Missing/invalid device token, device disabled, or kiosk inactive' })
   getLifetimeSavings(@CurrentDevice() device: Device): Promise<LifetimeSavingsDto> {
     return this.publicApiService.getLifetimeSavings(device.id);
+  }
+
+  @Get('announcements/active')
+  @ApiOperation({
+    summary:
+      'Active announcements for this device\'s location — startAt<=now<=endAt, and scoped to all locations or this device\'s location specifically. Poll every 60s.',
+  })
+  @ApiResponse({ status: 200, description: 'Active announcements, earliest-starting first', type: [ActiveAnnouncementDto] })
+  @ApiResponse({ status: 401, description: 'Missing/invalid device token, device disabled, or kiosk inactive' })
+  getActiveAnnouncements(@CurrentDevice() device: Device): Promise<ActiveAnnouncementDto[]> {
+    return this.publicApiService.getActiveAnnouncements(device.id);
   }
 
   @Get('merchants/by-domain/:domain')

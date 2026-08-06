@@ -108,6 +108,15 @@ export class TenantScopeGuard implements CanActivate {
         });
         return targetUser?.kioskId ? { kioskId: targetUser.kioskId } : null;
       }
+      case TenantResourceType.ANNOUNCEMENT: {
+        const announcement = await this.prisma.announcement.findUnique({
+          where: { id },
+          select: { kioskId: true },
+        });
+        // No single locationId — announcements can span multiple/all locations.
+        // Routes using this type must not be reachable by LOCATION_MANAGER.
+        return announcement ? { kioskId: announcement.kioskId } : null;
+      }
     }
   }
 }

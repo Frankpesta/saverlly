@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
 import { DeviceStatusDto } from './dto/device-status.dto';
 import { LifetimeSavingsDto } from './dto/lifetime-savings.dto';
@@ -31,6 +32,33 @@ export class PublicApiService {
     });
 
     return { lifetimeSaved: result._sum.discountAmount?.toNumber() ?? 0 };
+  }
+
+  async getActiveAnnouncements(deviceId: string): Promise<ActiveAnnouncementDto[]> {
+    const device = await this.prisma.device.findUniqueOrThrow({
+      where: { id: deviceId },
+      select: { locationId: true, location: { select: { kioskId: true } } },
+    });
+
+    const now = new Date();
+    const announcements = await this.prisma.announcement.findMany({
+      where: {
+        kioskId: device.location.kioskId,
+        startAt: { lte: now },
+        endAt: { gte: now },
+        OR: [{ locationIds: { isEmpty: true } }, { locationIds: { has: device.locationId } }],
+      },
+      orderBy: { startAt: 'asc' },
+    });
+
+    return announcements.map((a) => ({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      mediaUrl: a.mediaUrl,
+      repeatPolicy: a.repeatPolicy,
+      maxDisplayCount: a.maxDisplayCount,
+    }));
   }
 
   async getMerchantByDomain(domain: string) {
