@@ -50,7 +50,20 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
   for (const [i, coupon] of ordered.entries()) {
     const field = document.querySelector<HTMLInputElement>(recipe.couponFieldSelector);
     const applyButton = document.querySelector<HTMLElement>(recipe.applyButtonSelector);
-    if (!field || !applyButton) continue;
+    if (!field || !applyButton) {
+      if (i === total - 1) {
+        const message: CouponApplyResultMessage = {
+          type: 'COUPON_APPLY_RESULT',
+          merchantId,
+          couponId: null,
+          code: null,
+          result: 'no_coupons_available',
+          isFinal: true,
+        };
+        chrome.runtime.sendMessage(message);
+      }
+      continue;
+    }
 
     const testingProgress: CouponApplyProgressMessage = {
       type: 'COUPON_APPLY_PROGRESS',

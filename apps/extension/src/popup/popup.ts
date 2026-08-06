@@ -164,6 +164,7 @@ function renderSuccess(): void {
   if (!lastResult || lastResult.discountAmount === undefined) return renderFailure();
   const { discountAmount, originalTotal, newTotal, code } = lastResult;
   const total = orderedCoupons().length;
+  const triedCount = progress?.index ?? total;
 
   content.innerHTML = `
     <p class="popup__heading">You're saving</p>
@@ -182,7 +183,7 @@ function renderSuccess(): void {
     </div>
     <div class="popup__result-note">
       <strong>Savings applied successfully!</strong>
-      <span>We tried ${total} code${total === 1 ? '' : 's'} and applied the best one saving you ${formatCurrency(discountAmount)}</span>
+      <span>We tried ${triedCount} code${triedCount === 1 ? '' : 's'} and applied the best one saving you ${formatCurrency(discountAmount)}</span>
     </div>
     <button class="popup__button" id="checkout-btn" type="button">Continue to Checkout ${buttonArrow()}</button>
     <button class="popup__link" id="view-coupons-btn" type="button">View all coupons</button>

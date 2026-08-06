@@ -191,7 +191,7 @@ model CouponTestEvent {
   merchantId     String
   merchant       Merchant @relation(fields: [merchantId], references: [id])
   result         String // "applied" | "failed" | "suppressed_stepdown" | "no_coupons_available"
-  discountAmount Float? // only set when result = "applied" — actual cart-total delta the extension confirmed, used for lifetime-savings totals
+  discountAmount Decimal? @db.Decimal(10, 2) // only set when result = "applied" — actual cart-total delta the extension confirmed, used for lifetime-savings totals
   createdAt      DateTime @default(now())
 
   @@index([deviceId])

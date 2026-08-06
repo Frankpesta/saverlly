@@ -30,7 +30,7 @@ export class PublicApiService {
       _sum: { discountAmount: true },
     });
 
-    return { lifetimeSaved: result._sum.discountAmount ?? 0 };
+    return { lifetimeSaved: result._sum.discountAmount?.toNumber() ?? 0 };
   }
 
   async getMerchantByDomain(domain: string) {
@@ -52,6 +52,10 @@ export class PublicApiService {
   }
 
   async recordCouponTestEvent(deviceId: string, dto: CreateCouponTestEventDto) {
+    if (dto.result === 'applied' && typeof dto.discountAmount !== 'number') {
+      throw new BadRequestException('discountAmount is required when result is "applied"');
+    }
+
     if (dto.couponId) {
       const coupon = await this.prisma.coupon.findUnique({
         where: { id: dto.couponId },
@@ -91,6 +95,6 @@ export class PublicApiService {
       });
     }
 
-    return event;
+    return { ...event, discountAmount: event.discountAmount?.toNumber() ?? null };
   }
 }

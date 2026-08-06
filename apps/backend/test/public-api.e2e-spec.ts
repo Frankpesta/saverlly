@@ -96,7 +96,7 @@ describe('Public device-facing API (e2e)', () => {
     await request(app.getHttpServer())
       .post('/public/coupon-test-events')
       .set('Authorization', `Bearer ${rawToken}`)
-      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied' })
+      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied', discountAmount: 5 })
       .expect(201);
 
     const updated = await testPrisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } });
@@ -185,5 +185,40 @@ describe('Public device-facing API (e2e)', () => {
       .expect(200);
 
     expect(res.body).toEqual({ lifetimeSaved: 16.5 });
+  });
+
+  it('sums 0.10 + 0.20 to an exact 0.30, avoiding floating-point drift', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+
+    const record = (discountAmount: number) =>
+      request(app.getHttpServer())
+        .post('/public/coupon-test-events')
+        .set('Authorization', `Bearer ${rawToken}`)
+        .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied', discountAmount })
+        .expect(201);
+
+    await record(0.1);
+    await record(0.2);
+
+    const res = await request(app.getHttpServer())
+      .get('/public/devices/me/savings')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    expect(res.body).toEqual({ lifetimeSaved: 0.3 });
+  });
+
+  it('400s an "applied" coupon-test-event with no discountAmount', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+
+    await request(app.getHttpServer())
+      .post('/public/coupon-test-events')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied' })
+      .expect(400);
   });
 });
