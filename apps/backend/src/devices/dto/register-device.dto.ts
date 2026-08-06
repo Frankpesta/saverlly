@@ -16,4 +16,16 @@ export class RegisterDeviceDto {
   @IsOptional()
   @IsString()
   hostname?: string;
+
+  @ApiPropertyOptional({
+    description: 'Agent-generated local UUID (device.json) — stored for support/audit correlation only, not used for dedup logic',
+  })
+  @IsOptional()
+  @IsString()
+  deviceIdentifier?: string;
+
+  @ApiPropertyOptional({ example: 'Windows 11 Pro 10.0.26200' })
+  @IsOptional()
+  @IsString()
+  osVersion?: string;
 }

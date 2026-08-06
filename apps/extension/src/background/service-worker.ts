@@ -3,6 +3,7 @@ import { fetchLifetimeSaved, fetchMerchantByDomain, reportCouponTestEvent } from
 import { runAttribution } from '../lib/attribution';
 import { STATUS_CHECK_INTERVAL_MINUTES, MERCHANT_CACHE_TTL_MS } from '../lib/config';
 import type { ExtensionMessage, InjectedCheckoutContext, TabCheckoutState } from '../lib/messages';
+import { connectToAgentAndReceiveToken } from '../lib/native-messaging';
 import { checkStepDown } from '../lib/step-down-check';
 import { checkDeviceStatus } from '../lib/status-check';
 import { getCachedMerchant, isDormant, setCachedMerchant } from '../lib/storage';
@@ -17,10 +18,12 @@ const tabState = new Map<number, TabCheckoutState>();
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(STATUS_ALARM, { periodInMinutes: STATUS_CHECK_INTERVAL_MINUTES });
+  connectToAgentAndReceiveToken();
   void checkDeviceStatus();
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  connectToAgentAndReceiveToken();
   void checkDeviceStatus();
 });
 
