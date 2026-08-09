@@ -21,6 +21,9 @@ export class AnnouncementsService {
     if (new Date(dto.endAt) <= new Date(dto.startAt)) {
       throw new BadRequestException('endAt must be after startAt');
     }
+    await this.assertLocationsBelongToKiosk(kioskId, dto.locationIds);
+    const repeatPolicy = dto.repeatPolicy ?? AnnouncementRepeatPolicy.ONCE;
+    this.assertValidMaxDisplayCount(repeatPolicy, dto.maxDisplayCount);
 
     return this.prisma.announcement.create({
       data: {
@@ -31,7 +34,7 @@ export class AnnouncementsService {
         mediaUrl: dto.mediaUrl,
         startAt: dto.startAt,
         endAt: dto.endAt,
-        repeatPolicy: dto.repeatPolicy ?? AnnouncementRepeatPolicy.ONCE,
+        repeatPolicy,
         maxDisplayCount: dto.maxDisplayCount,
       },
     });
@@ -47,9 +50,13 @@ export class AnnouncementsService {
         where: { id: currentUser.sub },
         select: { managedLocationIds: true, kioskId: true },
       });
+      const kioskId = manager?.kioskId ?? currentUser.kioskId;
+      if (!kioskId) {
+        return []; // fail closed rather than send Prisma an unscoped/null kioskId filter
+      }
       const managedLocationIds = manager?.managedLocationIds ?? [];
       const all = await this.prisma.announcement.findMany({
-        where: { kioskId: manager?.kioskId ?? currentUser.kioskId! },
+        where: { kioskId },
         orderBy: { createdAt: 'desc' },
       });
       // Scoped to their assigned location(s): either the announcement targets
@@ -60,8 +67,11 @@ export class AnnouncementsService {
     }
 
     // KIOSK_OWNER
+    if (!currentUser.kioskId) {
+      return []; // fail closed rather than send Prisma an unscoped/null kioskId filter
+    }
     return this.prisma.announcement.findMany({
-      where: { kioskId: currentUser.kioskId! },
+      where: { kioskId: currentUser.kioskId },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -81,6 +91,10 @@ export class AnnouncementsService {
     if (new Date(endAt) <= new Date(startAt)) {
       throw new BadRequestException('endAt must be after startAt');
     }
+    await this.assertLocationsBelongToKiosk(existing.kioskId, dto.locationIds);
+    const repeatPolicy = dto.repeatPolicy ?? existing.repeatPolicy;
+    const maxDisplayCount = dto.maxDisplayCount !== undefined ? dto.maxDisplayCount : existing.maxDisplayCount;
+    this.assertValidMaxDisplayCount(repeatPolicy, maxDisplayCount);
 
     return this.prisma.announcement.update({
       where: { id },
@@ -100,5 +114,29 @@ export class AnnouncementsService {
   async remove(id: string) {
     await this.findOne(id);
     await this.prisma.announcement.delete({ where: { id } });
+  }
+
+  /** Empty/omitted locationIds means "all locations for the kiosk" — nothing to validate. */
+  private async assertLocationsBelongToKiosk(kioskId: string, locationIds: string[] | undefined): Promise<void> {
+    if (!locationIds || locationIds.length === 0) {
+      return;
+    }
+    const matching = await this.prisma.location.findMany({
+      where: { id: { in: locationIds }, kioskId },
+      select: { id: true },
+    });
+    if (matching.length !== locationIds.length) {
+      throw new BadRequestException('One or more locationIds do not exist or do not belong to this kiosk');
+    }
+  }
+
+  private assertValidMaxDisplayCount(
+    repeatPolicy: AnnouncementRepeatPolicy,
+    maxDisplayCount: number | null | undefined,
+  ): void {
+    const isValid = typeof maxDisplayCount === 'number' && maxDisplayCount >= 1;
+    if (repeatPolicy === AnnouncementRepeatPolicy.MAX_N_TIMES && !isValid) {
+      throw new BadRequestException('maxDisplayCount must be a positive integer when repeatPolicy is MAX_N_TIMES');
+    }
   }
 }

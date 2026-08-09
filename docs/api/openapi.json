@@ -1098,6 +1098,25 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size, 1-100",
+            "schema": {
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "Coupon id to page after (from the previous page's last item)",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1110,7 +1129,7 @@
             "jwt": []
           }
         ],
-        "summary": "List coupons, optionally filtered by merchantId",
+        "summary": "List coupons, optionally filtered by merchantId. Paginated via limit/cursor.",
         "tags": [
           "Coupons"
         ]
@@ -1304,6 +1323,99 @@
         ]
       }
     },
+    "/public/devices/me/status": {
+      "get": {
+        "operationId": "PublicApiController_getDeviceStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Device and kiosk status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceStatusDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid device token, device disabled, or kiosk inactive"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Confirm the calling device is active and its parent kiosk is ACTIVE. Poll on startup and periodically; a 401 here means fail-safe/go-dormant.",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
+    },
+    "/public/devices/me/savings": {
+      "get": {
+        "operationId": "PublicApiController_getLifetimeSavings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Lifetime savings total",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifetimeSavingsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid device token, device disabled, or kiosk inactive"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Lifetime savings total for this device — sum of confirmed discounts across every 'applied' event",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
+    },
+    "/public/announcements/active": {
+      "get": {
+        "operationId": "PublicApiController_getActiveAnnouncements",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Active announcements, earliest-starting first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActiveAnnouncementDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid device token, device disabled, or kiosk inactive"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Active announcements for this device's location — startAt<=now<=endAt, and scoped to all locations or this device's location specifically. Poll every 60s.",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
+    },
     "/public/merchants/by-domain/{domain}": {
       "get": {
         "operationId": "PublicApiController_getMerchantByDomain",
@@ -1369,6 +1481,499 @@
         "summary": "Report the result of a coupon-apply attempt (applied/failed/suppressed/no-coupons)",
         "tags": [
           "Public (device-facing)"
+        ]
+      }
+    },
+    "/public/attribution-attempts": {
+      "post": {
+        "operationId": "PublicApiController_mintAttributionAttempt",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MintAttributionAttemptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Minted sub-ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttributionAttemptDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "merchantId does not exist"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Mint a sub-ID/click-ID for this device+merchant attribution attempt, for merchants whose network supports a pass-through tracking param (Merchant.affiliateSubIdParamKey). Logged so a later-reported commission conversion can be matched back to this device.",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
+    },
+    "/announcements": {
+      "post": {
+        "operationId": "AnnouncementsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAnnouncementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Announcement created"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Create an announcement (admin specifies kioskId; kiosk-owner's own kiosk is implied)",
+        "tags": [
+          "Announcements"
+        ]
+      },
+      "get": {
+        "description": "Admin sees all announcements; kiosk-owner sees their own kiosk's announcements; location-manager sees only announcements scoped to all locations or overlapping their assigned locations.",
+        "operationId": "AnnouncementsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Announcements visible to the caller"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List announcements",
+        "tags": [
+          "Announcements"
+        ]
+      }
+    },
+    "/announcements/{id}": {
+      "get": {
+        "operationId": "AnnouncementsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The announcement"
+          },
+          "403": {
+            "description": "Not in the caller's tenant scope"
+          },
+          "404": {
+            "description": "Announcement not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get an announcement by id",
+        "tags": [
+          "Announcements"
+        ]
+      },
+      "patch": {
+        "operationId": "AnnouncementsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAnnouncementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Announcement updated"
+          },
+          "403": {
+            "description": "Not in the caller's tenant scope"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update an announcement",
+        "tags": [
+          "Announcements"
+        ]
+      },
+      "delete": {
+        "operationId": "AnnouncementsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Announcement deleted"
+          },
+          "403": {
+            "description": "Not allowed for this role or tenant"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete an announcement",
+        "tags": [
+          "Announcements"
+        ]
+      }
+    },
+    "/commission-events": {
+      "get": {
+        "operationId": "CommissionsController_findAll",
+        "parameters": [
+          {
+            "name": "kioskId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "merchantId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "REVERSED"
+              ]
+            }
+          },
+          {
+            "name": "dateFrom",
+            "required": false,
+            "in": "query",
+            "description": "ISO date-time — only events reported at or after this",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateTo",
+            "required": false,
+            "in": "query",
+            "description": "ISO date-time — only events reported at or before this",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching commission events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommissionEventDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List commission events across every kiosk, filterable by kiosk/location/merchant/status/date range",
+        "tags": [
+          "Commission Events (admin)"
+        ]
+      }
+    },
+    "/commission-events/sync-now": {
+      "post": {
+        "operationId": "CommissionsController_syncNow",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Counts of what changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncNowResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Manually trigger the commission ingestion + reconciliation job, outside its normal schedule",
+        "tags": [
+          "Commission Events (admin)"
+        ]
+      }
+    },
+    "/my/commission-events": {
+      "get": {
+        "operationId": "MyCommissionsController_findMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The caller's kiosk's commission events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommissionEventDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "The caller's own kiosk's commission events, with status clearly shown — never another kiosk's",
+        "tags": [
+          "Commission Events (kiosk-owner)"
+        ]
+      }
+    },
+    "/my/balance": {
+      "get": {
+        "operationId": "MyCommissionsController_getBalance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Balance split",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "The caller's own kiosk's balance split — pending (informational) vs. confirmed-available (withdrawable)",
+        "tags": [
+          "Commission Events (kiosk-owner)"
+        ]
+      }
+    },
+    "/payouts": {
+      "get": {
+        "operationId": "PayoutsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All payouts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PayoutDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List payouts across every kiosk, with Stripe connection status inlined",
+        "tags": [
+          "Payouts (admin)"
+        ]
+      }
+    },
+    "/payouts/{id}/process": {
+      "post": {
+        "operationId": "PayoutsController_process",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payout moved to processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payout is not pending, or the kiosk has no connected Stripe account"
+          },
+          "404": {
+            "description": "Payout not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Trigger the Stripe transfer for a pending payout",
+        "tags": [
+          "Payouts (admin)"
+        ]
+      }
+    },
+    "/my/payouts": {
+      "get": {
+        "operationId": "MyPayoutsController_findMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The caller's kiosk's payouts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PayoutDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "The caller's own kiosk's payout history — never another kiosk's",
+        "tags": [
+          "Payouts (kiosk-owner)"
+        ]
+      }
+    },
+    "/my/stripe/onboard": {
+      "post": {
+        "operationId": "MyPayoutsController_onboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Onboarding link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingLinkDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get a Stripe Connect Express onboarding link for the caller's own kiosk",
+        "tags": [
+          "Payouts (kiosk-owner)"
         ]
       }
     }
@@ -1649,6 +2254,14 @@
           "hostname": {
             "type": "string",
             "description": "Falls back to this if no label is given"
+          },
+          "deviceIdentifier": {
+            "type": "string",
+            "description": "Agent-generated local UUID (device.json) — stored for support/audit correlation only, not used for dedup logic"
+          },
+          "osVersion": {
+            "type": "string",
+            "example": "Windows 11 Pro 10.0.26200"
           }
         },
         "required": [
@@ -1959,6 +2572,74 @@
           }
         }
       },
+      "DeviceStatusDto": {
+        "type": "object",
+        "properties": {
+          "kioskStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "description": "Status of the kiosk this device belongs to"
+          },
+          "deviceActive": {
+            "type": "boolean",
+            "description": "Whether this specific device is enabled (kill-switch)"
+          }
+        },
+        "required": [
+          "kioskStatus",
+          "deviceActive"
+        ]
+      },
+      "LifetimeSavingsDto": {
+        "type": "object",
+        "properties": {
+          "lifetimeSaved": {
+            "type": "number",
+            "description": "Sum of confirmed discount amounts across every \"applied\" coupon-test-event for this device"
+          }
+        },
+        "required": [
+          "lifetimeSaved"
+        ]
+      },
+      "ActiveAnnouncementDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "mediaUrl": {
+            "type": "object"
+          },
+          "repeatPolicy": {
+            "type": "string",
+            "enum": [
+              "ONCE",
+              "EVERY_LOGIN",
+              "MAX_N_TIMES"
+            ]
+          },
+          "maxDisplayCount": {
+            "type": "object",
+            "description": "Set when repeatPolicy is MAX_N_TIMES"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "body",
+          "repeatPolicy"
+        ]
+      },
       "CreateCouponTestEventDto": {
         "type": "object",
         "properties": {
@@ -1977,11 +2658,316 @@
               "suppressed_stepdown",
               "no_coupons_available"
             ]
+          },
+          "discountAmount": {
+            "type": "number",
+            "description": "Confirmed cart-total delta for an \"applied\" result — ignored for any other result"
           }
         },
         "required": [
           "merchantId",
           "result"
+        ]
+      },
+      "MintAttributionAttemptDto": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "merchantId"
+        ]
+      },
+      "AttributionAttemptDto": {
+        "type": "object",
+        "properties": {
+          "subId": {
+            "type": "string",
+            "description": "Mint into the merchant's affiliateSubIdParamKey query param"
+          }
+        },
+        "required": [
+          "subId"
+        ]
+      },
+      "CreateAnnouncementDto": {
+        "type": "object",
+        "properties": {
+          "kioskId": {
+            "type": "string",
+            "description": "Required when the caller is ADMIN; ignored for KIOSK_OWNER (their own kioskId is always used)"
+          },
+          "locationIds": {
+            "description": "Location ids to scope this announcement to; empty/omitted = all locations for the kiosk",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "mediaUrl": {
+            "type": "string"
+          },
+          "startAt": {
+            "type": "string"
+          },
+          "endAt": {
+            "type": "string"
+          },
+          "repeatPolicy": {
+            "type": "string",
+            "enum": [
+              "ONCE",
+              "EVERY_LOGIN",
+              "MAX_N_TIMES"
+            ],
+            "default": "ONCE"
+          },
+          "maxDisplayCount": {
+            "type": "number",
+            "description": "Required when repeatPolicy is MAX_N_TIMES"
+          }
+        },
+        "required": [
+          "title",
+          "body",
+          "startAt",
+          "endAt"
+        ]
+      },
+      "UpdateAnnouncementDto": {
+        "type": "object",
+        "properties": {
+          "locationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "mediaUrl": {
+            "type": "string"
+          },
+          "startAt": {
+            "type": "string"
+          },
+          "endAt": {
+            "type": "string"
+          },
+          "repeatPolicy": {
+            "type": "string",
+            "enum": [
+              "ONCE",
+              "EVERY_LOGIN",
+              "MAX_N_TIMES"
+            ]
+          },
+          "maxDisplayCount": {
+            "type": "number"
+          }
+        }
+      },
+      "CommissionEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deviceId": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "couponId": {
+            "type": "object"
+          },
+          "networkReference": {
+            "type": "string"
+          },
+          "orderValue": {
+            "type": "number"
+          },
+          "commissionAmount": {
+            "type": "number"
+          },
+          "kioskShareAmount": {
+            "type": "number",
+            "description": "Finalized only once status is CONFIRMED; 0 otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "REVERSED"
+            ]
+          },
+          "reportedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "confirmedAt": {
+            "type": "object"
+          },
+          "reversedAt": {
+            "type": "object"
+          },
+          "payoutId": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "deviceId",
+          "merchantId",
+          "networkReference",
+          "orderValue",
+          "commissionAmount",
+          "kioskShareAmount",
+          "status",
+          "reportedAt"
+        ]
+      },
+      "SyncNowResultDto": {
+        "type": "object",
+        "properties": {
+          "ingested": {
+            "type": "number",
+            "description": "New CommissionEvents created (PENDING, or immediately CONFIRMED/REVERSED)"
+          },
+          "confirmed": {
+            "type": "number",
+            "description": "Previously-PENDING events transitioned to CONFIRMED"
+          },
+          "reversed": {
+            "type": "number",
+            "description": "Previously-PENDING events transitioned to REVERSED"
+          }
+        },
+        "required": [
+          "ingested",
+          "confirmed",
+          "reversed"
+        ]
+      },
+      "BalanceDto": {
+        "type": "object",
+        "properties": {
+          "pendingAmount": {
+            "type": "number",
+            "description": "Estimated kiosk share of still-PENDING commission — informational, not withdrawable"
+          },
+          "confirmedAvailableAmount": {
+            "type": "number",
+            "description": "Sum of CONFIRMED kioskShareAmount not yet included in a payout — this is the withdrawable balance"
+          }
+        },
+        "required": [
+          "pendingAmount",
+          "confirmedAvailableAmount"
+        ]
+      },
+      "PayoutKioskDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stripeConnected": {
+            "type": "boolean",
+            "description": "True once the kiosk has connected a Stripe account (may still be mid-onboarding)"
+          },
+          "stripePayoutsEnabled": {
+            "type": "boolean",
+            "description": "True once Stripe onboarding is fully complete and the account can receive transfers"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "stripeConnected",
+          "stripePayoutsEnabled"
+        ]
+      },
+      "PayoutDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kioskId": {
+            "type": "string"
+          },
+          "kiosk": {
+            "description": "Admin listing only",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PayoutKioskDto"
+              }
+            ]
+          },
+          "periodStart": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "totalAmount": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "description": "\"pending\" | \"processing\" | \"paid\" | \"failed\""
+          },
+          "stripeTransferId": {
+            "type": "object"
+          },
+          "paidAt": {
+            "type": "object"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kioskId",
+          "periodStart",
+          "periodEnd",
+          "totalAmount",
+          "status",
+          "createdAt"
+        ]
+      },
+      "OnboardingLinkDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Stripe-hosted Connect Express onboarding URL — single-use, short-lived"
+          }
+        },
+        "required": [
+          "url"
         ]
       }
     }

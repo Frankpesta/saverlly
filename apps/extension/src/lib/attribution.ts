@@ -1,4 +1,5 @@
 import { AttributionMethod, type PublicMerchant } from '@saverlly/shared-types';
+import { mintAttributionSubId } from './api-client';
 import { appendAttributionLog } from './storage';
 import { appendUrlParam, urlHasParam } from './url-param';
 
@@ -21,13 +22,36 @@ const TRACKING_FETCH_TIMEOUT_MS = 5_000;
  * redirected to if a URL param needed to be appended, otherwise null.
  */
 export async function runAttribution(tabId: number, currentUrl: string, merchant: PublicMerchant): Promise<string | null> {
-  const { attributionMethod, affiliateTrackingUrl, affiliateUrlParamKey, affiliateUrlParamValue } = merchant;
+  const {
+    id: merchantId,
+    attributionMethod,
+    affiliateTrackingUrl,
+    affiliateUrlParamKey,
+    affiliateUrlParamValue,
+    affiliateSubIdParamKey,
+  } = merchant;
+
+  // Sub-ID/click-ID pass-through, for commission attribution back to this device (Phase 5)
+  // — only for merchants whose network supports one. Minted server-side and logged as an
+  // AttributionAttempt so a later-reported conversion can be matched back to this device.
+  let subId: string | null = null;
+  if (affiliateSubIdParamKey) {
+    try {
+      subId = await mintAttributionSubId(merchantId);
+    } catch {
+      // Best-effort — a failed mint shouldn't block the cookie/url-param tracking below.
+    }
+  }
 
   if (usesCookie(attributionMethod) && affiliateTrackingUrl) {
+    const trackingUrl =
+      subId && affiliateSubIdParamKey
+        ? appendUrlParam(affiliateTrackingUrl, affiliateSubIdParamKey, subId)
+        : affiliateTrackingUrl;
     // Fire-and-forget background request so the network's tracking cookie gets set
     // for this domain before checkout — no navigation, no visible effect to the user.
     try {
-      await fetch(affiliateTrackingUrl, {
+      await fetch(trackingUrl, {
         credentials: 'include',
         mode: 'no-cors',
         signal: AbortSignal.timeout(TRACKING_FETCH_TIMEOUT_MS),
@@ -41,6 +65,9 @@ export async function runAttribution(tabId: number, currentUrl: string, merchant
   if (usesUrlParam(attributionMethod) && affiliateUrlParamKey && affiliateUrlParamValue) {
     if (!urlHasParam(currentUrl, affiliateUrlParamKey)) {
       redirectTo = appendUrlParam(currentUrl, affiliateUrlParamKey, affiliateUrlParamValue);
+    }
+    if (subId && affiliateSubIdParamKey && !urlHasParam(redirectTo ?? currentUrl, affiliateSubIdParamKey)) {
+      redirectTo = appendUrlParam(redirectTo ?? currentUrl, affiliateSubIdParamKey, subId);
     }
   }
 

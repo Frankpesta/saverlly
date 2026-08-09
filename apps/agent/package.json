@@ -7,7 +7,6 @@
     "dev": "node scripts/build.js --watch",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
-    "test:integration": "echo \"no integration tests for the agent (see manual QA notes)\" && exit 0",
     "package": "npm run build && node scripts/package.js"
   },
   "dependencies": {

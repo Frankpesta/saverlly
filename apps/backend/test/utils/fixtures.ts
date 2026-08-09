@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { AnnouncementRepeatPolicy, AttributionMethod, CouponSource, UserRole } from '@prisma/client';
+import { AnnouncementRepeatPolicy, AttributionMethod, CommissionStatus, CouponSource, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'crypto';
 import request from 'supertest';
@@ -74,6 +74,7 @@ export async function seedMerchant(
     active: boolean;
     checkoutRecipe: object;
     affiliateProgramId: string;
+    affiliateSubIdParamKey: string;
   }> = {},
 ) {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -86,6 +87,22 @@ export async function seedMerchant(
       active: overrides.active ?? true,
       checkoutRecipe: overrides.checkoutRecipe as never,
       affiliateProgramId: overrides.affiliateProgramId,
+      affiliateSubIdParamKey: overrides.affiliateSubIdParamKey,
+    },
+  });
+}
+
+export async function seedAttributionAttempt(
+  deviceId: string,
+  merchantId: string,
+  overrides: Partial<{ subId: string; createdAt: Date }> = {},
+) {
+  return testPrisma.attributionAttempt.create({
+    data: {
+      deviceId,
+      merchantId,
+      subId: overrides.subId ?? `subid-${randomBytes(8).toString('hex')}`,
+      createdAt: overrides.createdAt,
     },
   });
 }
@@ -136,6 +153,33 @@ export async function seedAnnouncement(
       endAt: overrides.endAt ?? new Date(now + 60_000),
       repeatPolicy: overrides.repeatPolicy ?? AnnouncementRepeatPolicy.ONCE,
       maxDisplayCount: overrides.maxDisplayCount,
+    },
+  });
+}
+
+export async function seedCommissionEvent(
+  deviceId: string,
+  merchantId: string,
+  overrides: Partial<{
+    status: CommissionStatus;
+    commissionAmount: number;
+    kioskShareAmount: number;
+    orderValue: number;
+    confirmedAt: Date;
+    networkReference: string;
+  }> = {},
+) {
+  return testPrisma.commissionEvent.create({
+    data: {
+      deviceId,
+      merchantId,
+      networkReference: overrides.networkReference ?? `NETREF-${Math.random().toString(36).slice(2, 10)}`,
+      orderValue: overrides.orderValue ?? 49.99,
+      commissionAmount: overrides.commissionAmount ?? 5,
+      kioskShareAmount: overrides.kioskShareAmount ?? 0,
+      status: overrides.status ?? CommissionStatus.PENDING,
+      reportedAt: new Date(),
+      confirmedAt: overrides.status === CommissionStatus.CONFIRMED ? (overrides.confirmedAt ?? new Date()) : undefined,
     },
   });
 }

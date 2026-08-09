@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { generateSubId } from '../common/crypto/sub-id.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
+import { AttributionAttemptDto } from './dto/attribution-attempt.dto';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
 import { DeviceStatusDto } from './dto/device-status.dto';
 import { LifetimeSavingsDto } from './dto/lifetime-savings.dto';
@@ -124,5 +126,21 @@ export class PublicApiService {
     }
 
     return { ...event, discountAmount: event.discountAmount?.toNumber() ?? null };
+  }
+
+  async mintAttributionAttempt(deviceId: string, merchantId: string): Promise<AttributionAttemptDto> {
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { id: true },
+    });
+    if (!merchant) {
+      throw new BadRequestException('merchantId does not exist');
+    }
+
+    const attempt = await this.prisma.attributionAttempt.create({
+      data: { deviceId, merchantId, subId: generateSubId(deviceId) },
+    });
+
+    return { subId: attempt.subId };
   }
 }

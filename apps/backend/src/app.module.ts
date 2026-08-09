@@ -19,6 +19,8 @@ import { ScrapeSourcesModule } from './scrape-sources/scrape-sources.module';
 import { AffiliateSyncModule } from './affiliate-sync/affiliate-sync.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
+import { CommissionsModule } from './commissions/commissions.module';
+import { PayoutsModule } from './payouts/payouts.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { AnnouncementsModule } from './announcements/announcements.module';
     AffiliateSyncModule,
     PublicApiModule,
     AnnouncementsModule,
+    CommissionsModule,
+    PayoutsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

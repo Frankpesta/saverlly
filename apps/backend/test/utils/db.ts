@@ -2,12 +2,16 @@ import { config } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { Redis } from 'ioredis';
 
-// .parsed always reflects this file's own values regardless of whether dotenv actually wrote
-// them to process.env (it won't overwrite pre-existing vars) — with maxWorkers:1, every e2e
-// spec file shares one Node process, so process.env may already hold an earlier file's values
-// by the time this module re-loads. Read from .parsed, not process.env, to stay correct.
+// override: true is required, not optional — @prisma/client auto-loads the nearest .env
+// (apps/backend/.env, the DEV file) as an import-time side effect the moment `PrismaClient`
+// is imported above, which fires BEFORE this config() call ever runs. Without override:true,
+// dotenv's default non-destructive merge leaves that DEV .env's DATABASE_URL (and everything
+// else) in process.env instead of this file's real .env.test values — silently pointing every
+// e2e test's PrismaService (and this file's own testPrisma) at the dev database instead of the
+// dedicated test one. Confirmed via direct row-count inspection; see project memory.
 const { parsed: testEnv } = config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
+  override: true,
 });
 
 // Standalone client for test setup/teardown — separate from the app's injected
@@ -41,6 +45,9 @@ export async function resetRedisTestDb(): Promise<void> {
 
 export async function resetDatabase(): Promise<void> {
   // Delete order respects FK constraints (children before parents).
+  await testPrisma.commissionEvent.deleteMany();
+  await testPrisma.payout.deleteMany();
+  await testPrisma.attributionAttempt.deleteMany();
   await testPrisma.couponTestEvent.deleteMany();
   await testPrisma.coupon.deleteMany();
   await testPrisma.scrapeSource.deleteMany();

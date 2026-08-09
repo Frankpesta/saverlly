@@ -38,17 +38,19 @@ model User {
 }
 
 model Kiosk {
-  id              String         @id @default(uuid())
-  name            String
-  status          KioskStatus    @default(ACTIVE) // admin sets directly, no approval workflow
-  revenueSharePct Decimal        @db.Decimal(5, 2) // e.g. 30.00 = 30%
-  contactEmail    String
-  stripeAccountId String? // Stripe Connect account, set once kiosk connects payouts (Phase 5)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  locations       Location[]
-  users           User[]
-  announcements   Announcement[]
+  id                   String         @id @default(uuid())
+  name                 String
+  status               KioskStatus    @default(ACTIVE) // admin sets directly, no approval workflow
+  revenueSharePct      Decimal        @db.Decimal(5, 2) // e.g. 30.00 = 30%
+  contactEmail         String
+  stripeAccountId      String? // Stripe Connect Express account id, set once kiosk starts onboarding (Phase 5)
+  stripePayoutsEnabled Boolean        @default(false) // synced from Stripe's account.updated webhook — true once onboarding is fully complete and the account can actually receive transfers
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  locations            Location[]
+  users                User[]
+  announcements        Announcement[]
+  payouts              Payout[]
 }
 
 model Location {
@@ -83,18 +85,20 @@ model LocationSetupCode {
 }
 
 model Device {
-  id                    String            @id @default(uuid())
+  id                    String               @id @default(uuid())
   locationId            String
-  location              Location          @relation(fields: [locationId], references: [id])
+  location              Location             @relation(fields: [locationId], references: [id])
   label                 String // e.g. "Computer 4"
-  active                Boolean           @default(true) // kill-switch — no approval needed to start, but can be disabled any time
+  active                Boolean              @default(true) // kill-switch — no approval needed to start, but can be disabled any time
   localDeviceIdentifier String? // agent-generated UUID from its local device.json, for support/audit correlation across re-registrations of the same physical machine
   osVersion             String? // e.g. "Windows 11 Pro 10.0.26200", reported by the agent at registration
   lastSeenAt            DateTime?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
   deviceTokens          DeviceToken[]
   couponTestEvents      CouponTestEvent[]
+  attributionAttempts   AttributionAttempt[]
+  commissionEvents      CommissionEvent[]
 
   @@index([locationId])
 }
@@ -133,21 +137,24 @@ model AffiliateProgram {
 }
 
 model Merchant {
-  id                     String            @id @default(uuid())
+  id                     String               @id @default(uuid())
   name                   String
-  domain                 String            @unique // e.g. "target.com"
+  domain                 String               @unique // e.g. "target.com"
   affiliateProgramId     String?
-  affiliateProgram       AffiliateProgram? @relation(fields: [affiliateProgramId], references: [id])
+  affiliateProgram       AffiliateProgram?    @relation(fields: [affiliateProgramId], references: [id])
   attributionMethod      AttributionMethod // required — every merchant needs a tracking method to earn commission at all
   affiliateTrackingUrl   String? // base URL used to set the tracking cookie, if COOKIE or BOTH
   affiliateUrlParamKey   String? // query param name to append (e.g. "irclickid"), if URL_PARAM or BOTH
   affiliateUrlParamValue String? // the platform's own affiliate/tracking ID value to inject
-  active                 Boolean           @default(true)
+  affiliateSubIdParamKey String? // optional pass-through sub-ID/click-ID query param name (e.g. Impact's "SubId1", CJ's "SID") — null if the network doesn't support one; when set, a per-attribution-attempt value is minted and appended for commission attribution (Phase 5)
+  active                 Boolean              @default(true)
   checkoutRecipe         Json? // see "Merchant Recipe" — couponFieldSelector, applyButtonSelector, etc.
   coupons                Coupon[]
   scrapeSources          ScrapeSource[]
   couponTestEvents       CouponTestEvent[]
-  createdAt              DateTime          @default(now())
+  attributionAttempts    AttributionAttempt[]
+  commissionEvents       CommissionEvent[]
+  createdAt              DateTime             @default(now())
 
   @@index([affiliateProgramId])
 }
@@ -168,6 +175,7 @@ model Coupon {
   active           Boolean           @default(true)
   createdAt        DateTime          @default(now())
   couponTestEvents CouponTestEvent[]
+  commissionEvents CommissionEvent[]
 
   @@unique([merchantId, code]) // dedup across sources — repeat scrape/sync runs must upsert, never duplicate
 }
@@ -223,4 +231,73 @@ model CouponTestEvent {
 
   @@index([deviceId])
   @@index([merchantId])
+}
+
+// Logged at the moment attribution tracking fires for a merchant with a sub-ID/click-ID
+// pass-through param (Merchant.affiliateSubIdParamKey). Lets a later-reported network
+// conversion be matched back to a device even though the network only ever echoes the
+// subId, not our own internal ids — see 05-PHASE-5-commission-tracking.md "Attribution Logic".
+model AttributionAttempt {
+  id              String           @id @default(uuid())
+  deviceId        String
+  device          Device           @relation(fields: [deviceId], references: [id])
+  merchantId      String
+  merchant        Merchant         @relation(fields: [merchantId], references: [id])
+  subId           String           @unique
+  createdAt       DateTime         @default(now())
+  commissionEvent CommissionEvent?
+
+  @@index([deviceId])
+  @@index([merchantId])
+}
+
+enum CommissionStatus {
+  PENDING
+  CONFIRMED
+  REVERSED
+}
+
+model CommissionEvent {
+  id                 String              @id @default(uuid())
+  deviceId           String
+  device             Device              @relation(fields: [deviceId], references: [id])
+  merchantId         String
+  merchant           Merchant            @relation(fields: [merchantId], references: [id])
+  couponId           String? // nullable — attribution-only sales (no coupon involved) are still valid commission events
+  coupon             Coupon?             @relation(fields: [couponId], references: [id])
+  subId              String?             @unique // the AttributionAttempt.subId this conversion was matched from — nullable for a conversion reported with no recoverable sub-ID (orphaned, needs manual reconciliation)
+  attributionAttempt AttributionAttempt? @relation(fields: [subId], references: [subId])
+  networkReference   String // the affiliate network's own transaction/click ID, for reconciliation
+  orderValue         Decimal             @db.Decimal(10, 2)
+  commissionAmount   Decimal             @db.Decimal(10, 2) // total commission paid by network
+  kioskShareAmount   Decimal             @db.Decimal(10, 2) // computed: commissionAmount * kiosk.revenueSharePct, finalized only on CONFIRMED
+  status             CommissionStatus    @default(PENDING)
+  reportedAt         DateTime
+  confirmedAt        DateTime?
+  reversedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  payoutId           String? // set once included in a Payout's aggregation — excluded from future aggregation runs
+  payout             Payout?             @relation(fields: [payoutId], references: [id])
+
+  @@unique([merchantId, networkReference]) // dedup — repeat ingestion/reconciliation runs must upsert, never duplicate a network's own conversion record
+  @@index([deviceId])
+  @@index([merchantId])
+  @@index([status])
+  @@index([payoutId])
+}
+
+model Payout {
+  id               String            @id @default(uuid())
+  kioskId          String
+  kiosk            Kiosk             @relation(fields: [kioskId], references: [id])
+  periodStart      DateTime
+  periodEnd        DateTime
+  totalAmount      Decimal           @db.Decimal(10, 2) // sum of CONFIRMED kioskShareAmount only, never includes pending
+  status           String            @default("pending") // "pending" | "processing" | "paid" | "failed"
+  stripeTransferId String?
+  paidAt           DateTime?
+  createdAt        DateTime          @default(now())
+  commissionEvents CommissionEvent[]
+
+  @@index([kioskId])
 }
