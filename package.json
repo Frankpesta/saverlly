@@ -26,6 +26,7 @@
     "core-js@3.49.0": true,
     "msgpackr-extract@3.0.4": true,
     "esbuild@0.24.2": true,
-    "@scarf/scarf@1.4.0": false
+    "@scarf/scarf@1.4.0": false,
+    "esbuild@0.28.1": true
   }
 }

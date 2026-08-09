@@ -46,6 +46,7 @@ const chromeMock = {
 jest.mock('../lib/api-client');
 jest.mock('../lib/attribution');
 jest.mock('../lib/storage');
+jest.mock('../lib/native-messaging');
 
 import { fetchMerchantByDomain } from '../lib/api-client';
 import { runAttribution } from '../lib/attribution';

@@ -38,14 +38,14 @@ model User {
 }
 
 model Kiosk {
-  id              String      @id @default(uuid())
+  id              String         @id @default(uuid())
   name            String
-  status          KioskStatus @default(ACTIVE) // admin sets directly, no approval workflow
-  revenueSharePct Decimal     @db.Decimal(5, 2) // e.g. 30.00 = 30%
+  status          KioskStatus    @default(ACTIVE) // admin sets directly, no approval workflow
+  revenueSharePct Decimal        @db.Decimal(5, 2) // e.g. 30.00 = 30%
   contactEmail    String
   stripeAccountId String? // Stripe Connect account, set once kiosk connects payouts (Phase 5)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   locations       Location[]
   users           User[]
   announcements   Announcement[]
@@ -83,16 +83,18 @@ model LocationSetupCode {
 }
 
 model Device {
-  id               String            @id @default(uuid())
-  locationId       String
-  location         Location          @relation(fields: [locationId], references: [id])
-  label            String // e.g. "Computer 4"
-  active           Boolean           @default(true) // kill-switch — no approval needed to start, but can be disabled any time
-  lastSeenAt       DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  deviceTokens     DeviceToken[]
-  couponTestEvents CouponTestEvent[]
+  id                    String            @id @default(uuid())
+  locationId            String
+  location              Location          @relation(fields: [locationId], references: [id])
+  label                 String // e.g. "Computer 4"
+  active                Boolean           @default(true) // kill-switch — no approval needed to start, but can be disabled any time
+  localDeviceIdentifier String? // agent-generated UUID from its local device.json, for support/audit correlation across re-registrations of the same physical machine
+  osVersion             String? // e.g. "Windows 11 Pro 10.0.26200", reported by the agent at registration
+  lastSeenAt            DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  deviceTokens          DeviceToken[]
+  couponTestEvents      CouponTestEvent[]
 
   @@index([locationId])
 }
@@ -208,11 +210,11 @@ model Announcement {
 }
 
 model CouponTestEvent {
-  id         String   @id @default(uuid())
-  deviceId   String
-  device     Device   @relation(fields: [deviceId], references: [id])
-  couponId   String? // nullable — a step-down suppression event or a manual trigger with no matching coupon has no couponId
-  coupon     Coupon?  @relation(fields: [couponId], references: [id])
+  id             String   @id @default(uuid())
+  deviceId       String
+  device         Device   @relation(fields: [deviceId], references: [id])
+  couponId       String? // nullable — a step-down suppression event or a manual trigger with no matching coupon has no couponId
+  coupon         Coupon?  @relation(fields: [couponId], references: [id])
   merchantId     String
   merchant       Merchant @relation(fields: [merchantId], references: [id])
   result         String // "applied" | "failed" | "suppressed_stepdown" | "no_coupons_available"

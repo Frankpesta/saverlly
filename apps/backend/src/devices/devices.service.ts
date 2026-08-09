@@ -30,6 +30,8 @@ export class DevicesService {
       data: {
         locationId: setupCode.locationId,
         label: dto.label || dto.hostname || 'New Computer',
+        localDeviceIdentifier: dto.deviceIdentifier,
+        osVersion: dto.osVersion,
       },
     });
 
