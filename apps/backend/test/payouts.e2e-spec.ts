@@ -1,7 +1,10 @@
 import { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { CommissionStatus, UserRole } from '@prisma/client';
 import request from 'supertest';
+import { AppModule } from '../src/app.module';
 import { PayoutsService } from '../src/payouts/payouts.service';
+import { StripeService } from '../src/stripe/stripe.service';
 import { resetDatabase, testPrisma } from './utils/db';
 import {
   loginAs,
@@ -202,5 +205,98 @@ describe('Payouts API (e2e)', () => {
       .post(`/payouts/${listRes.body[0].id}/process`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(400); // no Stripe account connected — correct stop point without real credentials
+  });
+});
+
+// Real DB (the atomic-claim race guard only means anything against real row locking),
+// Stripe itself mocked — validates PayoutsService.processPayout's own logic (amount/
+// destination/idempotency-key wiring, status transitions, concurrent-claim rejection,
+// rollback-on-failure) without needing a real Stripe test-mode account.
+describe('PayoutsService.processPayout with a mocked Stripe client (e2e, real DB)', () => {
+  let app: INestApplication;
+  let mockCreateTransfer: jest.Mock;
+
+  beforeAll(async () => {
+    mockCreateTransfer = jest.fn();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(StripeService)
+      .useValue({
+        createTransfer: mockCreateTransfer,
+        createExpressAccount: jest.fn(),
+        createOnboardingLink: jest.fn(),
+        constructWebhookEvent: jest.fn(),
+      })
+      .compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+    mockCreateTransfer.mockReset();
+  });
+
+  async function seedPendingPayout(overrides: { totalAmount?: number } = {}) {
+    const kiosk = await seedKiosk({ revenueSharePct: 30 });
+    await testPrisma.kiosk.update({ where: { id: kiosk.id }, data: { stripeAccountId: 'acct_mock_stripe' } });
+    const payout = await testPrisma.payout.create({
+      data: {
+        kioskId: kiosk.id,
+        periodStart: new Date(),
+        periodEnd: new Date(),
+        totalAmount: overrides.totalAmount ?? 12.5,
+        status: 'pending',
+      },
+    });
+    return { kiosk, payout };
+  }
+
+  it('creates the transfer with the destination account + amount + payoutId as the idempotency key, then sets processing and stripeTransferId', async () => {
+    mockCreateTransfer.mockResolvedValue({ id: 'tr_mock_123' });
+    const { payout } = await seedPendingPayout({ totalAmount: 12.5 });
+
+    const result = await app.get(PayoutsService).processPayout(payout.id);
+
+    expect(mockCreateTransfer).toHaveBeenCalledTimes(1);
+    const [destinationArg, amountArg, idempotencyKeyArg] = mockCreateTransfer.mock.calls[0];
+    expect(destinationArg).toBe('acct_mock_stripe');
+    expect(amountArg.toNumber()).toBe(12.5);
+    expect(idempotencyKeyArg).toBe(payout.id);
+
+    expect(result.status).toBe('processing');
+    expect(result.stripeTransferId).toBe('tr_mock_123');
+
+    const stored = await testPrisma.payout.findUniqueOrThrow({ where: { id: payout.id } });
+    expect(stored.status).toBe('processing');
+    expect(stored.stripeTransferId).toBe('tr_mock_123');
+  });
+
+  it('rolls the payout back to pending (no stripeTransferId) when the Stripe call fails', async () => {
+    mockCreateTransfer.mockRejectedValue(new Error('stripe unavailable'));
+    const { payout } = await seedPendingPayout();
+
+    await expect(app.get(PayoutsService).processPayout(payout.id)).rejects.toThrow('stripe unavailable');
+
+    const stored = await testPrisma.payout.findUniqueOrThrow({ where: { id: payout.id } });
+    expect(stored.status).toBe('pending');
+    expect(stored.stripeTransferId).toBeNull();
+  });
+
+  it('rejects a second concurrent claim on the same pending payout — only one Stripe call is ever made', async () => {
+    mockCreateTransfer.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ id: 'tr_mock_race' }), 50)),
+    );
+    const { payout } = await seedPendingPayout();
+    const service = app.get(PayoutsService);
+
+    const results = await Promise.allSettled([service.processPayout(payout.id), service.processPayout(payout.id)]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect(mockCreateTransfer).toHaveBeenCalledTimes(1);
   });
 });

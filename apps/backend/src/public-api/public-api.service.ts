@@ -138,7 +138,7 @@ export class PublicApiService {
     }
 
     const attempt = await this.prisma.attributionAttempt.create({
-      data: { deviceId, merchantId, subId: generateSubId(deviceId) },
+      data: { deviceId, merchantId, subId: generateSubId() },
     });
 
     return { subId: attempt.subId };

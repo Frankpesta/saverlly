@@ -71,12 +71,17 @@ export class PayoutsService {
       throw new NotFoundException('Kiosk not found');
     }
 
-    const { url, accountId } = await this.stripeService.createOnboardingLink(kiosk.stripeAccountId);
-
-    if (accountId !== kiosk.stripeAccountId) {
+    // Persisted immediately after creation, before the (more failure-prone, external)
+    // account-link step — otherwise a link-creation failure on a brand-new account
+    // leaves stripeAccountId unset, and every retry creates yet another orphaned
+    // Stripe Express account for this kiosk instead of reusing the one just made.
+    let accountId = kiosk.stripeAccountId;
+    if (!accountId) {
+      accountId = await this.stripeService.createExpressAccount();
       await this.prisma.kiosk.update({ where: { id: kioskId }, data: { stripeAccountId: accountId } });
     }
 
+    const url = await this.stripeService.createOnboardingLink(accountId);
     return { url };
   }
 
@@ -93,16 +98,35 @@ export class PayoutsService {
       throw new BadRequestException('Kiosk has not connected a Stripe account');
     }
 
-    const transfer = await this.stripeService.createTransfer(
-      payout.kiosk.stripeAccountId,
-      payout.totalAmount.toNumber(),
-    );
-
-    const updated = await this.prisma.payout.update({
-      where: { id: payoutId },
-      data: { status: 'processing', stripeTransferId: transfer.id },
+    // Atomically claim the payout before calling Stripe. Two concurrent requests could
+    // otherwise both pass the status==='pending' check above and both create a real
+    // Stripe transfer for the same payout — the affected-row count here tells us which
+    // request actually won the race.
+    const claim = await this.prisma.payout.updateMany({
+      where: { id: payoutId, status: 'pending' },
+      data: { status: 'processing' },
     });
-    return toPayoutDto(updated);
+    if (claim.count === 0) {
+      throw new BadRequestException('Payout is not pending (already claimed by another request)');
+    }
+
+    try {
+      const transfer = await this.stripeService.createTransfer(
+        payout.kiosk.stripeAccountId,
+        payout.totalAmount,
+        payoutId,
+      );
+      const updated = await this.prisma.payout.update({
+        where: { id: payoutId },
+        data: { stripeTransferId: transfer.id },
+      });
+      return toPayoutDto(updated);
+    } catch (err) {
+      // Release the claim so a genuinely-failed attempt can be retried, rather than
+      // leaving the payout stuck in "processing" with no transfer ever created.
+      await this.prisma.payout.update({ where: { id: payoutId }, data: { status: 'pending' } });
+      throw err;
+    }
   }
 
   /**

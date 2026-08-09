@@ -17,9 +17,11 @@ export class PayoutDto {
   @ApiProperty() periodStart: Date;
   @ApiProperty() periodEnd: Date;
   @ApiProperty() totalAmount: number;
-  @ApiProperty({ description: '"pending" | "processing" | "paid" | "failed"' })
+  @ApiProperty({ enum: ['pending', 'processing', 'paid', 'failed'] })
   status: string;
-  @ApiPropertyOptional() stripeTransferId: string | null;
-  @ApiPropertyOptional() paidAt: Date | null;
+  // Always present in the response (never omitted) but may be null — nullable:true,
+  // not ApiPropertyOptional, since "optional" in OpenAPI means possibly-absent.
+  @ApiProperty({ nullable: true, type: String }) stripeTransferId: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) paidAt: Date | null;
   @ApiProperty() createdAt: Date;
 }

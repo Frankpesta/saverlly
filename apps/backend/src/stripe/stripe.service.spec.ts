@@ -1,15 +1,16 @@
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { StripeService, toStripeCents } from './stripe.service';
 
 describe('toStripeCents', () => {
-  it('converts a dollar amount to integer cents', () => {
-    expect(toStripeCents(1.5)).toBe(150);
-    expect(toStripeCents(49.99)).toBe(4999);
-    expect(toStripeCents(0)).toBe(0);
+  it('converts a Decimal dollar amount to integer cents', () => {
+    expect(toStripeCents(new Prisma.Decimal(1.5))).toBe(150);
+    expect(toStripeCents(new Prisma.Decimal('49.99'))).toBe(4999);
+    expect(toStripeCents(new Prisma.Decimal(0))).toBe(0);
   });
 
-  it('rounds rather than truncates on a fractional-cent edge case', () => {
-    expect(toStripeCents(19.995)).toBe(2000);
+  it('rounds rather than truncates on a fractional-cent edge case, via exact Decimal arithmetic', () => {
+    expect(toStripeCents(new Prisma.Decimal('19.995'))).toBe(2000);
   });
 });
 

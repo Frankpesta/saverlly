@@ -1105,6 +1105,8 @@
             "in": "query",
             "description": "Page size, 1-100",
             "schema": {
+              "minimum": 1,
+              "maximum": 100,
               "default": 50,
               "type": "number"
             }
@@ -2618,7 +2620,8 @@
             "type": "string"
           },
           "mediaUrl": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "repeatPolicy": {
             "type": "string",
@@ -2629,7 +2632,8 @@
             ]
           },
           "maxDisplayCount": {
-            "type": "object",
+            "type": "number",
+            "nullable": true,
             "description": "Set when repeatPolicy is MAX_N_TIMES"
           }
         },
@@ -2637,7 +2641,9 @@
           "id",
           "title",
           "body",
-          "repeatPolicy"
+          "mediaUrl",
+          "repeatPolicy",
+          "maxDisplayCount"
         ]
       },
       "CreateCouponTestEventDto": {
@@ -2732,7 +2738,7 @@
           },
           "maxDisplayCount": {
             "type": "number",
-            "description": "Required when repeatPolicy is MAX_N_TIMES"
+            "description": "Required (and must be >= 1) when repeatPolicy is MAX_N_TIMES — enforced in AnnouncementsService, since it depends on the resolved repeatPolicy. Whenever supplied, regardless of repeatPolicy, must be a positive integer."
           }
         },
         "required": [
@@ -2792,7 +2798,8 @@
             "type": "string"
           },
           "couponId": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "networkReference": {
             "type": "string"
@@ -2820,25 +2827,34 @@
             "type": "string"
           },
           "confirmedAt": {
-            "type": "object"
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           },
           "reversedAt": {
-            "type": "object"
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           },
           "payoutId": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
           "id",
           "deviceId",
           "merchantId",
+          "couponId",
           "networkReference",
           "orderValue",
           "commissionAmount",
           "kioskShareAmount",
           "status",
-          "reportedAt"
+          "reportedAt",
+          "confirmedAt",
+          "reversedAt",
+          "payoutId"
         ]
       },
       "SyncNowResultDto": {
@@ -2935,13 +2951,21 @@
           },
           "status": {
             "type": "string",
-            "description": "\"pending\" | \"processing\" | \"paid\" | \"failed\""
+            "enum": [
+              "pending",
+              "processing",
+              "paid",
+              "failed"
+            ]
           },
           "stripeTransferId": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "paidAt": {
-            "type": "object"
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           },
           "createdAt": {
             "format": "date-time",
@@ -2955,6 +2979,8 @@
           "periodEnd",
           "totalAmount",
           "status",
+          "stripeTransferId",
+          "paidAt",
           "createdAt"
         ]
       },

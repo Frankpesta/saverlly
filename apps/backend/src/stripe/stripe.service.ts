@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import Stripe from 'stripe';
 
 // Placeholder — lets the app boot and every non-Stripe route keep working in an
@@ -12,35 +13,48 @@ export class StripeService {
   readonly client: Stripe;
 
   constructor(private readonly configService: ConfigService) {
-    this.client = new Stripe(this.configService.get('STRIPE_SECRET_KEY') || PLACEHOLDER_SECRET_KEY);
+    this.client = new Stripe(this.configService.get('STRIPE_SECRET_KEY') || PLACEHOLDER_SECRET_KEY, {
+      timeout: 10_000,
+      maxNetworkRetries: 2,
+    });
   }
 
   /**
-   * Creates the kiosk's Express account on first call (reused on every later call via
-   * existingAccountId), then a fresh onboarding link — Stripe account links are single-use
-   * and short-lived, so a new one is minted every time regardless of onboarding progress.
+   * Creates a brand-new Stripe Connect Express account. Callers must persist the
+   * returned id before doing anything else that can fail (e.g. creating the account
+   * link) — otherwise a transient failure on the next step leaves no record of this
+   * account, and a retry creates a second orphaned Express account for the same kiosk.
    */
-  async createOnboardingLink(
-    existingAccountId: string | null,
-  ): Promise<{ url: string; accountId: string }> {
-    const accountId = existingAccountId ?? (await this.client.accounts.create({ type: 'express' })).id;
+  async createExpressAccount(): Promise<string> {
+    const account = await this.client.accounts.create({ type: 'express' });
+    return account.id;
+  }
 
+  /** Stripe account links are single-use and short-lived — mint a fresh one on every call. */
+  async createOnboardingLink(accountId: string): Promise<string> {
     const accountLink = await this.client.accountLinks.create({
       account: accountId,
       refresh_url: this.configService.getOrThrow('STRIPE_CONNECT_REFRESH_URL'),
       return_url: this.configService.getOrThrow('STRIPE_CONNECT_RETURN_URL'),
       type: 'account_onboarding',
     });
-
-    return { url: accountLink.url, accountId };
+    return accountLink.url;
   }
 
-  createTransfer(destinationAccountId: string, amount: number): Promise<Stripe.Transfer> {
-    return this.client.transfers.create({
-      amount: toStripeCents(amount),
-      currency: 'usd',
-      destination: destinationAccountId,
-    });
+  /**
+   * idempotencyKey is the owning Payout's id — if this call is retried (our own retry
+   * after a transient failure, or the Stripe SDK's own automatic network-error retry),
+   * Stripe recognizes it as the same logical transfer instead of creating a duplicate.
+   */
+  createTransfer(destinationAccountId: string, amount: Prisma.Decimal, idempotencyKey: string): Promise<Stripe.Transfer> {
+    return this.client.transfers.create(
+      {
+        amount: toStripeCents(amount),
+        currency: 'usd',
+        destination: destinationAccountId,
+      },
+      { idempotencyKey },
+    );
   }
 
   constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {
@@ -52,9 +66,10 @@ export class StripeService {
   }
 }
 
-// Stripe amounts are always integer minor units (cents for USD) — round rather than
-// truncate so e.g. 19.995 (already an unusual case for a 2-decimal-place Decimal column,
-// but defensive regardless) doesn't silently lose a cent.
-export function toStripeCents(amount: number): number {
-  return Math.round(amount * 100);
+// Stripe amounts are always integer minor units (cents for USD). Doing the *100 and
+// rounding in Decimal-space (not as a native float multiply) means this stays exact
+// regardless of the source column's precision, rather than relying on the specific
+// bounds of today's Decimal(10,2) schema to keep float rounding harmless.
+export function toStripeCents(amount: Prisma.Decimal): number {
+  return amount.mul(100).toDecimalPlaces(0).toNumber();
 }

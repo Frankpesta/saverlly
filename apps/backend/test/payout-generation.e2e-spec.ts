@@ -51,7 +51,9 @@ describe('Payout aggregation (e2e, real DB) — confirmed-only invariant', () =>
 
   it('never includes a PENDING event in a payout, under any code path', async () => {
     const { device, merchant } = await seedKioskWithDevice();
-    await seedCommissionEvent(device.id, merchant.id, { status: CommissionStatus.PENDING, kioskShareAmount: 0 });
+    // A positive kioskShareAmount here matters: with 0 the test can't distinguish
+    // "correctly excluded because PENDING" from "included but summed to 0 anyway".
+    await seedCommissionEvent(device.id, merchant.id, { status: CommissionStatus.PENDING, kioskShareAmount: 5 });
 
     const result = await payouts.generatePayouts();
 
@@ -61,7 +63,9 @@ describe('Payout aggregation (e2e, real DB) — confirmed-only invariant', () =>
 
   it('never includes a REVERSED event in a payout, under any code path', async () => {
     const { device, merchant } = await seedKioskWithDevice();
-    await seedCommissionEvent(device.id, merchant.id, { status: CommissionStatus.REVERSED, kioskShareAmount: 0 });
+    // A positive kioskShareAmount here matters: with 0 the test can't distinguish
+    // "correctly excluded because REVERSED" from "included but summed to 0 anyway".
+    await seedCommissionEvent(device.id, merchant.id, { status: CommissionStatus.REVERSED, kioskShareAmount: 5 });
 
     const result = await payouts.generatePayouts();
 
