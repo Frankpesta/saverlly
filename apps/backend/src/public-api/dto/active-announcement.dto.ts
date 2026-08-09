@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { AnnouncementRepeatPolicy } from '@prisma/client';
 
 export class ActiveAnnouncementDto {
@@ -11,12 +11,14 @@ export class ActiveAnnouncementDto {
   @ApiProperty()
   body: string;
 
-  @ApiPropertyOptional()
-  mediaUrl?: string | null;
+  // Always present in the response (never omitted) but may be null — nullable:true,
+  // not ApiPropertyOptional, since "optional" in OpenAPI means possibly-absent.
+  @ApiProperty({ nullable: true, type: String })
+  mediaUrl: string | null;
 
   @ApiProperty({ enum: AnnouncementRepeatPolicy })
   repeatPolicy: AnnouncementRepeatPolicy;
 
-  @ApiPropertyOptional({ description: 'Set when repeatPolicy is MAX_N_TIMES' })
-  maxDisplayCount?: number | null;
+  @ApiProperty({ nullable: true, type: Number, description: 'Set when repeatPolicy is MAX_N_TIMES' })
+  maxDisplayCount: number | null;
 }

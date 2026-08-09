@@ -24,6 +24,7 @@ export interface PublicMerchant {
   affiliateTrackingUrl: string | null;
   affiliateUrlParamKey: string | null;
   affiliateUrlParamValue: string | null;
+  affiliateSubIdParamKey: string | null;
   active: boolean;
   checkoutRecipe: CheckoutRecipe | null;
   coupons: PublicCoupon[];

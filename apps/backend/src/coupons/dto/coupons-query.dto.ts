@@ -8,7 +8,7 @@ export class CouponsQueryDto {
   @IsUUID()
   merchantId?: string;
 
-  @ApiPropertyOptional({ description: 'Page size, 1-100', default: 50 })
+  @ApiPropertyOptional({ description: 'Page size, 1-100', default: 50, minimum: 1, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -70,6 +70,7 @@ const merchant: PublicMerchant = {
   affiliateTrackingUrl: null,
   affiliateUrlParamKey: null,
   affiliateUrlParamValue: null,
+  affiliateSubIdParamKey: null,
   active: true,
   checkoutRecipe: {
     couponFieldSelector: '#coupon',

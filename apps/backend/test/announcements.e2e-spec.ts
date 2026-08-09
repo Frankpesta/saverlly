@@ -1,7 +1,8 @@
 import { INestApplication } from '@nestjs/common';
+import { AnnouncementRepeatPolicy } from '@prisma/client';
 import request from 'supertest';
 import { resetDatabase, testPrisma } from './utils/db';
-import { loginAs, seedAnnouncement, seedKiosk, seedUser } from './utils/fixtures';
+import { loginAs, seedAnnouncement, seedKiosk, seedLocation, seedUser } from './utils/fixtures';
 import { createTestApp } from './utils/test-app';
 
 describe('Announcements (e2e)', () => {
@@ -70,6 +71,113 @@ describe('Announcements (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ title: 'Ok', body: 'Ok', startAt, endAt, repeatPolicy: 'MAX_N_TIMES', maxDisplayCount: 3 })
       .expect(201);
+  });
+
+  it('rejects a locationId that belongs to another kiosk', async () => {
+    const { kiosk, token } = await ownerCtx();
+    const otherKiosk = await seedKiosk();
+    const otherLocation = await seedLocation(otherKiosk.id);
+    const startAt = new Date().toISOString();
+    const endAt = new Date(Date.now() + 3_600_000).toISOString();
+
+    await request(app.getHttpServer())
+      .post('/announcements')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Bad', body: 'Bad', startAt, endAt, locationIds: [otherLocation.id] })
+      .expect(400);
+  });
+
+  it('rejects a locationId that does not exist', async () => {
+    const { token } = await ownerCtx();
+    const startAt = new Date().toISOString();
+    const endAt = new Date(Date.now() + 3_600_000).toISOString();
+
+    await request(app.getHttpServer())
+      .post('/announcements')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Bad', body: 'Bad', startAt, endAt, locationIds: ['00000000-0000-0000-0000-000000000000'] })
+      .expect(400);
+  });
+
+  it('accepts a locationId that belongs to the caller\'s own kiosk', async () => {
+    const { kiosk, token } = await ownerCtx();
+    const location = await seedLocation(kiosk.id);
+    const startAt = new Date().toISOString();
+    const endAt = new Date(Date.now() + 3_600_000).toISOString();
+
+    const res = await request(app.getHttpServer())
+      .post('/announcements')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Ok', body: 'Ok', startAt, endAt, locationIds: [location.id] })
+      .expect(201);
+
+    expect(res.body.locationIds).toEqual([location.id]);
+  });
+
+  it('rejects updating an announcement with a locationId from another kiosk', async () => {
+    const { kiosk, token } = await ownerCtx();
+    const otherKiosk = await seedKiosk();
+    const otherLocation = await seedLocation(otherKiosk.id);
+    const announcement = await seedAnnouncement(kiosk.id);
+
+    await request(app.getHttpServer())
+      .patch(`/announcements/${announcement.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ locationIds: [otherLocation.id] })
+      .expect(400);
+  });
+
+  it('rejects switching an announcement to MAX_N_TIMES without a valid maxDisplayCount', async () => {
+    const { kiosk, token } = await ownerCtx();
+    const announcement = await seedAnnouncement(kiosk.id, { repeatPolicy: AnnouncementRepeatPolicy.ONCE });
+
+    await request(app.getHttpServer())
+      .patch(`/announcements/${announcement.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ repeatPolicy: 'MAX_N_TIMES' })
+      .expect(400);
+
+    const res = await request(app.getHttpServer())
+      .patch(`/announcements/${announcement.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ repeatPolicy: 'MAX_N_TIMES', maxDisplayCount: 2 })
+      .expect(200);
+    expect(res.body.repeatPolicy).toBe('MAX_N_TIMES');
+    expect(res.body.maxDisplayCount).toBe(2);
+  });
+
+  it('preserves an existing valid maxDisplayCount on a PATCH that omits it, while already MAX_N_TIMES', async () => {
+    const { kiosk, token } = await ownerCtx();
+    const announcement = await seedAnnouncement(kiosk.id, {
+      repeatPolicy: AnnouncementRepeatPolicy.MAX_N_TIMES,
+      maxDisplayCount: 5,
+    });
+
+    const res = await request(app.getHttpServer())
+      .patch(`/announcements/${announcement.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Still max n times' })
+      .expect(200);
+
+    expect(res.body.maxDisplayCount).toBe(5);
+  });
+
+  it('rejects a maxDisplayCount of 0 or a non-integer even when repeatPolicy is ONCE', async () => {
+    const { token } = await ownerCtx();
+    const startAt = new Date().toISOString();
+    const endAt = new Date(Date.now() + 3_600_000).toISOString();
+
+    await request(app.getHttpServer())
+      .post('/announcements')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Bad', body: 'Bad', startAt, endAt, maxDisplayCount: 0 })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/announcements')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Bad', body: 'Bad', startAt, endAt, maxDisplayCount: 1.5 })
+      .expect(400);
   });
 
   it('updates an announcement and re-validates the date window against the merged result', async () => {

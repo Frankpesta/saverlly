@@ -4,9 +4,11 @@ import type { Device } from '@prisma/client';
 import { CurrentDevice } from '../common/decorators/current-device.decorator';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
+import { AttributionAttemptDto } from './dto/attribution-attempt.dto';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
 import { DeviceStatusDto } from './dto/device-status.dto';
 import { LifetimeSavingsDto } from './dto/lifetime-savings.dto';
+import { MintAttributionAttemptDto } from './dto/mint-attribution-attempt.dto';
 import { PublicApiService } from './public-api.service';
 
 @ApiTags('Public (device-facing)')
@@ -64,5 +66,20 @@ export class PublicApiController {
   @ApiResponse({ status: 400, description: 'merchantId or couponId does not exist' })
   recordCouponTestEvent(@CurrentDevice() device: Device, @Body() dto: CreateCouponTestEventDto) {
     return this.publicApiService.recordCouponTestEvent(device.id, dto);
+  }
+
+  @Post('attribution-attempts')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Mint a sub-ID/click-ID for this device+merchant attribution attempt, for merchants whose network supports a pass-through tracking param (Merchant.affiliateSubIdParamKey). Logged so a later-reported commission conversion can be matched back to this device.',
+  })
+  @ApiResponse({ status: 201, description: 'Minted sub-ID', type: AttributionAttemptDto })
+  @ApiResponse({ status: 400, description: 'merchantId does not exist' })
+  mintAttributionAttempt(
+    @CurrentDevice() device: Device,
+    @Body() dto: MintAttributionAttemptDto,
+  ): Promise<AttributionAttemptDto> {
+    return this.publicApiService.mintAttributionAttempt(device.id, dto.merchantId);
   }
 }

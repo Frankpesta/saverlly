@@ -1,4 +1,5 @@
 import type {
+  AttributionAttemptResponse,
   CreateCouponTestEventPayload,
   DeviceStatusResponse,
   LifetimeSavingsResponse,
@@ -85,4 +86,16 @@ export async function reportCouponTestEvent(payload: CreateCouponTestEventPayloa
   if (!res.ok) {
     throw new Error(`Unexpected status ${res.status} reporting coupon test event`);
   }
+}
+
+export async function mintAttributionSubId(merchantId: string): Promise<string> {
+  const res = await apiFetch('/public/attribution-attempts', {
+    method: 'POST',
+    body: JSON.stringify({ merchantId }),
+  });
+  if (!res.ok) {
+    throw new Error(`Unexpected status ${res.status} minting attribution sub-ID`);
+  }
+  const body: AttributionAttemptResponse = await res.json();
+  return body.subId;
 }

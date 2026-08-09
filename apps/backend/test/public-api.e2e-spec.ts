@@ -269,4 +269,58 @@ describe('Public device-facing API (e2e)', () => {
       .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied' })
       .expect(400);
   });
+
+  it('mints a sub-ID and logs an AttributionAttempt for the calling device', async () => {
+    const { device, rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+
+    const res = await request(app.getHttpServer())
+      .post('/public/attribution-attempts')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .send({ merchantId: merchant.id })
+      .expect(201);
+
+    expect(typeof res.body.subId).toBe('string');
+    expect(res.body.subId.length).toBeGreaterThan(0);
+
+    const attempt = await testPrisma.attributionAttempt.findUniqueOrThrow({
+      where: { subId: res.body.subId },
+    });
+    expect(attempt.deviceId).toBe(device.id);
+    expect(attempt.merchantId).toBe(merchant.id);
+  });
+
+  it('mints a distinct sub-ID on every attempt, even for the same device+merchant', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+
+    const mint = () =>
+      request(app.getHttpServer())
+        .post('/public/attribution-attempts')
+        .set('Authorization', `Bearer ${rawToken}`)
+        .send({ merchantId: merchant.id })
+        .expect(201);
+
+    const first = await mint();
+    const second = await mint();
+
+    expect(first.body.subId).not.toBe(second.body.subId);
+  });
+
+  it('400s minting an attribution attempt for a merchantId that does not exist', async () => {
+    const { rawToken } = await seedDeviceToken();
+
+    await request(app.getHttpServer())
+      .post('/public/attribution-attempts')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .send({ merchantId: '00000000-0000-0000-0000-000000000000' })
+      .expect(400);
+  });
+
+  it('401s minting an attribution attempt with no device token', async () => {
+    await request(app.getHttpServer())
+      .post('/public/attribution-attempts')
+      .send({ merchantId: '00000000-0000-0000-0000-000000000000' })
+      .expect(401);
+  });
 });

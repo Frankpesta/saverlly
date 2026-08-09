@@ -1,7 +1,17 @@
 import { INestApplication } from '@nestjs/common';
+import { CommissionStatus } from '@prisma/client';
 import request from 'supertest';
 import { resetDatabase, testPrisma } from './utils/db';
-import { loginAs, seedAnnouncement, seedDevice, seedKiosk, seedLocation, seedUser } from './utils/fixtures';
+import {
+  loginAs,
+  seedAnnouncement,
+  seedCommissionEvent,
+  seedDevice,
+  seedKiosk,
+  seedLocation,
+  seedMerchant,
+  seedUser,
+} from './utils/fixtures';
 import { createTestApp } from './utils/test-app';
 
 describe('Tenant isolation (e2e)', () => {
@@ -208,6 +218,18 @@ describe('Tenant isolation (e2e)', () => {
       expect(res.body[0].kioskId).toBe(kioskA.id);
     });
 
+    it('fails closed (empty list, not an error) for a kiosk-owner with no kioskId on their account', async () => {
+      await seedUser({ email: 'orphanOwner@test.com', role: 'KIOSK_OWNER', kioskId: null });
+      const orphanOwnerToken = await loginAs(app, 'orphanOwner@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/announcements')
+        .set('Authorization', `Bearer ${orphanOwnerToken}`)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
     it('scopes a location-manager\'s announcement list to all-location announcements plus their own assigned location', async () => {
       const kiosk = await seedKiosk();
       const managedLoc = await seedLocation(kiosk.id);
@@ -247,6 +269,75 @@ describe('Tenant isolation (e2e)', () => {
       await request(app.getHttpServer())
         .get(`/announcements/${announcement.id}`)
         .set('Authorization', `Bearer ${lmToken}`)
+        .expect(403);
+    });
+  });
+
+  describe('Commission Events (Phase 5)', () => {
+    it('never returns another kiosk\'s commission events via /my/commission-events or /my/balance', async () => {
+      const kioskA = await seedKiosk({ revenueSharePct: 30 });
+      const kioskB = await seedKiosk({ revenueSharePct: 30 });
+      const locationA = await seedLocation(kioskA.id);
+      const deviceA = await seedDevice(locationA.id);
+      const merchant = await seedMerchant();
+      await seedCommissionEvent(deviceA.id, merchant.id, { status: CommissionStatus.CONFIRMED, kioskShareAmount: 9 });
+      await seedUser({ email: 'ownerB@test.com', role: 'KIOSK_OWNER', kioskId: kioskB.id });
+      const ownerBToken = await loginAs(app, 'ownerB@test.com');
+
+      const eventsRes = await request(app.getHttpServer())
+        .get('/my/commission-events')
+        .set('Authorization', `Bearer ${ownerBToken}`)
+        .expect(200);
+      expect(eventsRes.body).toHaveLength(0);
+
+      const balanceRes = await request(app.getHttpServer())
+        .get('/my/balance')
+        .set('Authorization', `Bearer ${ownerBToken}`)
+        .expect(200);
+      expect(balanceRes.body).toEqual({ pendingAmount: 0, confirmedAvailableAmount: 0 });
+    });
+
+    it('blocks a kiosk-owner from the admin commission-events endpoints entirely', async () => {
+      const kiosk = await seedKiosk();
+      await seedUser({ email: 'owner@test.com', role: 'KIOSK_OWNER', kioskId: kiosk.id });
+      const ownerToken = await loginAs(app, 'owner@test.com');
+
+      await request(app.getHttpServer())
+        .get('/commission-events')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(403);
+    });
+  });
+
+  describe('Payouts (Phase 5)', () => {
+    it('never returns another kiosk\'s payouts via /my/payouts', async () => {
+      const kioskA = await seedKiosk();
+      const kioskB = await seedKiosk();
+      await testPrisma.payout.create({
+        data: { kioskId: kioskA.id, periodStart: new Date(), periodEnd: new Date(), totalAmount: 12, status: 'pending' },
+      });
+      await seedUser({ email: 'ownerB@test.com', role: 'KIOSK_OWNER', kioskId: kioskB.id });
+      const ownerBToken = await loginAs(app, 'ownerB@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/my/payouts')
+        .set('Authorization', `Bearer ${ownerBToken}`)
+        .expect(200);
+      expect(res.body).toHaveLength(0);
+    });
+
+    it('blocks a kiosk-owner from the admin payouts endpoints entirely', async () => {
+      const kiosk = await seedKiosk();
+      const payout = await testPrisma.payout.create({
+        data: { kioskId: kiosk.id, periodStart: new Date(), periodEnd: new Date(), totalAmount: 12, status: 'pending' },
+      });
+      await seedUser({ email: 'owner@test.com', role: 'KIOSK_OWNER', kioskId: kiosk.id });
+      const ownerToken = await loginAs(app, 'owner@test.com');
+
+      await request(app.getHttpServer()).get('/payouts').set('Authorization', `Bearer ${ownerToken}`).expect(403);
+      await request(app.getHttpServer())
+        .post(`/payouts/${payout.id}/process`)
+        .set('Authorization', `Bearer ${ownerToken}`)
         .expect(403);
     });
   });

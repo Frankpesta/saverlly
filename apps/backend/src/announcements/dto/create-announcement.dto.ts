@@ -11,7 +11,6 @@ import {
   IsUrl,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 
 export class CreateAnnouncementDto {
@@ -19,7 +18,7 @@ export class CreateAnnouncementDto {
     description: 'Required when the caller is ADMIN; ignored for KIOSK_OWNER (their own kioskId is always used)',
   })
   @IsOptional()
-  @IsUUID()
+  @IsUUID('4')
   kioskId?: string;
 
   @ApiPropertyOptional({
@@ -59,8 +58,12 @@ export class CreateAnnouncementDto {
   @IsEnum(AnnouncementRepeatPolicy)
   repeatPolicy?: AnnouncementRepeatPolicy;
 
-  @ApiPropertyOptional({ description: 'Required when repeatPolicy is MAX_N_TIMES' })
-  @ValidateIf((dto: CreateAnnouncementDto) => dto.repeatPolicy === AnnouncementRepeatPolicy.MAX_N_TIMES)
+  @ApiPropertyOptional({
+    description:
+      'Required (and must be >= 1) when repeatPolicy is MAX_N_TIMES — enforced in AnnouncementsService, ' +
+      'since it depends on the resolved repeatPolicy. Whenever supplied, regardless of repeatPolicy, must be a positive integer.',
+  })
+  @IsOptional()
   @IsInt()
   @Min(1)
   maxDisplayCount?: number;
