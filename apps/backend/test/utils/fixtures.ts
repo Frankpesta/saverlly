@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { AttributionMethod, CouponSource, UserRole } from '@prisma/client';
+import { AnnouncementRepeatPolicy, AttributionMethod, CouponSource, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'crypto';
 import request from 'supertest';
@@ -109,6 +109,33 @@ export async function seedAffiliateProgram(overrides: Partial<{ networkName: str
     data: {
       networkName: overrides.networkName ?? 'TestNetwork',
       hasCouponApi: overrides.hasCouponApi ?? false,
+    },
+  });
+}
+
+export async function seedAnnouncement(
+  kioskId: string,
+  overrides: Partial<{
+    locationIds: string[];
+    title: string;
+    body: string;
+    startAt: Date;
+    endAt: Date;
+    repeatPolicy: AnnouncementRepeatPolicy;
+    maxDisplayCount: number;
+  }> = {},
+) {
+  const now = Date.now();
+  return testPrisma.announcement.create({
+    data: {
+      kioskId,
+      locationIds: overrides.locationIds ?? [],
+      title: overrides.title ?? 'Test Announcement',
+      body: overrides.body ?? 'Test body',
+      startAt: overrides.startAt ?? new Date(now - 60_000),
+      endAt: overrides.endAt ?? new Date(now + 60_000),
+      repeatPolicy: overrides.repeatPolicy ?? AnnouncementRepeatPolicy.ONCE,
+      maxDisplayCount: overrides.maxDisplayCount,
     },
   });
 }

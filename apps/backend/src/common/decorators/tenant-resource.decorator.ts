@@ -5,6 +5,7 @@ export enum TenantResourceType {
   LOCATION = 'location',
   DEVICE = 'device',
   USER = 'user',
+  ANNOUNCEMENT = 'announcement',
 }
 
 export interface TenantResourceOptions {

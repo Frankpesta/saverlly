@@ -21,6 +21,12 @@ export enum AttributionMethod {
   BOTH = 'BOTH',
 }
 
+export enum AnnouncementRepeatPolicy {
+  ONCE = 'ONCE',
+  EVERY_LOGIN = 'EVERY_LOGIN',
+  MAX_N_TIMES = 'MAX_N_TIMES',
+}
+
 export const COUPON_TEST_RESULTS = [
   'applied',
   'failed',

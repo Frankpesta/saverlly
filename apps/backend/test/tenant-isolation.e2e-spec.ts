@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { resetDatabase, testPrisma } from './utils/db';
-import { loginAs, seedDevice, seedKiosk, seedLocation, seedUser } from './utils/fixtures';
+import { loginAs, seedAnnouncement, seedDevice, seedKiosk, seedLocation, seedUser } from './utils/fixtures';
 import { createTestApp } from './utils/test-app';
 
 describe('Tenant isolation (e2e)', () => {
@@ -162,6 +162,91 @@ describe('Tenant isolation (e2e)', () => {
         .patch(`/devices/${unmanagedDevice.id}`)
         .set('Authorization', `Bearer ${lmToken}`)
         .send({ active: false })
+        .expect(403);
+    });
+  });
+
+  describe('Announcements', () => {
+    it('blocks cross-tenant announcement access even when the announcement id is known', async () => {
+      const kioskA = await seedKiosk();
+      const kioskB = await seedKiosk();
+      const announcementA = await seedAnnouncement(kioskA.id);
+      await seedUser({ email: 'ownerB@test.com', role: 'KIOSK_OWNER', kioskId: kioskB.id });
+      const ownerBToken = await loginAs(app, 'ownerB@test.com');
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${announcementA.id}`)
+        .set('Authorization', `Bearer ${ownerBToken}`)
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .patch(`/announcements/${announcementA.id}`)
+        .set('Authorization', `Bearer ${ownerBToken}`)
+        .send({ title: 'hacked' })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .delete(`/announcements/${announcementA.id}`)
+        .set('Authorization', `Bearer ${ownerBToken}`)
+        .expect(403);
+    });
+
+    it('never returns another kiosk\'s announcements in a kiosk-owner\'s list', async () => {
+      const kioskA = await seedKiosk();
+      const kioskB = await seedKiosk();
+      await seedAnnouncement(kioskA.id);
+      await seedAnnouncement(kioskB.id);
+      await seedUser({ email: 'ownerA@test.com', role: 'KIOSK_OWNER', kioskId: kioskA.id });
+      const ownerAToken = await loginAs(app, 'ownerA@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/announcements')
+        .set('Authorization', `Bearer ${ownerAToken}`)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].kioskId).toBe(kioskA.id);
+    });
+
+    it('scopes a location-manager\'s announcement list to all-location announcements plus their own assigned location', async () => {
+      const kiosk = await seedKiosk();
+      const managedLoc = await seedLocation(kiosk.id);
+      const unmanagedLoc = await seedLocation(kiosk.id);
+      const allLocationsAnn = await seedAnnouncement(kiosk.id, { title: 'All' });
+      const managedOnlyAnn = await seedAnnouncement(kiosk.id, { title: 'Managed', locationIds: [managedLoc.id] });
+      await seedAnnouncement(kiosk.id, { title: 'Unmanaged', locationIds: [unmanagedLoc.id] });
+      await seedUser({
+        email: 'lm@test.com',
+        role: 'LOCATION_MANAGER',
+        kioskId: kiosk.id,
+        managedLocationIds: [managedLoc.id],
+      });
+      const lmToken = await loginAs(app, 'lm@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/announcements')
+        .set('Authorization', `Bearer ${lmToken}`)
+        .expect(200);
+
+      const ids = res.body.map((a: { id: string }) => a.id).sort();
+      expect(ids).toEqual([allLocationsAnn.id, managedOnlyAnn.id].sort());
+    });
+
+    it('blocks a location-manager from creating or reaching the single-resource announcement routes', async () => {
+      const kiosk = await seedKiosk();
+      const announcement = await seedAnnouncement(kiosk.id);
+      await seedUser({ email: 'lm@test.com', role: 'LOCATION_MANAGER', kioskId: kiosk.id, managedLocationIds: [] });
+      const lmToken = await loginAs(app, 'lm@test.com');
+
+      await request(app.getHttpServer())
+        .post('/announcements')
+        .set('Authorization', `Bearer ${lmToken}`)
+        .send({ title: 'x', body: 'y', startAt: new Date().toISOString(), endAt: new Date(Date.now() + 60_000).toISOString() })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${announcement.id}`)
+        .set('Authorization', `Bearer ${lmToken}`)
         .expect(403);
     });
   });

@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { resetDatabase, testPrisma } from './utils/db';
-import { seedCoupon, seedDeviceWithToken, seedKiosk, seedLocation, seedMerchant } from './utils/fixtures';
+import { seedAnnouncement, seedCoupon, seedDeviceWithToken, seedKiosk, seedLocation, seedMerchant } from './utils/fixtures';
 import { createTestApp } from './utils/test-app';
 
 describe('Public device-facing API (e2e)', () => {
@@ -208,6 +208,54 @@ describe('Public device-facing API (e2e)', () => {
       .expect(200);
 
     expect(res.body).toEqual({ lifetimeSaved: 0.3 });
+  });
+
+  it('returns announcements scoped to all locations or this device\'s own location, within the active time window', async () => {
+    const kiosk = await seedKiosk();
+    const location = await seedLocation(kiosk.id);
+    const otherLocation = await seedLocation(kiosk.id);
+    const { device, rawToken } = await seedDeviceWithToken(location.id);
+
+    const allLocations = await seedAnnouncement(kiosk.id, { title: 'All' });
+    const thisLocationOnly = await seedAnnouncement(kiosk.id, { title: 'Mine', locationIds: [device.locationId] });
+    await seedAnnouncement(kiosk.id, { title: 'Other', locationIds: [otherLocation.id] });
+    await seedAnnouncement(kiosk.id, {
+      title: 'Not started yet',
+      startAt: new Date(Date.now() + 60_000),
+      endAt: new Date(Date.now() + 120_000),
+    });
+    await seedAnnouncement(kiosk.id, {
+      title: 'Already ended',
+      startAt: new Date(Date.now() - 120_000),
+      endAt: new Date(Date.now() - 60_000),
+    });
+
+    const res = await request(app.getHttpServer())
+      .get('/public/announcements/active')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    const titles = res.body.map((a: { title: string }) => a.title).sort();
+    expect(titles).toEqual([allLocations.title, thisLocationOnly.title].sort());
+  });
+
+  it('never returns another kiosk\'s announcements to a device', async () => {
+    const kiosk = await seedKiosk();
+    const otherKiosk = await seedKiosk();
+    const location = await seedLocation(kiosk.id);
+    const { rawToken } = await seedDeviceWithToken(location.id);
+    await seedAnnouncement(otherKiosk.id, { title: 'Not mine' });
+
+    const res = await request(app.getHttpServer())
+      .get('/public/announcements/active')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    expect(res.body).toHaveLength(0);
+  });
+
+  it('401s an active-announcements check with no device token', async () => {
+    await request(app.getHttpServer()).get('/public/announcements/active').expect(401);
   });
 
   it('400s an "applied" coupon-test-event with no discountAmount', async () => {

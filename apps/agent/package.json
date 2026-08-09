@@ -1,0 +1,25 @@
+{
+  "name": "@saverlly/agent",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "dev": "node scripts/build.js --watch",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "test": "jest",
+    "test:integration": "echo \"no integration tests for the agent (see manual QA notes)\" && exit 0",
+    "package": "npm run build && node scripts/package.js"
+  },
+  "dependencies": {
+    "@saverlly/shared-types": "*"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.10.0",
+    "@yao-pkg/pkg": "^6.3.0",
+    "esbuild": "^0.24.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.7.3"
+  }
+}
