@@ -201,9 +201,9 @@ enum AnnouncementRepeatPolicy {
 
 model Announcement {
   id              String                   @id @default(uuid())
-  kioskId         String
-  kiosk           Kiosk                    @relation(fields: [kioskId], references: [id])
-  locationIds     String[] // empty array = all locations for this kiosk
+  kioskId         String? // null = platform-wide broadcast (ADMIN-only); locationIds is always empty when null
+  kiosk           Kiosk?                   @relation(fields: [kioskId], references: [id])
+  locationIds     String[] // empty array = all locations for this kiosk (or, for a broadcast, everyone)
   title           String
   body            String
   mediaUrl        String? // image/asset for the visual editor

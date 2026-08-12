@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AnnouncementRepeatPolicy, UserRole } from '@prisma/client';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,20 +15,53 @@ export class AnnouncementsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(currentUser: JwtPayload, dto: CreateAnnouncementDto) {
-    const kioskId = currentUser.role === UserRole.ADMIN ? dto.kioskId : currentUser.kioskId;
-    if (!kioskId) {
-      throw new BadRequestException('kioskId is required');
+    const isBroadcast =
+      currentUser.role === UserRole.ADMIN && dto.broadcast === true;
+
+    if (dto.broadcast === true && currentUser.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only an admin can create a platform-wide broadcast',
+      );
     }
-    const kiosk = await this.prisma.kiosk.findUnique({ where: { id: kioskId }, select: { id: true } });
-    if (!kiosk) {
-      throw new NotFoundException('Kiosk not found');
-    }
+
     if (new Date(dto.endAt) <= new Date(dto.startAt)) {
       throw new BadRequestException('endAt must be after startAt');
     }
-    await this.assertLocationsBelongToKiosk(kioskId, dto.locationIds);
     const repeatPolicy = dto.repeatPolicy ?? AnnouncementRepeatPolicy.ONCE;
     this.assertValidMaxDisplayCount(repeatPolicy, dto.maxDisplayCount);
+
+    if (isBroadcast) {
+      // A broadcast targets everyone — kioskId and locationIds are meaningless here, so they're
+      // ignored even if the client sent them, rather than trusting client intent on something
+      // this consequential.
+      return this.prisma.announcement.create({
+        data: {
+          kioskId: null,
+          locationIds: [],
+          title: dto.title,
+          body: dto.body,
+          mediaUrl: dto.mediaUrl,
+          startAt: dto.startAt,
+          endAt: dto.endAt,
+          repeatPolicy,
+          maxDisplayCount: dto.maxDisplayCount,
+        },
+      });
+    }
+
+    const kioskId =
+      currentUser.role === UserRole.ADMIN ? dto.kioskId : currentUser.kioskId;
+    if (!kioskId) {
+      throw new BadRequestException('kioskId is required');
+    }
+    const kiosk = await this.prisma.kiosk.findUnique({
+      where: { id: kioskId },
+      select: { id: true },
+    });
+    if (!kiosk) {
+      throw new NotFoundException('Kiosk not found');
+    }
+    await this.assertLocationsBelongToKiosk(kioskId, dto.locationIds);
 
     return this.prisma.announcement.create({
       data: {
@@ -42,7 +80,9 @@ export class AnnouncementsService {
 
   async findAll(currentUser: JwtPayload) {
     if (currentUser.role === UserRole.ADMIN) {
-      return this.prisma.announcement.findMany({ orderBy: { createdAt: 'desc' } });
+      return this.prisma.announcement.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
     }
 
     if (currentUser.role === UserRole.LOCATION_MANAGER) {
@@ -55,14 +95,19 @@ export class AnnouncementsService {
         return []; // fail closed rather than send Prisma an unscoped/null kioskId filter
       }
       const managedLocationIds = manager?.managedLocationIds ?? [];
+      // Includes platform-wide broadcasts (kioskId: null) — read-only visibility into what's
+      // showing on their own devices, even though they can't open/edit/delete one (TenantScopeGuard
+      // blocks that for anyone but ADMIN).
       const all = await this.prisma.announcement.findMany({
-        where: { kioskId },
+        where: { OR: [{ kioskId }, { kioskId: null }] },
         orderBy: { createdAt: 'desc' },
       });
       // Scoped to their assigned location(s): either the announcement targets
-      // all locations (empty array) or overlaps their managed set.
+      // all locations (empty array — also true for every broadcast) or overlaps their managed set.
       return all.filter(
-        (a) => a.locationIds.length === 0 || a.locationIds.some((id) => managedLocationIds.includes(id)),
+        (a) =>
+          a.locationIds.length === 0 ||
+          a.locationIds.some((id) => managedLocationIds.includes(id)),
       );
     }
 
@@ -70,14 +115,17 @@ export class AnnouncementsService {
     if (!currentUser.kioskId) {
       return []; // fail closed rather than send Prisma an unscoped/null kioskId filter
     }
+    // Same broadcast visibility as above.
     return this.prisma.announcement.findMany({
-      where: { kioskId: currentUser.kioskId },
+      where: { OR: [{ kioskId: currentUser.kioskId }, { kioskId: null }] },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(id: string) {
-    const announcement = await this.prisma.announcement.findUnique({ where: { id } });
+    const announcement = await this.prisma.announcement.findUnique({
+      where: { id },
+    });
     if (!announcement) {
       throw new NotFoundException('Announcement not found');
     }
@@ -93,7 +141,10 @@ export class AnnouncementsService {
     }
     await this.assertLocationsBelongToKiosk(existing.kioskId, dto.locationIds);
     const repeatPolicy = dto.repeatPolicy ?? existing.repeatPolicy;
-    const maxDisplayCount = dto.maxDisplayCount !== undefined ? dto.maxDisplayCount : existing.maxDisplayCount;
+    const maxDisplayCount =
+      dto.maxDisplayCount !== undefined
+        ? dto.maxDisplayCount
+        : existing.maxDisplayCount;
     this.assertValidMaxDisplayCount(repeatPolicy, maxDisplayCount);
 
     return this.prisma.announcement.update({
@@ -116,17 +167,32 @@ export class AnnouncementsService {
     await this.prisma.announcement.delete({ where: { id } });
   }
 
-  /** Empty/omitted locationIds means "all locations for the kiosk" — nothing to validate. */
-  private async assertLocationsBelongToKiosk(kioskId: string, locationIds: string[] | undefined): Promise<void> {
+  /**
+   * Empty/omitted locationIds means "all locations for the kiosk" — nothing to validate. A null
+   * kioskId is a broadcast, which has no locations to belong to; locationIds must be empty for one
+   * (create() enforces this server-side regardless of client input, but update() can reach this
+   * with a non-empty list too, so it's rejected explicitly here rather than silently ignored).
+   */
+  private async assertLocationsBelongToKiosk(
+    kioskId: string | null,
+    locationIds: string[] | undefined,
+  ): Promise<void> {
     if (!locationIds || locationIds.length === 0) {
       return;
+    }
+    if (kioskId === null) {
+      throw new BadRequestException(
+        'A platform-wide broadcast cannot be scoped to specific locations',
+      );
     }
     const matching = await this.prisma.location.findMany({
       where: { id: { in: locationIds }, kioskId },
       select: { id: true },
     });
     if (matching.length !== locationIds.length) {
-      throw new BadRequestException('One or more locationIds do not exist or do not belong to this kiosk');
+      throw new BadRequestException(
+        'One or more locationIds do not exist or do not belong to this kiosk',
+      );
     }
   }
 
@@ -136,7 +202,9 @@ export class AnnouncementsService {
   ): void {
     const isValid = typeof maxDisplayCount === 'number' && maxDisplayCount >= 1;
     if (repeatPolicy === AnnouncementRepeatPolicy.MAX_N_TIMES && !isValid) {
-      throw new BadRequestException('maxDisplayCount must be a positive integer when repeatPolicy is MAX_N_TIMES');
+      throw new BadRequestException(
+        'maxDisplayCount must be a positive integer when repeatPolicy is MAX_N_TIMES',
+      );
     }
   }
 }

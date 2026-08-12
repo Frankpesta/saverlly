@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { generateSubId } from '../common/crypto/sub-id.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,7 +40,9 @@ export class PublicApiService {
     return { lifetimeSaved: result._sum.discountAmount?.toNumber() ?? 0 };
   }
 
-  async getActiveAnnouncements(deviceId: string): Promise<ActiveAnnouncementDto[]> {
+  async getActiveAnnouncements(
+    deviceId: string,
+  ): Promise<ActiveAnnouncementDto[]> {
     const device = await this.prisma.device.findUniqueOrThrow({
       where: { id: deviceId },
       select: { locationId: true, location: { select: { kioskId: true } } },
@@ -45,10 +51,18 @@ export class PublicApiService {
     const now = new Date();
     const announcements = await this.prisma.announcement.findMany({
       where: {
-        kioskId: device.location.kioskId,
+        // Platform-wide broadcasts (kioskId: null) show on every device regardless of kiosk.
+        OR: [{ kioskId: device.location.kioskId }, { kioskId: null }],
         startAt: { lte: now },
         endAt: { gte: now },
-        OR: [{ locationIds: { isEmpty: true } }, { locationIds: { has: device.locationId } }],
+        AND: [
+          {
+            OR: [
+              { locationIds: { isEmpty: true } },
+              { locationIds: { has: device.locationId } },
+            ],
+          },
+        ],
       },
       orderBy: { startAt: 'asc' },
     });
@@ -83,7 +97,9 @@ export class PublicApiService {
 
   async recordCouponTestEvent(deviceId: string, dto: CreateCouponTestEventDto) {
     if (dto.result === 'applied' && typeof dto.discountAmount !== 'number') {
-      throw new BadRequestException('discountAmount is required when result is "applied"');
+      throw new BadRequestException(
+        'discountAmount is required when result is "applied"',
+      );
     }
 
     if (dto.couponId) {
@@ -104,11 +120,15 @@ export class PublicApiService {
           merchantId: dto.merchantId,
           couponId: dto.couponId,
           result: dto.result,
-          discountAmount: dto.result === 'applied' ? dto.discountAmount : undefined,
+          discountAmount:
+            dto.result === 'applied' ? dto.discountAmount : undefined,
         },
       });
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2003'
+      ) {
         throw new BadRequestException('merchantId or couponId does not exist');
       }
       throw err;
@@ -125,10 +145,16 @@ export class PublicApiService {
       });
     }
 
-    return { ...event, discountAmount: event.discountAmount?.toNumber() ?? null };
+    return {
+      ...event,
+      discountAmount: event.discountAmount?.toNumber() ?? null,
+    };
   }
 
-  async mintAttributionAttempt(deviceId: string, merchantId: string): Promise<AttributionAttemptDto> {
+  async mintAttributionAttempt(
+    deviceId: string,
+    merchantId: string,
+  ): Promise<AttributionAttemptDto> {
     const merchant = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
       select: { id: true },

@@ -5,3 +5,6 @@ node_modules
 .env.test
 .env.example
 /src/generated/prisma
+
+# User-uploaded files (announcement images, etc.) — not source-controlled
+/uploads

@@ -10,7 +10,10 @@ import {
 } from '../decorators/tenant-resource.decorator';
 
 interface ResourceScope {
-  kioskId: string;
+  // null only ever occurs for a platform-wide broadcast Announcement — the strict !== comparison
+  // below correctly denies every non-admin caller for those (null never equals a real kiosk id),
+  // which is the intended behavior: only ADMIN (who bypasses this guard entirely) can reach one.
+  kioskId: string | null;
   locationId?: string;
 }
 
@@ -32,10 +35,9 @@ export class TenantScopeGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const options = this.reflector.getAllAndOverride<TenantResourceOptions | undefined>(
-      TENANT_RESOURCE_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const options = this.reflector.getAllAndOverride<
+      TenantResourceOptions | undefined
+    >(TENANT_RESOURCE_KEY, [context.getHandler(), context.getClass()]);
 
     const request = context.switchToHttp().getRequest();
     const user: JwtPayload | undefined = request.user;
@@ -84,7 +86,10 @@ export class TenantScopeGuard implements CanActivate {
   ): Promise<ResourceScope | null> {
     switch (type) {
       case TenantResourceType.KIOSK: {
-        const kiosk = await this.prisma.kiosk.findUnique({ where: { id }, select: { id: true } });
+        const kiosk = await this.prisma.kiosk.findUnique({
+          where: { id },
+          select: { id: true },
+        });
         return kiosk ? { kioskId: kiosk.id } : null;
       }
       case TenantResourceType.LOCATION: {
@@ -92,14 +97,18 @@ export class TenantScopeGuard implements CanActivate {
           where: { id },
           select: { id: true, kioskId: true },
         });
-        return location ? { kioskId: location.kioskId, locationId: location.id } : null;
+        return location
+          ? { kioskId: location.kioskId, locationId: location.id }
+          : null;
       }
       case TenantResourceType.DEVICE: {
         const device = await this.prisma.device.findUnique({
           where: { id },
           select: { locationId: true, location: { select: { kioskId: true } } },
         });
-        return device ? { kioskId: device.location.kioskId, locationId: device.locationId } : null;
+        return device
+          ? { kioskId: device.location.kioskId, locationId: device.locationId }
+          : null;
       }
       case TenantResourceType.USER: {
         const targetUser = await this.prisma.user.findUnique({

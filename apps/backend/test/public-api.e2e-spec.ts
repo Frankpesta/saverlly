@@ -1,7 +1,14 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { resetDatabase, testPrisma } from './utils/db';
-import { seedAnnouncement, seedCoupon, seedDeviceWithToken, seedKiosk, seedLocation, seedMerchant } from './utils/fixtures';
+import {
+  seedAnnouncement,
+  seedCoupon,
+  seedDeviceWithToken,
+  seedKiosk,
+  seedLocation,
+  seedMerchant,
+} from './utils/fixtures';
 import { createTestApp } from './utils/test-app';
 
 describe('Public device-facing API (e2e)', () => {
@@ -38,11 +45,15 @@ describe('Public device-facing API (e2e)', () => {
   });
 
   it('401s a status check with no device token', async () => {
-    await request(app.getHttpServer()).get('/public/devices/me/status').expect(401);
+    await request(app.getHttpServer())
+      .get('/public/devices/me/status')
+      .expect(401);
   });
 
   it('401s a merchant lookup with no device token', async () => {
-    await request(app.getHttpServer()).get('/public/merchants/by-domain/example.test').expect(401);
+    await request(app.getHttpServer())
+      .get('/public/merchants/by-domain/example.test')
+      .expect(401);
   });
 
   it('401s a merchant lookup with a bogus device token', async () => {
@@ -54,7 +65,10 @@ describe('Public device-facing API (e2e)', () => {
 
   it('returns an active merchant with only its active coupons, given a valid device token', async () => {
     const { rawToken } = await seedDeviceToken();
-    const merchant = await seedMerchant({ domain: 'lookup.test', checkoutRecipe: { couponFieldSelector: '#promo' } });
+    const merchant = await seedMerchant({
+      domain: 'lookup.test',
+      checkoutRecipe: { couponFieldSelector: '#promo' },
+    });
     await seedCoupon(merchant.id, { code: 'ACTIVE1', active: true });
     await seedCoupon(merchant.id, { code: 'INACTIVE1', active: false });
 
@@ -96,10 +110,17 @@ describe('Public device-facing API (e2e)', () => {
     await request(app.getHttpServer())
       .post('/public/coupon-test-events')
       .set('Authorization', `Bearer ${rawToken}`)
-      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied', discountAmount: 5 })
+      .send({
+        merchantId: merchant.id,
+        couponId: coupon.id,
+        result: 'applied',
+        discountAmount: 5,
+      })
       .expect(201);
 
-    const updated = await testPrisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } });
+    const updated = await testPrisma.coupon.findUniqueOrThrow({
+      where: { id: coupon.id },
+    });
     expect(updated.successCount).toBe(1);
     expect(updated.failCount).toBe(0);
     expect(updated.lastTestedAt).not.toBeNull();
@@ -126,7 +147,12 @@ describe('Public device-facing API (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/public/coupon-test-events')
       .set('Authorization', `Bearer ${rawToken}`)
-      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied', discountAmount: 16 })
+      .send({
+        merchantId: merchant.id,
+        couponId: coupon.id,
+        result: 'applied',
+        discountAmount: 16,
+      })
       .expect(201);
 
     expect(res.body.discountAmount).toBe(16);
@@ -140,7 +166,12 @@ describe('Public device-facing API (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/public/coupon-test-events')
       .set('Authorization', `Bearer ${rawToken}`)
-      .send({ merchantId: merchant.id, couponId: coupon.id, result: 'failed', discountAmount: 16 })
+      .send({
+        merchantId: merchant.id,
+        couponId: coupon.id,
+        result: 'failed',
+        discountAmount: 16,
+      })
       .expect(201);
 
     expect(res.body.discountAmount).toBeNull();
@@ -158,7 +189,9 @@ describe('Public device-facing API (e2e)', () => {
   });
 
   it('401s a lifetime savings check with no device token', async () => {
-    await request(app.getHttpServer()).get('/public/devices/me/savings').expect(401);
+    await request(app.getHttpServer())
+      .get('/public/devices/me/savings')
+      .expect(401);
   });
 
   it('sums discountAmount across applied events, ignoring failed/suppressed events and other devices', async () => {
@@ -171,7 +204,12 @@ describe('Public device-facing API (e2e)', () => {
       request(app.getHttpServer())
         .post('/public/coupon-test-events')
         .set('Authorization', `Bearer ${token}`)
-        .send({ merchantId: merchant.id, couponId: coupon.id, result, discountAmount })
+        .send({
+          merchantId: merchant.id,
+          couponId: coupon.id,
+          result,
+          discountAmount,
+        })
         .expect(201);
 
     await record(rawToken, 'applied', 10);
@@ -196,7 +234,12 @@ describe('Public device-facing API (e2e)', () => {
       request(app.getHttpServer())
         .post('/public/coupon-test-events')
         .set('Authorization', `Bearer ${rawToken}`)
-        .send({ merchantId: merchant.id, couponId: coupon.id, result: 'applied', discountAmount })
+        .send({
+          merchantId: merchant.id,
+          couponId: coupon.id,
+          result: 'applied',
+          discountAmount,
+        })
         .expect(201);
 
     await record(0.1);
@@ -210,15 +253,21 @@ describe('Public device-facing API (e2e)', () => {
     expect(res.body).toEqual({ lifetimeSaved: 0.3 });
   });
 
-  it('returns announcements scoped to all locations or this device\'s own location, within the active time window', async () => {
+  it("returns announcements scoped to all locations or this device's own location, within the active time window", async () => {
     const kiosk = await seedKiosk();
     const location = await seedLocation(kiosk.id);
     const otherLocation = await seedLocation(kiosk.id);
     const { device, rawToken } = await seedDeviceWithToken(location.id);
 
     const allLocations = await seedAnnouncement(kiosk.id, { title: 'All' });
-    const thisLocationOnly = await seedAnnouncement(kiosk.id, { title: 'Mine', locationIds: [device.locationId] });
-    await seedAnnouncement(kiosk.id, { title: 'Other', locationIds: [otherLocation.id] });
+    const thisLocationOnly = await seedAnnouncement(kiosk.id, {
+      title: 'Mine',
+      locationIds: [device.locationId],
+    });
+    await seedAnnouncement(kiosk.id, {
+      title: 'Other',
+      locationIds: [otherLocation.id],
+    });
     await seedAnnouncement(kiosk.id, {
       title: 'Not started yet',
       startAt: new Date(Date.now() + 60_000),
@@ -239,7 +288,7 @@ describe('Public device-facing API (e2e)', () => {
     expect(titles).toEqual([allLocations.title, thisLocationOnly.title].sort());
   });
 
-  it('never returns another kiosk\'s announcements to a device', async () => {
+  it("never returns another kiosk's announcements to a device", async () => {
     const kiosk = await seedKiosk();
     const otherKiosk = await seedKiosk();
     const location = await seedLocation(kiosk.id);
@@ -254,8 +303,25 @@ describe('Public device-facing API (e2e)', () => {
     expect(res.body).toHaveLength(0);
   });
 
+  it('returns a platform-wide broadcast to a device regardless of its kiosk', async () => {
+    const kiosk = await seedKiosk();
+    const location = await seedLocation(kiosk.id);
+    const { rawToken } = await seedDeviceWithToken(location.id);
+    const broadcast = await seedAnnouncement(null, { title: 'Broadcast' });
+
+    const res = await request(app.getHttpServer())
+      .get('/public/announcements/active')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    const titles = res.body.map((a: { title: string }) => a.title);
+    expect(titles).toEqual([broadcast.title]);
+  });
+
   it('401s an active-announcements check with no device token', async () => {
-    await request(app.getHttpServer()).get('/public/announcements/active').expect(401);
+    await request(app.getHttpServer())
+      .get('/public/announcements/active')
+      .expect(401);
   });
 
   it('400s an "applied" coupon-test-event with no discountAmount', async () => {

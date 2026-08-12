@@ -1,5 +1,11 @@
 import { INestApplication } from '@nestjs/common';
-import { AnnouncementRepeatPolicy, AttributionMethod, CommissionStatus, CouponSource, UserRole } from '@prisma/client';
+import {
+  AnnouncementRepeatPolicy,
+  AttributionMethod,
+  CommissionStatus,
+  CouponSource,
+  UserRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, createHash } from 'crypto';
 import request from 'supertest';
@@ -11,7 +17,9 @@ function hashToken(token: string): string {
 
 export const TEST_PASSWORD = 'TestPassword123!';
 
-export async function seedKiosk(overrides: Partial<{ name: string; revenueSharePct: number }> = {}) {
+export async function seedKiosk(
+  overrides: Partial<{ name: string; revenueSharePct: number }> = {},
+) {
   return testPrisma.kiosk.create({
     data: {
       name: overrides.name ?? `Kiosk ${Math.random().toString(36).slice(2, 8)}`,
@@ -41,11 +49,15 @@ export async function seedUser(params: {
   });
 }
 
-export async function seedLocation(kioskId: string, overrides: Partial<{ name: string }> = {}) {
+export async function seedLocation(
+  kioskId: string,
+  overrides: Partial<{ name: string }> = {},
+) {
   return testPrisma.location.create({
     data: {
       kioskId,
-      name: overrides.name ?? `Location ${Math.random().toString(36).slice(2, 8)}`,
+      name:
+        overrides.name ?? `Location ${Math.random().toString(36).slice(2, 8)}`,
       address: '1 Main St',
       city: 'City',
       state: 'ST',
@@ -58,10 +70,15 @@ export async function seedDevice(locationId: string, label = 'Test Device') {
   return testPrisma.device.create({ data: { locationId, label } });
 }
 
-export async function seedDeviceWithToken(locationId: string, label = 'Test Device') {
+export async function seedDeviceWithToken(
+  locationId: string,
+  label = 'Test Device',
+) {
   const device = await seedDevice(locationId, label);
   const rawToken = randomBytes(32).toString('base64url');
-  await testPrisma.deviceToken.create({ data: { deviceId: device.id, tokenHash: hashToken(rawToken) } });
+  await testPrisma.deviceToken.create({
+    data: { deviceId: device.id, tokenHash: hashToken(rawToken) },
+  });
   return { device, rawToken };
 }
 
@@ -82,8 +99,10 @@ export async function seedMerchant(
     data: {
       name: overrides.name ?? `Merchant ${suffix}`,
       domain: overrides.domain ?? `merchant-${suffix}.test`,
-      attributionMethod: overrides.attributionMethod ?? AttributionMethod.COOKIE,
-      affiliateTrackingUrl: overrides.affiliateTrackingUrl ?? 'https://track.example.com',
+      attributionMethod:
+        overrides.attributionMethod ?? AttributionMethod.COOKIE,
+      affiliateTrackingUrl:
+        overrides.affiliateTrackingUrl ?? 'https://track.example.com',
       active: overrides.active ?? true,
       checkoutRecipe: overrides.checkoutRecipe as never,
       affiliateProgramId: overrides.affiliateProgramId,
@@ -109,19 +128,27 @@ export async function seedAttributionAttempt(
 
 export async function seedCoupon(
   merchantId: string,
-  overrides: Partial<{ code: string; source: CouponSource; active: boolean }> = {},
+  overrides: Partial<{
+    code: string;
+    source: CouponSource;
+    active: boolean;
+  }> = {},
 ) {
   return testPrisma.coupon.create({
     data: {
       merchantId,
-      code: overrides.code ?? `CODE${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      code:
+        overrides.code ??
+        `CODE${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
       source: overrides.source ?? CouponSource.MANUAL,
       active: overrides.active ?? true,
     },
   });
 }
 
-export async function seedAffiliateProgram(overrides: Partial<{ networkName: string; hasCouponApi: boolean }> = {}) {
+export async function seedAffiliateProgram(
+  overrides: Partial<{ networkName: string; hasCouponApi: boolean }> = {},
+) {
   return testPrisma.affiliateProgram.create({
     data: {
       networkName: overrides.networkName ?? 'TestNetwork',
@@ -131,7 +158,7 @@ export async function seedAffiliateProgram(overrides: Partial<{ networkName: str
 }
 
 export async function seedAnnouncement(
-  kioskId: string,
+  kioskId: string | null,
   overrides: Partial<{
     locationIds: string[];
     title: string;
@@ -173,18 +200,26 @@ export async function seedCommissionEvent(
     data: {
       deviceId,
       merchantId,
-      networkReference: overrides.networkReference ?? `NETREF-${Math.random().toString(36).slice(2, 10)}`,
+      networkReference:
+        overrides.networkReference ??
+        `NETREF-${Math.random().toString(36).slice(2, 10)}`,
       orderValue: overrides.orderValue ?? 49.99,
       commissionAmount: overrides.commissionAmount ?? 5,
       kioskShareAmount: overrides.kioskShareAmount ?? 0,
       status: overrides.status ?? CommissionStatus.PENDING,
       reportedAt: new Date(),
-      confirmedAt: overrides.status === CommissionStatus.CONFIRMED ? (overrides.confirmedAt ?? new Date()) : undefined,
+      confirmedAt:
+        overrides.status === CommissionStatus.CONFIRMED
+          ? (overrides.confirmedAt ?? new Date())
+          : undefined,
     },
   });
 }
 
-export async function loginAs(app: INestApplication, email: string): Promise<string> {
+export async function loginAs(
+  app: INestApplication,
+  email: string,
+): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/auth/login')
     .send({ email, password: TEST_PASSWORD })

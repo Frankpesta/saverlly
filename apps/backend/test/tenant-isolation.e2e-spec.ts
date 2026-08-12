@@ -34,7 +34,11 @@ describe('Tenant isolation (e2e)', () => {
     it('lets a kiosk-owner read their own kiosk but not another kiosk', async () => {
       const kioskA = await seedKiosk({ name: 'Kiosk A' });
       const kioskB = await seedKiosk({ name: 'Kiosk B' });
-      await seedUser({ email: 'ownerA@test.com', role: 'KIOSK_OWNER', kioskId: kioskA.id });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
       const ownerAToken = await loginAs(app, 'ownerA@test.com');
 
       await request(app.getHttpServer())
@@ -50,7 +54,11 @@ describe('Tenant isolation (e2e)', () => {
 
     it('blocks a kiosk-owner from listing or creating kiosks (admin-only)', async () => {
       const kioskA = await seedKiosk();
-      await seedUser({ email: 'ownerA@test.com', role: 'KIOSK_OWNER', kioskId: kioskA.id });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
       const ownerAToken = await loginAs(app, 'ownerA@test.com');
 
       await request(app.getHttpServer())
@@ -78,12 +86,16 @@ describe('Tenant isolation (e2e)', () => {
   });
 
   describe('Locations', () => {
-    it('never returns another kiosk\'s locations in a kiosk-owner\'s list', async () => {
+    it("never returns another kiosk's locations in a kiosk-owner's list", async () => {
       const kioskA = await seedKiosk();
       const kioskB = await seedKiosk();
       await seedLocation(kioskA.id);
       await seedLocation(kioskB.id);
-      await seedUser({ email: 'ownerA@test.com', role: 'KIOSK_OWNER', kioskId: kioskA.id });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
       const ownerAToken = await loginAs(app, 'ownerA@test.com');
 
       const res = await request(app.getHttpServer())
@@ -132,8 +144,16 @@ describe('Tenant isolation (e2e)', () => {
       const kioskB = await seedKiosk();
       const locationA = await seedLocation(kioskA.id);
       const deviceA = await seedDevice(locationA.id);
-      await seedUser({ email: 'ownerA@test.com', role: 'KIOSK_OWNER', kioskId: kioskA.id });
-      await seedUser({ email: 'ownerB@test.com', role: 'KIOSK_OWNER', kioskId: kioskB.id });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
+      await seedUser({
+        email: 'ownerB@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskB.id,
+      });
       const ownerBToken = await loginAs(app, 'ownerB@test.com');
 
       await request(app.getHttpServer())
@@ -148,7 +168,7 @@ describe('Tenant isolation (e2e)', () => {
         .expect(403);
     });
 
-    it('restricts a location-manager\'s device kill-switch to devices at their own location', async () => {
+    it("restricts a location-manager's device kill-switch to devices at their own location", async () => {
       const kiosk = await seedKiosk();
       const managedLoc = await seedLocation(kiosk.id);
       const unmanagedLoc = await seedLocation(kiosk.id);
@@ -181,7 +201,11 @@ describe('Tenant isolation (e2e)', () => {
       const kioskA = await seedKiosk();
       const kioskB = await seedKiosk();
       const announcementA = await seedAnnouncement(kioskA.id);
-      await seedUser({ email: 'ownerB@test.com', role: 'KIOSK_OWNER', kioskId: kioskB.id });
+      await seedUser({
+        email: 'ownerB@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskB.id,
+      });
       const ownerBToken = await loginAs(app, 'ownerB@test.com');
 
       await request(app.getHttpServer())
@@ -201,12 +225,16 @@ describe('Tenant isolation (e2e)', () => {
         .expect(403);
     });
 
-    it('never returns another kiosk\'s announcements in a kiosk-owner\'s list', async () => {
+    it("never returns another kiosk's announcements in a kiosk-owner's list", async () => {
       const kioskA = await seedKiosk();
       const kioskB = await seedKiosk();
       await seedAnnouncement(kioskA.id);
       await seedAnnouncement(kioskB.id);
-      await seedUser({ email: 'ownerA@test.com', role: 'KIOSK_OWNER', kioskId: kioskA.id });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
       const ownerAToken = await loginAs(app, 'ownerA@test.com');
 
       const res = await request(app.getHttpServer())
@@ -219,7 +247,11 @@ describe('Tenant isolation (e2e)', () => {
     });
 
     it('fails closed (empty list, not an error) for a kiosk-owner with no kioskId on their account', async () => {
-      await seedUser({ email: 'orphanOwner@test.com', role: 'KIOSK_OWNER', kioskId: null });
+      await seedUser({
+        email: 'orphanOwner@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: null,
+      });
       const orphanOwnerToken = await loginAs(app, 'orphanOwner@test.com');
 
       const res = await request(app.getHttpServer())
@@ -230,13 +262,21 @@ describe('Tenant isolation (e2e)', () => {
       expect(res.body).toEqual([]);
     });
 
-    it('scopes a location-manager\'s announcement list to all-location announcements plus their own assigned location', async () => {
+    it("scopes a location-manager's announcement list to all-location announcements plus their own assigned location", async () => {
       const kiosk = await seedKiosk();
       const managedLoc = await seedLocation(kiosk.id);
       const unmanagedLoc = await seedLocation(kiosk.id);
-      const allLocationsAnn = await seedAnnouncement(kiosk.id, { title: 'All' });
-      const managedOnlyAnn = await seedAnnouncement(kiosk.id, { title: 'Managed', locationIds: [managedLoc.id] });
-      await seedAnnouncement(kiosk.id, { title: 'Unmanaged', locationIds: [unmanagedLoc.id] });
+      const allLocationsAnn = await seedAnnouncement(kiosk.id, {
+        title: 'All',
+      });
+      const managedOnlyAnn = await seedAnnouncement(kiosk.id, {
+        title: 'Managed',
+        locationIds: [managedLoc.id],
+      });
+      await seedAnnouncement(kiosk.id, {
+        title: 'Unmanaged',
+        locationIds: [unmanagedLoc.id],
+      });
       await seedUser({
         email: 'lm@test.com',
         role: 'LOCATION_MANAGER',
@@ -254,16 +294,84 @@ describe('Tenant isolation (e2e)', () => {
       expect(ids).toEqual([allLocationsAnn.id, managedOnlyAnn.id].sort());
     });
 
+    it("includes platform-wide broadcasts in a kiosk-owner's list, but blocks them from the single-resource routes", async () => {
+      const kiosk = await seedKiosk();
+      const ownAnn = await seedAnnouncement(kiosk.id);
+      const broadcast = await seedAnnouncement(null, { title: 'Broadcast' });
+      await seedUser({
+        email: 'ownerC@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kiosk.id,
+      });
+      const ownerToken = await loginAs(app, 'ownerC@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/announcements')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+      const ids = res.body.map((a: { id: string }) => a.id).sort();
+      expect(ids).toEqual([ownAnn.id, broadcast.id].sort());
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .patch(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ title: 'hacked' })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .delete(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(403);
+    });
+
+    it('lets an admin reach the single-resource routes for a broadcast', async () => {
+      const broadcast = await seedAnnouncement(null, { title: 'Broadcast' });
+      await seedUser({ email: 'admin2@test.com', role: 'ADMIN' });
+      const adminToken = await loginAs(app, 'admin2@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(res.body.id).toBe(broadcast.id);
+
+      await request(app.getHttpServer())
+        .patch(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ title: 'Updated broadcast' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(204);
+    });
+
     it('blocks a location-manager from creating or reaching the single-resource announcement routes', async () => {
       const kiosk = await seedKiosk();
       const announcement = await seedAnnouncement(kiosk.id);
-      await seedUser({ email: 'lm@test.com', role: 'LOCATION_MANAGER', kioskId: kiosk.id, managedLocationIds: [] });
+      await seedUser({
+        email: 'lm@test.com',
+        role: 'LOCATION_MANAGER',
+        kioskId: kiosk.id,
+        managedLocationIds: [],
+      });
       const lmToken = await loginAs(app, 'lm@test.com');
 
       await request(app.getHttpServer())
         .post('/announcements')
         .set('Authorization', `Bearer ${lmToken}`)
-        .send({ title: 'x', body: 'y', startAt: new Date().toISOString(), endAt: new Date(Date.now() + 60_000).toISOString() })
+        .send({
+          title: 'x',
+          body: 'y',
+          startAt: new Date().toISOString(),
+          endAt: new Date(Date.now() + 60_000).toISOString(),
+        })
         .expect(403);
 
       await request(app.getHttpServer())
@@ -274,14 +382,21 @@ describe('Tenant isolation (e2e)', () => {
   });
 
   describe('Commission Events (Phase 5)', () => {
-    it('never returns another kiosk\'s commission events via /my/commission-events or /my/balance', async () => {
+    it("never returns another kiosk's commission events via /my/commission-events or /my/balance", async () => {
       const kioskA = await seedKiosk({ revenueSharePct: 30 });
       const kioskB = await seedKiosk({ revenueSharePct: 30 });
       const locationA = await seedLocation(kioskA.id);
       const deviceA = await seedDevice(locationA.id);
       const merchant = await seedMerchant();
-      await seedCommissionEvent(deviceA.id, merchant.id, { status: CommissionStatus.CONFIRMED, kioskShareAmount: 9 });
-      await seedUser({ email: 'ownerB@test.com', role: 'KIOSK_OWNER', kioskId: kioskB.id });
+      await seedCommissionEvent(deviceA.id, merchant.id, {
+        status: CommissionStatus.CONFIRMED,
+        kioskShareAmount: 9,
+      });
+      await seedUser({
+        email: 'ownerB@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskB.id,
+      });
       const ownerBToken = await loginAs(app, 'ownerB@test.com');
 
       const eventsRes = await request(app.getHttpServer())
@@ -294,12 +409,19 @@ describe('Tenant isolation (e2e)', () => {
         .get('/my/balance')
         .set('Authorization', `Bearer ${ownerBToken}`)
         .expect(200);
-      expect(balanceRes.body).toEqual({ pendingAmount: 0, confirmedAvailableAmount: 0 });
+      expect(balanceRes.body).toEqual({
+        pendingAmount: 0,
+        confirmedAvailableAmount: 0,
+      });
     });
 
     it('blocks a kiosk-owner from the admin commission-events endpoints entirely', async () => {
       const kiosk = await seedKiosk();
-      await seedUser({ email: 'owner@test.com', role: 'KIOSK_OWNER', kioskId: kiosk.id });
+      await seedUser({
+        email: 'owner@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kiosk.id,
+      });
       const ownerToken = await loginAs(app, 'owner@test.com');
 
       await request(app.getHttpServer())
@@ -310,13 +432,23 @@ describe('Tenant isolation (e2e)', () => {
   });
 
   describe('Payouts (Phase 5)', () => {
-    it('never returns another kiosk\'s payouts via /my/payouts', async () => {
+    it("never returns another kiosk's payouts via /my/payouts", async () => {
       const kioskA = await seedKiosk();
       const kioskB = await seedKiosk();
       await testPrisma.payout.create({
-        data: { kioskId: kioskA.id, periodStart: new Date(), periodEnd: new Date(), totalAmount: 12, status: 'pending' },
+        data: {
+          kioskId: kioskA.id,
+          periodStart: new Date(),
+          periodEnd: new Date(),
+          totalAmount: 12,
+          status: 'pending',
+        },
       });
-      await seedUser({ email: 'ownerB@test.com', role: 'KIOSK_OWNER', kioskId: kioskB.id });
+      await seedUser({
+        email: 'ownerB@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskB.id,
+      });
       const ownerBToken = await loginAs(app, 'ownerB@test.com');
 
       const res = await request(app.getHttpServer())
@@ -329,12 +461,25 @@ describe('Tenant isolation (e2e)', () => {
     it('blocks a kiosk-owner from the admin payouts endpoints entirely', async () => {
       const kiosk = await seedKiosk();
       const payout = await testPrisma.payout.create({
-        data: { kioskId: kiosk.id, periodStart: new Date(), periodEnd: new Date(), totalAmount: 12, status: 'pending' },
+        data: {
+          kioskId: kiosk.id,
+          periodStart: new Date(),
+          periodEnd: new Date(),
+          totalAmount: 12,
+          status: 'pending',
+        },
       });
-      await seedUser({ email: 'owner@test.com', role: 'KIOSK_OWNER', kioskId: kiosk.id });
+      await seedUser({
+        email: 'owner@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kiosk.id,
+      });
       const ownerToken = await loginAs(app, 'owner@test.com');
 
-      await request(app.getHttpServer()).get('/payouts').set('Authorization', `Bearer ${ownerToken}`).expect(403);
+      await request(app.getHttpServer())
+        .get('/payouts')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(403);
       await request(app.getHttpServer())
         .post(`/payouts/${payout.id}/process`)
         .set('Authorization', `Bearer ${ownerToken}`)

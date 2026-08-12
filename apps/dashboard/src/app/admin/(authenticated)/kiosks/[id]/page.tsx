@@ -1,0 +1,146 @@
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import { useParams } from "next/navigation"
+import { toast } from "sonner"
+import { ArrowLeftIcon } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
+import {
+  useKiosk,
+  useUpdateKiosk,
+  useUpdateKioskStatus,
+} from "@/lib/api/hooks/use-kiosks"
+import { ApiError } from "@/lib/api/client"
+import type { Kiosk } from "@/lib/api/types"
+import { KioskUsersSection } from "./kiosk-users-section"
+
+export default function KioskDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const { data: kiosk, isLoading, isError } = useKiosk(id)
+  const updateStatus = useUpdateKioskStatus()
+
+  function toggleStatus() {
+    if (!kiosk) return
+    const next = kiosk.status === "ACTIVE" ? "INACTIVE" : "ACTIVE"
+    updateStatus.mutate(
+      { id: kiosk.id, status: next },
+      {
+        onError: (error) =>
+          toast.error(
+            error instanceof ApiError ? error.message : "Could not update kiosk status.",
+          ),
+      },
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/admin/kiosks"
+        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:underline"
+      >
+        <ArrowLeftIcon className="size-4" />
+        Back to Kiosks
+      </Link>
+
+      {isError && <p className="text-sm text-destructive">Could not load this kiosk.</p>}
+
+      {isLoading && <Skeleton className="h-64 w-full max-w-lg" />}
+
+      {kiosk && (
+        <div className="flex flex-wrap items-start gap-6">
+          <Card className="w-full max-w-lg">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>{kiosk.name}</CardTitle>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={kiosk.status === "ACTIVE"}
+                  onCheckedChange={toggleStatus}
+                  disabled={updateStatus.isPending}
+                  aria-label="Toggle kiosk status"
+                />
+                <Badge variant={kiosk.status === "ACTIVE" ? "default" : "secondary"}>
+                  {kiosk.status}
+                </Badge>
+              </div>
+            </CardHeader>
+            <KioskEditForm key={kiosk.id} kiosk={kiosk} />
+          </Card>
+
+          <KioskUsersSection kioskId={kiosk.id} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function KioskEditForm({ kiosk }: { kiosk: Kiosk }) {
+  const updateKiosk = useUpdateKiosk(kiosk.id)
+  const [name, setName] = React.useState(kiosk.name)
+  const [revenueSharePct, setRevenueSharePct] = React.useState(kiosk.revenueSharePct)
+  const [contactEmail, setContactEmail] = React.useState(kiosk.contactEmail)
+
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    updateKiosk.mutate(
+      { name, revenueSharePct: Number(revenueSharePct), contactEmail },
+      {
+        onSuccess: () => toast.success("Kiosk updated."),
+        onError: (error) =>
+          toast.error(error instanceof ApiError ? error.message : "Could not update kiosk."),
+      },
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="name">Name</Label>
+          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="revenueSharePct">Revenue Share (%)</Label>
+          <Input
+            id="revenueSharePct"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={revenueSharePct}
+            onChange={(e) => setRevenueSharePct(e.target.value)}
+            required
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="contactEmail">Contact Email</Label>
+          <Input
+            id="contactEmail"
+            type="email"
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
+            required
+          />
+        </div>
+      </CardContent>
+      <CardFooter>
+        <Button type="submit" disabled={updateKiosk.isPending}>
+          {updateKiosk.isPending ? "Saving…" : "Save changes"}
+        </Button>
+      </CardFooter>
+    </form>
+  )
+}

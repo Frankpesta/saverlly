@@ -1,5 +1,7 @@
+import * as path from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -29,6 +31,13 @@ import { PayoutsModule } from './payouts/payouts.module';
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
     }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 10 }]),
+    // Serves uploaded files (e.g. announcement images) back out at /uploads/... — the backend
+    // isn't containerized (see docker-compose.yml, only postgres/redis are), so a local
+    // ./uploads directory persists fine across restarts in dev without a volume mount.
+    ServeStaticModule.forRoot({
+      rootPath: path.join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
+    }),
     PrismaModule,
     BullmqConfigModule,
     AuthModule,

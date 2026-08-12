@@ -127,7 +127,7 @@
 
 ## 12. Dashboards (Frontend)
 
-- Built with Next.js 16+, shadcn/ui, Tailwind CSS
+- Built with Next.js 16+, shadcn/ui (dashboard/sidebar template), Tailwind CSS
 - Zustand for client-side state, TanStack Query for server data
 - Role-gated route groups for Admin Console vs. Kiosk Portal
 
