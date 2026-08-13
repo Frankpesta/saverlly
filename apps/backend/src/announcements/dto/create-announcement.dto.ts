@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AnnouncementRepeatPolicy } from '@prisma/client';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -15,15 +16,29 @@ import {
 
 export class CreateAnnouncementDto {
   @ApiPropertyOptional({
-    description: 'Required when the caller is ADMIN; ignored for KIOSK_OWNER (their own kioskId is always used)',
+    description:
+      'Which kiosk this announcement belongs to. Required for ADMIN unless `broadcast` is true; ' +
+      'ignored for KIOSK_OWNER (their own kioskId is always used).',
   })
   @IsOptional()
   @IsUUID('4')
   kioskId?: string;
 
   @ApiPropertyOptional({
+    description:
+      'ADMIN-only: create a platform-wide broadcast shown on every device across every kiosk, instead of ' +
+      'one kiosk. An explicit flag rather than inferring broadcast from an omitted kioskId, since a forgotten ' +
+      'kioskId silently becoming "show to everyone" is too large a blast radius for an implicit default. ' +
+      'When true, kioskId and locationIds are ignored — a broadcast always targets everyone.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  broadcast?: boolean;
+
+  @ApiPropertyOptional({
     type: [String],
-    description: 'Location ids to scope this announcement to; empty/omitted = all locations for the kiosk',
+    description:
+      'Location ids to scope this announcement to; empty/omitted = all locations for the kiosk',
   })
   @IsOptional()
   @IsArray()
@@ -53,7 +68,10 @@ export class CreateAnnouncementDto {
   @IsDateString()
   endAt: string;
 
-  @ApiPropertyOptional({ enum: AnnouncementRepeatPolicy, default: AnnouncementRepeatPolicy.ONCE })
+  @ApiPropertyOptional({
+    enum: AnnouncementRepeatPolicy,
+    default: AnnouncementRepeatPolicy.ONCE,
+  })
   @IsOptional()
   @IsEnum(AnnouncementRepeatPolicy)
   repeatPolicy?: AnnouncementRepeatPolicy;
