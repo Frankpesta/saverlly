@@ -16,15 +16,18 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
+import { usePagination } from "@/hooks/use-pagination"
 import { NewLocationDialog } from "./new-location-dialog"
 
 export default function LocationsPage() {
   const { data: locations, isLoading, isError } = useLocations()
   const { data: devices } = useDevices()
   const { data: currentUser } = useCurrentUser()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(locations)
 
   const deviceCountByLocation = React.useMemo(() => {
     const counts = new Map<string, number>()
@@ -41,11 +44,12 @@ export default function LocationsPage() {
   }, [locations, devices])
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Locations</h2>
-          <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-5 rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
+        <div className="max-w-2xl">
+          <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Operations</p>
+          <h2 className="text-3xl font-semibold tracking-[-0.04em]">Locations</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Every physical location your kiosk business operates from.
           </p>
         </div>
@@ -60,7 +64,11 @@ export default function LocationsPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load locations.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-card shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
+        <div className="flex flex-col gap-1 border-b border-border/70 px-5 py-4 sm:px-6">
+          <h3 className="font-semibold tracking-tight">Your locations</h3>
+          <p className="text-sm text-muted-foreground">Review locations, addresses, tags, and connected devices.</p>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -89,7 +97,7 @@ export default function LocationsPage() {
               </TableRow>
             )}
 
-            {locations?.map((location, index) => (
+            {pageItems.map((location, index) => (
               <motion.tr
                 key={location.id}
                 initial={{ opacity: 0, y: 6 }}
@@ -130,7 +138,14 @@ export default function LocationsPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
+      </section>
     </div>
   )
 }

@@ -21,12 +21,12 @@ export function Meter({
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
 
   return (
-    <BentoCard className={cn("flex flex-col justify-between gap-4", className)} span={2}>
+    <BentoCard className={cn("flex min-h-40 flex-col justify-between gap-5", className)} span={2}>
       <div className="flex items-baseline justify-between">
         <span className="text-sm text-muted-foreground">{label}</span>
         <span className="text-sm font-medium text-foreground">{pct}%</span>
       </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--brand-teal-tint)]">
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--brand-teal-tint)] ring-1 ring-inset ring-[var(--brand-teal-soft)]">
         <motion.div
           className="h-full rounded-full bg-[var(--brand-teal)]"
           initial={{ width: 0 }}

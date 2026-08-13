@@ -16,15 +16,18 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
+import { usePagination } from "@/hooks/use-pagination"
 import { NewLocationDialog } from "./new-location-dialog"
 
 export default function AdminLocationsPage() {
   const { data: locations, isLoading, isError } = useLocations()
   const { data: devices } = useDevices()
   const { data: kiosks } = useKiosks()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(locations)
 
   const kioskNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -96,7 +99,7 @@ export default function AdminLocationsPage() {
               </TableRow>
             )}
 
-            {locations?.map((location, index) => (
+            {pageItems.map((location, index) => (
               <motion.tr
                 key={location.id}
                 initial={{ opacity: 0, y: 6 }}
@@ -138,6 +141,13 @@ export default function AdminLocationsPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

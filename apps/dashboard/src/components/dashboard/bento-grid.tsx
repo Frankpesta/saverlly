@@ -9,7 +9,7 @@ export function BentoGrid({
   children: React.ReactNode
 }) {
   return (
-    <div className={cn("grid grid-cols-2 gap-4 lg:grid-cols-4", className)}>
+    <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4", className)}>
       {children}
     </div>
   )
@@ -35,7 +35,7 @@ export function BentoCard({
   return (
     <div
       className={cn(
-        "col-span-2 rounded-2xl border border-black/8 bg-card p-6 shadow-[0_1px_2px_rgba(11,11,11,0.04)] transition-shadow hover:shadow-[0_4px_16px_rgba(11,11,11,0.06)]",
+        "col-span-1 rounded-2xl border border-black/[0.06] bg-card p-5 shadow-[0_1px_2px_rgba(11,11,11,0.03)] transition-all duration-200 hover:-translate-y-0.5 hover:border-black/10 hover:shadow-[0_10px_30px_rgba(11,11,11,0.06)] sm:p-6",
         spanClass,
         className,
       )}

@@ -47,9 +47,9 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="rounded-xl border border-transparent px-2 data-[state=open]:border-sidebar-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
+              <Avatar className="h-8 w-8 rounded-xl ring-1 ring-black/5">
                 {user.avatar && (
                   <AvatarImage src={user.avatar} alt={user.name} />
                 )}
@@ -67,7 +67,7 @@ export function NavUser({
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-xl border-border/80 p-1.5 shadow-xl"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}

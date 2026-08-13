@@ -38,13 +38,13 @@ export function AppSidebar({
   onLogout: () => void
 }) {
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader className="px-2 py-3">
+    <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border/80 bg-sidebar" {...props}>
+      <SidebarHeader className="px-3 py-5">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:p-2!"
+              className="h-10 rounded-xl data-[slot=sidebar-menu-button]:px-3!"
             >
               <Link href={homeUrl}>
                 <BrandLogo height={22} />
@@ -53,13 +53,13 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="px-2 pb-3">
         <NavMain items={navMain} />
         {navSecondary && (
           <NavSecondary items={navSecondary} className="mt-auto" />
         )}
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border/70 p-3">
         <NavUser user={user} onLogout={onLogout} />
       </SidebarFooter>
     </Sidebar>

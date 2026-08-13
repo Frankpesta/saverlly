@@ -6,6 +6,7 @@ import {
   loginAs,
   seedAnnouncement,
   seedCommissionEvent,
+  seedCoupon,
   seedDevice,
   seedKiosk,
   seedLocation,
@@ -484,6 +485,317 @@ describe('Tenant isolation (e2e)', () => {
         .post(`/payouts/${payout.id}/process`)
         .set('Authorization', `Bearer ${ownerToken}`)
         .expect(403);
+    });
+  });
+
+  describe('Search', () => {
+    function resultIds(body: { id: string }[]) {
+      return body.map((r) => r.id).sort();
+    }
+
+    it("never returns another kiosk's locations, even on a matching name", async () => {
+      const kioskA = await seedKiosk();
+      const kioskB = await seedKiosk();
+      const locationA = await seedLocation(kioskA.id, {
+        name: 'Downtown Branch',
+      });
+      await seedLocation(kioskB.id, { name: 'Downtown Branch' });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
+      const ownerAToken = await loginAs(app, 'ownerA@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Downtown' })
+        .set('Authorization', `Bearer ${ownerAToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual([locationA.id]);
+    });
+
+    it("restricts a location-manager's location results to their assigned locations only", async () => {
+      const kiosk = await seedKiosk();
+      const managedLoc = await seedLocation(kiosk.id, {
+        name: 'Central Plaza',
+      });
+      await seedLocation(kiosk.id, { name: 'Central Plaza' });
+      await seedUser({
+        email: 'lm@test.com',
+        role: 'LOCATION_MANAGER',
+        kioskId: kiosk.id,
+        managedLocationIds: [managedLoc.id],
+      });
+      const lmToken = await loginAs(app, 'lm@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Central' })
+        .set('Authorization', `Bearer ${lmToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual([managedLoc.id]);
+    });
+
+    it("never returns another kiosk's devices, even on a matching label", async () => {
+      const kioskA = await seedKiosk();
+      const kioskB = await seedKiosk();
+      const locationA = await seedLocation(kioskA.id);
+      const locationB = await seedLocation(kioskB.id);
+      const deviceA = await seedDevice(locationA.id, 'Computer 4');
+      await seedDevice(locationB.id, 'Computer 4');
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
+      const ownerAToken = await loginAs(app, 'ownerA@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Computer' })
+        .set('Authorization', `Bearer ${ownerAToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual([deviceA.id]);
+    });
+
+    it("restricts a location-manager's device results to devices at their own location", async () => {
+      const kiosk = await seedKiosk();
+      const managedLoc = await seedLocation(kiosk.id);
+      const unmanagedLoc = await seedLocation(kiosk.id);
+      const managedDevice = await seedDevice(managedLoc.id, 'Computer 4');
+      await seedDevice(unmanagedLoc.id, 'Computer 4');
+      await seedUser({
+        email: 'lm@test.com',
+        role: 'LOCATION_MANAGER',
+        kioskId: kiosk.id,
+        managedLocationIds: [managedLoc.id],
+      });
+      const lmToken = await loginAs(app, 'lm@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Computer' })
+        .set('Authorization', `Bearer ${lmToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual([managedDevice.id]);
+    });
+
+    it("never returns another kiosk's announcements, even on a matching title", async () => {
+      const kioskA = await seedKiosk();
+      const kioskB = await seedKiosk();
+      const announcementA = await seedAnnouncement(kioskA.id, {
+        title: 'Summer Sale',
+      });
+      await seedAnnouncement(kioskB.id, { title: 'Summer Sale' });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
+      const ownerAToken = await loginAs(app, 'ownerA@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Summer' })
+        .set('Authorization', `Bearer ${ownerAToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual([announcementA.id]);
+    });
+
+    it("includes platform-wide broadcasts alongside a kiosk-owner's own announcements", async () => {
+      const kiosk = await seedKiosk();
+      const ownAnn = await seedAnnouncement(kiosk.id, {
+        title: 'Maintenance Notice',
+      });
+      const broadcast = await seedAnnouncement(null, {
+        title: 'Maintenance Notice',
+      });
+      await seedUser({
+        email: 'owner@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kiosk.id,
+      });
+      const ownerToken = await loginAs(app, 'owner@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Maintenance' })
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual([ownAnn.id, broadcast.id].sort());
+    });
+
+    it("scopes a location-manager's announcement results to all-location plus their own assigned location", async () => {
+      const kiosk = await seedKiosk();
+      const managedLoc = await seedLocation(kiosk.id);
+      const unmanagedLoc = await seedLocation(kiosk.id);
+      const allLocationsAnn = await seedAnnouncement(kiosk.id, {
+        title: 'Findable All',
+      });
+      const managedOnlyAnn = await seedAnnouncement(kiosk.id, {
+        title: 'Findable Managed',
+        locationIds: [managedLoc.id],
+      });
+      await seedAnnouncement(kiosk.id, {
+        title: 'Findable Unmanaged',
+        locationIds: [unmanagedLoc.id],
+      });
+      await seedUser({
+        email: 'lm@test.com',
+        role: 'LOCATION_MANAGER',
+        kioskId: kiosk.id,
+        managedLocationIds: [managedLoc.id],
+      });
+      const lmToken = await loginAs(app, 'lm@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Findable' })
+        .set('Authorization', `Bearer ${lmToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual(
+        [allLocationsAnn.id, managedOnlyAnn.id].sort(),
+      );
+    });
+
+    it('never returns kiosks, merchants, or coupons to a kiosk-owner, even matching their own kiosk name', async () => {
+      const kiosk = await seedKiosk({ name: 'Acme Kiosk' });
+      const merchant = await seedMerchant({ name: 'BigStore' });
+      await seedCoupon(merchant.id, { code: 'SAVE10' });
+      await seedUser({
+        email: 'owner@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kiosk.id,
+      });
+      const ownerToken = await loginAs(app, 'owner@test.com');
+
+      const kioskRes = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Acme' })
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+      expect(kioskRes.body).toEqual([]);
+
+      const merchantRes = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'BigStore' })
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+      expect(merchantRes.body).toEqual([]);
+
+      const couponRes = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'SAVE10' })
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+      expect(couponRes.body).toEqual([]);
+    });
+
+    it('returns kiosks, merchants, and coupons to an admin', async () => {
+      const kiosk = await seedKiosk({ name: 'Acme Kiosk' });
+      const merchant = await seedMerchant({ name: 'BigStore' });
+      const coupon = await seedCoupon(merchant.id, { code: 'SAVE10' });
+      await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+      const adminToken = await loginAs(app, 'admin@test.com');
+
+      const kioskRes = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Acme' })
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(resultIds(kioskRes.body)).toEqual([kiosk.id]);
+
+      const merchantRes = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'BigStore' })
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(resultIds(merchantRes.body)).toEqual([merchant.id]);
+
+      const couponRes = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'SAVE10' })
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(resultIds(couponRes.body)).toEqual([coupon.id]);
+    });
+
+    it('fails closed (empty array, not an error) for a kiosk-owner with no kioskId on their account', async () => {
+      await seedUser({
+        email: 'orphanOwner@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: null,
+      });
+      const orphanOwnerToken = await loginAs(app, 'orphanOwner@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'anything' })
+        .set('Authorization', `Bearer ${orphanOwnerToken}`)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    it("never leaks kioskB's location or announcement into kioskA owner's cross-type results, even on a shared name", async () => {
+      const kioskA = await seedKiosk();
+      const kioskB = await seedKiosk();
+      const locationA = await seedLocation(kioskA.id, { name: 'Riverside' });
+      await seedLocation(kioskB.id, { name: 'Riverside' });
+      const announcementA = await seedAnnouncement(kioskA.id, {
+        title: 'Riverside',
+      });
+      await seedAnnouncement(kioskB.id, { title: 'Riverside' });
+      await seedUser({
+        email: 'ownerA@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kioskA.id,
+      });
+      const ownerAToken = await loginAs(app, 'ownerA@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'Riverside' })
+        .set('Authorization', `Bearer ${ownerAToken}`)
+        .expect(200);
+
+      expect(resultIds(res.body)).toEqual(
+        [announcementA.id, locationA.id].sort(),
+      );
+    });
+
+    it('returns an empty array for a query shorter than 2 characters', async () => {
+      const kiosk = await seedKiosk();
+      await seedLocation(kiosk.id, { name: 'A' });
+      await seedUser({
+        email: 'owner@test.com',
+        role: 'KIOSK_OWNER',
+        kioskId: kiosk.id,
+      });
+      const ownerToken = await loginAs(app, 'owner@test.com');
+
+      const res = await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'a' })
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    it('rejects an unauthenticated request', async () => {
+      await request(app.getHttpServer())
+        .get('/search')
+        .query({ q: 'anything' })
+        .expect(401);
     });
   });
 });

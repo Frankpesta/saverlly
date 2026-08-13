@@ -57,7 +57,7 @@
   --brand-black: #1c1c1c;
 
   --background: #ffffff;
-  --page-plane: #f9f9f7;
+  --page-plane: #f6f8f7;
   --foreground: var(--brand-black);
   --card: #ffffff;
   --card-foreground: var(--brand-black);
@@ -72,22 +72,22 @@
   --accent: var(--brand-teal-tint);
   --accent-foreground: var(--brand-black);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: #e4e9e7;
+  --input: #dbe3e0;
   --ring: var(--brand-teal);
   --chart-1: var(--brand-teal);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.75rem;
-  --sidebar: #ffffff;
+  --radius: 0.875rem;
+  --sidebar: #fbfcfc;
   --sidebar-foreground: var(--brand-black);
   --sidebar-primary: var(--brand-teal);
   --sidebar-primary-foreground: var(--brand-black);
   --sidebar-accent: var(--brand-teal-tint);
   --sidebar-accent-foreground: var(--brand-black);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-border: #e4e9e7;
   --sidebar-ring: var(--brand-teal);
 }
 
@@ -96,9 +96,15 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    background-image: radial-gradient(circle at top right, rgb(88 195 183 / 0.08), transparent 26rem);
   }
   html {
     @apply font-sans;
+  }
+
+  ::selection {
+    background: var(--brand-teal-soft);
+    color: var(--brand-black);
   }
 }

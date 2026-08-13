@@ -17,10 +17,12 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useDevices, useUpdateDevice } from "@/lib/api/hooks/use-devices"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
+import { usePagination } from "@/hooks/use-pagination"
 
 const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour — matches the extension's own grace window
 
@@ -28,6 +30,7 @@ export default function DevicesPage() {
   const { data: devices, isLoading, isError } = useDevices()
   const { data: locations } = useLocations()
   const updateDevice = useUpdateDevice()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(devices)
 
   const locationNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -105,7 +108,7 @@ export default function DevicesPage() {
               </TableRow>
             )}
 
-            {devices?.map((device, index) => (
+            {pageItems.map((device, index) => (
               <motion.tr
                 key={device.id}
                 initial={{ opacity: 0, y: 6 }}
@@ -135,6 +138,13 @@ export default function DevicesPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

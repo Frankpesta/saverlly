@@ -22,10 +22,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { DateTimePicker } from "@/components/dashboard/date-time-picker"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
 import { useCreateAnnouncement, useUploadAnnouncementImage } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
+import { toDatetimeLocal } from "@/lib/format-date"
 import type { AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { AnnouncementPreview } from "./announcement-preview"
 import { LocationTargetPicker } from "./location-target-picker"
@@ -40,11 +42,6 @@ const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   ONCE: "Once",
   EVERY_LOGIN: "Every login",
   MAX_N_TIMES: "A set number of times",
-}
-
-function toDatetimeLocal(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 export function NewAnnouncementDialog() {
@@ -200,23 +197,11 @@ export function NewAnnouncementDialog() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="new-ann-start">Starts</Label>
-                    <Input
-                      id="new-ann-start"
-                      type="datetime-local"
-                      value={startAt}
-                      onChange={(e) => setStartAt(e.target.value)}
-                      required
-                    />
+                    <DateTimePicker id="new-ann-start" value={startAt} onChange={setStartAt} required />
                   </div>
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="new-ann-end">Ends</Label>
-                    <Input
-                      id="new-ann-end"
-                      type="datetime-local"
-                      value={endAt}
-                      onChange={(e) => setEndAt(e.target.value)}
-                      required
-                    />
+                    <DateTimePicker id="new-ann-end" value={endAt} onChange={setEndAt} required />
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">

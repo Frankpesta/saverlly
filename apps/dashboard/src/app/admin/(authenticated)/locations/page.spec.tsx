@@ -146,4 +146,40 @@ describe("AdminLocationsPage", () => {
       ),
     )
   })
+
+  it("paginates at 25 rows per page and navigates to the next page", async () => {
+    const manyLocations: Location[] = Array.from({ length: 30 }, (_, i) => ({
+      ...locations[0],
+      id: `loc-${i + 1}`,
+      name: `Location ${i + 1}`,
+    }))
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? "GET"
+      if (url === "/api/proxy/locations" && method === "GET") {
+        return { ok: true, status: 200, json: async () => manyLocations } as Response
+      }
+      if (url === "/api/proxy/devices" && method === "GET") {
+        return { ok: true, status: 200, json: async () => devices } as Response
+      }
+      if (url === "/api/proxy/kiosks" && method === "GET") {
+        return { ok: true, status: 200, json: async () => kiosks } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${method} ${url}`)
+    }) as jest.Mock
+
+    renderWithClient(<AdminLocationsPage />)
+
+    expect(await screen.findByText("Location 1")).toBeInTheDocument()
+    expect(screen.getByText("Location 25")).toBeInTheDocument()
+    expect(screen.queryByText("Location 26")).not.toBeInTheDocument()
+    expect(screen.getByText("Showing 1–25 of 30")).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: /next/i }))
+
+    expect(await screen.findByText("Location 26")).toBeInTheDocument()
+    expect(screen.getByText("Location 30")).toBeInTheDocument()
+    expect(screen.queryByText("Location 1")).not.toBeInTheDocument()
+    expect(screen.getByText("Showing 26–30 of 30")).toBeInTheDocument()
+  })
 })

@@ -161,13 +161,14 @@ export default function PortalOverviewPage() {
   const displayName = currentUser?.email.split("@")[0] ?? "there"
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-5 rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
+        <div className="max-w-2xl">
+          <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Kiosk performance</p>
+          <h2 className="text-3xl font-semibold tracking-[-0.04em]">
             {greeting()}, {displayName}
           </h2>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             {kioskLoading ? (
               <Skeleton className="h-5 w-16" />
             ) : (
@@ -182,10 +183,15 @@ export default function PortalOverviewPage() {
             <span>{deviceStats.active} active devices</span>
           </div>
         </div>
-        {currentUser?.role === "KIOSK_OWNER" && <NewLocationDialog />}
+        <div className="shrink-0">{currentUser?.role === "KIOSK_OWNER" && <NewLocationDialog />}</div>
       </div>
 
-      <BentoGrid>
+      <section className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-base font-semibold tracking-tight">At a glance</h3>
+          <p className="text-sm text-muted-foreground">A clear view of what is ready, pending, and paid out.</p>
+        </div>
+        <BentoGrid>
         <StatTile
           label="Available balance"
           value={balance?.confirmedAvailableAmount ?? 0}
@@ -213,9 +219,15 @@ export default function PortalOverviewPage() {
           icon={<CreditCardIcon />}
           subtext={`${paidPayouts.length} payout${paidPayouts.length === 1 ? "" : "s"}`}
         />
-      </BentoGrid>
+        </BentoGrid>
+      </section>
 
-      <BentoGrid>
+      <section className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-base font-semibold tracking-tight">Operations</h3>
+          <p className="text-sm text-muted-foreground">Keep tabs on your footprint and device health.</p>
+        </div>
+        <BentoGrid>
         <StatTile label="Locations" value={locations?.length ?? 0} icon={<MapPinIcon />} />
         <StatTile
           label="Devices"
@@ -235,9 +247,10 @@ export default function PortalOverviewPage() {
           max={deviceStats.total}
           caption={`${deviceStats.active} of ${deviceStats.total} active`}
         />
-      </BentoGrid>
+        </BentoGrid>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <BentoCard span={2}>
           <div className="mb-2 flex flex-col gap-0.5">
             <h3 className="text-sm font-semibold">Earnings overview</h3>
@@ -272,9 +285,9 @@ export default function PortalOverviewPage() {
             </Link>
           </div>
         </BentoCard>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Devices by location</h3>
@@ -329,7 +342,7 @@ export default function PortalOverviewPage() {
             ))}
           </div>
         </BentoCard>
-      </div>
+      </section>
 
       <BentoCard>
         <div className="mb-3 flex items-center justify-between">

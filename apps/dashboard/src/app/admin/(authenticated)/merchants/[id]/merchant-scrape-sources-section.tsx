@@ -20,9 +20,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useRunScrapeSourceNow, useScrapeSources } from "@/lib/api/hooks/use-scrape-sources"
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
+import { usePagination } from "@/hooks/use-pagination"
 import { ScrapeSourceDialog } from "../../scrape-sources/scrape-source-dialog"
 
 export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: string }) {
@@ -33,6 +35,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
     () => (allSources ?? []).filter((s) => s.merchantId === merchantId),
     [allSources, merchantId],
   )
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(sources)
 
   function handleRunNow(id: string) {
     runNow.mutate(id, {
@@ -77,7 +80,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
               </TableRow>
             )}
 
-            {sources.map((source) => (
+            {pageItems.map((source) => (
               <TableRow key={source.id}>
                 <TableCell className="max-w-48 truncate font-medium" title={source.url}>
                   {source.url}
@@ -105,6 +108,13 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </CardContent>
     </Card>
   )

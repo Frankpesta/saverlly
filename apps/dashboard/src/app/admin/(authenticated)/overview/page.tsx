@@ -202,15 +202,21 @@ export default function AdminOverviewPage() {
   }, [kiosks])
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Overview</h2>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-8">
+      <div className="rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:p-8">
+        <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Platform pulse</p>
+        <h2 className="text-3xl font-semibold tracking-[-0.04em]">Overview</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
           A snapshot of everything happening across the Saverlly platform.
         </p>
       </div>
 
-      <BentoGrid>
+      <section className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-base font-semibold tracking-tight">Platform snapshot</h3>
+          <p className="text-sm text-muted-foreground">Your key footprint and commission metrics in one place.</p>
+        </div>
+        <BentoGrid>
         <StatTile
           label="Total kiosks"
           value={kioskStats.total}
@@ -245,9 +251,15 @@ export default function AdminOverviewPage() {
           icon={<CircleCheckIcon />}
           subtext={confirmedGrowthLabel ? `${confirmedGrowthLabel} this month` : undefined}
         />
-      </BentoGrid>
+        </BentoGrid>
+      </section>
 
-      <BentoCard span={4}>
+      <section className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-base font-semibold tracking-tight">Performance</h3>
+          <p className="text-sm text-muted-foreground">Follow confirmed commission activity and operational health.</p>
+        </div>
+        <BentoCard span={4}>
         <div className="mb-2 flex flex-col gap-0.5">
           <h3 className="text-sm font-semibold">Commission performance</h3>
           <p className="text-sm text-muted-foreground">Confirmed commission trend, platform-wide.</p>
@@ -257,9 +269,9 @@ export default function AdminOverviewPage() {
         ) : (
           <TrendChart data={chartSeries} valueLabel="Commission" />
         )}
-      </BentoCard>
+        </BentoCard>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BentoCard>
           <div className="flex h-full flex-col gap-3">
             <h3 className="text-sm font-semibold">Commission status</h3>
@@ -293,9 +305,9 @@ export default function AdminOverviewPage() {
           max={kioskStats.total}
           caption={`${kioskStats.active} of ${kioskStats.total} kiosks active`}
         />
-      </div>
+        </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Meter
           label="Devices active"
           value={deviceStats.active}
@@ -333,7 +345,8 @@ export default function AdminOverviewPage() {
             </Link>
           </div>
         </BentoCard>
-      </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BentoCard>

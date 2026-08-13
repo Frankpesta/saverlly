@@ -41,8 +41,8 @@ export function AuthenticatedShell({
     <SidebarProvider
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 64)",
-          "--header-height": "calc(var(--spacing) * 12)",
+          "--sidebar-width": "calc(var(--spacing) * 68)",
+          "--header-height": "calc(var(--spacing) * 16)",
         } as React.CSSProperties
       }
     >
@@ -53,9 +53,9 @@ export function AuthenticatedShell({
         user={user}
         onLogout={handleLogout}
       />
-      <SidebarInset className="bg-[var(--page-plane)]">
+      <SidebarInset className="min-h-svh bg-[var(--page-plane)]">
         <SiteHeader title={activeItem?.title ?? fallbackTitle} />
-        <div className="flex flex-1 flex-col gap-6 p-6 md:p-8">{children}</div>
+        <main className="flex flex-1 flex-col gap-6 px-5 py-6 sm:px-7 lg:px-10 lg:py-8">{children}</main>
         <DashboardFooter label={fallbackTitle} />
       </SidebarInset>
     </SidebarProvider>

@@ -15,11 +15,14 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useAffiliatePrograms } from "@/lib/api/hooks/use-affiliate-programs"
+import { usePagination } from "@/hooks/use-pagination"
 import { AffiliateProgramDialog } from "./affiliate-program-dialog"
 
 export default function AffiliateProgramsPage() {
   const { data: programs, isLoading, isError } = useAffiliatePrograms()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(programs)
 
   const stats = React.useMemo(() => {
     const list = programs ?? []
@@ -74,7 +77,7 @@ export default function AffiliateProgramsPage() {
               </TableRow>
             )}
 
-            {programs?.map((program, index) => (
+            {pageItems.map((program, index) => (
               <motion.tr
                 key={program.id}
                 initial={{ opacity: 0, y: 6 }}
@@ -101,6 +104,13 @@ export default function AffiliateProgramsPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

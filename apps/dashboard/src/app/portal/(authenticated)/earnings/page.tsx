@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { useKiosk } from "@/lib/api/hooks/use-kiosks"
 import { useMyBalance, useMyCommissionEvents } from "@/lib/api/hooks/use-commissions"
@@ -70,6 +72,9 @@ export default function PortalEarningsPage() {
     [payouts],
   )
 
+  const eventsPagination = usePagination(recentEvents)
+  const payoutsPagination = usePagination(recentPayouts)
+
   function handleConnectStripe() {
     stripeOnboard.mutate(undefined, {
       onSuccess: (data) => {
@@ -84,10 +89,11 @@ export default function PortalEarningsPage() {
   const stripePayoutsEnabled = kiosk?.stripePayoutsEnabled ?? false
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Earnings</h2>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-8">
+      <div className="rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:p-8">
+        <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Revenue centre</p>
+        <h2 className="text-3xl font-semibold tracking-[-0.04em]">Earnings</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
           Your balance, payout history, and Stripe payout connection.
         </p>
       </div>
@@ -122,12 +128,12 @@ export default function PortalEarningsPage() {
         />
       </BentoGrid>
 
-      <Card>
+      <Card className="border border-black/[0.06] shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
         <CardHeader>
           <CardTitle>Stripe payouts</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1">
               <Badge variant={stripePayoutsEnabled ? "default" : "secondary"} className="w-fit">
                 {stripePayoutsEnabled
@@ -156,7 +162,7 @@ export default function PortalEarningsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border border-black/[0.06] shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
         <CardHeader>
           <CardTitle>Commission history</CardTitle>
         </CardHeader>
@@ -188,7 +194,7 @@ export default function PortalEarningsPage() {
                 </TableRow>
               )}
 
-              {recentEvents.map((event) => (
+              {eventsPagination.pageItems.map((event) => (
                 <TableRow key={event.id}>
                   <TableCell className="font-medium">
                     {deviceLabelById.get(event.deviceId) ?? "Unknown device"}
@@ -204,10 +210,17 @@ export default function PortalEarningsPage() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination
+            page={eventsPagination.page}
+            pageCount={eventsPagination.pageCount}
+            totalItems={eventsPagination.totalItems}
+            pageSize={eventsPagination.pageSize}
+            onPageChange={eventsPagination.setPage}
+          />
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border border-black/[0.06] shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
         <CardHeader>
           <CardTitle>Payout history</CardTitle>
         </CardHeader>
@@ -239,7 +252,7 @@ export default function PortalEarningsPage() {
                 </TableRow>
               )}
 
-              {recentPayouts.map((payout) => (
+              {payoutsPagination.pageItems.map((payout) => (
                 <TableRow key={payout.id}>
                   <TableCell>
                     {new Date(payout.periodStart).toLocaleDateString()} –{" "}
@@ -256,6 +269,13 @@ export default function PortalEarningsPage() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination
+            page={payoutsPagination.page}
+            pageCount={payoutsPagination.pageCount}
+            totalItems={payoutsPagination.totalItems}
+            pageSize={payoutsPagination.pageSize}
+            onPageChange={payoutsPagination.setPage}
+          />
         </CardContent>
       </Card>
     </div>

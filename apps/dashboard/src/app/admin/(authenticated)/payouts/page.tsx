@@ -27,14 +27,17 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { usePayouts, useProcessPayout } from "@/lib/api/hooks/use-payouts"
 import { ApiError } from "@/lib/api/client"
 import { formatCurrency } from "@/lib/format-currency"
 import { PAYOUT_STATUS_BADGE_VARIANT, PAYOUT_STATUS_LABEL } from "@/lib/dashboard/status-labels"
+import { usePagination } from "@/hooks/use-pagination"
 import type { Payout } from "@/lib/api/types"
 
 export default function AdminPayoutsPage() {
   const { data: payouts, isLoading, isError } = usePayouts()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(payouts)
 
   const stats = React.useMemo(() => {
     const list = payouts ?? []
@@ -104,11 +107,18 @@ export default function AdminPayoutsPage() {
               </TableRow>
             )}
 
-            {payouts?.map((payout) => (
+            {pageItems.map((payout) => (
               <PayoutRow key={payout.id} payout={payout} />
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

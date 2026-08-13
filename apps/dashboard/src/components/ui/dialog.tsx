@@ -28,7 +28,7 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 z-50 bg-[rgb(20_30_28_/_0.28)] duration-200 supports-backdrop-filter:backdrop-blur-sm data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className,
       )}
       {...props}
@@ -50,7 +50,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-popover bg-clip-padding text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-5 overflow-hidden rounded-xl bg-popover bg-clip-padding text-sm text-popover-foreground shadow-[0_24px_80px_rgba(11,28,25,0.22)] ring-1 ring-black/8 duration-200 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
         {...props}
@@ -58,7 +58,7 @@ function DialogContent({
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm">
+            <Button variant="ghost" className="absolute top-4 right-4 rounded-full text-muted-foreground hover:bg-muted" size="icon-sm">
               <XIcon />
               <span className="sr-only">Close</span>
             </Button>
@@ -71,7 +71,7 @@ function DialogContent({
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="dialog-header" className={cn("flex flex-col gap-0.5 p-4 pb-0", className)} {...props} />
+    <div data-slot="dialog-header" className={cn("flex flex-col gap-1 px-6 pt-6 pr-12", className)} {...props} />
   )
 }
 
@@ -79,7 +79,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn("mt-auto flex flex-col gap-2 p-4 pt-0", className)}
+      className={cn("mt-4 mb-2 flex flex-col-reverse gap-2 border-t border-border/70 bg-muted/35 px-6 py-4 sm:flex-row sm:justify-end", className)}
       {...props}
     />
   )
@@ -89,7 +89,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-heading text-base font-medium text-foreground", className)}
+      className={cn("font-heading text-lg font-semibold tracking-tight text-foreground", className)}
       {...props}
     />
   )
@@ -102,7 +102,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("max-w-lg text-sm leading-6 text-muted-foreground", className)}
       {...props}
     />
   )

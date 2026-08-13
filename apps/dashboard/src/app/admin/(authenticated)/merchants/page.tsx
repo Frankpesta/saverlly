@@ -18,10 +18,12 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useMerchants, useUpdateMerchant } from "@/lib/api/hooks/use-merchants"
 import { useCoupons } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
 import type { AttributionMethod } from "@/lib/api/types"
+import { usePagination } from "@/hooks/use-pagination"
 import { NewMerchantDialog } from "./new-merchant-dialog"
 
 const METHOD_LABEL: Record<AttributionMethod, string> = {
@@ -33,6 +35,7 @@ const METHOD_LABEL: Record<AttributionMethod, string> = {
 export default function MerchantsPage() {
   const { data: merchants, isLoading, isError } = useMerchants()
   const { data: coupons } = useCoupons()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(merchants)
 
   const couponCountByMerchant = React.useMemo(() => {
     const counts = new Map<string, number>()
@@ -101,7 +104,7 @@ export default function MerchantsPage() {
               </TableRow>
             )}
 
-            {merchants?.map((merchant, index) => (
+            {pageItems.map((merchant, index) => (
               <MerchantRow
                 key={merchant.id}
                 merchant={merchant}
@@ -111,6 +114,13 @@ export default function MerchantsPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

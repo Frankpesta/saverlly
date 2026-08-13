@@ -47,17 +47,17 @@ export function StatTile({
   const animated = useAnimatedNumber(value)
 
   return (
-    <BentoCard className={cn("flex flex-col justify-between gap-4", className)}>
+    <BentoCard className={cn("group flex min-h-40 flex-col justify-between gap-5", className)}>
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
         {icon && (
-          <span className="flex size-8 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-[var(--brand-teal)] [&_svg]:size-4">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-[var(--brand-teal-tint)] text-[var(--brand-teal)] transition-transform duration-200 group-hover:scale-110 [&_svg]:size-4">
             {icon}
           </span>
         )}
       </div>
       <div className="flex flex-col gap-0.5">
-        <span className="text-3xl font-semibold tracking-tight">{format(animated)}</span>
+        <span className="text-3xl font-semibold tracking-[-0.04em]">{format(animated)}</span>
         {subtext && <span className="text-sm text-muted-foreground">{subtext}</span>}
       </div>
     </BentoCard>

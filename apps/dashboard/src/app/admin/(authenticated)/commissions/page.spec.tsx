@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AdminCommissionsPage from "./page"
+import { formatCurrency } from "@/lib/format-currency"
 import type { CommissionEvent, Device, Kiosk, Location, Merchant } from "@/lib/api/types"
 
 const kiosks: Kiosk[] = [
@@ -134,6 +135,43 @@ describe("AdminCommissionsPage", () => {
         expect.anything(),
       ),
     )
+  })
+
+  it("paginates at 25 rows per page and navigates to the next page", async () => {
+    const manyEvents: CommissionEvent[] = Array.from({ length: 30 }, (_, i) => ({
+      ...events[0],
+      id: `ev-${i + 1}`,
+      commissionAmount: 1000 + i,
+    }))
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? "GET"
+      if (url.startsWith("/api/proxy/commission-events") && method === "GET") {
+        return { ok: true, status: 200, json: async () => manyEvents } as Response
+      }
+      if (url === "/api/proxy/kiosks") return { ok: true, status: 200, json: async () => kiosks } as Response
+      if (url === "/api/proxy/locations") return { ok: true, status: 200, json: async () => locations } as Response
+      if (url === "/api/proxy/devices") return { ok: true, status: 200, json: async () => devices } as Response
+      if (url === "/api/proxy/merchants") return { ok: true, status: 200, json: async () => merchants } as Response
+      throw new Error(`Unhandled fetch in test: ${method} ${url}`)
+    }) as jest.Mock
+
+    renderWithClient(<AdminCommissionsPage />)
+
+    const firstAmount = formatCurrency(manyEvents[0].commissionAmount)
+    const lastOnPage1 = formatCurrency(manyEvents[24].commissionAmount)
+    const firstOnPage2 = formatCurrency(manyEvents[25].commissionAmount)
+
+    expect(await screen.findByText(firstAmount)).toBeInTheDocument()
+    expect(screen.getByText(lastOnPage1)).toBeInTheDocument()
+    expect(screen.queryByText(firstOnPage2)).not.toBeInTheDocument()
+    expect(screen.getByText("Showing 1–25 of 30")).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: /next/i }))
+
+    expect(await screen.findByText(firstOnPage2)).toBeInTheDocument()
+    expect(screen.queryByText(firstAmount)).not.toBeInTheDocument()
+    expect(screen.getByText("Showing 26–30 of 30")).toBeInTheDocument()
   })
 
   it("syncs commissions and shows the result", async () => {

@@ -213,3 +213,12 @@ export type Announcement = {
   createdAt: string
   updatedAt: string
 }
+
+export type SearchResultType = "kiosk" | "location" | "device" | "merchant" | "coupon" | "announcement"
+
+export type SearchResult = {
+  type: SearchResultType
+  id: string
+  title: string
+  subtitle: string | null
+}

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import {
   useRunScrapeSourceNow,
   useScrapeSources,
@@ -26,12 +27,14 @@ import {
 import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
+import { usePagination } from "@/hooks/use-pagination"
 import type { ScrapeSource } from "@/lib/api/types"
 import { ScrapeSourceDialog } from "./scrape-source-dialog"
 
 export default function ScrapeSourcesPage() {
   const { data: sources, isLoading, isError } = useScrapeSources()
   const { data: merchants } = useMerchants()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(sources)
 
   const merchantNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -93,7 +96,7 @@ export default function ScrapeSourcesPage() {
               </TableRow>
             )}
 
-            {sources?.map((source, index) => (
+            {pageItems.map((source, index) => (
               <ScrapeSourceRow
                 key={source.id}
                 source={source}
@@ -104,6 +107,13 @@ export default function ScrapeSourcesPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

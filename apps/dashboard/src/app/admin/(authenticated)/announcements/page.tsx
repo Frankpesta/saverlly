@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useAnnouncements } from "@/lib/api/hooks/use-announcements"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { useLocations } from "@/lib/api/hooks/use-locations"
+import { usePagination } from "@/hooks/use-pagination"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { NewAnnouncementDialog } from "./new-announcement-dialog"
 
@@ -46,6 +48,7 @@ export default function AdminAnnouncementsPage() {
   const { data: announcements, isLoading, isError } = useAnnouncements()
   const { data: kiosks } = useKiosks()
   const { data: locations } = useLocations()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(announcements)
 
   const [now, setNow] = React.useState(() => Date.now())
   React.useEffect(() => {
@@ -124,7 +127,7 @@ export default function AdminAnnouncementsPage() {
               </TableRow>
             )}
 
-            {announcements?.map((announcement, index) => {
+            {pageItems.map((announcement, index) => {
               const status = statusFor(announcement, now)
               const isBroadcast = announcement.kioskId === null
               return (
@@ -177,6 +180,13 @@ export default function AdminAnnouncementsPage() {
             })}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

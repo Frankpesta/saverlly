@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { ReceiptIcon, CircleCheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -24,7 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
+import { DatePicker } from "@/components/dashboard/date-picker"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import {
   useCommissionEvents,
   useSyncCommissionsNow,
@@ -38,6 +39,7 @@ import { ApiError } from "@/lib/api/client"
 import { formatCurrency } from "@/lib/format-currency"
 import { buildDeviceKioskMap, sumByStatus } from "@/lib/dashboard/aggregate"
 import { COMMISSION_STATUS_BADGE_VARIANT, COMMISSION_STATUS_LABEL } from "@/lib/dashboard/status-labels"
+import { usePagination } from "@/hooks/use-pagination"
 import type { CommissionEventStatus } from "@/lib/api/types"
 
 const ALL = "all"
@@ -59,6 +61,7 @@ export default function AdminCommissionsPage() {
   }
 
   const { data: events, isLoading, isError } = useCommissionEvents(filter)
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(events)
   const { data: kiosks } = useKiosks()
   const { data: merchants } = useMerchants()
   const { data: locations } = useLocations()
@@ -178,23 +181,11 @@ export default function AdminCommissionsPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-from">From</Label>
-          <Input
-            id="filter-from"
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="w-40"
-          />
+          <DatePicker id="filter-from" value={dateFrom} onChange={setDateFrom} />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-to">To</Label>
-          <Input
-            id="filter-to"
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="w-40"
-          />
+          <DatePicker id="filter-to" value={dateTo} onChange={setDateTo} />
         </div>
       </div>
 
@@ -229,7 +220,7 @@ export default function AdminCommissionsPage() {
               </TableRow>
             )}
 
-            {events?.map((event) => (
+            {pageItems.map((event) => (
               <TableRow key={event.id}>
                 <TableCell className="font-medium">
                   {merchantNameById.get(event.merchantId) ?? "Unknown merchant"}
@@ -248,6 +239,13 @@ export default function AdminCommissionsPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

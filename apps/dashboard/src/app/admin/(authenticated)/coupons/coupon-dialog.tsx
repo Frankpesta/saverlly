@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { DatePicker } from "@/components/dashboard/date-picker"
 import { useCreateCoupon, useUpdateCoupon } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
 import type { Coupon, CouponDiscountType, Merchant } from "@/lib/api/types"
@@ -196,12 +197,7 @@ export function CouponDialog({
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="coupon-expires">Expires (optional)</Label>
-              <Input
-                id="coupon-expires"
-                type="date"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-              />
+              <DatePicker id="coupon-expires" value={expiresAt} onChange={setExpiresAt} />
             </div>
           </div>
 

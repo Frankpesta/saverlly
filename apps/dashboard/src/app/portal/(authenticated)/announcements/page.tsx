@@ -16,8 +16,10 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
+import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useAnnouncements } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
+import { usePagination } from "@/hooks/use-pagination"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { NewAnnouncementDialog } from "./new-announcement-dialog"
 
@@ -44,6 +46,7 @@ const STATUS_BADGE_VARIANT = {
 export default function AnnouncementsPage() {
   const { data: announcements, isLoading, isError } = useAnnouncements()
   const { data: locations } = useLocations()
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(announcements)
 
   const [now, setNow] = React.useState(() => Date.now())
   React.useEffect(() => {
@@ -107,7 +110,7 @@ export default function AnnouncementsPage() {
               </TableRow>
             )}
 
-            {announcements?.map((announcement, index) => {
+            {pageItems.map((announcement, index) => {
               const status = statusFor(announcement, now)
               return (
                 <motion.tr
@@ -147,6 +150,13 @@ export default function AnnouncementsPage() {
             })}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

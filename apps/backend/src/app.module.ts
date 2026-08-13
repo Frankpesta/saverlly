@@ -23,6 +23,7 @@ import { PublicApiModule } from './public-api/public-api.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { CommissionsModule } from './commissions/commissions.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { PayoutsModule } from './payouts/payouts.module';
     AnnouncementsModule,
     CommissionsModule,
     PayoutsModule,
+    SearchModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
