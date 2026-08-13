@@ -7,14 +7,14 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { useKioskUsers, useUpdateKioskUser } from "@/lib/api/hooks/use-kiosk-users"
 import { ApiError } from "@/lib/api/client"
-import { AddKioskUserDialog } from "./add-kiosk-user-dialog"
+import { AddTeamMemberDialog } from "./add-team-member-dialog"
 
 const ROLE_LABEL = {
   KIOSK_OWNER: "Kiosk owner",
   LOCATION_MANAGER: "Location manager",
 } as const
 
-export function KioskUsersSection({ kioskId }: { kioskId: string }) {
+export function TeamSection({ kioskId }: { kioskId: string }) {
   const { data: users, isLoading, isError } = useKioskUsers(kioskId)
   const updateUser = useUpdateKioskUser(kioskId)
 
@@ -23,7 +23,7 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
       { userId, patch: { disabled: !disabled } },
       {
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not update user."),
+          toast.error(error instanceof ApiError ? error.message : "Could not update team member."),
       },
     )
   }
@@ -31,14 +31,14 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
   return (
     <Card className="w-full max-w-lg">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Users</CardTitle>
-        <AddKioskUserDialog kioskId={kioskId} />
+        <CardTitle>Team</CardTitle>
+        <AddTeamMemberDialog kioskId={kioskId} />
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {isError && <p className="text-sm text-destructive">Could not load users.</p>}
+        {isError && <p className="text-sm text-destructive">Could not load team members.</p>}
         {isLoading && <Skeleton className="h-10 w-full" />}
         {!isLoading && users?.length === 0 && (
-          <p className="text-sm text-muted-foreground">No users on this kiosk yet.</p>
+          <p className="text-sm text-muted-foreground">No team members yet.</p>
         )}
         {users?.map((user) => (
           <div
@@ -58,7 +58,7 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
               <Switch
                 checked={!user.disabled}
                 onCheckedChange={() => toggleDisabled(user.id, user.disabled)}
-                disabled={updateUser.isPending}
+                disabled={updateUser.isPending || user.role === "KIOSK_OWNER"}
                 aria-label={`Toggle ${user.email} access`}
               />
             </div>

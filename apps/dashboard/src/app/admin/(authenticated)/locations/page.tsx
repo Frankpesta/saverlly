@@ -19,7 +19,7 @@ import { StatTile } from "@/components/dashboard/stat-tile"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
-import { NewLocationSheet } from "./new-location-sheet"
+import { NewLocationDialog } from "./new-location-dialog"
 
 export default function AdminLocationsPage() {
   const { data: locations, isLoading, isError } = useLocations()
@@ -55,7 +55,7 @@ export default function AdminLocationsPage() {
             Every location across every kiosk business on the platform.
           </p>
         </div>
-        <NewLocationSheet />
+        <NewLocationDialog />
       </div>
 
       <BentoGrid>

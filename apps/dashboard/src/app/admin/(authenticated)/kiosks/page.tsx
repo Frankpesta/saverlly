@@ -21,7 +21,7 @@ import { StatTile } from "@/components/dashboard/stat-tile"
 import { Meter } from "@/components/dashboard/meter"
 import { useKiosks, useUpdateKioskStatus } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
-import { NewKioskSheet } from "./new-kiosk-sheet"
+import { NewKioskDialog } from "./new-kiosk-dialog"
 
 export default function KiosksPage() {
   const { data: kiosks, isLoading, isError } = useKiosks()
@@ -59,7 +59,7 @@ export default function KiosksPage() {
             Every kiosk business on the platform, their status, and revenue share.
           </p>
         </div>
-        <NewKioskSheet />
+        <NewKioskDialog />
       </div>
 
       <BentoGrid>

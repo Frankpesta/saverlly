@@ -7,23 +7,23 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
 import { useCreateLocation } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
-import { cn } from "@/lib/utils"
 
 const STEPS = [
   { title: "Where is it?", description: "The location's business address." },
   { title: "Details", description: "Tags help with future targeting — optional." },
 ] as const
 
-export function NewLocationSheet() {
+export function NewLocationDialog() {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState(0)
   const [name, setName] = React.useState("")
@@ -70,27 +70,17 @@ export function NewLocationSheet() {
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Button onClick={() => setOpen(true)} className="gap-1.5">
         <PlusIcon className="size-4" />
         New Location
       </Button>
-      <SheetContent>
-        <SheetHeader>
-          <div className="mb-1 flex items-center gap-1.5">
-            {STEPS.map((_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "h-1.5 flex-1 rounded-full transition-colors",
-                  i <= step ? "bg-[var(--brand-teal)]" : "bg-muted",
-                )}
-              />
-            ))}
-          </div>
-          <SheetTitle>{STEPS[step].title}</SheetTitle>
-          <SheetDescription>{STEPS[step].description}</SheetDescription>
-        </SheetHeader>
+      <DialogContent>
+        <DialogHeader>
+          <WizardStepDots count={STEPS.length} current={step} />
+          <DialogTitle>{STEPS[step].title}</DialogTitle>
+          <DialogDescription>{STEPS[step].description}</DialogDescription>
+        </DialogHeader>
 
         <form
           className="flex flex-1 flex-col justify-between"
@@ -172,7 +162,7 @@ export function NewLocationSheet() {
             )}
           </div>
 
-          <SheetFooter className="flex-row justify-end">
+          <DialogFooter className="flex-row justify-end">
             {step === 1 && (
               <Button type="button" variant="outline" onClick={() => setStep(0)}>
                 Back
@@ -181,9 +171,9 @@ export function NewLocationSheet() {
             <Button type="submit" disabled={createLocation.isPending}>
               {step === 0 ? "Continue" : createLocation.isPending ? "Creating…" : "Create location"}
             </Button>
-          </SheetFooter>
+          </DialogFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

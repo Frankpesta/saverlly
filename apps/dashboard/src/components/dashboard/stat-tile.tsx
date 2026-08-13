@@ -33,12 +33,15 @@ export function StatTile({
   value,
   icon,
   format = defaultFormat,
+  subtext,
   className,
 }: {
   label: string
   value: number
   icon?: React.ReactNode
   format?: (value: number) => string
+  /** Small muted line under the value, e.g. "+12.4% this month" or "12 payouts". Omit if not derivable. */
+  subtext?: React.ReactNode
   className?: string
 }) {
   const animated = useAnimatedNumber(value)
@@ -53,7 +56,10 @@ export function StatTile({
           </span>
         )}
       </div>
-      <span className="text-3xl font-semibold tracking-tight">{format(animated)}</span>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-3xl font-semibold tracking-tight">{format(animated)}</span>
+        {subtext && <span className="text-sm text-muted-foreground">{subtext}</span>}
+      </div>
     </BentoCard>
   )
 }

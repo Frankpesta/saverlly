@@ -19,7 +19,7 @@ import { StatTile } from "@/components/dashboard/stat-tile"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
-import { NewLocationSheet } from "./new-location-sheet"
+import { NewLocationDialog } from "./new-location-dialog"
 
 export default function LocationsPage() {
   const { data: locations, isLoading, isError } = useLocations()
@@ -49,7 +49,7 @@ export default function LocationsPage() {
             Every physical location your kiosk business operates from.
           </p>
         </div>
-        {currentUser?.role === "KIOSK_OWNER" && <NewLocationSheet />}
+        {currentUser?.role === "KIOSK_OWNER" && <NewLocationDialog />}
       </div>
 
       <BentoGrid>

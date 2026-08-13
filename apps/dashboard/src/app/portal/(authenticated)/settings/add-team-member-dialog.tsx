@@ -7,35 +7,30 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { useCreateKioskUser } from "@/lib/api/hooks/use-kiosk-users"
 import { ApiError } from "@/lib/api/client"
-import type { KioskAssignableRole } from "@/lib/api/types"
 
-export function AddKioskUserSheet({ kioskId }: { kioskId: string }) {
+/**
+ * A kiosk-owner may only create LOCATION_MANAGER accounts under their own kiosk (never a peer
+ * owner — kiosk-users.service.ts's assertRoleAssignable enforces this server-side), so unlike
+ * the admin equivalent this dialog has no role picker at all.
+ */
+export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
   const [open, setOpen] = React.useState(false)
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
-  const [role, setRole] = React.useState<KioskAssignableRole>("KIOSK_OWNER")
   const createUser = useCreateKioskUser(kioskId)
 
   function reset() {
     setEmail("")
     setPassword("")
-    setRole("KIOSK_OWNER")
   }
 
   function handleOpenChange(next: boolean) {
@@ -46,39 +41,39 @@ export function AddKioskUserSheet({ kioskId }: { kioskId: string }) {
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     createUser.mutate(
-      { email, password, role },
+      { email, password, role: "LOCATION_MANAGER" },
       {
         onSuccess: () => {
           toast.success(`${email} was added.`)
           handleOpenChange(false)
         },
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not add user."),
+          toast.error(error instanceof ApiError ? error.message : "Could not add team member."),
       },
     )
   }
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
         <UserPlusIcon className="size-4" />
-        Add user
+        Add team member
       </Button>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Add user</SheetTitle>
-          <SheetDescription>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add team member</DialogTitle>
+          <DialogDescription>
             Set an email and a temporary password — share it with them directly, there&apos;s no
-            invite email yet.
-          </SheetDescription>
-        </SheetHeader>
+            invite email yet. They&apos;ll be added as a location manager.
+          </DialogDescription>
+        </DialogHeader>
 
         <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
           <div className="flex flex-col gap-4 px-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="add-user-email">Email</Label>
+              <Label htmlFor="team-member-email">Email</Label>
               <Input
-                id="add-user-email"
+                id="team-member-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -86,9 +81,9 @@ export function AddKioskUserSheet({ kioskId }: { kioskId: string }) {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="add-user-password">Temporary password</Label>
+              <Label htmlFor="team-member-password">Temporary password</Label>
               <Input
-                id="add-user-password"
+                id="team-member-password"
                 type="text"
                 minLength={8}
                 value={password}
@@ -97,27 +92,15 @@ export function AddKioskUserSheet({ kioskId }: { kioskId: string }) {
               />
               <p className="text-sm text-muted-foreground">At least 8 characters.</p>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="add-user-role">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as KioskAssignableRole)}>
-                <SelectTrigger id="add-user-role" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="KIOSK_OWNER">Kiosk owner</SelectItem>
-                  <SelectItem value="LOCATION_MANAGER">Location manager</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
-          <SheetFooter>
+          <DialogFooter>
             <Button type="submit" disabled={createUser.isPending}>
-              {createUser.isPending ? "Adding…" : "Add user"}
+              {createUser.isPending ? "Adding…" : "Add team member"}
             </Button>
-          </SheetFooter>
+          </DialogFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

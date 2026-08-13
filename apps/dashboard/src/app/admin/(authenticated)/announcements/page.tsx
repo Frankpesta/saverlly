@@ -20,7 +20,7 @@ import { useAnnouncements } from "@/lib/api/hooks/use-announcements"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
-import { NewAnnouncementSheet } from "./new-announcement-sheet"
+import { NewAnnouncementDialog } from "./new-announcement-dialog"
 
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   ONCE: "Once",
@@ -83,7 +83,7 @@ export default function AdminAnnouncementsPage() {
             Every announcement across every kiosk business, plus platform-wide broadcasts.
           </p>
         </div>
-        <NewAnnouncementSheet />
+        <NewAnnouncementDialog />
       </div>
 
       <BentoGrid>

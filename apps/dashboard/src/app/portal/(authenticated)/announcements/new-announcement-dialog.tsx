@@ -6,7 +6,6 @@ import { PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -16,30 +15,26 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
 import { useCreateAnnouncement, useUploadAnnouncementImage } from "@/lib/api/hooks/use-announcements"
-import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
 import type { AnnouncementRepeatPolicy } from "@/lib/api/types"
-import { cn } from "@/lib/utils"
 import { AnnouncementPreview } from "./announcement-preview"
 import { LocationTargetPicker } from "./location-target-picker"
 
-type StepKey = "content" | "kiosk" | "schedule" | "targeting"
-
-const STEP_INFO: Record<StepKey, { title: string; description: string }> = {
-  content: { title: "Content", description: "What should the announcement say?" },
-  kiosk: { title: "Kiosk", description: "Which kiosk business is this for?" },
-  schedule: { title: "Schedule", description: "When should it run, and how often per visit?" },
-  targeting: { title: "Targeting", description: "Which locations should show it?" },
-}
+const STEPS = [
+  { title: "Content", description: "What should the announcement say?" },
+  { title: "Schedule", description: "When should it run, and how often per visit?" },
+  { title: "Targeting", description: "Which locations should show it?" },
+] as const
 
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   ONCE: "Once",
@@ -52,11 +47,9 @@ function toDatetimeLocal(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-export function NewAnnouncementSheet() {
+export function NewAnnouncementDialog() {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState(0)
-  const [broadcast, setBroadcast] = React.useState(false)
-  const [kioskId, setKioskId] = React.useState("")
   const [title, setTitle] = React.useState("")
   const [body, setBody] = React.useState("")
   const [mediaUrl, setMediaUrl] = React.useState("")
@@ -70,26 +63,22 @@ export function NewAnnouncementSheet() {
 
   const createAnnouncement = useCreateAnnouncement()
   const uploadImage = useUploadAnnouncementImage()
-  const { data: kiosks } = useKiosks()
-  const { data: allLocations } = useLocations()
+  const { data: locations } = useLocations()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  // A broadcast targets everyone — there's nothing to pick a kiosk or locations for.
-  const stepKeys: StepKey[] = broadcast
-    ? ["content", "schedule"]
-    : ["content", "kiosk", "schedule", "targeting"]
-  const stepKey = stepKeys[step]
-  const isLastStep = step === stepKeys.length - 1
-
-  const kioskLocations = React.useMemo(
-    () => (allLocations ?? []).filter((l) => l.kioskId === kioskId),
-    [allLocations, kioskId],
-  )
+  function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+    uploadImage.mutate(file, {
+      onSuccess: (data) => setMediaUrl(data.url),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not upload image."),
+    })
+  }
 
   function reset() {
     setStep(0)
-    setBroadcast(false)
-    setKioskId("")
     setTitle("")
     setBody("")
     setMediaUrl("")
@@ -105,17 +94,6 @@ export function NewAnnouncementSheet() {
     if (!next) reset()
   }
 
-  function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ""
-    if (!file) return
-    uploadImage.mutate(file, {
-      onSuccess: (data) => setMediaUrl(data.url),
-      onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Could not upload image."),
-    })
-  }
-
   function handleCreate(event: React.FormEvent) {
     event.preventDefault()
     createAnnouncement.mutate(
@@ -127,8 +105,7 @@ export function NewAnnouncementSheet() {
         endAt: new Date(endAt).toISOString(),
         repeatPolicy,
         maxDisplayCount: repeatPolicy === "MAX_N_TIMES" ? Number(maxDisplayCount) : undefined,
-        broadcast,
-        ...(broadcast ? {} : { kioskId, locationIds }),
+        locationIds,
       },
       {
         onSuccess: () => {
@@ -141,59 +118,33 @@ export function NewAnnouncementSheet() {
     )
   }
 
-  const canContinueFromStep =
-    stepKey !== "kiosk" || !!kioskId
-
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <Button onClick={() => setOpen(true)} className="gap-1.5">
         <PlusIcon className="size-4" />
         New Announcement
       </Button>
-      <SheetContent className="sm:max-w-md">
-        <SheetHeader>
-          <div className="mb-1 flex items-center gap-1.5">
-            {stepKeys.map((key, i) => (
-              <span
-                key={key}
-                className={cn(
-                  "h-1.5 flex-1 rounded-full transition-colors",
-                  i <= step ? "bg-[var(--brand-teal)]" : "bg-muted",
-                )}
-              />
-            ))}
-          </div>
-          <SheetTitle>{STEP_INFO[stepKey].title}</SheetTitle>
-          <SheetDescription>{STEP_INFO[stepKey].description}</SheetDescription>
-        </SheetHeader>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <WizardStepDots count={STEPS.length} current={step} />
+          <DialogTitle>{STEPS[step].title}</DialogTitle>
+          <DialogDescription>{STEPS[step].description}</DialogDescription>
+        </DialogHeader>
 
         <form
           className="flex flex-1 flex-col justify-between overflow-y-auto"
           onSubmit={
-            isLastStep
-              ? handleCreate
-              : (e) => {
+            step < 2
+              ? (e) => {
                   e.preventDefault()
                   setStep(step + 1)
                 }
+              : handleCreate
           }
         >
           <div className="flex flex-col gap-4 px-4">
-            {stepKey === "content" && (
+            {step === 0 && (
               <>
-                <div className="flex items-center justify-between rounded-xl border border-black/8 p-3">
-                  <div>
-                    <Label htmlFor="new-ann-broadcast">Broadcast to all kiosks</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Shows on every device across the entire platform.
-                    </p>
-                  </div>
-                  <Switch
-                    id="new-ann-broadcast"
-                    checked={broadcast}
-                    onCheckedChange={setBroadcast}
-                  />
-                </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="new-ann-title">Title</Label>
                   <Input
@@ -244,25 +195,7 @@ export function NewAnnouncementSheet() {
               </>
             )}
 
-            {stepKey === "kiosk" && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="new-ann-kiosk">Kiosk</Label>
-                <Select value={kioskId} onValueChange={setKioskId} required>
-                  <SelectTrigger id="new-ann-kiosk" className="w-full">
-                    <SelectValue placeholder="Select a kiosk" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kiosks?.map((kiosk) => (
-                      <SelectItem key={kiosk.id} value={kiosk.id}>
-                        {kiosk.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {stepKey === "schedule" && (
+            {step === 1 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-2">
@@ -323,31 +256,27 @@ export function NewAnnouncementSheet() {
               </>
             )}
 
-            {stepKey === "targeting" && (
+            {step === 2 && (
               <LocationTargetPicker
-                locations={kioskLocations}
+                locations={locations ?? []}
                 value={locationIds}
                 onChange={setLocationIds}
               />
             )}
           </div>
 
-          <SheetFooter className="flex-row justify-end">
+          <DialogFooter className="flex-row justify-end">
             {step > 0 && (
               <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                 Back
               </Button>
             )}
-            <Button type="submit" disabled={createAnnouncement.isPending || !canContinueFromStep}>
-              {!isLastStep
-                ? "Continue"
-                : createAnnouncement.isPending
-                  ? "Creating…"
-                  : "Create announcement"}
+            <Button type="submit" disabled={createAnnouncement.isPending}>
+              {step < 2 ? "Continue" : createAnnouncement.isPending ? "Creating…" : "Create announcement"}
             </Button>
-          </SheetFooter>
+          </DialogFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
