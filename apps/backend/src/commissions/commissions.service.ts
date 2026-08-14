@@ -1,13 +1,22 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CommissionEvent, CommissionStatus, Prisma } from '@prisma/client';
+import {
+  CommissionEvent,
+  CommissionStatus,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 import { AffiliateAdapterRegistryService } from '../affiliate-adapters/affiliate-adapter-registry.service';
 import { groupBy } from '../common/collections/group-by.util';
 import { parsePositiveIntEnv } from '../common/config/positive-int-env.util';
+import { NotificationTriggersService } from '../notifications/notification-triggers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BalanceDto } from './dto/balance.dto';
 import { CommissionEventDto } from './dto/commission-event.dto';
 import { CommissionEventFilterDto } from './dto/commission-event-filter.dto';
+
+const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
+const DIGEST_PERIOD_LABEL = '24 hours';
 
 const DEFAULT_PENDING_WINDOW_DAYS = 90;
 // Bounds each reconciliation pass so a large PENDING backlog can't load unbounded rows
@@ -34,6 +43,7 @@ export class CommissionsService {
     private readonly prisma: PrismaService,
     private readonly adapterRegistry: AffiliateAdapterRegistryService,
     private readonly configService: ConfigService,
+    private readonly notificationTriggers: NotificationTriggersService,
   ) {}
 
   /**
@@ -41,7 +51,11 @@ export class CommissionsService {
    * recent attribution attempts, then re-check every still-PENDING event's status.
    * Used by both the scheduled job and the admin-triggered manual sync endpoint.
    */
-  async syncNow(): Promise<{ ingested: number; confirmed: number; reversed: number }> {
+  async syncNow(): Promise<{
+    ingested: number;
+    confirmed: number;
+    reversed: number;
+  }> {
     const { ingested } = await this.ingestNewConversions();
     const { confirmed, reversed } = await this.reconcilePendingConversions();
     return { ingested, confirmed, reversed };
@@ -68,7 +82,9 @@ export class CommissionsService {
     });
 
     const byProgramId = groupBy(
-      candidates.filter((c) => c.merchant.affiliateProgramId && c.merchant.affiliateProgram),
+      candidates.filter(
+        (c) => c.merchant.affiliateProgramId && c.merchant.affiliateProgram,
+      ),
       (c) => c.merchant.affiliateProgramId as string,
     );
 
@@ -81,7 +97,9 @@ export class CommissionsService {
       }
 
       const attemptsBySubId = new Map(attempts.map((a) => [a.subId, a]));
-      const conversions = await adapter.fetchConversions(programId, [...attemptsBySubId.keys()]);
+      const conversions = await adapter.fetchConversions(programId, [
+        ...attemptsBySubId.keys(),
+      ]);
 
       for (const conversion of conversions) {
         const attempt = attemptsBySubId.get(conversion.subId);
@@ -138,7 +156,10 @@ export class CommissionsService {
    * Re-checks every still-PENDING CommissionEvent against its network's current status and
    * transitions it to CONFIRMED (locking in kioskShareAmount) or REVERSED (zeroing it out).
    */
-  async reconcilePendingConversions(): Promise<{ confirmed: number; reversed: number }> {
+  async reconcilePendingConversions(): Promise<{
+    confirmed: number;
+    reversed: number;
+  }> {
     const pending = await this.prisma.commissionEvent.findMany({
       where: { status: CommissionStatus.PENDING },
       include: {
@@ -149,7 +170,9 @@ export class CommissionsService {
     });
 
     const byProgramId = groupBy(
-      pending.filter((e) => e.merchant.affiliateProgramId && e.merchant.affiliateProgram),
+      pending.filter(
+        (e) => e.merchant.affiliateProgramId && e.merchant.affiliateProgram,
+      ),
       (e) => e.merchant.affiliateProgramId as string,
     );
 
@@ -166,7 +189,9 @@ export class CommissionsService {
         programId,
         events.map((e) => e.networkReference),
       );
-      const statusByRef = new Map(results.map((r) => [r.networkReference, r.status]));
+      const statusByRef = new Map(
+        results.map((r) => [r.networkReference, r.status]),
+      );
 
       const toConfirm: PendingEvent[] = [];
       const toReverseIds: string[] = [];
@@ -204,7 +229,11 @@ export class CommissionsService {
       if (toReverseIds.length > 0) {
         await this.prisma.commissionEvent.updateMany({
           where: { id: { in: toReverseIds } },
-          data: { status: CommissionStatus.REVERSED, reversedAt: new Date(), kioskShareAmount: 0 },
+          data: {
+            status: CommissionStatus.REVERSED,
+            reversedAt: new Date(),
+            kioskShareAmount: 0,
+          },
         });
         reversed += toReverseIds.length;
       }
@@ -213,8 +242,66 @@ export class CommissionsService {
     return { confirmed, reversed };
   }
 
+  /**
+   * Sends each kiosk-owner a summary of commission events confirmed/reversed in the last
+   * 24h. Only queries confirmedAt/reversedAt (not reportedAt — findAllForAdmin's date
+   * filter is on the wrong field for this) and skips kiosks with nothing to report, so no
+   * empty digest email goes out on a quiet day.
+   */
+  async sendDailyDigests(): Promise<void> {
+    const since = new Date(Date.now() - DIGEST_WINDOW_MS);
+    const events = await this.prisma.commissionEvent.findMany({
+      where: {
+        OR: [{ confirmedAt: { gte: since } }, { reversedAt: { gte: since } }],
+      },
+      include: {
+        device: { select: { location: { select: { kioskId: true } } } },
+      },
+    });
+    if (events.length === 0) {
+      return;
+    }
+
+    const byKioskId = groupBy(events, (e) => e.device.location.kioskId);
+    for (const [kioskId, kioskEvents] of byKioskId) {
+      const kiosk = await this.prisma.kiosk.findUnique({
+        where: { id: kioskId },
+        include: { users: { where: { role: UserRole.KIOSK_OWNER }, take: 1 } },
+      });
+      const owner = kiosk?.users[0];
+      if (!owner) {
+        continue;
+      }
+
+      const confirmed = kioskEvents.filter(
+        (e) => e.status === CommissionStatus.CONFIRMED,
+      );
+      const reversed = kioskEvents.filter(
+        (e) => e.status === CommissionStatus.REVERSED,
+      );
+      const confirmedTotal = confirmed.reduce(
+        (sum, e) => sum.add(e.kioskShareAmount),
+        new Prisma.Decimal(0),
+      );
+      const reversedTotal = reversed.reduce(
+        (sum, e) => sum.add(e.kioskShareAmount),
+        new Prisma.Decimal(0),
+      );
+
+      await this.notificationTriggers.commissionDigest(owner, kiosk.name, {
+        periodLabel: DIGEST_PERIOD_LABEL,
+        confirmedTotal: confirmedTotal.toNumber(),
+        confirmedCount: confirmed.length,
+        reversedTotal: reversedTotal.toNumber(),
+        reversedCount: reversed.length,
+      });
+    }
+  }
+
   /** Admin view — every kiosk's commission events, filterable. */
-  async findAllForAdmin(filter: CommissionEventFilterDto): Promise<CommissionEventDto[]> {
+  async findAllForAdmin(
+    filter: CommissionEventFilterDto,
+  ): Promise<CommissionEventDto[]> {
     const events = await this.prisma.commissionEvent.findMany({
       where: {
         merchantId: filter.merchantId,
@@ -253,19 +340,30 @@ export class CommissionsService {
 
     const [pendingAgg, confirmedAgg] = await Promise.all([
       this.prisma.commissionEvent.aggregate({
-        where: { status: CommissionStatus.PENDING, device: { location: { kioskId } } },
+        where: {
+          status: CommissionStatus.PENDING,
+          device: { location: { kioskId } },
+        },
         _sum: { commissionAmount: true },
       }),
       this.prisma.commissionEvent.aggregate({
         // payoutId: null — CONFIRMED events already swept into a Payout are no longer "available".
-        where: { status: CommissionStatus.CONFIRMED, device: { location: { kioskId } }, payoutId: null },
+        where: {
+          status: CommissionStatus.CONFIRMED,
+          device: { location: { kioskId } },
+          payoutId: null,
+        },
         _sum: { kioskShareAmount: true },
       }),
     ]);
 
-    const pendingCommissionTotal = pendingAgg._sum.commissionAmount ?? new Prisma.Decimal(0);
-    const pendingAmount = pendingCommissionTotal.mul(kiosk.revenueSharePct).div(100);
-    const confirmedAvailableAmount = confirmedAgg._sum.kioskShareAmount ?? new Prisma.Decimal(0);
+    const pendingCommissionTotal =
+      pendingAgg._sum.commissionAmount ?? new Prisma.Decimal(0);
+    const pendingAmount = pendingCommissionTotal
+      .mul(kiosk.revenueSharePct)
+      .div(100);
+    const confirmedAvailableAmount =
+      confirmedAgg._sum.kioskShareAmount ?? new Prisma.Decimal(0);
 
     return {
       pendingAmount: pendingAmount.toNumber(),
@@ -292,7 +390,9 @@ function toCommissionEventDto(event: CommissionEvent): CommissionEventDto {
   };
 }
 
-function toCommissionStatus(status: 'pending' | 'confirmed' | 'reversed'): CommissionStatus {
+function toCommissionStatus(
+  status: 'pending' | 'confirmed' | 'reversed',
+): CommissionStatus {
   switch (status) {
     case 'confirmed':
       return CommissionStatus.CONFIRMED;

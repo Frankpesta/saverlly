@@ -38,6 +38,7 @@ const users: KioskUser[] = [
     kioskId: "kiosk-1",
     disabled: false,
     managedLocationIds: [],
+    mustChangePassword: false,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -48,6 +49,7 @@ const users: KioskUser[] = [
     kioskId: "kiosk-1",
     disabled: false,
     managedLocationIds: [],
+    mustChangePassword: false,
     createdAt: "2026-01-03T00:00:00.000Z",
     updatedAt: "2026-01-03T00:00:00.000Z",
   },
@@ -69,11 +71,15 @@ describe("PortalSettingsPage", () => {
 
         if (url === "/api/proxy/users/me") return { ok: true, status: 200, json: async () => owner } as Response
         if (url === "/api/proxy/kiosks/kiosk-1") return { ok: true, status: 200, json: async () => kiosk } as Response
+        if (url === "/api/proxy/kiosks/kiosk-1/users" && method === "POST") {
+          return {
+            ok: true,
+            status: 201,
+            json: async () => ({ user: users[1], generatedPassword: "Gen3ratedPassw0rd!" }),
+          } as Response
+        }
         if (url === "/api/proxy/kiosks/kiosk-1/users") {
           return { ok: true, status: 200, json: async () => users } as Response
-        }
-        if (url === "/api/proxy/kiosks/kiosk-1/users" && method === "POST") {
-          return { ok: true, status: 201, json: async () => users[1] } as Response
         }
 
         throw new Error(`Unhandled fetch in test: ${method} ${url}`)
@@ -98,14 +104,13 @@ describe("PortalSettingsPage", () => {
       expect(toggles[1]).not.toBeDisabled() // location-manager row
     })
 
-    it("adds a team member as a location manager with no role picker", async () => {
+    it("adds a team member as a location manager with no role picker, and reveals the generated password", async () => {
       const user = userEvent.setup()
       renderWithClient(<PortalSettingsPage />)
 
       await screen.findByText("manager@example.com")
       await user.click(screen.getByRole("button", { name: /add team member/i }))
       await user.type(screen.getByLabelText("Email"), "new@example.com")
-      await user.type(screen.getByLabelText("Temporary password"), "password123")
       await user.click(screen.getByRole("button", { name: "Add team member" }))
 
       await waitFor(() =>
@@ -113,10 +118,12 @@ describe("PortalSettingsPage", () => {
           "/api/proxy/kiosks/kiosk-1/users",
           expect.objectContaining({
             method: "POST",
-            body: JSON.stringify({ email: "new@example.com", password: "password123", role: "LOCATION_MANAGER" }),
+            body: JSON.stringify({ email: "new@example.com", role: "LOCATION_MANAGER" }),
           }),
         ),
       )
+
+      expect(await screen.findByText("Gen3ratedPassw0rd!")).toBeInTheDocument()
     })
   })
 

@@ -22,17 +22,19 @@ enum KioskStatus {
 }
 
 model User {
-  id                 String   @id @default(uuid())
-  email              String   @unique
+  id                 String         @id @default(uuid())
+  email              String         @unique
   passwordHash       String
+  mustChangePassword Boolean        @default(true) // true for server-generated passwords; forces a change on next login
   role               UserRole
   kioskId            String? // null for ADMIN
-  kiosk              Kiosk?   @relation(fields: [kioskId], references: [id])
+  kiosk              Kiosk?         @relation(fields: [kioskId], references: [id])
   managedLocationIds String[] // used only for LOCATION_MANAGER role
-  disabled           Boolean  @default(false)
+  disabled           Boolean        @default(false)
   refreshTokenHash   String? // hashed current refresh token; cleared on logout, rotated on refresh
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  notifications      Notification[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([kioskId])
 }
@@ -300,4 +302,27 @@ model Payout {
   commissionEvents CommissionEvent[]
 
   @@index([kioskId])
+}
+
+enum NotificationType {
+  KIOSK_OWNER_CREATED
+  LOCATION_MANAGER_CREATED
+  PAYOUT_PROCESSED
+  STRIPE_ONBOARDING_CHANGED
+  COMMISSION_DIGEST
+}
+
+model Notification {
+  id        String            @id @default(uuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  body      String
+  metadata  Json? // e.g. { payoutId } / { enabled } — for future deep-linking, not rendered raw
+  readAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }

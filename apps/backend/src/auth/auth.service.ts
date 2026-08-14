@@ -4,9 +4,14 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import type { StringValue } from 'ms';
+import { PASSWORD_BCRYPT_ROUNDS } from '../common/crypto/password-hash.constants';
 import { hashToken, tokenMatchesHash } from '../common/crypto/token-hash.util';
 import { UsersService } from '../users/users.service';
-import { JwtPayload, RefreshTokenPayload } from './interfaces/jwt-payload.interface';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import {
+  JwtPayload,
+  RefreshTokenPayload,
+} from './interfaces/jwt-payload.interface';
 
 export interface TokenPair {
   accessToken: string;
@@ -32,15 +37,23 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.issueTokens(user.id, user.role, user.kioskId);
+    return this.issueTokens(
+      user.id,
+      user.role,
+      user.kioskId,
+      user.mustChangePassword,
+    );
   }
 
   async refresh(refreshToken: string): Promise<TokenPair> {
     let payload: RefreshTokenPayload;
     try {
-      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(refreshToken, {
-        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      });
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
+        refreshToken,
+        {
+          secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        },
+      );
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -54,31 +67,92 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    return this.issueTokens(user.id, user.role, user.kioskId);
+    return this.issueTokens(
+      user.id,
+      user.role,
+      user.kioskId,
+      user.mustChangePassword,
+    );
   }
 
   async logout(userId: string): Promise<void> {
     await this.usersService.setRefreshTokenHash(userId, null);
   }
 
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<TokenPair> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    const currentPasswordValid = await bcrypt.compare(
+      dto.currentPassword,
+      user.passwordHash,
+    );
+    if (!currentPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const passwordHash = await bcrypt.hash(
+      dto.newPassword,
+      PASSWORD_BCRYPT_ROUNDS,
+    );
+    const updated = await this.usersService.updatePassword(
+      userId,
+      passwordHash,
+    );
+
+    // Issue a fresh token pair immediately, same shape as login — the caller's current
+    // access token still carries mustChangePassword: true and would otherwise keep
+    // redirecting them for up to its remaining TTL until the next natural refresh.
+    return this.issueTokens(updated.id, updated.role, updated.kioskId, false);
+  }
+
   private async issueTokens(
     userId: string,
     role: JwtPayload['role'],
     kioskId: string | null,
+    mustChangePassword: boolean,
   ): Promise<TokenPair> {
-    const accessPayload: JwtPayload = { sub: userId, role, kioskId };
-    const accessToken = await this.jwtService.signAsync({ ...accessPayload }, {
-      secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m') as StringValue,
-    });
+    const accessPayload: JwtPayload = {
+      sub: userId,
+      role,
+      kioskId,
+      mustChangePassword,
+    };
+    const accessToken = await this.jwtService.signAsync(
+      { ...accessPayload },
+      {
+        secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        expiresIn: this.configService.get<string>(
+          'JWT_ACCESS_EXPIRES_IN',
+          '15m',
+        ) as StringValue,
+      },
+    );
 
-    const refreshPayload: RefreshTokenPayload = { sub: userId, jti: randomUUID() };
-    const refreshToken = await this.jwtService.signAsync({ ...refreshPayload }, {
-      secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '30d') as StringValue,
-    });
+    const refreshPayload: RefreshTokenPayload = {
+      sub: userId,
+      jti: randomUUID(),
+    };
+    const refreshToken = await this.jwtService.signAsync(
+      { ...refreshPayload },
+      {
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.get<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+          '30d',
+        ) as StringValue,
+      },
+    );
 
-    await this.usersService.setRefreshTokenHash(userId, hashToken(refreshToken));
+    await this.usersService.setRefreshTokenHash(
+      userId,
+      hashToken(refreshToken),
+    );
 
     return { accessToken, refreshToken };
   }

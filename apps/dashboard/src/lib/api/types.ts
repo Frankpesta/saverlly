@@ -4,6 +4,7 @@ export type JwtPayload = {
   sub: string
   role: UserRole
   kioskId: string | null
+  mustChangePassword: boolean
   exp: number
 }
 
@@ -43,6 +44,7 @@ export type KioskUser = {
   kioskId: string
   disabled: boolean
   managedLocationIds: string[]
+  mustChangePassword: boolean
   createdAt: string
   updatedAt: string
 }
@@ -212,6 +214,24 @@ export type Announcement = {
   maxDisplayCount: number | null
   createdAt: string
   updatedAt: string
+}
+
+export type NotificationType =
+  | "KIOSK_OWNER_CREATED"
+  | "LOCATION_MANAGER_CREATED"
+  | "PAYOUT_PROCESSED"
+  | "STRIPE_ONBOARDING_CHANGED"
+  | "COMMISSION_DIGEST"
+
+export type Notification = {
+  id: string
+  userId: string
+  type: NotificationType
+  title: string
+  body: string
+  metadata: Record<string, unknown> | null
+  readAt: string | null
+  createdAt: string
 }
 
 export type SearchResultType = "kiosk" | "location" | "device" | "merchant" | "coupon" | "announcement"

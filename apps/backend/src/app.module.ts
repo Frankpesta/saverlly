@@ -24,6 +24,8 @@ import { AnnouncementsModule } from './announcements/announcements.module';
 import { CommissionsModule } from './commissions/commissions.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { SearchModule } from './search/search.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -35,10 +37,19 @@ import { SearchModule } from './search/search.module';
     // Serves uploaded files (e.g. announcement images) back out at /uploads/... — the backend
     // isn't containerized (see docker-compose.yml, only postgres/redis are), so a local
     // ./uploads directory persists fine across restarts in dev without a volume mount.
-    ServeStaticModule.forRoot({
-      rootPath: path.join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
-    }),
+    ServeStaticModule.forRoot(
+      {
+        rootPath: path.join(process.cwd(), 'uploads'),
+        serveRoot: '/uploads',
+      },
+      // Committed (not gitignored, unlike /uploads) static brand assets — e.g. the logo
+      // referenced by an absolute URL inside transactional emails, which must resolve
+      // in every environment, not just wherever a user happened to upload a file.
+      {
+        rootPath: path.join(process.cwd(), 'public', 'brand'),
+        serveRoot: '/brand',
+      },
+    ),
     PrismaModule,
     BullmqConfigModule,
     AuthModule,
@@ -57,6 +68,8 @@ import { SearchModule } from './search/search.module';
     CommissionsModule,
     PayoutsModule,
     SearchModule,
+    NotificationsModule,
+    EmailModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

@@ -1,38 +1,69 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PASSWORD_BCRYPT_ROUNDS } from '../common/crypto/password-hash.constants';
+import { generatePassword } from '../common/crypto/password-generator.util';
+import { NotificationTriggersService } from '../notifications/notification-triggers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKioskUserDto } from './dto/create-kiosk-user.dto';
 import { UpdateKioskUserDto } from './dto/update-kiosk-user.dto';
-
-const PASSWORD_BCRYPT_ROUNDS = 12;
+import { KIOSK_USER_SAFE_SELECT } from './kiosk-user-safe-select.const';
 
 @Injectable()
 export class KioskUsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationTriggers: NotificationTriggersService,
+  ) {}
 
   async create(kioskId: string, actingRole: UserRole, dto: CreateKioskUserDto) {
-    await this.assertKioskExists(kioskId);
+    const kiosk = await this.assertKioskExists(kioskId);
     this.assertRoleAssignable(actingRole, dto.role);
 
-    const passwordHash = await bcrypt.hash(dto.password, PASSWORD_BCRYPT_ROUNDS);
-    return this.prisma.user.create({
+    const generatedPassword = generatePassword();
+    const passwordHash = await bcrypt.hash(
+      generatedPassword,
+      PASSWORD_BCRYPT_ROUNDS,
+    );
+
+    const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
         role: dto.role,
         kioskId,
         managedLocationIds: dto.managedLocationIds ?? [],
+        mustChangePassword: true,
       },
-      select: this.safeSelect(),
+      select: KIOSK_USER_SAFE_SELECT,
     });
+
+    if (dto.role === UserRole.KIOSK_OWNER) {
+      await this.notificationTriggers.kioskOwnerCreated(
+        user,
+        generatedPassword,
+        kiosk.name,
+      );
+    } else {
+      await this.notificationTriggers.locationManagerCreated(
+        user,
+        generatedPassword,
+        kiosk.name,
+      );
+    }
+
+    return { user, generatedPassword };
   }
 
   async findAllForKiosk(kioskId: string) {
     await this.assertKioskExists(kioskId);
     return this.prisma.user.findMany({
       where: { kioskId },
-      select: this.safeSelect(),
+      select: KIOSK_USER_SAFE_SELECT,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -43,7 +74,9 @@ export class KioskUsersService {
     actingRole: UserRole,
     dto: UpdateKioskUserDto,
   ) {
-    const target = await this.prisma.user.findFirst({ where: { id: userId, kioskId } });
+    const target = await this.prisma.user.findFirst({
+      where: { id: userId, kioskId },
+    });
     if (!target) {
       throw new NotFoundException('User not found in this kiosk');
     }
@@ -61,33 +94,29 @@ export class KioskUsersService {
         disabled: dto.disabled,
         managedLocationIds: dto.managedLocationIds,
       },
-      select: this.safeSelect(),
+      select: KIOSK_USER_SAFE_SELECT,
     });
   }
 
   private assertRoleAssignable(actingRole: UserRole, targetRole: UserRole) {
-    if (actingRole === UserRole.KIOSK_OWNER && targetRole !== UserRole.LOCATION_MANAGER) {
-      throw new ForbiddenException('Kiosk owners may only manage location-manager accounts');
+    if (
+      actingRole === UserRole.KIOSK_OWNER &&
+      targetRole !== UserRole.LOCATION_MANAGER
+    ) {
+      throw new ForbiddenException(
+        'Kiosk owners may only manage location-manager accounts',
+      );
     }
   }
 
   private async assertKioskExists(kioskId: string) {
-    const kiosk = await this.prisma.kiosk.findUnique({ where: { id: kioskId }, select: { id: true } });
+    const kiosk = await this.prisma.kiosk.findUnique({
+      where: { id: kioskId },
+      select: { id: true, name: true },
+    });
     if (!kiosk) {
       throw new NotFoundException('Kiosk not found');
     }
-  }
-
-  private safeSelect() {
-    return {
-      id: true,
-      email: true,
-      role: true,
-      kioskId: true,
-      managedLocationIds: true,
-      disabled: true,
-      createdAt: true,
-      updatedAt: true,
-    } as const;
+    return kiosk;
   }
 }

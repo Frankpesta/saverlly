@@ -4,6 +4,7 @@ import {
   AttributionMethod,
   CommissionStatus,
   CouponSource,
+  NotificationType,
   UserRole,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -212,6 +213,26 @@ export async function seedCommissionEvent(
         overrides.status === CommissionStatus.CONFIRMED
           ? (overrides.confirmedAt ?? new Date())
           : undefined,
+    },
+  });
+}
+
+export async function seedNotification(
+  userId: string,
+  overrides: Partial<{
+    type: NotificationType;
+    title: string;
+    body: string;
+    readAt: Date;
+  }> = {},
+) {
+  return testPrisma.notification.create({
+    data: {
+      userId,
+      type: overrides.type ?? NotificationType.KIOSK_OWNER_CREATED,
+      title: overrides.title ?? 'Test notification',
+      body: overrides.body ?? 'Test body',
+      readAt: overrides.readAt,
     },
   });
 }

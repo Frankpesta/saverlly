@@ -76,9 +76,19 @@ describe("KiosksPage", () => {
           ok: true,
           status: 201,
           json: async () => ({
-            ...kiosks[0],
-            id: "kiosk-3",
-            name: "Kiosk Three",
+            kiosk: { ...kiosks[0], id: "kiosk-3", name: "Kiosk Three" },
+            owner: {
+              id: "user-3",
+              email: "newowner3@example.com",
+              role: "KIOSK_OWNER",
+              kioskId: "kiosk-3",
+              disabled: false,
+              managedLocationIds: [],
+              mustChangePassword: true,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+            generatedPassword: "Gen3ratedPassw0rd!",
           }),
         } as Response
       }
@@ -136,7 +146,7 @@ describe("KiosksPage", () => {
     expect(screen.getByText("1 of 2 kiosks active")).toBeInTheDocument()
   })
 
-  it("walks the New Kiosk wizard's two steps and submits the create request", async () => {
+  it("walks the New Kiosk wizard's steps, submits the create request, and reveals the generated password", async () => {
     renderWithClient(<KiosksPage />)
 
     await screen.findByText("Kiosk One")
@@ -149,6 +159,10 @@ describe("KiosksPage", () => {
     const revenueInput = await screen.findByLabelText("Revenue share (%)")
     await userEvent.clear(revenueInput)
     await userEvent.type(revenueInput, "40")
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
+
+    const ownerEmailInput = await screen.findByLabelText("Owner email")
+    await userEvent.type(ownerEmailInput, "newowner3@example.com")
     await userEvent.click(screen.getByRole("button", { name: /create kiosk/i }))
 
     await waitFor(() =>
@@ -160,9 +174,13 @@ describe("KiosksPage", () => {
             name: "Kiosk Three",
             contactEmail: "owner3@example.com",
             revenueSharePct: 40,
+            owner: { email: "newowner3@example.com" },
           }),
         }),
       ),
     )
+
+    expect(await screen.findByText("Gen3ratedPassw0rd!")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: /done/i }))
   })
 })

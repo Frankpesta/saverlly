@@ -1,4 +1,5 @@
 import { GlobalSearch } from "@/components/global-search"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 
 export function SiteHeader({ title }: { title: string }) {
@@ -11,7 +12,10 @@ export function SiteHeader({ title }: { title: string }) {
             <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
           </div>
         </div>
-        <GlobalSearch />
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <GlobalSearch />
+        </div>
       </div>
     </header>
   )

@@ -1,7 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CommissionStatus, Payout, Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { CommissionStatus, Payout, Prisma, UserRole } from '@prisma/client';
 import type Stripe from 'stripe';
 import { groupBy } from '../common/collections/group-by.util';
+import { NotificationTriggersService } from '../notifications/notification-triggers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
 import { PayoutDto } from './dto/payout.dto';
@@ -11,6 +16,7 @@ export class PayoutsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripeService: StripeService,
+    private readonly notificationTriggers: NotificationTriggersService,
   ) {}
 
   /**
@@ -22,7 +28,9 @@ export class PayoutsService {
   async generatePayouts(): Promise<{ payoutsCreated: number }> {
     const unsweptEvents = await this.prisma.commissionEvent.findMany({
       where: { status: CommissionStatus.CONFIRMED, payoutId: null },
-      include: { device: { select: { location: { select: { kioskId: true } } } } },
+      include: {
+        device: { select: { location: { select: { kioskId: true } } } },
+      },
     });
 
     const byKioskId = groupBy(unsweptEvents, (e) => e.device.location.kioskId);
@@ -44,14 +52,21 @@ export class PayoutsService {
         select: { periodEnd: true },
       });
       const earliestConfirmedAt = events.reduce<Date>(
-        (earliest, e) => (e.confirmedAt && e.confirmedAt < earliest ? e.confirmedAt : earliest),
+        (earliest, e) =>
+          e.confirmedAt && e.confirmedAt < earliest ? e.confirmedAt : earliest,
         events[0].confirmedAt ?? periodEnd,
       );
       const periodStart = lastPayout?.periodEnd ?? earliestConfirmedAt;
 
       await this.prisma.$transaction(async (tx) => {
         const payout = await tx.payout.create({
-          data: { kioskId, periodStart, periodEnd, totalAmount, status: 'pending' },
+          data: {
+            kioskId,
+            periodStart,
+            periodEnd,
+            totalAmount,
+            status: 'pending',
+          },
         });
         await tx.commissionEvent.updateMany({
           where: { id: { in: events.map((e) => e.id) } },
@@ -66,7 +81,10 @@ export class PayoutsService {
 
   /** Kicks off (or resumes) Stripe Connect Express onboarding for a kiosk. */
   async createStripeOnboardingLink(kioskId: string): Promise<{ url: string }> {
-    const kiosk = await this.prisma.kiosk.findUnique({ where: { id: kioskId }, select: { stripeAccountId: true } });
+    const kiosk = await this.prisma.kiosk.findUnique({
+      where: { id: kioskId },
+      select: { stripeAccountId: true },
+    });
     if (!kiosk) {
       throw new NotFoundException('Kiosk not found');
     }
@@ -78,7 +96,10 @@ export class PayoutsService {
     let accountId = kiosk.stripeAccountId;
     if (!accountId) {
       accountId = await this.stripeService.createExpressAccount();
-      await this.prisma.kiosk.update({ where: { id: kioskId }, data: { stripeAccountId: accountId } });
+      await this.prisma.kiosk.update({
+        where: { id: kioskId },
+        data: { stripeAccountId: accountId },
+      });
     }
 
     const url = await this.stripeService.createOnboardingLink(accountId);
@@ -87,12 +108,17 @@ export class PayoutsService {
 
   /** Admin-triggered: executes the actual Stripe transfer for a pending Payout. */
   async processPayout(payoutId: string): Promise<PayoutDto> {
-    const payout = await this.prisma.payout.findUnique({ where: { id: payoutId }, include: { kiosk: true } });
+    const payout = await this.prisma.payout.findUnique({
+      where: { id: payoutId },
+      include: { kiosk: true },
+    });
     if (!payout) {
       throw new NotFoundException('Payout not found');
     }
     if (payout.status !== 'pending') {
-      throw new BadRequestException(`Payout is not pending (current status: ${payout.status})`);
+      throw new BadRequestException(
+        `Payout is not pending (current status: ${payout.status})`,
+      );
     }
     if (!payout.kiosk.stripeAccountId) {
       throw new BadRequestException('Kiosk has not connected a Stripe account');
@@ -107,7 +133,9 @@ export class PayoutsService {
       data: { status: 'processing' },
     });
     if (claim.count === 0) {
-      throw new BadRequestException('Payout is not pending (already claimed by another request)');
+      throw new BadRequestException(
+        'Payout is not pending (already claimed by another request)',
+      );
     }
 
     try {
@@ -124,7 +152,10 @@ export class PayoutsService {
     } catch (err) {
       // Release the claim so a genuinely-failed attempt can be retried, rather than
       // leaving the payout stuck in "processing" with no transfer ever created.
-      await this.prisma.payout.update({ where: { id: payoutId }, data: { status: 'pending' } });
+      await this.prisma.payout.update({
+        where: { id: payoutId },
+        data: { status: 'pending' },
+      });
       throw err;
     }
   }
@@ -141,15 +172,49 @@ export class PayoutsService {
   async handleStripeWebhookEvent(event: Stripe.Event): Promise<void> {
     switch (event.type) {
       case 'transfer.created': {
-        const transfer = event.data.object as Stripe.Transfer;
-        await this.prisma.payout.updateMany({
+        const transfer = event.data.object;
+        // findFirst + update (not updateMany) so we have the kiosk/owner to notify — a
+        // duplicate webhook delivery for the same transfer (Stripe's at-least-once retry)
+        // simply won't match status:'processing' the second time and is a safe no-op, so
+        // this reopens no meaningful race despite dropping the atomic-claim idiom used by
+        // processPayout's own updateMany (that one guards a client-race, this reacts to an
+        // event that has already happened Stripe-side).
+        const payout = await this.prisma.payout.findFirst({
           where: { stripeTransferId: transfer.id, status: 'processing' },
-          data: { status: 'paid', paidAt: new Date() },
+          include: {
+            kiosk: {
+              include: {
+                users: { where: { role: UserRole.KIOSK_OWNER }, take: 1 },
+              },
+            },
+          },
         });
+        if (!payout) break;
+
+        const paidAt = new Date();
+        await this.prisma.payout.update({
+          where: { id: payout.id },
+          data: { status: 'paid', paidAt },
+        });
+
+        const owner = payout.kiosk.users[0];
+        if (owner) {
+          await this.notificationTriggers.payoutProcessed(
+            owner,
+            payout.kiosk.name,
+            {
+              id: payout.id,
+              totalAmount: payout.totalAmount,
+              periodStart: payout.periodStart,
+              periodEnd: payout.periodEnd,
+              paidAt,
+            },
+          );
+        }
         break;
       }
       case 'transfer.reversed': {
-        const transfer = event.data.object as Stripe.Transfer;
+        const transfer = event.data.object;
         await this.prisma.payout.updateMany({
           where: { stripeTransferId: transfer.id },
           data: { status: 'failed' },
@@ -157,11 +222,33 @@ export class PayoutsService {
         break;
       }
       case 'account.updated': {
-        const account = event.data.object as Stripe.Account;
-        await this.prisma.kiosk.updateMany({
+        const account = event.data.object;
+        const newValue = account.payouts_enabled ?? false;
+
+        const kiosk = await this.prisma.kiosk.findFirst({
           where: { stripeAccountId: account.id },
-          data: { stripePayoutsEnabled: account.payouts_enabled ?? false },
+          include: {
+            users: { where: { role: UserRole.KIOSK_OWNER }, take: 1 },
+          },
         });
+        // Not ours, or no actual flip — Stripe fires account.updated for lots of unrelated
+        // account field changes, not just payouts_enabled, so without this comparison every
+        // incidental webhook delivery would spam an email/notification.
+        if (!kiosk || kiosk.stripePayoutsEnabled === newValue) break;
+
+        await this.prisma.kiosk.update({
+          where: { id: kiosk.id },
+          data: { stripePayoutsEnabled: newValue },
+        });
+
+        const owner = kiosk.users[0];
+        if (owner) {
+          await this.notificationTriggers.stripeOnboardingChanged(
+            owner,
+            kiosk.name,
+            newValue,
+          );
+        }
         break;
       }
       default:
@@ -172,7 +259,16 @@ export class PayoutsService {
   /** Admin view — every kiosk's payouts, with kiosk name + Stripe connection status inlined. */
   async findAllForAdmin(): Promise<PayoutDto[]> {
     const payouts = await this.prisma.payout.findMany({
-      include: { kiosk: { select: { id: true, name: true, stripeAccountId: true, stripePayoutsEnabled: true } } },
+      include: {
+        kiosk: {
+          select: {
+            id: true,
+            name: true,
+            stripeAccountId: true,
+            stripePayoutsEnabled: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return payouts.map((p) => ({

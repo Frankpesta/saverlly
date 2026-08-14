@@ -27,7 +27,9 @@ export async function resetRedisTestDb(): Promise<void> {
   const redisUrl = new URL(testEnv?.REDIS_URL ?? process.env.REDIS_URL!);
   const dbIndex = redisUrl.pathname.replace(/^\//, '');
   if (!dbIndex || dbIndex === '0') {
-    throw new Error('Refusing to FLUSHDB on Redis DB 0 — .env.test must use an isolated DB index');
+    throw new Error(
+      'Refusing to FLUSHDB on Redis DB 0 — .env.test must use an isolated DB index',
+    );
   }
 
   const redis = new Redis({
@@ -43,8 +45,9 @@ export async function resetRedisTestDb(): Promise<void> {
   }
 }
 
-export async function resetDatabase(): Promise<void> {
+async function deleteAllInOrder(): Promise<void> {
   // Delete order respects FK constraints (children before parents).
+  await testPrisma.notification.deleteMany();
   await testPrisma.commissionEvent.deleteMany();
   await testPrisma.payout.deleteMany();
   await testPrisma.attributionAttempt.deleteMany();
@@ -60,4 +63,25 @@ export async function resetDatabase(): Promise<void> {
   await testPrisma.location.deleteMany();
   await testPrisma.user.deleteMany();
   await testPrisma.kiosk.deleteMany();
+}
+
+/**
+ * Every e2e test app boots the real BullMQ schedulers (sync-commissions, generate-payouts,
+ * commission-digest), each of which fires an immediate first run on `onModuleInit` — off on
+ * Redis's own timeline, not awaited by Jest. If one of those async runs (e.g.
+ * generatePayouts inserting a real Payout row) lands between two steps of the delete
+ * sequence above, a later step can hit a FK violation against a row that appeared out of
+ * band. Retrying the whole pass absorbs that race without needing to make the schedulers
+ * test-aware — a stray insert from one pass is just gone by the next.
+ */
+export async function resetDatabase(): Promise<void> {
+  const attempts = 3;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await deleteAllInOrder();
+      return;
+    } catch (err) {
+      if (attempt === attempts) throw err;
+    }
+  }
 }
