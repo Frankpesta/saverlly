@@ -5,11 +5,14 @@ import { EmailLayout, emailStyles } from './components/email-layout';
 
 const e = React.createElement;
 
-function formatDate(iso: string): string {
+export function formatDate(iso: string): string {
+  // Explicit UTC so the rendered date doesn't drift with the email worker host's local
+  // timezone — otherwise a payout near midnight UTC could show the wrong calendar day.
   return new Date(iso).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    timeZone: 'UTC',
   });
 }
 

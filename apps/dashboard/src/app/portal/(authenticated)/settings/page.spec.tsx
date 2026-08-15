@@ -95,6 +95,13 @@ describe("PortalSettingsPage", () => {
       expect(await screen.findByText("manager@example.com")).toBeInTheDocument()
     })
 
+    it("shows the self-service change-password card", async () => {
+      renderWithClient(<PortalSettingsPage />)
+
+      expect(await screen.findByText("owner@example.com")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /update password/i })).toBeInTheDocument()
+    })
+
     it("disables the access toggle for the kiosk-owner's own row", async () => {
       renderWithClient(<PortalSettingsPage />)
 
@@ -146,6 +153,13 @@ describe("PortalSettingsPage", () => {
 
       expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1", expect.anything())
       expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1/users", expect.anything())
+    })
+
+    it("still shows the self-service change-password card for a location manager", async () => {
+      renderWithClient(<PortalSettingsPage />)
+
+      expect(await screen.findByText("manager@example.com")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /update password/i })).toBeInTheDocument()
     })
   })
 })

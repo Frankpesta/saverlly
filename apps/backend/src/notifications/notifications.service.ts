@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { NotificationType, Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { EmailJob } from '../email/types/email-job.type';
@@ -17,6 +17,8 @@ export interface NotifyParams {
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_NAMES.SEND_EMAIL)
@@ -34,7 +36,19 @@ export class NotificationsService {
         metadata: params.metadata,
       },
     });
-    await this.emailQueue.add(params.email.type, params.email);
+
+    // The in-app notification is already committed above — a transient queue/Redis failure
+    // here must not throw back through every caller (several of which run this post-commit,
+    // after their own DB write already succeeded). The in-app notification still exists even
+    // if the email doesn't go out.
+    try {
+      await this.emailQueue.add(params.email.type, params.email);
+    } catch (error) {
+      this.logger.error(
+        `Notification for user ${params.userId} (${params.type}) was recorded, but queuing its email failed`,
+        error instanceof Error ? error.stack : error,
+      );
+    }
   }
 
   findForUser(userId: string, opts: { unreadOnly?: boolean } = {}) {
@@ -49,7 +63,10 @@ export class NotificationsService {
     return this.prisma.notification.count({ where: { userId, readAt: null } });
   }
 
-  async markRead(userId: string, notificationId: string): Promise<void> {
+  async markRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<{ success: true }> {
     const result = await this.prisma.notification.updateMany({
       where: { id: notificationId, userId },
       data: { readAt: new Date() },
@@ -57,12 +74,14 @@ export class NotificationsService {
     if (result.count === 0) {
       throw new NotFoundException('Notification not found');
     }
+    return { success: true };
   }
 
-  async markAllRead(userId: string): Promise<void> {
+  async markAllRead(userId: string): Promise<{ success: true }> {
     await this.prisma.notification.updateMany({
       where: { userId, readAt: null },
       data: { readAt: new Date() },
     });
+    return { success: true };
   }
 }

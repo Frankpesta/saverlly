@@ -10,6 +10,7 @@ import {
   PercentIcon,
   CreditCardIcon,
   MegaphoneIcon,
+  SettingsIcon,
 } from "lucide-react"
 import { AuthenticatedShell } from "@/components/authenticated-shell"
 import { getCurrentUser } from "@/lib/auth/session"
@@ -30,6 +31,10 @@ const navMain = [
   { title: "Payouts", url: "/admin/payouts", icon: <CreditCardIcon /> },
 ]
 
+const navSecondary = [
+  { title: "Settings", url: "/admin/settings", icon: <SettingsIcon /> },
+]
+
 export default async function AdminLayout({
   children,
 }: {
@@ -43,6 +48,7 @@ export default async function AdminLayout({
       loginPath="/admin/login"
       fallbackTitle="Admin Console"
       navMain={navMain}
+      navSecondary={navSecondary}
       user={{ name: user?.email ?? "Admin", email: user?.email ?? "" }}
     >
       {children}

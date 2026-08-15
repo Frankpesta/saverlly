@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { BrandLogo } from "@/components/brand-logo"
+import { AuthShell } from "@/components/auth/auth-shell"
 
 export function LoginForm({
   portal,
@@ -53,66 +53,55 @@ export function LoginForm({
   }
 
   return (
-    <div className="flex min-h-full flex-1">
-      <div className="hidden w-[42%] flex-col justify-between bg-[var(--brand-teal)] p-12 md:flex">
-        <BrandLogo dark height={22} />
-        <p className="max-w-sm text-3xl font-medium leading-tight text-white">{tagline}</p>
-      </div>
-
-      <div className="flex flex-1 flex-col items-center justify-center gap-10 p-8">
-        <div className="md:hidden">
-          <BrandLogo height={22} />
+    <AuthShell tagline={tagline}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="w-full max-w-sm"
+      >
+        <div className="mb-8 flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          <p className="text-sm text-muted-foreground">Sign in to your account to continue.</p>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="w-full max-w-sm"
-        >
-          <div className="mb-8 flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-            <p className="text-sm text-muted-foreground">Sign in to your account to continue.</p>
+        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircleIcon />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              className="h-11"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
-
-          <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircleIcon />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="h-11"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="h-11"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <Button type="submit" disabled={submitting} className="mt-2 h-11">
-              {submitting && <Loader2Icon className="animate-spin" />}
-              {submitting ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-        </motion.div>
-      </div>
-    </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              className="h-11"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <Button type="submit" disabled={submitting} className="mt-2 h-11">
+            {submitting && <Loader2Icon className="animate-spin" />}
+            {submitting ? "Signing in…" : "Sign in"}
+          </Button>
+        </form>
+      </motion.div>
+    </AuthShell>
   )
 }

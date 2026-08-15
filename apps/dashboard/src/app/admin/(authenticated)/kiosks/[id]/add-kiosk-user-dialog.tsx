@@ -43,9 +43,13 @@ export function AddKioskUserDialog({ kioskId }: { kioskId: string }) {
     if (!next) reset()
   }
 
-  function copyPassword(password: string) {
-    navigator.clipboard.writeText(password)
-    toast.success("Password copied.")
+  async function copyPassword(password: string) {
+    try {
+      await navigator.clipboard.writeText(password)
+      toast.success("Password copied.")
+    } catch {
+      toast.error("Could not copy to clipboard.")
+    }
   }
 
   function handleSubmit(event: React.FormEvent) {

@@ -91,6 +91,40 @@ describe('Auth change-password (e2e)', () => {
     ).toBe(false);
   });
 
+  it('blocks a mustChangePassword:true user from every other role-protected endpoint, while still allowing change-password and logout', async () => {
+    const user = await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    await testPrisma.user.update({
+      where: { id: user.id },
+      data: { mustChangePassword: true },
+    });
+
+    const loginRes = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: 'admin@test.com', password: TEST_PASSWORD })
+      .expect(200);
+    const accessToken = loginRes.body.accessToken as string;
+
+    // Blocked — this is real API enforcement, not just the dashboard's own redirect.
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(401);
+
+    // Still allowed while the flag is true — otherwise the user could never actually clear
+    // it or sign out.
+    await request(app.getHttpServer())
+      .post('/auth/logout')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    // logout() only clears the refresh token, so the still-valid access token can still be
+    // used to actually clear the flag.
+    await request(app.getHttpServer())
+      .post('/auth/change-password')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ currentPassword: TEST_PASSWORD, newPassword: 'NewPassword123!' })
+      .expect(200);
+  });
+
   it('rejects a new password shorter than 8 characters', async () => {
     await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
     const loginRes = await request(app.getHttpServer())

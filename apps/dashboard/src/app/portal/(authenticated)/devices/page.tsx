@@ -3,8 +3,9 @@
 import * as React from "react"
 import { motion } from "motion/react"
 import { toast } from "sonner"
-import { MonitorIcon, CircleCheckIcon, CirclePauseIcon } from "lucide-react"
+import { MonitorIcon, CircleCheckIcon, CirclePauseIcon, DownloadIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -65,11 +66,24 @@ export default function DevicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Devices</h2>
-        <p className="text-sm text-muted-foreground">
-          Every device registered across your locations.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Devices</h2>
+          <p className="text-sm text-muted-foreground">
+            Every device registered across your locations.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="gap-1.5"
+          onClick={() =>
+            toast.info("Agent download isn't available yet — check back soon.")
+          }
+        >
+          <DownloadIcon className="size-4" />
+          Download Agent
+        </Button>
       </div>
 
       <BentoGrid>

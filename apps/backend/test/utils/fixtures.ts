@@ -36,6 +36,7 @@ export async function seedUser(params: {
   kioskId?: string | null;
   managedLocationIds?: string[];
   disabled?: boolean;
+  mustChangePassword?: boolean;
 }) {
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 12);
   return testPrisma.user.create({
@@ -46,6 +47,10 @@ export async function seedUser(params: {
       kioskId: params.kioskId ?? null,
       managedLocationIds: params.managedLocationIds ?? [],
       disabled: params.disabled ?? false,
+      // Fixtures represent already-onboarded accounts by default (the schema's own
+      // @default(true) is meant for real freshly-created users, not test scaffolding) — tests
+      // that specifically exercise the forced-password-change flow opt in explicitly.
+      mustChangePassword: params.mustChangePassword ?? false,
     },
   });
 }

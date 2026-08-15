@@ -173,12 +173,13 @@ export class PayoutsService {
     switch (event.type) {
       case 'transfer.created': {
         const transfer = event.data.object;
-        // findFirst + update (not updateMany) so we have the kiosk/owner to notify — a
-        // duplicate webhook delivery for the same transfer (Stripe's at-least-once retry)
-        // simply won't match status:'processing' the second time and is a safe no-op, so
-        // this reopens no meaningful race despite dropping the atomic-claim idiom used by
-        // processPayout's own updateMany (that one guards a client-race, this reacts to an
-        // event that has already happened Stripe-side).
+        // findFirst only to fetch the kiosk/owner to notify — the actual state transition
+        // below is a conditional updateMany re-matching status:'processing', so two
+        // concurrent deliveries for the same transfer (Stripe's at-least-once retry can
+        // arrive overlapping, not just sequentially) can't both win the claim: Postgres
+        // serializes the two UPDATEs on the row, and whichever runs second re-evaluates its
+        // WHERE clause against the just-committed row, so its status:'processing' no longer
+        // matches and it notifies no one.
         const payout = await this.prisma.payout.findFirst({
           where: { stripeTransferId: transfer.id, status: 'processing' },
           include: {
@@ -192,10 +193,11 @@ export class PayoutsService {
         if (!payout) break;
 
         const paidAt = new Date();
-        await this.prisma.payout.update({
-          where: { id: payout.id },
+        const claimed = await this.prisma.payout.updateMany({
+          where: { id: payout.id, status: 'processing' },
           data: { status: 'paid', paidAt },
         });
+        if (claimed.count === 0) break;
 
         const owner = payout.kiosk.users[0];
         if (owner) {
@@ -236,10 +238,18 @@ export class PayoutsService {
         // incidental webhook delivery would spam an email/notification.
         if (!kiosk || kiosk.stripePayoutsEnabled === newValue) break;
 
-        await this.prisma.kiosk.update({
-          where: { id: kiosk.id },
+        // Conditional updateMany (re-matching the previous value) instead of an
+        // unconditional update — closes the same concurrent-duplicate-delivery race as
+        // transfer.created above: only the delivery that still sees the pre-flip value wins
+        // the claim and notifies.
+        const claimed = await this.prisma.kiosk.updateMany({
+          where: {
+            id: kiosk.id,
+            stripePayoutsEnabled: kiosk.stripePayoutsEnabled,
+          },
           data: { stripePayoutsEnabled: newValue },
         });
+        if (claimed.count === 0) break;
 
         const owner = kiosk.users[0];
         if (owner) {

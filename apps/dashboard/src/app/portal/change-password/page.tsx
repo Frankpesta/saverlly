@@ -4,5 +4,10 @@ import { ChangePasswordForm } from "@/components/auth/change-password-form"
 export const metadata: Metadata = { title: "Set a new password" }
 
 export default function PortalChangePasswordPage() {
-  return <ChangePasswordForm homeUrl="/portal/overview" />
+  return (
+    <ChangePasswordForm
+      homeUrl="/portal/overview"
+      tagline="Almost there — set a password only you know before you continue."
+    />
+  )
 }

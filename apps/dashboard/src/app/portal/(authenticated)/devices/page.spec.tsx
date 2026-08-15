@@ -1,8 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { toast } from "sonner"
 import DevicesPage from "./page"
 import type { Device, Location } from "@/lib/api/types"
+
+jest.mock("sonner", () => ({
+  toast: { info: jest.fn(), error: jest.fn(), success: jest.fn() },
+}))
 
 const locations: Location[] = [
   {
@@ -67,6 +72,15 @@ describe("DevicesPage", () => {
     expect(await screen.findByText("Computer 1")).toBeInTheDocument()
     expect(screen.getByText("Downtown")).toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByText("1").length).toBeGreaterThan(0))
+  })
+
+  it("shows a Download Agent button that is honest about not being wired up yet", async () => {
+    renderWithClient(<DevicesPage />)
+
+    const button = await screen.findByRole("button", { name: /download agent/i })
+    await userEvent.click(button)
+
+    expect(toast.info).toHaveBeenCalledWith(expect.stringMatching(/isn't available yet/i))
   })
 
   it("toggles a device's kill-switch", async () => {
