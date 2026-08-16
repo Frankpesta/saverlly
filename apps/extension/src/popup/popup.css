@@ -16,7 +16,7 @@
   --teal: #58c3b7;
   --teal-dark: #43a99d;
   --teal-tint: #eaf7f5;
-  --red: #ff4649;
+  --green: #00a259;
   --text: #000000;
   --muted: #6b7280;
   --border: #e5e7eb;
@@ -101,16 +101,35 @@ button {
   text-align: center;
 }
 
+/* celeb.svg is a self-contained illustration — teal circle, gift/balloon/confetti graphic,
+   AND the "card" mockup (avatar + two line bars) are all baked into the one asset. The only
+   thing added in CSS is the second card peeking out behind/below it. */
 .popup__hero {
+  position: relative;
   margin: 4px 0 18px;
 }
 
-.popup__hero img {
-  max-width: 190px;
-  width: 100%;
-  height: auto;
+.popup__hero-illustration {
+  position: relative;
+  z-index: 2;
   display: block;
+  width: 100%;
   margin: 0 auto;
+}
+
+/* celeb.svg's own baked-in card occupies roughly the 41%-68% band of the image's height
+   (y 167-277 of its 406-tall viewBox) — this sits just behind it, peeking out below. */
+.popup__hero-card-back {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  top: 60%;
+  height: 14%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  z-index: 1;
 }
 
 .popup__heading {
@@ -133,6 +152,10 @@ button {
   font-size: 13px;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.popup__subtext--dark {
+  color: var(--text);
 }
 
 .popup__button {
@@ -197,9 +220,8 @@ button {
   cursor: pointer;
 }
 
-.popup__link--muted {
-  color: var(--muted);
-  font-weight: 400;
+.popup__link--strong {
+  font-weight: 700;
 }
 
 .popup__back {
@@ -214,17 +236,17 @@ button {
   padding: 0;
 }
 
-/* ---------- Paused / step-down state ---------- */
+/* ---------- Paused / step-down state ----------
+   paused.svg is the same self-contained-illustration pattern as celeb.svg (circle + full
+   card stack baked in) — only the alert icon inside the circle is a separate layer. */
 
-.popup__alert-icon {
-  width: 88px;
-  height: 88px;
-  margin: 4px auto 18px;
-  border-radius: 999px;
-  border: 3px solid var(--red);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.popup__hero-icon {
+  position: absolute;
+  left: 49.75%;
+  top: 34.5%;
+  width: 9%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
 }
 
 /* ---------- Applying state ---------- */
@@ -250,7 +272,6 @@ button {
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  border: 2px solid var(--border);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -258,13 +279,16 @@ button {
   font-size: 13px;
 }
 
+/* --active (RING_SPINNER_ICON) and --pending (PENDING_ICON) draw their own full ring/tick
+   graphic filling the 24px box, so they get no container border — only --done needs one,
+   framing the smaller checkmark glyph. */
 .popup__progress-icon--active svg {
   animation: popup-spin 0.9s linear infinite;
 }
 
 .popup__progress-icon--done {
-  border-color: var(--border);
-  background: #f4fbfa;
+  border: 2px solid var(--border);
+  background: var(--teal-tint);
 }
 
 @keyframes popup-spin {
@@ -344,10 +368,6 @@ button {
   text-align: left;
 }
 
-.popup__row + .popup__row {
-  border-top: 1px solid var(--border);
-}
-
 .popup__chip {
   display: inline-flex;
   align-items: center;
@@ -365,13 +385,15 @@ button {
 }
 
 .popup__discount-value {
-  color: var(--teal-dark);
+  color: var(--green);
   font-weight: 700;
 }
 
 .popup__result-note {
   text-align: left;
-  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  padding-top: 16px;
   margin-bottom: 16px;
 }
 

@@ -112,7 +112,7 @@ async function handleTopFrameNavigation(details: chrome.webNavigation.WebNavigat
 chrome.webNavigation.onCommitted.addListener(handleTopFrameNavigation);
 chrome.webNavigation.onHistoryStateUpdated.addListener(handleTopFrameNavigation);
 
-async function onCheckoutConfirmed(tabId: number, merchantId: string): Promise<void> {
+async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: string): Promise<void> {
   if (await isDormant()) return;
 
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
@@ -128,7 +128,7 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string): Promise<v
   const merchant = await resolveMerchant(hostname);
   if (!merchant || merchant.id !== merchantId) return;
 
-  const suppressed = await checkStepDown(merchant.domain, tab.url, merchant.affiliateUrlParamKey);
+  const suppressed = await checkStepDown(merchant.domain, tab.url, merchant.affiliateUrlParamKey, referrer);
   tabState.set(tabId, {
     merchantId: merchant.id,
     merchantName: merchant.name,
@@ -204,7 +204,7 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
     case 'CHECKOUT_CONFIRMED': {
       const tabId = sender.tab?.id;
       if (tabId === undefined) return;
-      await onCheckoutConfirmed(tabId, message.merchantId);
+      await onCheckoutConfirmed(tabId, message.merchantId, message.referrer);
       return;
     }
     case 'COUPON_APPLY_RESULT': {

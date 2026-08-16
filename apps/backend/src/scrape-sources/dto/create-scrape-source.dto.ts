@@ -8,10 +8,12 @@ export class CreateScrapeSourceDto {
   @IsUrl({ require_tld: false })
   url: string;
 
-  @ApiPropertyOptional({ description: 'Leave unset only if this page cannot yet be attributed to one merchant' })
-  @IsOptional()
+  // Required for now: the scrape processor has no per-extracted-item merchant resolution
+  // strategy, so a merchant-less source would be accepted but silently never produce coupons.
+  // Schema/relation stay nullable for when that resolution strategy is actually built.
+  @ApiProperty({ description: 'The merchant this scrape source belongs to' })
   @IsUUID()
-  merchantId?: string;
+  merchantId: string;
 
   @ApiProperty({ type: SelectorConfigDto })
   @ValidateNested()

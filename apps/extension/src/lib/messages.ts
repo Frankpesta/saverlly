@@ -3,6 +3,7 @@ import type { CheckoutRecipe, CouponTestResult, PublicCoupon } from '@saverlly/s
 export interface CheckoutConfirmedMessage {
   type: 'CHECKOUT_CONFIRMED';
   merchantId: string;
+  referrer: string;
 }
 
 export interface CouponApplyResultMessage {

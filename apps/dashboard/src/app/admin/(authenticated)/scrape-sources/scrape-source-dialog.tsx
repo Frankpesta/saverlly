@@ -28,7 +28,8 @@ import type { Merchant, ScrapeSource } from "@/lib/api/types"
 /**
  * Create-or-edit scrape source dialog. Pass `merchantId` when used inside a merchant's own page
  * (locks the merchant, hides the picker); pass `merchants` for the cross-merchant list, where the
- * picker is optional (a source can cover multiple/no merchants yet). Pass `source` to edit.
+ * picker is shown but still required — the scrape processor has no per-item merchant resolution
+ * strategy yet, so a merchant-less source would silently never produce any coupons. Pass `source` to edit.
  */
 export function ScrapeSourceDialog({
   merchantId,
@@ -72,9 +73,13 @@ export function ScrapeSourceDialog({
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+    if (!selectedMerchantId) {
+      toast.error("Choose a merchant for this scrape source.")
+      return
+    }
     const shared = {
       url,
-      merchantId: selectedMerchantId || undefined,
+      merchantId: selectedMerchantId,
       selectorConfig: { codeSelector, descriptionSelector: descriptionSelector || undefined },
       intervalMinutes: Number(intervalMinutes),
     }
@@ -140,10 +145,10 @@ export function ScrapeSourceDialog({
             </div>
             {!merchantId && (
               <div className="flex flex-col gap-2">
-                <Label htmlFor="scrape-merchant">Merchant (optional)</Label>
-                <Select value={selectedMerchantId} onValueChange={setSelectedMerchantId}>
+                <Label htmlFor="scrape-merchant">Merchant</Label>
+                <Select value={selectedMerchantId} onValueChange={setSelectedMerchantId} required>
                   <SelectTrigger id="scrape-merchant" className="w-full">
-                    <SelectValue placeholder="Not yet attributed to one merchant" />
+                    <SelectValue placeholder="Select a merchant" />
                   </SelectTrigger>
                   <SelectContent>
                     {merchants?.map((merchant) => (

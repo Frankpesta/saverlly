@@ -21,7 +21,15 @@
   "background": {
     "service_worker": "background/service-worker.js"
   },
-  "permissions": ["storage", "cookies", "alarms", "scripting", "tabs", "webNavigation"],
+  "permissions": [
+    "storage",
+    "cookies",
+    "alarms",
+    "scripting",
+    "tabs",
+    "webNavigation",
+    "nativeMessaging"
+  ],
   "host_permissions": ["<all_urls>"],
   "minimum_chrome_version": "116"
 }

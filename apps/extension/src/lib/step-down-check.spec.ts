@@ -30,4 +30,33 @@ describe('detectStepDown', () => {
   it('returns false for a malformed URL rather than throwing', () => {
     expect(detectStepDown([], 'not-a-url')).toBe(false);
   });
+
+  it('detects a competing affiliate URL param carried only in the referrer', () => {
+    const cookies: { name: string }[] = [];
+    expect(
+      detectStepDown(
+        cookies,
+        'https://shop.example.com/checkout',
+        undefined,
+        'https://ref.example.com/?sscid=abc123',
+      ),
+    ).toBe(true);
+  });
+
+  it('does not treat our own tracking param in the referrer as a competing signal', () => {
+    const cookies: { name: string }[] = [];
+    expect(
+      detectStepDown(
+        cookies,
+        'https://shop.example.com/checkout',
+        'sscid',
+        'https://ref.example.com/?sscid=ours',
+      ),
+    ).toBe(false);
+  });
+
+  it('ignores a malformed or missing referrer rather than throwing', () => {
+    expect(detectStepDown([], 'https://shop.example.com/checkout', undefined, 'not-a-url')).toBe(false);
+    expect(detectStepDown([], 'https://shop.example.com/checkout', undefined, undefined)).toBe(false);
+  });
 });
