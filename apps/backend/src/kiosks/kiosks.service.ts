@@ -1,22 +1,61 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { KioskStatus } from '@prisma/client';
+import { KioskStatus, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { PASSWORD_BCRYPT_ROUNDS } from '../common/crypto/password-hash.constants';
+import { generatePassword } from '../common/crypto/password-generator.util';
+import { KIOSK_USER_SAFE_SELECT } from '../kiosk-users/kiosk-user-safe-select.const';
+import { NotificationTriggersService } from '../notifications/notification-triggers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKioskDto } from './dto/create-kiosk.dto';
 import { UpdateKioskDto } from './dto/update-kiosk.dto';
 
 @Injectable()
 export class KiosksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationTriggers: NotificationTriggersService,
+  ) {}
 
-  create(dto: CreateKioskDto) {
-    return this.prisma.kiosk.create({
-      data: {
-        name: dto.name,
-        revenueSharePct: dto.revenueSharePct,
-        contactEmail: dto.contactEmail,
-        status: KioskStatus.ACTIVE,
-      },
+  async create(dto: CreateKioskDto) {
+    const generatedPassword = generatePassword();
+    const passwordHash = await bcrypt.hash(
+      generatedPassword,
+      PASSWORD_BCRYPT_ROUNDS,
+    );
+
+    const { kiosk, owner } = await this.prisma.$transaction(async (tx) => {
+      const kiosk = await tx.kiosk.create({
+        data: {
+          name: dto.name,
+          revenueSharePct: dto.revenueSharePct,
+          contactEmail: dto.contactEmail,
+          status: KioskStatus.ACTIVE,
+        },
+      });
+      const owner = await tx.user.create({
+        data: {
+          email: dto.owner.email,
+          passwordHash,
+          role: UserRole.KIOSK_OWNER,
+          kioskId: kiosk.id,
+          managedLocationIds: [],
+          mustChangePassword: true,
+        },
+        select: KIOSK_USER_SAFE_SELECT,
+      });
+      return { kiosk, owner };
     });
+
+    // Deliberately outside the transaction — enqueuing a BullMQ job (or writing the
+    // Notification row) before the transaction commits risks a worker picking up the job
+    // before Postgres has actually made the kiosk/owner visible.
+    await this.notificationTriggers.kioskOwnerCreated(
+      owner,
+      generatedPassword,
+      kiosk.name,
+    );
+
+    return { kiosk, owner, generatedPassword };
   }
 
   findAll() {

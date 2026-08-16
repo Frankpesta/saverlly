@@ -4,6 +4,7 @@ export interface JwtPayload {
   sub: string;
   role: UserRole;
   kioskId: string | null;
+  mustChangePassword: boolean;
 }
 
 export interface RefreshTokenPayload {

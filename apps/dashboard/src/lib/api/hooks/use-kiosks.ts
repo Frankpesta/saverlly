@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
-import type { Kiosk, KioskStatus } from "@/lib/api/types"
+import type { Kiosk, KioskStatus, KioskUser } from "@/lib/api/types"
 
 const kiosksKey = ["kiosks"] as const
 const kioskKey = (id: string) => ["kiosks", id] as const
@@ -18,13 +18,20 @@ export type CreateKioskPayload = {
   name: string
   revenueSharePct: number
   contactEmail: string
+  owner: { email: string }
+}
+
+export type CreateKioskResult = {
+  kiosk: Kiosk
+  owner: KioskUser
+  generatedPassword: string
 }
 
 export function useCreateKiosk() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateKioskPayload) =>
-      apiFetch<Kiosk>("/kiosks", {
+      apiFetch<CreateKioskResult>("/kiosks", {
         method: "POST",
         body: JSON.stringify(payload),
       }),

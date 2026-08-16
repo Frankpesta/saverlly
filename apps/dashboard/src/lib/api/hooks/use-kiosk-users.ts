@@ -16,15 +16,19 @@ export function useKioskUsers(kioskId: string) {
 
 export type CreateKioskUserPayload = {
   email: string
-  password: string
   role: KioskAssignableRole
+}
+
+export type CreateKioskUserResult = {
+  user: KioskUser
+  generatedPassword: string
 }
 
 export function useCreateKioskUser(kioskId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: CreateKioskUserPayload) =>
-      apiFetch<KioskUser>(`/kiosks/${kioskId}/users`, {
+      apiFetch<CreateKioskUserResult>(`/kiosks/${kioskId}/users`, {
         method: "POST",
         body: JSON.stringify(payload),
       }),

@@ -42,6 +42,7 @@ const kioskUsers: KioskUser[] = [
     kioskId: "kiosk-1",
     disabled: false,
     managedLocationIds: [],
+    mustChangePassword: false,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -71,10 +72,13 @@ describe("KioskDetailPage", () => {
           ok: true,
           status: 201,
           json: async () => ({
-            ...kioskUsers[0],
-            id: "user-2",
-            email: "manager@example.com",
-            role: "LOCATION_MANAGER",
+            user: {
+              ...kioskUsers[0],
+              id: "user-2",
+              email: "manager@example.com",
+              role: "LOCATION_MANAGER",
+            },
+            generatedPassword: "Gen3ratedPassw0rd!",
           }),
         } as Response
       }
@@ -120,7 +124,7 @@ describe("KioskDetailPage", () => {
     )
   })
 
-  it("adds a new user via the Add user sheet", async () => {
+  it("adds a new user via the Add user dialog and reveals the generated password", async () => {
     renderWithClient(<KioskDetailPage />)
 
     await screen.findByText("owner1@example.com")
@@ -128,7 +132,6 @@ describe("KioskDetailPage", () => {
 
     const dialog = await screen.findByRole("dialog")
     await userEvent.type(within(dialog).getByLabelText("Email"), "manager@example.com")
-    await userEvent.type(within(dialog).getByLabelText("Temporary password"), "supersecret")
     await userEvent.click(within(dialog).getByRole("combobox"))
     await userEvent.click(await screen.findByRole("option", { name: "Location manager" }))
     await userEvent.click(within(dialog).getByRole("button", { name: /^add user$/i }))
@@ -140,11 +143,12 @@ describe("KioskDetailPage", () => {
           method: "POST",
           body: JSON.stringify({
             email: "manager@example.com",
-            password: "supersecret",
             role: "LOCATION_MANAGER",
           }),
         }),
       ),
     )
+
+    expect(await within(dialog).findByText("Gen3ratedPassw0rd!")).toBeInTheDocument()
   })
 })

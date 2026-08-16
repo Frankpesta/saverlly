@@ -7,8 +7,12 @@ import { proxy } from "@/proxy"
 import { ACCESS_TOKEN_COOKIE } from "@/lib/auth/constants"
 import type { UserRole } from "@/lib/api/types"
 
-function tokenFor(role: UserRole, expiresInSeconds = 900): string {
-  return new UnsecuredJWT({ sub: "user-1", role, kioskId: null })
+function tokenFor(
+  role: UserRole,
+  expiresInSeconds = 900,
+  mustChangePassword = false,
+): string {
+  return new UnsecuredJWT({ sub: "user-1", role, kioskId: null, mustChangePassword })
     .setExpirationTime(Math.floor(Date.now() / 1000) + expiresInSeconds)
     .encode()
 }
@@ -77,5 +81,25 @@ describe("proxy route gating", () => {
   it("bounces a KIOSK_OWNER out of /admin/* to /portal/login", () => {
     const res = proxy(requestFor("/admin/kiosks", tokenFor("KIOSK_OWNER")))
     expect(res.headers.get("location")).toBe("http://localhost:3001/portal/login")
+  })
+
+  it("redirects to /admin/change-password when mustChangePassword is true", () => {
+    const res = proxy(requestFor("/admin/kiosks", tokenFor("ADMIN", 900, true)))
+    expect(res.headers.get("location")).toBe("http://localhost:3001/admin/change-password")
+  })
+
+  it("redirects to /portal/change-password when mustChangePassword is true", () => {
+    const res = proxy(requestFor("/portal/locations", tokenFor("KIOSK_OWNER", 900, true)))
+    expect(res.headers.get("location")).toBe("http://localhost:3001/portal/change-password")
+  })
+
+  it("does not redirect a request already on the change-password page", () => {
+    const res = proxy(requestFor("/admin/change-password", tokenFor("ADMIN", 900, true)))
+    expect(res.headers.get("location")).toBeNull()
+  })
+
+  it("behaves exactly as before when mustChangePassword is false (no regression)", () => {
+    const res = proxy(requestFor("/admin/kiosks", tokenFor("ADMIN", 900, false)))
+    expect(res.headers.get("location")).toBeNull()
   })
 })

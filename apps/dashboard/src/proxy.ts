@@ -9,6 +9,11 @@ const LOGIN_PATH = {
   portal: "/portal/login",
 } as const
 
+const CHANGE_PASSWORD_PATH = {
+  admin: "/admin/change-password",
+  portal: "/portal/change-password",
+} as const
+
 function safeDecode(token: string): JwtPayload | null {
   try {
     return decodeJwt(token) as JwtPayload
@@ -42,6 +47,10 @@ export function proxy(request: NextRequest) {
   if (!allowedHere) {
     const otherNamespace = namespace === "admin" ? "portal" : "admin"
     return NextResponse.redirect(new URL(LOGIN_PATH[otherNamespace], request.url))
+  }
+
+  if (payload.mustChangePassword && pathname !== CHANGE_PASSWORD_PATH[namespace]) {
+    return NextResponse.redirect(new URL(CHANGE_PASSWORD_PATH[namespace], request.url))
   }
 
   return NextResponse.next()
