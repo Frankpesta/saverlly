@@ -1,6 +1,6 @@
 "use client"
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
 import type { Coupon, CouponDiscountType } from "@/lib/api/types"
 
@@ -30,24 +30,6 @@ export function useCoupons() {
   return useQuery({
     queryKey: ["coupons"],
     queryFn: fetchAllCoupons,
-  })
-}
-
-const LIST_PAGE_SIZE = 25
-
-/** Paginated ("Load more") coupon list — for the actual list UI, distinct from the bounded aggregate above. */
-export function useCouponsPage(merchantId?: string) {
-  return useInfiniteQuery({
-    queryKey: ["coupons", "page", merchantId ?? "all"],
-    queryFn: ({ pageParam }: { pageParam: string | undefined }) => {
-      const query = new URLSearchParams({ limit: String(LIST_PAGE_SIZE) })
-      if (merchantId) query.set("merchantId", merchantId)
-      if (pageParam) query.set("cursor", pageParam)
-      return apiFetch<Coupon[]>(`/coupons?${query.toString()}`)
-    },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) =>
-      lastPage.length < LIST_PAGE_SIZE ? undefined : lastPage[lastPage.length - 1]?.id,
   })
 }
 
