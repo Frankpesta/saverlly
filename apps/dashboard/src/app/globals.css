@@ -64,7 +64,7 @@
   --popover: #ffffff;
   --popover-foreground: var(--brand-black);
   --primary: var(--brand-teal);
-  --primary-foreground: var(--brand-black);
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: var(--brand-black);
   --muted: oklch(0.97 0 0);
@@ -84,7 +84,7 @@
   --sidebar: #fbfcfc;
   --sidebar-foreground: var(--brand-black);
   --sidebar-primary: var(--brand-teal);
-  --sidebar-primary-foreground: var(--brand-black);
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--brand-teal-tint);
   --sidebar-accent-foreground: var(--brand-black);
   --sidebar-border: #e4e9e7;

@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ChangePasswordCard } from "@/components/settings/change-password-card"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { useKiosk } from "@/lib/api/hooks/use-kiosks"
 import { TeamSection } from "./team-section"
@@ -42,6 +43,8 @@ export default function PortalSettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        <ChangePasswordCard />
 
         {isKioskOwner && (
           <Card className="w-full max-w-lg">

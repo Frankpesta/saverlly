@@ -84,7 +84,7 @@ export class AuthService {
     dto: ChangePasswordDto,
   ): Promise<TokenPair> {
     const user = await this.usersService.findById(userId);
-    if (!user) {
+    if (!user || user.disabled) {
       throw new UnauthorizedException();
     }
 

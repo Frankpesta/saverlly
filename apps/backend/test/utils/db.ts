@@ -82,6 +82,9 @@ export async function resetDatabase(): Promise<void> {
       return;
     } catch (err) {
       if (attempt === attempts) throw err;
+      // Brief backoff so the interleaving scheduler write that caused the FK violation has
+      // a chance to actually finish before the retry, instead of racing it again immediately.
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
     }
   }
 }

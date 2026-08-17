@@ -9,6 +9,10 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh }),
 }))
 
+jest.mock("../brand-logo", () => ({
+  BrandLogo: () => null,
+}))
+
 describe("ChangePasswordForm", () => {
   beforeEach(() => {
     push.mockClear()
@@ -22,7 +26,7 @@ describe("ChangePasswordForm", () => {
       json: async () => ({ success: true }),
     })
 
-    render(<ChangePasswordForm homeUrl="/admin/overview" />)
+    render(<ChangePasswordForm homeUrl="/admin/overview" tagline="Almost there." />)
 
     await userEvent.type(screen.getByLabelText("Current password"), "TempPass123!")
     await userEvent.type(screen.getByLabelText("New password"), "NewPassword123!")
@@ -42,7 +46,7 @@ describe("ChangePasswordForm", () => {
   })
 
   it("shows a client-side error and does not submit when the new passwords don't match", async () => {
-    render(<ChangePasswordForm homeUrl="/admin/overview" />)
+    render(<ChangePasswordForm homeUrl="/admin/overview" tagline="Almost there." />)
 
     await userEvent.type(screen.getByLabelText("Current password"), "TempPass123!")
     await userEvent.type(screen.getByLabelText("New password"), "NewPassword123!")
@@ -60,7 +64,7 @@ describe("ChangePasswordForm", () => {
       json: async () => ({ error: "Current password is incorrect" }),
     })
 
-    render(<ChangePasswordForm homeUrl="/admin/overview" />)
+    render(<ChangePasswordForm homeUrl="/admin/overview" tagline="Almost there." />)
 
     await userEvent.type(screen.getByLabelText("Current password"), "WrongPassword!")
     await userEvent.type(screen.getByLabelText("New password"), "NewPassword123!")

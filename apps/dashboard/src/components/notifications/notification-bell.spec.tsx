@@ -1,8 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import type { Notification } from "@/lib/api/types"
+
+jest.mock("next/navigation", () => ({
+  usePathname: () => "/portal/overview",
+}))
 
 const notifications: Notification[] = [
   {
@@ -47,10 +51,10 @@ describe("NotificationBell", () => {
         return { ok: true, status: 200, json: async () => ({ count: 1 }) } as Response
       }
       if (url === "/api/proxy/notifications/notif-1/read" && method === "PATCH") {
-        return { ok: true, status: 200, json: async () => undefined } as Response
+        return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
       }
       if (url === "/api/proxy/notifications/read-all" && method === "PATCH") {
-        return { ok: true, status: 200, json: async () => undefined } as Response
+        return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
       }
 
       throw new Error(`Unhandled fetch in test: ${method} ${url}`)
@@ -101,5 +105,31 @@ describe("NotificationBell", () => {
         expect.objectContaining({ method: "PATCH" }),
       ),
     )
+  })
+
+  it("opens a detail dialog with the full, untruncated body when a notification is clicked", async () => {
+    renderWithClient(<NotificationBell />)
+
+    await screen.findByText("1")
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }))
+    await userEvent.click(await screen.findByText("Payout sent"))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText("$5.00 was transferred.")).toBeInTheDocument()
+    expect(within(dialog).getByRole("link", { name: /view earnings/i })).toHaveAttribute(
+      "href",
+      "/portal/earnings",
+    )
+  })
+
+  it("has no action link for a notification type with no linked screen", async () => {
+    renderWithClient(<NotificationBell />)
+
+    await screen.findByText("1")
+    await userEvent.click(screen.getByRole("button", { name: /notifications/i }))
+    await userEvent.click(await screen.findByText("Welcome to Saverlly"))
+
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).queryByRole("link")).not.toBeInTheDocument()
   })
 })

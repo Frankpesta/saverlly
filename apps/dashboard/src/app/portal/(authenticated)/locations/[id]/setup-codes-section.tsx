@@ -19,9 +19,13 @@ export function SetupCodesSection({ locationId }: { locationId: string }) {
   const createCode = useCreateSetupCode(locationId)
   const updateCode = useUpdateSetupCode(locationId)
 
-  function copyCode(code: string) {
-    navigator.clipboard.writeText(code)
-    toast.success("Setup code copied.")
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code)
+      toast.success("Setup code copied.")
+    } catch {
+      toast.error("Could not copy to clipboard.")
+    }
   }
 
   function toggleActive(codeId: string, active: boolean) {

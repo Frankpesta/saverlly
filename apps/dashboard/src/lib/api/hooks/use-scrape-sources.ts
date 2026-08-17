@@ -15,7 +15,7 @@ export function useScrapeSources() {
 
 export type ScrapeSourcePayload = {
   url: string
-  merchantId?: string
+  merchantId: string
   selectorConfig: SelectorConfig
   intervalMinutes?: number
 }

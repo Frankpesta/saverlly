@@ -22,6 +22,7 @@ export class EmailService {
     to: string,
     subject: string,
     react: React.ReactElement,
+    idempotencyKey?: string,
   ): Promise<void> {
     // Deliberate, small deviation from StripeService's "placeholder key, fail loud only when
     // called" pattern: a failed *background job* fails silently 3x with no visible signal,
@@ -29,7 +30,7 @@ export class EmailService {
     // without a real key, log instead of attempting a call that would just retry-and-fail.
     if (!this.configService.get<string>('RESEND_API_KEY')) {
       this.logger.warn(
-        `RESEND_API_KEY not set — logging email instead of sending: to=${to} subject="${subject}"`,
+        `RESEND_API_KEY not set — logging email instead of sending (idempotencyKey=${idempotencyKey ?? 'none'})`,
       );
       return;
     }
@@ -38,7 +39,10 @@ export class EmailService {
       'EMAIL_FROM_ADDRESS',
       'Saverlly <onboarding@resend.dev>',
     );
-    const result = await this.resend.emails.send({ from, to, subject, react });
+    const result = await this.resend.emails.send(
+      { from, to, subject, react },
+      idempotencyKey ? { idempotencyKey } : undefined,
+    );
     if (result.error) {
       throw new Error(`Resend send failed: ${result.error.message}`);
     }

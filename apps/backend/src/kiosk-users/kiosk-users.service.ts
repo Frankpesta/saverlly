@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
@@ -15,6 +16,8 @@ import { KIOSK_USER_SAFE_SELECT } from './kiosk-user-safe-select.const';
 
 @Injectable()
 export class KioskUsersService {
+  private readonly logger = new Logger(KioskUsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationTriggers: NotificationTriggersService,
@@ -42,17 +45,26 @@ export class KioskUsersService {
       select: KIOSK_USER_SAFE_SELECT,
     });
 
-    if (dto.role === UserRole.KIOSK_OWNER) {
-      await this.notificationTriggers.kioskOwnerCreated(
-        user,
-        generatedPassword,
-        kiosk.name,
-      );
-    } else {
-      await this.notificationTriggers.locationManagerCreated(
-        user,
-        generatedPassword,
-        kiosk.name,
+    // The user row is already committed at this point (single Prisma create above), so a
+    // notification-delivery hiccup here must not turn a successful creation into a 500.
+    try {
+      if (dto.role === UserRole.KIOSK_OWNER) {
+        await this.notificationTriggers.kioskOwnerCreated(
+          user,
+          generatedPassword,
+          kiosk.name,
+        );
+      } else {
+        await this.notificationTriggers.locationManagerCreated(
+          user,
+          generatedPassword,
+          kiosk.name,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `User ${user.id} was created, but the welcome notification failed`,
+        error instanceof Error ? error.stack : error,
       );
     }
 

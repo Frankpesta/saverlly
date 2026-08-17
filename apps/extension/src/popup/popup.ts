@@ -1,6 +1,6 @@
 import { sortCouponsBySuccessLikelihood } from '../lib/cart-total';
 import { formatCurrency, summarizeBestDiscount } from '../lib/format';
-import { ARROW_ICON, CHECK_ICON, SIREN_ICON, SPINNER_ICON, TAG_ICON, X_ICON } from './icons';
+import { ARROW_ICON, CHECK_ICON, PENDING_ICON, RING_SPINNER_ICON, SPINNER_ICON, TAG_ICON, X_ICON } from './icons';
 import type {
   CouponApplyProgressMessage,
   CouponApplyResultMessage,
@@ -82,10 +82,13 @@ function renderIdle(): void {
       : `Found <span class="popup__accent">${count}</span> coupon${count === 1 ? '' : 's'} to try`;
 
   content.innerHTML = `
-    <div class="popup__hero"><img src="assets/hero.png" alt="" /></div>
+    <div class="popup__hero">
+      <div class="popup__hero-card-back"></div>
+      <img class="popup__hero-illustration" src="assets/celeb.svg" alt="" />
+    </div>
     <p class="popup__heading popup__heading--lg">${heading}</p>
     <button class="popup__button" id="apply-btn" type="button">Apply Coupons ${buttonArrow()}</button>
-    <button class="popup__link popup__link--muted" id="no-thanks-btn" type="button">
+    <button class="popup__link popup__link--strong" id="no-thanks-btn" type="button">
       No thanks, I don't want to save money!
     </button>
   `;
@@ -95,12 +98,15 @@ function renderIdle(): void {
 
 function renderSuppressed(): void {
   content.innerHTML = `
-    <div class="popup__alert-icon">${SIREN_ICON}</div>
+    <div class="popup__hero">
+      <img class="popup__hero-illustration" src="assets/paused.svg" alt="" />
+      <img class="popup__hero-icon" src="assets/paused-inside.svg" alt="" />
+    </div>
     <p class="popup__heading"><span class="popup__accent">Paused</span> website</p>
-    <p class="popup__subtext">Saverlly is paused because a referral link is already active.</p>
+    <p class="popup__subtext popup__subtext--dark">Saverlly is paused because a referral link is already active.</p>
     <button class="popup__button" id="apply-btn" type="button">Activate Your Savings ${buttonArrow()}</button>
-    <p class="popup__subtext" style="margin-top: 14px; margin-bottom: 0;">
-      Save money by applying the best coupons. <u>Terms</u> and <u>exclusions</u> apply.
+    <p class="popup__subtext popup__subtext--dark" style="margin-top: 14px; margin-bottom: 0;">
+      Save money by applying the best coupons. <strong><u>Terms</u></strong> and <strong><u>exclusions</u></strong> apply.
     </p>
   `;
   document.getElementById('apply-btn')?.addEventListener('click', onApplyClicked);
@@ -147,11 +153,11 @@ function renderApplying(): void {
     <p class="popup__subtext">Saverlly automatically tries codes to save you money.</p>
     <div class="popup__progress-card">
       <div class="popup__progress-row">
-        <span class="popup__progress-icon ${testingDone ? 'popup__progress-icon--done' : 'popup__progress-icon--active'}">${testingDone ? CHECK_ICON : SPINNER_ICON}</span>
+        <span class="popup__progress-icon ${testingDone ? 'popup__progress-icon--done' : 'popup__progress-icon--active'}">${testingDone ? CHECK_ICON : RING_SPINNER_ICON}</span>
         <span>Testing ${total} coupon code${total === 1 ? '' : 's'}</span>
       </div>
       <div class="popup__progress-row">
-        <span class="popup__progress-icon ${testingDone ? 'popup__progress-icon--active' : ''}">${testingDone ? SPINNER_ICON : ''}</span>
+        <span class="popup__progress-icon ${testingDone ? 'popup__progress-icon--active' : 'popup__progress-icon--pending'}">${testingDone ? RING_SPINNER_ICON : PENDING_ICON}</span>
         <span>Applying discounts</span>
       </div>
       <div class="popup__pill-row">${pills}</div>
@@ -186,13 +192,8 @@ function renderSuccess(): void {
       <span>We tried ${triedCount} code${triedCount === 1 ? '' : 's'} and applied the best one saving you ${formatCurrency(discountAmount)}</span>
     </div>
     <button class="popup__button" id="checkout-btn" type="button">Continue to Checkout ${buttonArrow()}</button>
-    <button class="popup__link" id="view-coupons-btn" type="button">View all coupons</button>
   `;
   document.getElementById('checkout-btn')?.addEventListener('click', () => window.close());
-  document.getElementById('view-coupons-btn')?.addEventListener('click', () => {
-    previousView = 'success';
-    render('coupon-list');
-  });
 }
 
 function renderFailure(): void {

@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { AuthShell } from "@/components/auth/auth-shell"
 
-export function ChangePasswordForm({ homeUrl }: { homeUrl: string }) {
+export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagline: string }) {
   const router = useRouter()
   const [currentPassword, setCurrentPassword] = React.useState("")
   const [newPassword, setNewPassword] = React.useState("")
@@ -51,7 +52,7 @@ export function ChangePasswordForm({ homeUrl }: { homeUrl: string }) {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center p-8">
+    <AuthShell tagline={tagline}>
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -120,6 +121,6 @@ export function ChangePasswordForm({ homeUrl }: { homeUrl: string }) {
           </CardContent>
         </Card>
       </motion.div>
-    </div>
+    </AuthShell>
   )
 }

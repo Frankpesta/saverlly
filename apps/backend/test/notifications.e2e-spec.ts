@@ -61,10 +61,12 @@ describe('Notifications (e2e)', () => {
     const notification = await seedNotification(user.id);
 
     const token = await loginAs(app, 'a@test.com');
-    await request(app.getHttpServer())
+    const readRes = await request(app.getHttpServer())
       .patch(`/notifications/${notification.id}/read`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
+    // Must be real JSON, not an empty body — a bare `void` return breaks browser fetch's res.json().
+    expect(readRes.body).toEqual({ success: true });
 
     const updated = await testPrisma.notification.findUniqueOrThrow({
       where: { id: notification.id },
@@ -98,10 +100,11 @@ describe('Notifications (e2e)', () => {
     await seedNotification(userB.id);
 
     const tokenA = await loginAs(app, 'a@test.com');
-    await request(app.getHttpServer())
+    const readAllRes = await request(app.getHttpServer())
       .patch('/notifications/read-all')
       .set('Authorization', `Bearer ${tokenA}`)
       .expect(200);
+    expect(readAllRes.body).toEqual({ success: true });
 
     const aUnread = await testPrisma.notification.count({
       where: { userId: userA.id, readAt: null },

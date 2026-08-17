@@ -16,6 +16,11 @@ import { NotificationsService } from './notifications.service';
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5_000 },
+        // Some job payloads (welcome emails) carry a plaintext temporary password — don't
+        // leave a delivered job's data sitting in Redis once it's no longer needed. Failed
+        // jobs are left in place (default) since their delivery/debugging value outweighs
+        // the residual exposure for the rare case that needs manual investigation.
+        removeOnComplete: true,
       },
     }),
   ],

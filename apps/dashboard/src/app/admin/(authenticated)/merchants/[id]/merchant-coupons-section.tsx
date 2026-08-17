@@ -31,16 +31,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useCouponsPage, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
+import { TablePagination } from "@/components/dashboard/table-pagination"
+import { useCoupons, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
+import { usePagination } from "@/hooks/use-pagination"
 import { CouponDialog } from "../../coupons/coupon-dialog"
 
 export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useCouponsPage(merchantId)
+  const { data: allCoupons, isLoading, isError } = useCoupons()
   const deleteCoupon = useDeleteCoupon()
 
-  const coupons = React.useMemo(() => data?.pages.flat() ?? [], [data])
+  const merchantCoupons = React.useMemo(
+    () => (allCoupons ?? []).filter((c) => c.merchantId === merchantId),
+    [allCoupons, merchantId],
+  )
+  const { page, setPage, pageCount, pageItems: coupons, totalItems, pageSize } =
+    usePagination(merchantCoupons)
 
   function handleDelete(id: string, code: string) {
     deleteCoupon.mutate(id, {
@@ -134,19 +140,13 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
             ))}
           </TableBody>
         </Table>
-
-        {hasNextPage && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-          >
-            {isFetchingNextPage ? "Loading…" : "Load more"}
-          </Button>
-        )}
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </CardContent>
     </Card>
   )

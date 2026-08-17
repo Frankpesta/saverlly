@@ -31,7 +31,8 @@ export function useUnreadCount() {
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => apiFetch<void>(`/notifications/${id}/read`, { method: "PATCH" }),
+    mutationFn: (id: string) =>
+      apiFetch<{ success: true }>(`/notifications/${id}/read`, { method: "PATCH" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationsKey })
       queryClient.invalidateQueries({ queryKey: unreadCountKey })
@@ -42,7 +43,7 @@ export function useMarkNotificationRead() {
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () => apiFetch<void>("/notifications/read-all", { method: "PATCH" }),
+    mutationFn: () => apiFetch<{ success: true }>("/notifications/read-all", { method: "PATCH" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationsKey })
       queryClient.invalidateQueries({ queryKey: unreadCountKey })

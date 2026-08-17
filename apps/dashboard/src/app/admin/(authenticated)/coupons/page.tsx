@@ -35,9 +35,11 @@ import {
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
-import { useCoupons, useCouponsPage, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
+import { TablePagination } from "@/components/dashboard/table-pagination"
+import { useCoupons, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
 import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
+import { usePagination } from "@/hooks/use-pagination"
 import { CouponDialog } from "./coupon-dialog"
 
 const ALL_MERCHANTS = "all"
@@ -45,18 +47,18 @@ const ALL_MERCHANTS = "all"
 export default function CouponsPage() {
   const [merchantFilter, setMerchantFilter] = React.useState(ALL_MERCHANTS)
   const { data: merchants } = useMerchants()
-  const { data: allCoupons } = useCoupons()
-  const {
-    data,
-    isLoading,
-    isError,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useCouponsPage(merchantFilter === ALL_MERCHANTS ? undefined : merchantFilter)
+  const { data: allCoupons, isLoading, isError } = useCoupons()
   const deleteCoupon = useDeleteCoupon()
 
-  const coupons = React.useMemo(() => data?.pages.flat() ?? [], [data])
+  const filteredCoupons = React.useMemo(
+    () =>
+      merchantFilter === ALL_MERCHANTS
+        ? (allCoupons ?? [])
+        : (allCoupons ?? []).filter((c) => c.merchantId === merchantFilter),
+    [allCoupons, merchantFilter],
+  )
+  const { page, setPage, pageCount, pageItems: coupons, totalItems, pageSize } =
+    usePagination(filteredCoupons)
 
   const merchantNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -65,15 +67,11 @@ export default function CouponsPage() {
   }, [merchants])
 
   const stats = React.useMemo(() => {
-    const list =
-      merchantFilter === ALL_MERCHANTS
-        ? (allCoupons ?? [])
-        : (allCoupons ?? []).filter((c) => c.merchantId === merchantFilter)
-    const success = list.reduce((sum, c) => sum + c.successCount, 0)
-    const fail = list.reduce((sum, c) => sum + c.failCount, 0)
+    const success = filteredCoupons.reduce((sum, c) => sum + c.successCount, 0)
+    const fail = filteredCoupons.reduce((sum, c) => sum + c.failCount, 0)
     const attempts = success + fail
-    return { total: list.length, rate: attempts > 0 ? (success / attempts) * 100 : 0 }
-  }, [allCoupons, merchantFilter])
+    return { total: filteredCoupons.length, rate: attempts > 0 ? (success / attempts) * 100 : 0 }
+  }, [filteredCoupons])
 
   function handleDelete(id: string, code: string) {
     deleteCoupon.mutate(id, {
@@ -209,20 +207,14 @@ export default function CouponsPage() {
             ))}
           </TableBody>
         </Table>
+        <TablePagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
-
-      {hasNextPage && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="w-fit"
-          onClick={() => fetchNextPage()}
-          disabled={isFetchingNextPage}
-        >
-          {isFetchingNextPage ? "Loading…" : "Load more"}
-        </Button>
-      )}
     </div>
   )
 }

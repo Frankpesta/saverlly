@@ -34,7 +34,7 @@ export class SendEmailProcessor extends WorkerHost {
       earningsUrl: `${dashboardUrl}/portal/earnings`,
     });
 
-    await this.emailService.send(job.data.to, subject, react);
-    this.logger.log(`Sent ${job.data.type} email to ${job.data.to}`);
+    await this.emailService.send(job.data.to, subject, react, job.id);
+    this.logger.log(`Sent email job=${job.id} type=${job.data.type}`);
   }
 }

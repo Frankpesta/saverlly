@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { KioskStatus, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PASSWORD_BCRYPT_ROUNDS } from '../common/crypto/password-hash.constants';
@@ -11,6 +11,8 @@ import { UpdateKioskDto } from './dto/update-kiosk.dto';
 
 @Injectable()
 export class KiosksService {
+  private readonly logger = new Logger(KiosksService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationTriggers: NotificationTriggersService,
@@ -48,12 +50,21 @@ export class KiosksService {
 
     // Deliberately outside the transaction — enqueuing a BullMQ job (or writing the
     // Notification row) before the transaction commits risks a worker picking up the job
-    // before Postgres has actually made the kiosk/owner visible.
-    await this.notificationTriggers.kioskOwnerCreated(
-      owner,
-      generatedPassword,
-      kiosk.name,
-    );
+    // before Postgres has actually made the kiosk/owner visible. Caught rather than awaited
+    // straight through: the kiosk and owner are already committed at this point, so a
+    // notification-delivery hiccup must not turn a successful creation into a 500.
+    try {
+      await this.notificationTriggers.kioskOwnerCreated(
+        owner,
+        generatedPassword,
+        kiosk.name,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Kiosk ${kiosk.id} and owner ${owner.id} were created, but the owner-created notification failed`,
+        error instanceof Error ? error.stack : error,
+      );
+    }
 
     return { kiosk, owner, generatedPassword };
   }

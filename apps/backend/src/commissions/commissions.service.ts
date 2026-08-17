@@ -283,8 +283,12 @@ export class CommissionsService {
         (sum, e) => sum.add(e.kioskShareAmount),
         new Prisma.Decimal(0),
       );
+      // kioskShareAmount is zeroed on reversal by design (never payable — see
+      // reconcilePendingConversions), so the digest recomputes what the share would have been
+      // from the still-intact commissionAmount, purely for reporting.
       const reversedTotal = reversed.reduce(
-        (sum, e) => sum.add(e.kioskShareAmount),
+        (sum, e) =>
+          sum.add(e.commissionAmount.mul(kiosk.revenueSharePct).div(100)),
         new Prisma.Decimal(0),
       );
 

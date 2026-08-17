@@ -13,6 +13,10 @@ import type { CheckoutConfirmedMessage } from '../lib/messages';
   const hasCartTotal = document.querySelector(recipe.cartTotalSelector) !== null;
   if (!hasCouponField || !hasCartTotal) return;
 
-  const message: CheckoutConfirmedMessage = { type: 'CHECKOUT_CONFIRMED', merchantId };
+  const message: CheckoutConfirmedMessage = {
+    type: 'CHECKOUT_CONFIRMED',
+    merchantId,
+    referrer: document.referrer,
+  };
   chrome.runtime.sendMessage(message);
 })();

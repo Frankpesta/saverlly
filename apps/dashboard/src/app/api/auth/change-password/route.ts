@@ -6,11 +6,14 @@ import { setSessionCookies } from "@/lib/auth/cookies"
 import type { TokenPair } from "@/lib/api/types"
 
 export async function POST(request: Request) {
-  const { currentPassword, newPassword } = (await request.json()) as {
-    currentPassword?: string
-    newPassword?: string
+  let body: { currentPassword?: string; newPassword?: string }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "Missing fields." }, { status: 400 })
   }
 
+  const { currentPassword, newPassword } = body
   if (!currentPassword || !newPassword) {
     return NextResponse.json({ error: "Missing fields." }, { status: 400 })
   }
