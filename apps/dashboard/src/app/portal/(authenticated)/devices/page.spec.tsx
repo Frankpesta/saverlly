@@ -83,6 +83,18 @@ describe("DevicesPage", () => {
     expect(toast.info).toHaveBeenCalledWith(expect.stringMatching(/isn't available yet/i))
   })
 
+  it("links Download Agent straight to the configured download URL when set", async () => {
+    const original = process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL
+    process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL = "https://cdn.example.com/saverlly-agent.exe"
+
+    renderWithClient(<DevicesPage />)
+
+    const link = await screen.findByRole("link", { name: /download agent/i })
+    expect(link).toHaveAttribute("href", "https://cdn.example.com/saverlly-agent.exe")
+
+    process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL = original
+  })
+
   it("toggles a device's kill-switch", async () => {
     renderWithClient(<DevicesPage />)
 

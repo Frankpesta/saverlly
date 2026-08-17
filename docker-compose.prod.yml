@@ -1,0 +1,47 @@
+# Runs on the EC2 testing box: backend + Redis. Postgres is NOT here — it's RDS.
+# Usage: docker compose -f docker-compose.prod.yml up -d --build
+# See DEPLOYMENT.md for the full setup runbook.
+#
+# `name:` gives this its own Compose project namespace, distinct from the dev-only
+# docker-compose.yml in this same directory — without it, both files default to the same
+# project name (the directory name) and collide on container/volume names (e.g. "redis"),
+# so running this locally would recreate/delete the dev stack's containers and volumes.
+name: saverlly-prod
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: saverlly-prod-backend
+    restart: unless-stopped
+    env_file:
+      - apps/backend/.env.production
+    ports:
+      - "3000:3000"
+    volumes:
+      - saverlly-prod-uploads-data:/app/apps/backend/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: saverlly-prod-redis
+    restart: unless-stopped
+    volumes:
+      - saverlly-prod-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  saverlly-prod-uploads-data:
+  saverlly-prod-redis-data:

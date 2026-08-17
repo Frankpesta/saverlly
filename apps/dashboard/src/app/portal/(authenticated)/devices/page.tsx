@@ -73,17 +73,26 @@ export default function DevicesPage() {
             Every device registered across your locations.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="gap-1.5"
-          onClick={() =>
-            toast.info("Agent download isn't available yet — check back soon.")
-          }
-        >
-          <DownloadIcon className="size-4" />
-          Download Agent
-        </Button>
+        {process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL ? (
+          <Button type="button" variant="outline" className="gap-1.5" asChild>
+            <a href={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL} download>
+              <DownloadIcon className="size-4" />
+              Download Agent
+            </a>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() =>
+              toast.info("Agent download isn't available yet — check back soon.")
+            }
+          >
+            <DownloadIcon className="size-4" />
+            Download Agent
+          </Button>
+        )}
       </div>
 
       <BentoGrid>

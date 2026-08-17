@@ -19,6 +19,9 @@ apps/extension/release/
 .env.local
 .env.*.local
 .env.test
+# Template files are meant to be committed, not real secrets
+!.env.example
+!.env.*.example
 
 # Prisma
 apps/backend/prisma/dev.db
