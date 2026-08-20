@@ -317,3 +317,17 @@ behavior) — no manual step needed.
 - **Stripe/Resend still need real test-mode credentials** to actually send payouts/emails — both
   degrade gracefully when unset (Stripe calls fail explicitly, emails log instead of sending),
   same as local dev.
+- **Agent `.exe` is unsigned** — Chrome's download protection and Windows SmartScreen both flag
+  it (low-reputation/unknown-publisher heuristic, not a detection of anything actually wrong with
+  the file). Real fix is an Authenticode code-signing certificate from a CA (paid, requires
+  identity verification, takes days) wired into `scripts/package.js`. Until then, installing it
+  requires clicking through both warnings once ("Keep" in Chrome's download bar, "More info" →
+  "Run anyway" in the SmartScreen dialog) — acceptable for kiosk devices you control, not for a
+  general public download.
+- **First run needs an interactive setup code unless `SAVERLLY_SETUP_CODE` is baked in** — a
+  double-clicked exe with no `SAVERLLY_SETUP_CODE` opens a console window and blocks on
+  `Enter this location's setup code:` (`apps/agent/src/lib/registration.ts`). Easy to miss behind
+  other windows after the UAC prompt, and not obvious to a non-technical kiosk operator that a
+  console window is even part of the flow. For real kiosk rollouts, prefer baking
+  `SAVERLLY_SETUP_CODE` into a per-location build (scripted install), or make this more obvious
+  in a future pass — not fixed yet.
