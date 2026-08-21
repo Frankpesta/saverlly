@@ -2,4 +2,6 @@
 // calls chrome.runtime.connectNative) so the host name and message shape can't drift apart.
 export const NATIVE_MESSAGING_HOST_NAME = 'com.saverlly.agent';
 
-export type NativeHostMessage = { type: 'device-token'; token: string } | { type: 'error'; message: string };
+export type NativeHostMessage =
+  | { type: 'device-token'; token: string; apiBaseUrl: string }
+  | { type: 'error'; message: string };
