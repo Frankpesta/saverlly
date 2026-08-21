@@ -1,6 +1,10 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
-import { ensureNativeMessagingHostRegistered, NATIVE_HOST_NAME } from './native-messaging-host';
+import {
+  ensureNativeMessagingHostRegistered,
+  NATIVE_HOST_NAME,
+  nativeMessagingHostExePath,
+} from './native-messaging-host';
 
 jest.mock('child_process');
 jest.mock('fs');
@@ -47,6 +51,14 @@ describe('ensureNativeMessagingHostRegistered', () => {
       'reg',
       ['add', 'HKLM\\TEST\\NativeMessagingHosts\\com.saverlly.agent', '/ve', '/t', 'REG_SZ', '/d', 'C:\\test\\manifest.json', '/f'],
       { stdio: 'ignore' },
+    );
+  });
+});
+
+describe('nativeMessagingHostExePath', () => {
+  it('points at the sibling unprivileged host exe, not the (requireAdministrator) main exe itself', () => {
+    expect(nativeMessagingHostExePath('C:\\Program Files\\Saverlly\\saverlly-agent.exe')).toBe(
+      'C:\\Program Files\\Saverlly\\saverlly-agent-host.exe',
     );
   });
 });

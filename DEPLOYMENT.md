@@ -247,17 +247,30 @@ it for Part E.
 
 Now that you have the real backend URL and the real extension ID:
 
+Requires [Inno Setup](https://jrsoftware.org/isdl.php) on the build machine (`winget install
+JRSoftware.InnoSetup`) — `npm run package` compiles a branded GUI installer via its `ISCC.exe`
+compiler in addition to the two raw exes.
+
 ```bash
 cd apps/agent
 SAVERLLY_API_BASE_URL="http://<elastic-ip>:3000" \
 SAVERLLY_EXTENSION_ID="<real-extension-id-from-part-d>" \
 npm run package
 ```
-Produces `release/saverlly-agent.exe`. Upload it:
+Produces `release/saverlly-agent.exe` + `release/saverlly-agent-host.exe` (the two exes — the
+second is Chrome's native-messaging target, never run directly, see
+`apps/agent/src/lib/native-messaging-host.ts`), and `release/SaverllyAgentSetup.exe` — **this is
+the file to distribute**: a single branded installer (one UAC prompt, a wizard page asking for
+the location's setup code, then done — no manual zip extraction, no console window). It also
+registers a proper Add/Remove Programs uninstall entry that cleans up the scheduled task and
+registry keys. `release/saverlly-agent-bundle.zip` (both raw exes zipped together) is also
+produced as a manual/troubleshooting fallback, not what gets linked from the dashboard.
+
+Upload the installer:
 ```bash
-aws s3 cp release/saverlly-agent.exe s3://saverlly-agent-releases/agent/saverlly-agent.exe --acl public-read
+aws s3 cp release/SaverllyAgentSetup.exe s3://saverlly-agent-releases/agent/SaverllyAgentSetup.exe --acl public-read
 ```
-Download URL: `https://saverlly-agent-releases.s3.<region>.amazonaws.com/agent/saverlly-agent.exe`
+Download URL: `https://saverlly-agent-releases.s3.<region>.amazonaws.com/agent/SaverllyAgentSetup.exe`
 
 Go back to the Vercel project settings and set `NEXT_PUBLIC_AGENT_DOWNLOAD_URL` to that URL,
 then redeploy (Vercel → Deployments → ⋯ → Redeploy, since `NEXT_PUBLIC_*` vars are baked in at
@@ -324,10 +337,15 @@ behavior) — no manual step needed.
   requires clicking through both warnings once ("Keep" in Chrome's download bar, "More info" →
   "Run anyway" in the SmartScreen dialog) — acceptable for kiosk devices you control, not for a
   general public download.
-- **First run needs an interactive setup code unless `SAVERLLY_SETUP_CODE` is baked in** — a
-  double-clicked exe with no `SAVERLLY_SETUP_CODE` opens a console window and blocks on
-  `Enter this location's setup code:` (`apps/agent/src/lib/registration.ts`). Easy to miss behind
-  other windows after the UAC prompt, and not obvious to a non-technical kiosk operator that a
-  console window is even part of the flow. For real kiosk rollouts, prefer baking
-  `SAVERLLY_SETUP_CODE` into a per-location build (scripted install), or make this more obvious
-  in a future pass — not fixed yet.
+- **Resolved**: first run used to require an interactive console prompt for the setup code
+  (`apps/agent/src/lib/registration.ts`'s `readline` fallback) — easy to miss behind other
+  windows after the UAC prompt, not obvious to a non-technical kiosk operator that a console
+  window was even part of the flow. `SaverllyAgentSetup.exe` now collects the setup code via a
+  proper wizard page and passes it through (`--setup-once --setup-code=...`, see
+  `apps/agent/src/lib/installer-mode.ts`) — no console window is ever shown. The direct exe still
+  falls back to the interactive prompt if run manually without a setup code, which is fine for
+  troubleshooting but not the distributed path anymore.
+- **`SaverllyAgentSetup.exe` is unsigned, same as the two exes it contains** — SmartScreen now
+  flags the installer itself (the first thing a kiosk owner sees) rather than a raw exe;
+  functionally the same gap as the bullet above, just a different file triggering it. Same real
+  fix (a code-signing cert wired into `scripts/package.js` before `ISCC.exe` runs).

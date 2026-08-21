@@ -1,11 +1,14 @@
 import { NATIVE_MESSAGING_HOST_NAME } from '@saverlly/shared-types';
 
 jest.mock('./storage');
+jest.mock('./config');
 
+import { setApiBaseUrl } from './config';
 import { connectToAgentAndReceiveToken } from './native-messaging';
 import { setDeviceToken } from './storage';
 
 const mockSetDeviceToken = setDeviceToken as jest.MockedFunction<typeof setDeviceToken>;
+const mockSetApiBaseUrl = setApiBaseUrl as jest.MockedFunction<typeof setApiBaseUrl>;
 
 function fakePort() {
   const messageListeners: Array<(msg: unknown) => void> = [];
@@ -23,6 +26,7 @@ function fakePort() {
 describe('connectToAgentAndReceiveToken', () => {
   beforeEach(() => {
     mockSetDeviceToken.mockReset();
+    mockSetApiBaseUrl.mockReset();
   });
 
   it('connects to the shared native messaging host name', () => {
@@ -34,22 +38,24 @@ describe('connectToAgentAndReceiveToken', () => {
     expect(connect).toHaveBeenCalledWith(NATIVE_MESSAGING_HOST_NAME);
   });
 
-  it('stores the token from a device-token message', () => {
+  it('stores the token and API base URL from a device-token message', () => {
     const { port, fireMessage } = fakePort();
     connectToAgentAndReceiveToken(jest.fn().mockReturnValue(port));
 
-    fireMessage({ type: 'device-token', token: 'agent-issued-token' });
+    fireMessage({ type: 'device-token', token: 'agent-issued-token', apiBaseUrl: 'https://api.example.com' });
 
     expect(mockSetDeviceToken).toHaveBeenCalledWith('agent-issued-token');
+    expect(mockSetApiBaseUrl).toHaveBeenCalledWith('https://api.example.com');
   });
 
-  it('does not touch stored token state on an error message from the agent', () => {
+  it('does not touch stored token/URL state on an error message from the agent', () => {
     const { port, fireMessage } = fakePort();
     connectToAgentAndReceiveToken(jest.fn().mockReturnValue(port));
 
     fireMessage({ type: 'error', message: 'Device not registered yet' });
 
     expect(mockSetDeviceToken).not.toHaveBeenCalled();
+    expect(mockSetApiBaseUrl).not.toHaveBeenCalled();
   });
 
   it('does not throw when the port disconnects (e.g. agent/native host not installed)', () => {

@@ -2,7 +2,9 @@ import * as os from 'os';
 import { pollAndDisplayAnnouncements } from './lib/announcements';
 import { CHROME_WEB_STORE_UPDATE_URL } from './lib/chrome-policy';
 import { ANNOUNCEMENT_POLL_INTERVAL_MS, STATUS_SYNC_INTERVAL_MS } from './lib/config';
+import { parseInstallerSetupArgs } from './lib/installer-mode';
 import { isNativeMessagingInvocation, respondWithDeviceToken } from './lib/native-host-mode';
+import { nativeMessagingHostExePath } from './lib/native-messaging-host';
 import { ensureRegistered } from './lib/registration';
 import { ensureRunAtLoginTask } from './lib/run-at-login';
 import { runStatusSync } from './lib/status-sync';
@@ -34,7 +36,15 @@ async function runSyncCycle(
   }
 }
 
-async function runBackgroundAgent(): Promise<void> {
+interface AgentStartupState {
+  token: string;
+  policyOptions: { extensionId: string; updateUrl: string; exePath: string };
+}
+
+// The registration/scheduled-task/policy setup shared by both the always-on background agent
+// (runBackgroundAgent) and the installer's one-shot setup run (runSetupOnce) — factored out so
+// the two only differ in whether they loop afterward, not in what setup actually does.
+async function performInitialSetup(): Promise<AgentStartupState> {
   const extensionId = getExtensionId();
   const updateUrl = getUpdateUrl();
   const exePath = process.execPath;
@@ -53,8 +63,16 @@ async function runBackgroundAgent(): Promise<void> {
     console.error('[saverlly-agent] failed to register the run-at-login scheduled task', err);
   }
 
-  const policyOptions = { extensionId, updateUrl, exePath };
+  // The native-messaging manifest must point at the sibling non-elevated host exe, not this
+  // (requireAdministrator) one — see native-messaging-host.ts's nativeMessagingHostExePath doc.
+  const policyOptions = { extensionId, updateUrl, exePath: nativeMessagingHostExePath(exePath) };
   await runSyncCycle(token, policyOptions);
+
+  return { token, policyOptions };
+}
+
+async function runBackgroundAgent(): Promise<void> {
+  const { token, policyOptions } = await performInitialSetup();
 
   // Cadences happen to match today, but are configured independently (config.ts) — running
   // one combined interval at their minimum keeps both promises without double-scheduling.
@@ -66,7 +84,27 @@ async function runBackgroundAgent(): Promise<void> {
   }, intervalMs);
 }
 
+// Invoked by the GUI installer (apps/agent/installer/) via `--setup-once`: runs the exact same
+// setup as runBackgroundAgent's first pass, then actually returns — deliberately no
+// setInterval — so the installer's Exec call gets a real exit code (0 = success, nonzero via
+// the top-level catch below on failure) instead of hanging on a loop meant for the persistent
+// background agent, which the scheduled task this same setup registers will handle from here.
+async function runSetupOnce(): Promise<void> {
+  await performInitialSetup();
+  console.log('[saverlly-agent] setup complete');
+}
+
 async function main(): Promise<void> {
+  const installerArgs = parseInstallerSetupArgs(process.argv);
+  if (installerArgs) {
+    // The installer collects the setup code via its own GUI page, not the interactive console
+    // prompt promptForSetupCode() falls back to — bridge it into the env var that already
+    // expects, so registration.ts needs zero changes for this new invocation mode.
+    if (installerArgs.setupCode) process.env.SAVERLLY_SETUP_CODE = installerArgs.setupCode;
+    await runSetupOnce();
+    return;
+  }
+
   // Chrome spawns this same exe fresh (with a chrome-extension:// origin arg) whenever the
   // extension calls connectNative — that invocation must respond and exit, not fall through
   // into the long-running background-agent startup below.

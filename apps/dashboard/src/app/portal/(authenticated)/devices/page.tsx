@@ -74,12 +74,17 @@ export default function DevicesPage() {
           </p>
         </div>
         {process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL ? (
-          <Button type="button" variant="outline" className="gap-1.5" asChild>
-            <a href={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL} download>
-              <DownloadIcon className="size-4" />
-              Download Agent
-            </a>
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button type="button" variant="outline" className="gap-1.5" asChild>
+              <a href={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL} download>
+                <DownloadIcon className="size-4" />
+                Download Agent
+              </a>
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Run the installer and follow the setup wizard.
+            </p>
+          </div>
         ) : (
           <Button
             type="button"

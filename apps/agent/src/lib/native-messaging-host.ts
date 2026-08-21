@@ -7,6 +7,21 @@ import { nativeMessagingManifestPath } from './paths';
 export const NATIVE_HOST_NAME = NATIVE_MESSAGING_HOST_NAME;
 export const NATIVE_HOST_REGISTRY_KEY = `HKLM\\SOFTWARE\\Google\\Chrome\\NativeMessagingHosts\\${NATIVE_HOST_NAME}`;
 
+// The packaged main exe (saverlly-agent.exe) embeds a requireAdministrator manifest, needed
+// for its own HKLM/scheduled-task writes when running as the background agent or the
+// interactive first-run bootstrap. Chrome, however, launches a native messaging host via a
+// plain CreateProcess call (not ShellExecute) — against an exe whose manifest requests
+// elevation, that fails outright with ERROR_ELEVATION_REQUIRED, no UAC prompt, no message
+// ever written. So the manifest must point at a *sibling*, non-elevated exe built from the
+// same dist/main.js instead (see scripts/package.js) — same argv-dispatch logic, just packaged
+// without the requireAdministrator manifest.
+export const NATIVE_MESSAGING_HOST_EXE_NAME = 'saverlly-agent-host.exe';
+
+/** Computes the sibling unprivileged host exe's path from the elevated main exe's own path. */
+export function nativeMessagingHostExePath(mainExePath: string): string {
+  return path.join(path.dirname(mainExePath), NATIVE_MESSAGING_HOST_EXE_NAME);
+}
+
 export interface NativeMessagingRegistrationOptions {
   /** Defaults to the real per-machine Chrome native-messaging-hosts registry key — override only for isolated testing. */
   registryKey?: string;
