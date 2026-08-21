@@ -107,11 +107,12 @@ export function GlobalSearch() {
         type="button"
         variant="outline"
         onClick={() => setOpen(true)}
-        className="w-56 justify-between gap-2 rounded-lg border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
+        aria-label="Search"
+        className="size-9 justify-center gap-2 rounded-lg border-transparent p-0 text-muted-foreground hover:border-border hover:bg-background hover:text-foreground sm:w-56 sm:justify-between sm:p-2"
       >
         <span className="flex items-center gap-2">
           <SearchIcon className="size-4" />
-          Search...
+          <span className="hidden sm:inline">Search...</span>
         </span>
         <kbd className="pointer-events-none hidden rounded-md border border-border bg-muted px-1.5 font-mono text-[0.7rem] text-muted-foreground sm:inline-block">
           ⌘K
