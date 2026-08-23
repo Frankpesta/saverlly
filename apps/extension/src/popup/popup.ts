@@ -204,6 +204,10 @@ function renderFailure(): void {
     : `We tried ${total} code${total === 1 ? '' : 's'} but couldn't find a discount this time.`;
 
   content.innerHTML = `
+    <div class="popup__hero">
+      <img class="popup__hero-illustration" src="assets/paused.svg" alt="" />
+      <img class="popup__hero-icon" src="assets/paused-inside.svg" alt="" />
+    </div>
     <p class="popup__heading">No working codes found</p>
     <p class="popup__subtext">${subtext}</p>
     <button class="popup__button" id="retry-btn" type="button">Try Coupons Again ${buttonArrow()}</button>
@@ -280,9 +284,23 @@ async function init(): Promise<void> {
   tabState = state ?? null;
   if (!tabState) {
     render('no-offer');
-  } else {
-    render(tabState.suppressedStepdown ? 'suppressed' : 'idle');
+    return;
   }
+  if (tabState.suppressedStepdown) {
+    render('suppressed');
+    return;
+  }
+  // Applying starts automatically as soon as checkout is confirmed (background service
+  // worker), not on a popup click — restore whatever that run's already reached instead
+  // of showing a stale "idle" prompt, whether the popup opened live or was reopened after
+  // the run already finished.
+  progress = tabState.applyProgress;
+  if (tabState.applyResult) {
+    lastResult = tabState.applyResult;
+    render(tabState.applyResult.result === 'applied' ? 'success' : 'failure');
+    return;
+  }
+  render('applying');
 }
 
 void init();

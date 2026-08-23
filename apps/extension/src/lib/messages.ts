@@ -61,6 +61,12 @@ export interface TabCheckoutState {
   merchantName: string;
   coupons: PublicCoupon[];
   suppressedStepdown: boolean;
+  /** Latest progress tick from an apply run started automatically or manually — lets a
+   *  popup opened mid-run (or reopened after one finishes) restore the right view instead
+   *  of always starting from a blank "idle" screen. */
+  applyProgress: CouponApplyProgressMessage | null;
+  /** Set only once an apply run's final attempt resolves (see CouponApplyResultMessage.isFinal). */
+  applyResult: CouponApplyResultMessage | null;
 }
 
 // Data handed from the background service worker into an injected content script via

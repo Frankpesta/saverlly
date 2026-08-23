@@ -2,7 +2,12 @@ import type { PublicMerchant } from '@saverlly/shared-types';
 import { fetchLifetimeSaved, fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
 import { runAttribution } from '../lib/attribution';
 import { STATUS_CHECK_INTERVAL_MINUTES, MERCHANT_CACHE_TTL_MS } from '../lib/config';
-import type { ExtensionMessage, InjectedCheckoutContext, TabCheckoutState } from '../lib/messages';
+import type {
+  CouponApplyResultMessage,
+  ExtensionMessage,
+  InjectedCheckoutContext,
+  TabCheckoutState,
+} from '../lib/messages';
 import { connectToAgentAndReceiveToken } from '../lib/native-messaging';
 import { checkStepDown } from '../lib/step-down-check';
 import { checkDeviceStatus } from '../lib/status-check';
@@ -134,12 +139,16 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
     merchantName: merchant.name,
     coupons: merchant.coupons,
     suppressedStepdown: suppressed,
+    applyProgress: null,
+    applyResult: null,
   });
 
   if (suppressed) {
+    // A competing affiliate's tracking is already active — stay paused and require the
+    // user to explicitly override it via the popup rather than silently applying over it.
     await reportCouponTestEvent({ merchantId: merchant.id, result: 'suppressed_stepdown' });
     setBadge(tabId, BADGE_SUPPRESSED);
-    return; // no auto-popup — the toolbar icon still opens the popup for a manual apply
+    return;
   }
 
   setBadge(tabId, BADGE_READY);
@@ -150,6 +159,9 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
   } catch {
     // ignored — see comment above
   }
+
+  // No competing affiliate link — apply automatically, no manual "Apply Coupons" click needed.
+  await triggerApply(tabId);
 }
 
 async function triggerApply(tabId: number): Promise<void> {
@@ -159,21 +171,22 @@ async function triggerApply(tabId: number): Promise<void> {
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
   if (!state || !tab?.url) return;
 
+  // Reset any stale progress/result from a prior run (e.g. a manual "Try Coupons Again")
+  // so a popup opened mid-run doesn't show the previous attempt's outcome.
+  tabState.set(tabId, { ...state, applyProgress: null, applyResult: null });
+
   if (!state.coupons.length) {
+    const result: CouponApplyResultMessage = {
+      type: 'COUPON_APPLY_RESULT',
+      merchantId: state.merchantId,
+      couponId: null,
+      code: null,
+      result: 'no_coupons_available',
+      isFinal: true,
+    };
     await reportCouponTestEvent({ merchantId: state.merchantId, result: 'no_coupons_available' });
-    chrome.runtime
-      .sendMessage({
-        type: 'APPLY_DONE',
-        result: {
-          type: 'COUPON_APPLY_RESULT',
-          merchantId: state.merchantId,
-          couponId: null,
-          code: null,
-          result: 'no_coupons_available',
-          isFinal: true,
-        },
-      })
-      .catch(() => {});
+    tabState.set(tabId, { ...state, applyProgress: null, applyResult: result });
+    chrome.runtime.sendMessage({ type: 'APPLY_DONE', result }).catch(() => {});
     return;
   }
 
@@ -199,6 +212,17 @@ async function getActiveTabId(): Promise<number | undefined> {
   return tab?.id;
 }
 
+// Content scripts (coupon-applier.js) run in the tab, not the popup — sender.tab.id is how
+// their progress/result messages get attributed back to the right tab's state, so a popup
+// that (re)opens mid-run or after completion can restore the real state instead of "idle".
+function patchTabState(sender: chrome.runtime.MessageSender, patch: Partial<TabCheckoutState>): void {
+  const tabId = sender.tab?.id;
+  if (tabId === undefined) return;
+  const state = tabState.get(tabId);
+  if (!state) return;
+  tabState.set(tabId, { ...state, ...patch });
+}
+
 async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.MessageSender): Promise<unknown> {
   switch (message.type) {
     case 'CHECKOUT_CONFIRMED': {
@@ -217,11 +241,13 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
       // Only the last attempt in the sequence should flip the popup out of "applying" —
       // intermediate failures keep reporting to the backend but must not surface yet.
       if (message.isFinal) {
+        patchTabState(sender, { applyResult: message });
         chrome.runtime.sendMessage({ type: 'APPLY_DONE', result: message }).catch(() => {});
       }
       return;
     }
     case 'COUPON_APPLY_PROGRESS': {
+      patchTabState(sender, { applyProgress: message });
       // Fire-and-forget relay — popup listens for this to render live apply progress.
       chrome.runtime.sendMessage(message).catch(() => {});
       return;
