@@ -35,9 +35,13 @@ const chromeMock = {
   action: {
     setBadgeText: jest.fn(),
     setBadgeBackgroundColor: jest.fn(),
+    openPopup: jest.fn().mockResolvedValue(undefined),
   },
   scripting: {
     executeScript: jest.fn().mockResolvedValue(undefined),
+  },
+  cookies: {
+    getAll: jest.fn().mockResolvedValue([]),
   },
 };
 
@@ -48,7 +52,7 @@ jest.mock('../lib/attribution');
 jest.mock('../lib/storage');
 jest.mock('../lib/native-messaging');
 
-import { fetchMerchantByDomain } from '../lib/api-client';
+import { fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
 import { runAttribution } from '../lib/attribution';
 import { getCachedMerchant, isDormant, setCachedMerchant } from '../lib/storage';
 
@@ -61,6 +65,7 @@ const mockRunAttribution = runAttribution as jest.MockedFunction<typeof runAttri
 const mockGetCachedMerchant = getCachedMerchant as jest.MockedFunction<typeof getCachedMerchant>;
 const mockSetCachedMerchant = setCachedMerchant as jest.MockedFunction<typeof setCachedMerchant>;
 const mockIsDormant = isDormant as jest.MockedFunction<typeof isDormant>;
+const mockReportCouponTestEvent = reportCouponTestEvent as jest.MockedFunction<typeof reportCouponTestEvent>;
 
 const merchant: PublicMerchant = {
   id: 'm1',
@@ -103,6 +108,17 @@ const merchant: PublicMerchant = {
 // jest.clearAllMocks() would wipe that call record.
 const registeredOnCommitted = addListenerMocks.onCommitted.mock.calls[0]?.[0];
 const registeredOnHistoryStateUpdated = addListenerMocks.onHistoryStateUpdated.mock.calls[0]?.[0];
+const registeredOnMessage = addListenerMocks.onMessage.mock.calls[0]?.[0] as (
+  message: unknown,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: unknown) => void,
+) => boolean;
+
+function sendMessage(message: unknown, sender: chrome.runtime.MessageSender = {}): Promise<unknown> {
+  return new Promise((resolve) => {
+    registeredOnMessage(message, sender, resolve);
+  });
+}
 
 describe('top-frame navigation handling', () => {
   beforeEach(() => {
@@ -162,5 +178,70 @@ describe('top-frame navigation handling', () => {
 
     expect(chromeMock.action.setBadgeText).not.toHaveBeenCalled();
     expect(mockIsDormant).not.toHaveBeenCalled();
+  });
+});
+
+describe('CHECKOUT_CONFIRMED auto-apply', () => {
+  beforeEach(() => {
+    mockIsDormant.mockReset().mockResolvedValue(false);
+    mockGetCachedMerchant.mockReset().mockResolvedValue(null);
+    mockSetCachedMerchant.mockReset().mockResolvedValue(undefined);
+    mockFetchMerchantByDomain.mockReset().mockResolvedValue(merchant);
+    mockReportCouponTestEvent.mockReset().mockResolvedValue(undefined);
+    chromeMock.tabs.get.mockReset().mockResolvedValue({ url: 'https://shop.example.com/checkout' });
+    chromeMock.cookies.getAll.mockReset().mockResolvedValue([]);
+    chromeMock.scripting.executeScript.mockClear();
+    chromeMock.action.setBadgeText.mockClear();
+    chromeMock.action.setBadgeBackgroundColor.mockClear();
+    chromeMock.action.openPopup.mockClear();
+  });
+
+  it('applies coupons automatically, with no APPLY_BEST_COUPON click, when no competing affiliate link is active', async () => {
+    await sendMessage(
+      { type: 'CHECKOUT_CONFIRMED', merchantId: 'm1', referrer: '' },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({ tabId: 7, text: '%' });
+    expect(chromeMock.scripting.executeScript).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target: { tabId: 7 }, files: ['content-scripts/coupon-applier.js'] }),
+    );
+  });
+
+  it('does not auto-apply and stays paused when a competing affiliate link is already active', async () => {
+    chromeMock.cookies.getAll.mockResolvedValue([{ name: 'irclickid' }]);
+
+    await sendMessage(
+      { type: 'CHECKOUT_CONFIRMED', merchantId: 'm1', referrer: '' },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({ tabId: 7, text: '!' });
+    expect(chromeMock.scripting.executeScript).not.toHaveBeenCalledWith(
+      expect.objectContaining({ files: ['content-scripts/coupon-applier.js'] }),
+    );
+    expect(mockReportCouponTestEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ result: 'suppressed_stepdown' }),
+    );
+  });
+
+  it('lets GET_TAB_STATE reflect the auto-apply run already in progress, for a popup opened mid-run', async () => {
+    chromeMock.tabs.query.mockResolvedValue([{ id: 7 }]);
+
+    await sendMessage(
+      { type: 'CHECKOUT_CONFIRMED', merchantId: 'm1', referrer: '' },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+
+    const state = (await sendMessage({ type: 'GET_TAB_STATE' })) as {
+      suppressedStepdown: boolean;
+      applyResult: unknown;
+    } | null;
+
+    expect(state).not.toBeNull();
+    expect(state?.suppressedStepdown).toBe(false);
+    // Real completion is driven by the injected coupon-applier content script (not exercised
+    // here), so the run is still "in progress" as far as the background worker knows.
+    expect(state?.applyResult).toBeNull();
   });
 });

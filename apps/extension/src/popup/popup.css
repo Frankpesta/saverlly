@@ -31,6 +31,10 @@
 body {
   margin: 0;
   width: 360px;
+  /* Chrome's own popup window frame is square by default — rounding + clipping here is
+     what actually gives the popup itself softened corners, not just its inner content. */
+  border-radius: 10px;
+  overflow: hidden;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: var(--text);
   background: var(--bg);

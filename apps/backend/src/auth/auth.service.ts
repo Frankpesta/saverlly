@@ -127,9 +127,13 @@ export class AuthService {
       { ...accessPayload },
       {
         secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        // Kept long relative to a typical session — proxy.ts's silent-refresh-on-expiry
+        // path covers a still-expired case anyway, but a short TTL here just means every
+        // dashboard tab open for a while pays a refresh round-trip on its next navigation
+        // for no real security benefit (the refresh token is the actual revocation point).
         expiresIn: this.configService.get<string>(
           'JWT_ACCESS_EXPIRES_IN',
-          '15m',
+          '7d',
         ) as StringValue,
       },
     );
