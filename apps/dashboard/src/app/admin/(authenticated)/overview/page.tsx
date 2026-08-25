@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { motion } from "motion/react"
 import {
   StoreIcon,
   MapPinIcon,
@@ -10,8 +11,10 @@ import {
   ClockIcon,
   CircleCheckIcon,
   TriangleAlertIcon,
+  ArrowUpRightIcon,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -20,10 +23,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
 import { BentoCard, BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
-import { Meter } from "@/components/dashboard/meter"
+import { Gauge } from "@/components/dashboard/gauge"
 import { TrendChart } from "@/components/dashboard/trend-chart"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { useLocations } from "@/lib/api/hooks/use-locations"
@@ -34,11 +38,11 @@ import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { useCoupons } from "@/lib/api/hooks/use-coupons"
 import { formatCurrency } from "@/lib/format-currency"
 import { relativeTime } from "@/lib/relative-time"
+import { cn } from "@/lib/utils"
 import {
   bucketByDay,
   buildDeviceKioskMap,
   deviceCounts,
-  formatGrowthPct,
   monthOverMonthGrowth,
   sumByStatus,
   topByGroup,
@@ -46,6 +50,19 @@ import {
 import { COMMISSION_STATUS_BADGE_VARIANT, COMMISSION_STATUS_LABEL } from "@/lib/dashboard/status-labels"
 
 const COMMISSION_STATUSES = ["CONFIRMED", "PENDING", "REVERSED"] as const
+
+// Same hues as the badge variants for these statuses (status-labels.ts) — a status reads as
+// the same color everywhere in the app, not just in a Badge.
+const SEGMENT_BG: Record<(typeof COMMISSION_STATUSES)[number], string> = {
+  CONFIRMED: "bg-[var(--success)]",
+  PENDING: "bg-[var(--warning)]",
+  REVERSED: "bg-destructive",
+}
+const SEGMENT_DOT: Record<(typeof COMMISSION_STATUSES)[number], string> = {
+  CONFIRMED: "bg-[var(--success)]",
+  PENDING: "bg-[var(--warning)]",
+  REVERSED: "bg-destructive",
+}
 
 // A merchant needs a meaningful sample before its success rate means anything —
 // flagging a merchant with 1 test event and a 0% rate would just be noise.
@@ -81,15 +98,13 @@ export default function AdminOverviewPage() {
   const totalCommission =
     commissionByStatus.CONFIRMED + commissionByStatus.PENDING + commissionByStatus.REVERSED
 
-  const totalGrowthLabel = React.useMemo(
-    () => formatGrowthPct(monthOverMonthGrowth(events ?? [], (e) => e.reportedAt, (e) => e.commissionAmount)),
+  const totalGrowth = React.useMemo(
+    () => monthOverMonthGrowth(events ?? [], (e) => e.reportedAt, (e) => e.commissionAmount),
     [events],
   )
-  const confirmedGrowthLabel = React.useMemo(
+  const confirmedGrowth = React.useMemo(
     () =>
-      formatGrowthPct(
-        monthOverMonthGrowth(confirmedEvents, (e) => e.confirmedAt ?? e.reportedAt, (e) => e.commissionAmount),
-      ),
+      monthOverMonthGrowth(confirmedEvents, (e) => e.confirmedAt ?? e.reportedAt, (e) => e.commissionAmount),
     [confirmedEvents],
   )
 
@@ -203,148 +218,140 @@ export default function AdminOverviewPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:p-8">
-        <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Platform pulse</p>
-        <h2 className="text-3xl font-semibold tracking-[-0.04em]">Overview</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          A snapshot of everything happening across the Saverlly platform.
-        </p>
-      </div>
-
       <section className="flex flex-col gap-4">
-        <div>
-          <h3 className="text-base font-semibold tracking-tight">Platform snapshot</h3>
-          <p className="text-sm text-muted-foreground">Your key footprint and commission metrics in one place.</p>
-        </div>
         <BentoGrid>
-        <StatTile
-          label="Total kiosks"
-          value={kioskStats.total}
-          icon={<StoreIcon />}
-          subtext={`${kioskStats.active} active, ${kioskStats.inactive} inactive`}
-        />
-        <StatTile label="Total locations" value={locations?.length ?? 0} icon={<MapPinIcon />} />
-        <StatTile
-          label="Devices"
-          value={deviceStats.total}
-          icon={<MonitorIcon />}
-          subtext={`${deviceStats.active} active, ${deviceStats.disabled} disabled`}
-        />
-        <StatTile
-          label="Total commissions"
-          value={totalCommission}
-          format={formatCurrency}
-          icon={<BanknoteIcon />}
-          subtext={totalGrowthLabel ? `${totalGrowthLabel} this month` : undefined}
-        />
-        <StatTile
-          label="Pending commissions"
-          value={commissionByStatus.PENDING}
-          format={formatCurrency}
-          icon={<ClockIcon />}
-          subtext="Awaiting confirmation"
-        />
-        <StatTile
-          label="Confirmed commissions"
-          value={commissionByStatus.CONFIRMED}
-          format={formatCurrency}
-          icon={<CircleCheckIcon />}
-          subtext={confirmedGrowthLabel ? `${confirmedGrowthLabel} this month` : undefined}
-        />
+          <StatTile
+            label="Total kiosks"
+            value={kioskStats.total}
+            icon={<StoreIcon />}
+            subtext={`${kioskStats.active} active, ${kioskStats.inactive} inactive`}
+          />
+          <StatTile label="Total locations" value={locations?.length ?? 0} icon={<MapPinIcon />} />
+          <StatTile
+            label="Devices"
+            value={deviceStats.total}
+            icon={<MonitorIcon />}
+            subtext={`${deviceStats.active} active, ${deviceStats.disabled} disabled`}
+          />
+          <StatTile
+            label="Total commissions"
+            value={totalCommission}
+            format={formatCurrency}
+            icon={<BanknoteIcon />}
+            delta={totalGrowth}
+            trend={chartSeries.slice(-14).map((point) => point.value)}
+            subtext={totalGrowth !== null ? "vs last month" : undefined}
+          />
+          <StatTile
+            label="Pending commissions"
+            value={commissionByStatus.PENDING}
+            format={formatCurrency}
+            icon={<ClockIcon />}
+            subtext="Awaiting confirmation"
+          />
+          <StatTile
+            label="Confirmed commissions"
+            value={commissionByStatus.CONFIRMED}
+            format={formatCurrency}
+            icon={<CircleCheckIcon />}
+            delta={confirmedGrowth}
+            trend={chartSeries.slice(-14).map((point) => point.value)}
+            subtext={confirmedGrowth !== null ? "vs last month" : undefined}
+          />
         </BentoGrid>
       </section>
 
-      <section className="flex flex-col gap-4">
-        <div>
-          <h3 className="text-base font-semibold tracking-tight">Performance</h3>
-          <p className="text-sm text-muted-foreground">Follow confirmed commission activity and operational health.</p>
-        </div>
-        <BentoCard span={4}>
-        <div className="mb-2 flex flex-col gap-0.5">
-          <h3 className="text-sm font-semibold">Commission performance</h3>
-          <p className="text-sm text-muted-foreground">Confirmed commission trend, platform-wide.</p>
-        </div>
-        {eventsLoading ? (
-          <Skeleton className="h-[260px] w-full" />
-        ) : (
-          <TrendChart data={chartSeries} valueLabel="Commission" />
-        )}
-        </BentoCard>
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <BentoCard>
+            <div className="mb-2 flex flex-col gap-0.5">
+              <h3 className="text-sm font-semibold">Commission performance</h3>
+              <p className="text-sm text-muted-foreground">Confirmed commission trend, platform-wide.</p>
+            </div>
+            {eventsLoading ? (
+              <Skeleton className="h-[260px] w-full" />
+            ) : (
+              <TrendChart data={chartSeries} valueLabel="Commission" />
+            )}
+          </BentoCard>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <BentoCard>
-          <div className="flex h-full flex-col gap-3">
-            <h3 className="text-sm font-semibold">Commission status</h3>
-            <div className="flex flex-1 flex-col justify-center gap-3">
+          <BentoCard>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Commission breakdown</h3>
+              <Link href="/admin/commissions" className="text-sm text-muted-foreground hover:underline">
+                View all →
+              </Link>
+            </div>
+            <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
               {COMMISSION_STATUSES.map((status) => {
-                const amount = commissionByStatus[status]
-                const pct = totalCommission > 0 ? (amount / totalCommission) * 100 : 0
+                const pct = totalCommission > 0 ? (commissionByStatus[status] / totalCommission) * 100 : 0
+                if (pct <= 0) return null
                 return (
-                  <div key={status} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Badge variant={COMMISSION_STATUS_BADGE_VARIANT[status]}>
-                        {COMMISSION_STATUS_LABEL[status]}
-                      </Badge>
-                    </span>
-                    <span className="text-sm font-medium">
-                      {formatCurrency(amount)} <span className="text-muted-foreground">{pct.toFixed(1)}%</span>
-                    </span>
-                  </div>
+                  <motion.div
+                    key={status}
+                    className={cn("h-full", SEGMENT_BG[status])}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                  />
                 )
               })}
             </div>
-            <Link href="/admin/commissions" className="text-sm text-muted-foreground hover:underline">
-              View all commissions →
-            </Link>
-          </div>
-        </BentoCard>
-
-        <Meter
-          label="Kiosks active"
-          value={kioskStats.active}
-          max={kioskStats.total}
-          caption={`${kioskStats.active} of ${kioskStats.total} kiosks active`}
-        />
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+              {COMMISSION_STATUSES.map((status) => (
+                <div key={status} className="flex items-center gap-2 text-sm">
+                  <span className={cn("size-2.5 shrink-0 rounded-full", SEGMENT_DOT[status])} />
+                  <span className="text-muted-foreground">{COMMISSION_STATUS_LABEL[status]}</span>
+                  <span className="font-medium">{formatCurrency(commissionByStatus[status])}</span>
+                </div>
+              ))}
+            </div>
+          </BentoCard>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Meter
-          label="Devices active"
-          value={deviceStats.active}
-          max={deviceStats.total}
-          caption={`${deviceStats.active} of ${deviceStats.total} devices active`}
-        />
-
-        <BentoCard>
-          <div className="flex h-full flex-col gap-3">
-            <h3 className="text-sm font-semibold">Coupon performance</h3>
-            <div className="flex flex-1 flex-col justify-center gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total attempts</span>
-                <span className="text-sm font-medium">{couponTotals.attempts.toLocaleString()}</span>
+        <div className="flex flex-col gap-4 lg:col-span-1">
+          <Gauge
+            label="Kiosks active"
+            value={kioskStats.active}
+            max={kioskStats.total}
+            caption={`${kioskStats.active} of ${kioskStats.total} kiosks active`}
+          />
+          <Gauge
+            label="Devices active"
+            value={deviceStats.active}
+            max={deviceStats.total}
+            caption={`${deviceStats.active} of ${deviceStats.total} devices active`}
+          />
+          <BentoCard>
+            <div className="flex h-full flex-col gap-3">
+              <h3 className="text-sm font-semibold">Coupon performance</h3>
+              <div className="flex flex-1 flex-col justify-center gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Total attempts</span>
+                  <span className="text-sm font-medium">{couponTotals.attempts.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Successful</span>
+                  <span className="text-sm font-medium">{couponTotals.success.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Failed</span>
+                  <span className="text-sm font-medium">{couponTotals.fail.toLocaleString()}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between border-t border-black/6 pt-2">
+                  <span className="text-sm text-muted-foreground">Success rate</span>
+                  <span className="text-sm font-semibold">
+                    {couponTotals.attempts > 0
+                      ? `${((couponTotals.success / couponTotals.attempts) * 100).toFixed(1)}%`
+                      : "—"}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Successful</span>
-                <span className="text-sm font-medium">{couponTotals.success.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Failed</span>
-                <span className="text-sm font-medium">{couponTotals.fail.toLocaleString()}</span>
-              </div>
-              <div className="mt-1 flex items-center justify-between border-t border-black/6 pt-2">
-                <span className="text-sm text-muted-foreground">Success rate</span>
-                <span className="text-sm font-semibold">
-                  {couponTotals.attempts > 0
-                    ? `${((couponTotals.success / couponTotals.attempts) * 100).toFixed(1)}%`
-                    : "—"}
-                </span>
-              </div>
+              <Link href="/admin/coupons" className="text-sm text-muted-foreground hover:underline">
+                View coupon analytics →
+              </Link>
             </div>
-            <Link href="/admin/coupons" className="text-sm text-muted-foreground hover:underline">
-              View coupon analytics →
-            </Link>
-          </div>
-        </BentoCard>
+          </BentoCard>
         </div>
       </section>
 
@@ -356,21 +363,47 @@ export default function AdminOverviewPage() {
               View all →
             </Link>
           </div>
-          <div className="flex flex-col gap-2">
-            {kiosksLoading &&
-              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-            {!kiosksLoading && topKiosks.length === 0 && (
-              <p className="text-sm text-muted-foreground">No confirmed commissions yet.</p>
-            )}
-            {topKiosks.map((row, i) => (
-              <div key={row.key} className="flex items-center justify-between py-1">
-                <span className="text-sm">
-                  <span className="text-muted-foreground">{i + 1}.</span> {row.name}
-                </span>
-                <span className="text-sm font-medium">{formatCurrency(row.total)}</span>
-              </div>
-            ))}
-          </div>
+          <Table>
+            <TableBody>
+              {(kiosksLoading || eventsLoading) &&
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={3}>
+                      <Skeleton className="h-8 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              {!kiosksLoading && !eventsLoading && topKiosks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-muted-foreground">
+                    No confirmed commissions yet.
+                  </TableCell>
+                </TableRow>
+              )}
+              {topKiosks.map((row, i) => (
+                <TableRow key={row.key} index={i} className="border-0">
+                  <TableCell className="w-10 pr-0">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-xs font-semibold text-[var(--brand-teal)]">
+                      {i + 1}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-medium">{row.name}</TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(row.total)}</TableCell>
+                  <TableCell className="w-16">
+                    <TableRowActions>
+                      <Link
+                        href={`/admin/kiosks/${row.key}`}
+                        className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                        aria-label={`View ${row.name}`}
+                      >
+                        <ArrowUpRightIcon className="size-3.5" />
+                      </Link>
+                    </TableRowActions>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </BentoCard>
 
         <BentoCard>
@@ -380,22 +413,51 @@ export default function AdminOverviewPage() {
               View all →
             </Link>
           </div>
-          <div className="flex flex-col gap-2">
-            {topMerchants.length === 0 && (
-              <p className="text-sm text-muted-foreground">No confirmed commissions yet.</p>
-            )}
-            {topMerchants.map((row) => (
-              <div key={row.key} className="flex items-center justify-between py-1">
-                <span className="text-sm">{row.name}</span>
-                <span className="flex items-center gap-3 text-sm">
-                  <span className="font-medium">{formatCurrency(row.total)}</span>
-                  <span className="text-muted-foreground">
-                    {row.successRate !== null ? `${row.successRate.toFixed(0)}% coupons` : "—"}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
+          <Table>
+            <TableBody>
+              {eventsLoading &&
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={4}>
+                      <Skeleton className="h-8 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              {!eventsLoading && topMerchants.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    No confirmed commissions yet.
+                  </TableCell>
+                </TableRow>
+              )}
+              {topMerchants.map((row, i) => (
+                <TableRow key={row.key} index={i} className="border-0">
+                  <TableCell className="font-medium">{row.name}</TableCell>
+                  <TableCell>
+                    {row.successRate !== null ? (
+                      <Badge variant={row.successRate >= 50 ? "success" : "warning"}>
+                        {row.successRate.toFixed(0)}% coupons
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(row.total)}</TableCell>
+                  <TableCell className="w-16">
+                    <TableRowActions>
+                      <Link
+                        href={`/admin/merchants/${row.key}`}
+                        className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                        aria-label={`View ${row.name}`}
+                      >
+                        <ArrowUpRightIcon className="size-3.5" />
+                      </Link>
+                    </TableRowActions>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </BentoCard>
       </div>
 
@@ -425,7 +487,7 @@ export default function AdminOverviewPage() {
 
         <BentoCard>
           <div className="mb-3 flex items-center gap-2">
-            <TriangleAlertIcon className="size-4 text-amber-600" />
+            <TriangleAlertIcon className="size-4 text-[var(--warning)]" />
             <h3 className="text-sm font-semibold">Needs attention</h3>
           </div>
           <div className="flex flex-col gap-3">
@@ -479,26 +541,27 @@ export default function AdminOverviewPage() {
               <TableHead>Kiosk</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Reported</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {eventsLoading &&
               Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={5}>
                     <Skeleton className="h-6 w-full" />
                   </TableCell>
                 </TableRow>
               ))}
             {!eventsLoading && recentEvents.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No commission events yet.
                 </TableCell>
               </TableRow>
             )}
-            {recentEvents.map((event) => (
-              <TableRow key={event.id}>
+            {recentEvents.map((event, index) => (
+              <TableRow key={event.id} index={index}>
                 <TableCell className="font-medium">
                   {merchantNameById.get(event.merchantId) ?? "Unknown merchant"}
                 </TableCell>
@@ -511,6 +574,7 @@ export default function AdminOverviewPage() {
                     {COMMISSION_STATUS_LABEL[event.status]}
                   </Badge>
                 </TableCell>
+                <TableCell className="text-muted-foreground">{relativeTime(event.reportedAt)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -531,15 +595,23 @@ export default function AdminOverviewPage() {
               <Link
                 key={kiosk.id}
                 href={`/admin/kiosks/${kiosk.id}`}
-                className="-mx-2 flex flex-col gap-0.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--brand-teal-tint)]/50"
+                className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--brand-teal-tint)]/50"
               >
-                <span className="text-sm font-medium">
-                  {kiosk.name}{" "}
-                  <span className="font-normal text-muted-foreground">
-                    was {justCreated ? "created" : "updated"}
+                <span
+                  className={cn(
+                    "size-2 shrink-0 rounded-full",
+                    justCreated ? "bg-[var(--info)]" : "bg-[var(--success)]",
+                  )}
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">
+                    {kiosk.name}{" "}
+                    <span className="font-normal text-muted-foreground">
+                      was {justCreated ? "created" : "updated"}
+                    </span>
                   </span>
-                </span>
-                <span className="text-xs text-muted-foreground">{relativeTime(kiosk.updatedAt)}</span>
+                  <span className="text-xs text-muted-foreground">{relativeTime(kiosk.updatedAt)}</span>
+                </div>
               </Link>
             )
           })}

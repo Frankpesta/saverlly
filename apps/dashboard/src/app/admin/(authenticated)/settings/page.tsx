@@ -1,9 +1,9 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ChangePasswordCard } from "@/components/settings/change-password-card"
+import { SettingsSection } from "@/components/settings/settings-section"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 
 export default function AdminSettingsPage() {
@@ -16,21 +16,18 @@ export default function AdminSettingsPage() {
         <p className="text-sm text-muted-foreground">Your account.</p>
       </div>
 
-      <div className="flex flex-wrap items-start gap-6">
-        <Card className="w-full max-w-lg">
-          <CardHeader>
-            <CardTitle>Account</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2">
+        <SettingsSection title="Account" description="The identity used to manage Saverlly.">
+          <div className="flex flex-col gap-3">
             {userLoading && <Skeleton className="h-10 w-full" />}
             {currentUser && (
-              <div className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3">
+              <div className="flex items-center justify-between border-y border-black/[0.06] py-3">
                 <span className="text-sm font-medium">{currentUser.email}</span>
                 <Badge variant="secondary">Admin</Badge>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SettingsSection>
 
         <ChangePasswordCard />
       </div>

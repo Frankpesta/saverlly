@@ -41,6 +41,8 @@ import { bucketByDay, deviceCounts, formatGrowthPct, monthOverMonthGrowth } from
 import {
   COMMISSION_STATUS_BADGE_VARIANT,
   COMMISSION_STATUS_LABEL,
+  KIOSK_STATUS_BADGE_VARIANT,
+  KIOSK_STATUS_LABEL,
   PAYOUT_STATUS_BADGE_VARIANT,
   PAYOUT_STATUS_LABEL,
 } from "@/lib/dashboard/status-labels"
@@ -162,18 +164,17 @@ export default function PortalOverviewPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-5 rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
-        <div className="max-w-2xl">
-          <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Kiosk performance</p>
-          <h2 className="text-3xl font-semibold tracking-[-0.04em]">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">
             {greeting()}, {displayName}
           </h2>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             {kioskLoading ? (
               <Skeleton className="h-5 w-16" />
             ) : (
-              <Badge variant={kiosk?.status === "ACTIVE" ? "default" : "secondary"}>
-                {kiosk?.status ?? "—"}
+              <Badge variant={kiosk ? KIOSK_STATUS_BADGE_VARIANT[kiosk.status] : "secondary"}>
+                {kiosk ? KIOSK_STATUS_LABEL[kiosk.status] : "—"}
               </Badge>
             )}
             {kiosk?.name && <span>{kiosk.name}</span>}
@@ -210,6 +211,7 @@ export default function PortalOverviewPage() {
           value={totalEarnings}
           format={formatCurrency}
           icon={<TrendingUpIcon />}
+          trend={chartSeries.slice(-14).map((point) => point.value)}
           subtext="Lifetime"
         />
         <StatTile

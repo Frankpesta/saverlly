@@ -30,6 +30,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useCoupons, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
@@ -57,7 +58,7 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
   }
 
   return (
-    <Card className="w-full max-w-2xl">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Coupons</CardTitle>
         <CouponDialog merchantId={merchantId} />
@@ -92,8 +93,8 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
               </TableRow>
             )}
 
-            {coupons.map((coupon) => (
-              <TableRow key={coupon.id}>
+            {coupons.map((coupon, index) => (
+              <TableRow key={coupon.id} index={index}>
                 <TableCell className="font-medium">{coupon.code}</TableCell>
                 <TableCell>
                   <Badge variant="outline">{coupon.source}</Badge>
@@ -102,7 +103,7 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
                   {coupon.successCount} / {coupon.failCount}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center justify-end gap-3">
+                  <TableRowActions>
                     <CouponDialog merchantId={merchantId} coupon={coupon} />
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -134,7 +135,7 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  </div>
+                  </TableRowActions>
                 </TableCell>
               </TableRow>
             ))}

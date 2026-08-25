@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion } from "motion/react"
-import { MapPinIcon, MonitorIcon, StoreIcon } from "lucide-react"
+import { PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -13,14 +13,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
-import { BentoGrid } from "@/components/dashboard/bento-grid"
-import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
+import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { usePagination } from "@/hooks/use-pagination"
+import { cn } from "@/lib/utils"
 import { NewLocationDialog } from "./new-location-dialog"
 
 export default function AdminLocationsPage() {
@@ -51,25 +52,23 @@ export default function AdminLocationsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Locations</h2>
-          <p className="text-sm text-muted-foreground">
-            Every location across every kiosk business on the platform.
-          </p>
-        </div>
-        <NewLocationDialog />
-      </div>
+      <WorkspaceHeader
+        eyebrow="Platform network"
+        title="Locations"
+        description="Every location across every kiosk business on the platform."
+        actions={<NewLocationDialog />}
+      />
 
-      <BentoGrid>
-        <StatTile label="Total locations" value={stats.total} icon={<MapPinIcon />} />
-        <StatTile label="Total devices" value={stats.devices} icon={<MonitorIcon />} />
-        <StatTile label="Kiosks represented" value={stats.kiosks} icon={<StoreIcon />} />
-      </BentoGrid>
+      <CollectionSummary items={[
+        { label: "Locations", value: stats.total, detail: "Across the platform" },
+        { label: "Devices", value: stats.devices, detail: "Registered endpoints" },
+        { label: "Kiosks represented", value: stats.kiosks, detail: "With live locations" },
+      ]} />
 
       {isError && <p className="text-sm text-destructive">Could not load locations.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <CollectionArea title="Location directory" description="Review locations, their kiosk ownership, and attached devices." count={totalItems}>
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -100,13 +99,7 @@ export default function AdminLocationsPage() {
             )}
 
             {pageItems.map((location, index) => (
-              <motion.tr
-                key={location.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: index * 0.03 }}
-                className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-              >
+              <TableRow key={location.id} index={index}>
                 <TableCell className="font-medium">
                   <Link href={`/admin/locations/${location.id}`} className="hover:underline">
                     {location.name}
@@ -130,14 +123,17 @@ export default function AdminLocationsPage() {
                 </TableCell>
                 <TableCell>{deviceCountByLocation.get(location.id) ?? 0}</TableCell>
                 <TableCell>
-                  <Link
-                    href={`/admin/locations/${location.id}`}
-                    className="text-sm text-muted-foreground hover:underline"
-                  >
-                    Edit
-                  </Link>
+                  <TableRowActions>
+                    <Link
+                      href={`/admin/locations/${location.id}`}
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${location.name}`}
+                    >
+                      <PencilIcon className="size-3.5" />
+                    </Link>
+                  </TableRowActions>
                 </TableCell>
-              </motion.tr>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
@@ -149,6 +145,7 @@ export default function AdminLocationsPage() {
           onPageChange={setPage}
         />
       </div>
+      </CollectionArea>
     </div>
   )
 }

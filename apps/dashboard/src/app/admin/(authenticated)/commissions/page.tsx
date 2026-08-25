@@ -37,7 +37,7 @@ import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
 import { formatCurrency } from "@/lib/format-currency"
-import { buildDeviceKioskMap, sumByStatus } from "@/lib/dashboard/aggregate"
+import { buildDeviceKioskMap, monthOverMonthGrowth, sumByStatus } from "@/lib/dashboard/aggregate"
 import { COMMISSION_STATUS_BADGE_VARIANT, COMMISSION_STATUS_LABEL } from "@/lib/dashboard/status-labels"
 import { usePagination } from "@/hooks/use-pagination"
 import type { CommissionEventStatus } from "@/lib/api/types"
@@ -61,6 +61,13 @@ export default function AdminCommissionsPage() {
   }
 
   const { data: events, isLoading, isError } = useCommissionEvents(filter)
+  // Ticks every minute so the growth stats below recompute across a calendar-month boundary
+  // even if `events` itself hasn't changed (mirrors announcements/page.tsx).
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(events)
   const { data: kiosks } = useKiosks()
   const { data: merchants } = useMerchants()
@@ -86,6 +93,25 @@ export default function AdminCommissionsPage() {
   const byStatus = React.useMemo(
     () => sumByStatus(events ?? [], (e) => e.status, (e) => e.commissionAmount, STATUSES),
     [events],
+  )
+
+  const totalGrowth = React.useMemo(
+    () => monthOverMonthGrowth(events ?? [], (e) => e.reportedAt, () => 1),
+    // `now` isn't read directly, but it ticks every minute so this recomputes across a
+    // calendar-month boundary even if `events` itself hasn't changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, now],
+  )
+  const confirmedGrowth = React.useMemo(
+    () =>
+      monthOverMonthGrowth(
+        (events ?? []).filter((e) => e.status === "CONFIRMED"),
+        (e) => e.confirmedAt ?? e.reportedAt,
+        (e) => e.commissionAmount,
+      ),
+    // see totalGrowth above
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, now],
   )
 
   function handleSyncNow() {
@@ -115,12 +141,20 @@ export default function AdminCommissionsPage() {
       </div>
 
       <BentoGrid>
-        <StatTile label="Total events" value={events?.length ?? 0} icon={<ReceiptIcon />} />
+        <StatTile
+          label="Total events"
+          value={events?.length ?? 0}
+          icon={<ReceiptIcon />}
+          delta={totalGrowth}
+          subtext={totalGrowth !== null ? "vs last month" : undefined}
+        />
         <StatTile
           label="Confirmed"
           value={byStatus.CONFIRMED}
           format={formatCurrency}
           icon={<CircleCheckIcon />}
+          delta={confirmedGrowth}
+          subtext={confirmedGrowth !== null ? "vs last month" : undefined}
         />
         <StatTile
           label="Pending"
@@ -191,7 +225,7 @@ export default function AdminCommissionsPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load commission events.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -220,8 +254,8 @@ export default function AdminCommissionsPage() {
               </TableRow>
             )}
 
-            {pageItems.map((event) => (
-              <TableRow key={event.id}>
+            {pageItems.map((event, index) => (
+              <TableRow key={event.id} index={index}>
                 <TableCell className="font-medium">
                   {merchantNameById.get(event.merchantId) ?? "Unknown merchant"}
                 </TableCell>

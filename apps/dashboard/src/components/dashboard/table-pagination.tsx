@@ -3,9 +3,9 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-/** A footer bar for a table wrapper (`overflow-hidden rounded-2xl border ...`) — render it as
- * the sibling right after `<Table>`, not inside it, so it shares the wrapper's rounded corners.
- * Renders nothing once everything fits on one page. */
+/** A compact table footer that stays visually independent from the rows above. Render it as
+ * the sibling right after `<Table>`; the table's separated rows should never be forced into a
+ * single heavyweight container just to accommodate pagination. */
 export function TablePagination({
   page,
   pageCount,
@@ -25,7 +25,7 @@ export function TablePagination({
   const end = Math.min(page * pageSize, totalItems)
 
   return (
-    <div className="flex items-center justify-between border-t border-black/8 px-4 py-3">
+    <div className="mt-3 flex items-center justify-between rounded-xl border border-black/[0.06] bg-card px-5 py-3 shadow-[0_8px_24px_rgba(17,27,24,0.035)]">
       <p className="text-sm text-muted-foreground">
         Showing {start}–{end} of {totalItems}
       </p>

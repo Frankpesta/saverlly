@@ -3,12 +3,11 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "motion/react"
-import { AlertCircleIcon, Loader2Icon } from "lucide-react"
+import { AlertCircleIcon, ArrowRightIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { AuthShell } from "@/components/auth/auth-shell"
+import { AuthField } from "@/components/auth/auth-field"
 
 export function LoginForm({
   portal,
@@ -60,9 +59,10 @@ export function LoginForm({
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="w-full max-w-sm"
       >
-        <div className="mb-8 flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground">Sign in to your account to continue.</p>
+        <div className="mb-10 flex flex-col gap-2">
+          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-teal)] uppercase">Secure sign in</p>
+          <h1 className="text-3xl font-semibold tracking-[-0.045em]">{title}</h1>
+          <p className="text-sm leading-6 text-muted-foreground">Sign in to continue to your workspace.</p>
         </div>
 
         <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
@@ -72,33 +72,12 @@ export function LoginForm({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="h-11"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="h-11"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <Button type="submit" disabled={submitting} className="mt-2 h-11">
+          <AuthField id="email" label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} icon={<MailIcon />} />
+          <AuthField id="password" label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} icon={<LockIcon />} />
+          <Button type="submit" disabled={submitting} className="auth-submit mt-2 h-12">
             {submitting && <Loader2Icon className="animate-spin" />}
             {submitting ? "Signing in…" : "Sign in"}
+            {!submitting && <ArrowRightIcon className="size-4" />}
           </Button>
         </form>
       </motion.div>

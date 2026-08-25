@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { cn } from "@/lib/utils"
+import { navItemClassName } from "@/lib/nav-item-class"
 
 export function NavMain({
   items,
@@ -38,12 +38,7 @@ export function NavMain({
                   asChild
                   tooltip={item.title}
                   isActive={active}
-                  className={cn(
-                    "h-10 rounded-xl px-3 font-medium transition-all",
-                    active
-                      ? "bg-card text-foreground shadow-sm ring-1 ring-black/8 [&_svg]:text-[var(--brand-teal)]"
-                      : "text-sidebar-foreground/70 hover:translate-x-0.5 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
-                  )}
+                  className={navItemClassName(active)}
                 >
                   <Link href={item.url} onClick={() => setOpenMobile(false)}>
                     {item.icon}

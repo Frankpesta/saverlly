@@ -2,10 +2,10 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion } from "motion/react"
 import { toast } from "sonner"
-import { StoreIcon, CircleCheckIcon, CirclePauseIcon, PercentIcon } from "lucide-react"
+import { PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -15,14 +15,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
-import { BentoGrid } from "@/components/dashboard/bento-grid"
-import { StatTile } from "@/components/dashboard/stat-tile"
-import { Meter } from "@/components/dashboard/meter"
 import { TablePagination } from "@/components/dashboard/table-pagination"
+import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useKiosks, useUpdateKioskStatus } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
 import { usePagination } from "@/hooks/use-pagination"
+import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
+import { cn } from "@/lib/utils"
 import { NewKioskDialog } from "./new-kiosk-dialog"
 
 export default function KiosksPage() {
@@ -54,43 +55,24 @@ export default function KiosksPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-5 rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:flex-row sm:items-end sm:justify-between sm:p-8">
-        <div className="max-w-2xl">
-          <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Business network</p>
-          <h2 className="text-3xl font-semibold tracking-[-0.04em]">Kiosks</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Every kiosk business on the platform, their status, and revenue share.
-          </p>
-        </div>
-        <NewKioskDialog />
-      </div>
+    <div className="flex flex-col gap-6">
+      <WorkspaceHeader
+        eyebrow="Platform network"
+        title="Kiosks"
+        description="Every kiosk business on the platform, their status, and revenue share."
+        actions={<NewKioskDialog />}
+      />
 
-      <BentoGrid>
-        <StatTile label="Total kiosks" value={stats.total} icon={<StoreIcon />} />
-        <StatTile label="Active" value={stats.active} icon={<CircleCheckIcon />} />
-        <StatTile label="Inactive" value={stats.inactive} icon={<CirclePauseIcon />} />
-        <StatTile
-          label="Avg. revenue share"
-          value={stats.avgShare}
-          icon={<PercentIcon />}
-          format={(n) => `${n.toFixed(1)}%`}
-        />
-        <Meter
-          label="Kiosks active"
-          value={stats.active}
-          max={stats.total}
-          caption={`${stats.active} of ${stats.total} kiosks active`}
-        />
-      </BentoGrid>
+      <CollectionSummary items={[
+        { label: "Kiosks", value: stats.total, detail: "Registered businesses" },
+        { label: "Active", value: stats.active, detail: `${stats.active} of ${stats.total} kiosks active` },
+        { label: "Avg. revenue share", value: `${stats.avgShare.toFixed(1)}%`, detail: "Across all kiosks" },
+      ]} />
 
       {isError && <p className="text-sm text-destructive">Could not load kiosks.</p>}
 
-      <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-card shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
-        <div className="flex flex-col gap-1 border-b border-border/70 px-5 py-4 sm:px-6">
-          <h3 className="font-semibold tracking-tight">All kiosks</h3>
-          <p className="text-sm text-muted-foreground">Manage status and revenue sharing for each kiosk business.</p>
-        </div>
+      <CollectionArea title="Kiosk directory" description="Manage status and revenue sharing for each kiosk business." count={totalItems}>
+        <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -120,13 +102,7 @@ export default function KiosksPage() {
             )}
 
             {pageItems.map((kiosk, index) => (
-              <motion.tr
-                key={kiosk.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: index * 0.03 }}
-                className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-              >
+              <TableRow key={kiosk.id} index={index}>
                 <TableCell className="font-medium">
                   <Link href={`/admin/kiosks/${kiosk.id}`} className="hover:underline">
                     {kiosk.name}
@@ -140,22 +116,25 @@ export default function KiosksPage() {
                       disabled={updateStatus.isPending}
                       aria-label={`Toggle ${kiosk.name} status`}
                     />
-                    <Badge variant={kiosk.status === "ACTIVE" ? "default" : "secondary"}>
-                      {kiosk.status}
+                    <Badge variant={KIOSK_STATUS_BADGE_VARIANT[kiosk.status]}>
+                      {KIOSK_STATUS_LABEL[kiosk.status]}
                     </Badge>
                   </div>
                 </TableCell>
                 <TableCell>{kiosk.revenueSharePct}%</TableCell>
                 <TableCell>{kiosk.contactEmail}</TableCell>
                 <TableCell>
-                  <Link
-                    href={`/admin/kiosks/${kiosk.id}`}
-                    className="text-sm text-muted-foreground hover:underline"
-                  >
-                    Edit
-                  </Link>
+                  <TableRowActions>
+                    <Link
+                      href={`/admin/kiosks/${kiosk.id}`}
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${kiosk.name}`}
+                    >
+                      <PencilIcon className="size-3.5" />
+                    </Link>
+                  </TableRowActions>
                 </TableCell>
-              </motion.tr>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
@@ -166,7 +145,8 @@ export default function KiosksPage() {
           pageSize={pageSize}
           onPageChange={setPage}
         />
-      </section>
+        </div>
+      </CollectionArea>
     </div>
   )
 }

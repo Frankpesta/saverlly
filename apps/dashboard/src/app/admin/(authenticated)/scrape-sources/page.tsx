@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "motion/react"
 import { toast } from "sonner"
 import { DatabaseIcon, CircleCheckIcon, PlayIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
@@ -66,7 +66,7 @@ export default function ScrapeSourcesPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load scrape sources.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -152,12 +152,7 @@ function ScrapeSourceRow({
   }
 
   return (
-    <motion.tr
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.03 }}
-      className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-    >
+    <TableRow index={index}>
       <TableCell className="max-w-64 truncate font-medium" title={source.url}>
         {source.url}
       </TableCell>
@@ -175,20 +170,21 @@ function ScrapeSourceRow({
         />
       </TableCell>
       <TableCell>
-        <div className="flex items-center justify-end gap-3">
+        <TableRowActions>
           <ScrapeSourceDialog merchants={merchants} source={source} />
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
+            className="text-primary"
             onClick={handleRunNow}
             disabled={runNow.isPending}
             aria-label="Run now"
           >
             <PlayIcon className="size-3.5" />
           </Button>
-        </div>
+        </TableRowActions>
       </TableCell>
-    </motion.tr>
+    </TableRow>
   )
 }

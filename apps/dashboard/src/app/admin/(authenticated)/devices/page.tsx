@@ -1,9 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "motion/react"
 import { toast } from "sonner"
-import { MonitorIcon, CircleCheckIcon, CirclePauseIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
@@ -15,9 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { BentoGrid } from "@/components/dashboard/bento-grid"
-import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
+import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useDevices, useUpdateDevice } from "@/lib/api/hooks/use-devices"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
@@ -74,22 +71,22 @@ export default function AdminDevicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Devices</h2>
-        <p className="text-sm text-muted-foreground">
-          Every device registered across every kiosk on the platform.
-        </p>
-      </div>
+      <WorkspaceHeader
+        eyebrow="Platform network"
+        title="Devices"
+        description="Every device registered across every kiosk on the platform."
+      />
 
-      <BentoGrid>
-        <StatTile label="Total devices" value={stats.total} icon={<MonitorIcon />} />
-        <StatTile label="Active" value={stats.active} icon={<CircleCheckIcon />} />
-        <StatTile label="Seen in the last hour" value={stats.online} icon={<CirclePauseIcon />} />
-      </BentoGrid>
+      <CollectionSummary items={[
+        { label: "Devices", value: stats.total, detail: "Registered endpoints" },
+        { label: "Active", value: stats.active, detail: "Available to report" },
+        { label: "Seen in the last hour", value: stats.online, detail: "Currently responsive" },
+      ]} />
 
       {isError && <p className="text-sm text-destructive">Could not load devices.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <CollectionArea title="Device directory" description="Review device health across the platform and manage each endpoint." count={totalItems}>
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -121,13 +118,7 @@ export default function AdminDevicesPage() {
             {pageItems.map((device, index) => {
               const location = locationById.get(device.locationId)
               return (
-                <motion.tr
-                  key={device.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: index * 0.03 }}
-                  className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-                >
+                <TableRow key={device.id} index={index}>
                   <TableCell className="font-medium">{device.label}</TableCell>
                   <TableCell>
                     {location ? (kioskNameById.get(location.kioskId) ?? "—") : "—"}
@@ -144,12 +135,12 @@ export default function AdminDevicesPage() {
                         disabled={updateDevice.isPending}
                         aria-label={`Toggle ${device.label} status`}
                       />
-                      <Badge variant={device.active ? "default" : "secondary"}>
+                      <Badge variant={device.active ? "success" : "secondary"}>
                         {device.active ? "Active" : "Disabled"}
                       </Badge>
                     </div>
                   </TableCell>
-                </motion.tr>
+                </TableRow>
               )
             })}
           </TableBody>
@@ -162,6 +153,7 @@ export default function AdminDevicesPage() {
           onPageChange={setPage}
         />
       </div>
+      </CollectionArea>
     </div>
   )
 }

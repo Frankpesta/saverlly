@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import KiosksPage from "./page"
@@ -102,8 +102,10 @@ describe("KiosksPage", () => {
 
     expect(await screen.findByText("Kiosk One")).toBeInTheDocument()
     expect(screen.getByText("Kiosk Two")).toBeInTheDocument()
-    expect(screen.getByText("ACTIVE")).toBeInTheDocument()
-    expect(screen.getByText("INACTIVE")).toBeInTheDocument()
+    const rowOne = screen.getByText("Kiosk One").closest("tr")!
+    const rowTwo = screen.getByText("Kiosk Two").closest("tr")!
+    expect(within(rowOne).getByText("Active")).toBeInTheDocument()
+    expect(within(rowTwo).getByText("Inactive")).toBeInTheDocument()
     expect(screen.getByText("30%")).toBeInTheDocument()
     expect(screen.getByText("25.5%")).toBeInTheDocument()
     expect(screen.getByText("owner1@example.com")).toBeInTheDocument()

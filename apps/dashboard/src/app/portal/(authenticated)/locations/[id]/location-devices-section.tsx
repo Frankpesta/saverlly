@@ -26,7 +26,7 @@ export function LocationDevicesSection({ locationId }: { locationId: string }) {
   }
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card>
       <CardHeader>
         <CardTitle>Devices</CardTitle>
       </CardHeader>
@@ -41,7 +41,7 @@ export function LocationDevicesSection({ locationId }: { locationId: string }) {
         {atThisLocation.map((device) => (
           <div
             key={device.id}
-            className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3"
+            className="flex items-center justify-between rounded-lg border border-black/8 px-4 py-3"
           >
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-medium">{device.label}</span>
@@ -50,7 +50,7 @@ export function LocationDevicesSection({ locationId }: { locationId: string }) {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant={device.active ? "default" : "secondary"}>
+              <Badge variant={device.active ? "success" : "secondary"}>
                 {device.active ? "Active" : "Disabled"}
               </Badge>
               <Switch

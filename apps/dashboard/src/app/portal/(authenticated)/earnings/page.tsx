@@ -32,6 +32,7 @@ import {
   PAYOUT_STATUS_BADGE_VARIANT,
   PAYOUT_STATUS_LABEL,
 } from "@/lib/dashboard/status-labels"
+import { bucketByDay, monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
 
 export default function PortalEarningsPage() {
   const { data: currentUser } = useCurrentUser()
@@ -49,6 +50,20 @@ export default function PortalEarningsPage() {
   )
   const totalEarnings = React.useMemo(
     () => confirmedEvents.reduce((sum, e) => sum + e.kioskShareAmount, 0),
+    [confirmedEvents],
+  )
+  const earningsGrowth = React.useMemo(
+    () => monthOverMonthGrowth(confirmedEvents, (e) => e.confirmedAt ?? e.reportedAt, (e) => e.kioskShareAmount),
+    [confirmedEvents],
+  )
+  const earningsTrend = React.useMemo(
+    () =>
+      bucketByDay(
+        confirmedEvents,
+        (event) => event.confirmedAt ?? event.reportedAt,
+        (event) => event.kioskShareAmount,
+        14,
+      ).map((point) => point.value),
     [confirmedEvents],
   )
   const paidPayouts = React.useMemo(() => (payouts ?? []).filter((p) => p.status === "paid"), [payouts])
@@ -90,10 +105,9 @@ export default function PortalEarningsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="rounded-3xl border border-[var(--brand-teal-soft)] bg-[linear-gradient(120deg,#ffffff_0%,#f0faf8_100%)] p-6 sm:p-8">
-        <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-[var(--brand-teal)] uppercase">Revenue centre</p>
-        <h2 className="text-3xl font-semibold tracking-[-0.04em]">Earnings</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight">Earnings</h2>
+        <p className="text-sm text-muted-foreground">
           Your balance, payout history, and Stripe payout connection.
         </p>
       </div>
@@ -117,6 +131,8 @@ export default function PortalEarningsPage() {
           value={totalEarnings}
           format={formatCurrency}
           icon={<TrendingUpIcon />}
+          delta={earningsGrowth}
+          trend={earningsTrend}
           subtext="Lifetime"
         />
         <StatTile
@@ -135,7 +151,7 @@ export default function PortalEarningsPage() {
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1">
-              <Badge variant={stripePayoutsEnabled ? "default" : "secondary"} className="w-fit">
+              <Badge variant={stripePayoutsEnabled ? "success" : "secondary"} className="w-fit">
                 {stripePayoutsEnabled
                   ? "Payouts enabled"
                   : stripeAccountId
@@ -194,8 +210,8 @@ export default function PortalEarningsPage() {
                 </TableRow>
               )}
 
-              {eventsPagination.pageItems.map((event) => (
-                <TableRow key={event.id}>
+              {eventsPagination.pageItems.map((event, index) => (
+                <TableRow key={event.id} index={index}>
                   <TableCell className="font-medium">
                     {deviceLabelById.get(event.deviceId) ?? "Unknown device"}
                   </TableCell>
@@ -252,8 +268,8 @@ export default function PortalEarningsPage() {
                 </TableRow>
               )}
 
-              {payoutsPagination.pageItems.map((payout) => (
-                <TableRow key={payout.id}>
+              {payoutsPagination.pageItems.map((payout, index) => (
+                <TableRow key={payout.id} index={index}>
                   <TableCell>
                     {new Date(payout.periodStart).toLocaleDateString()} –{" "}
                     {new Date(payout.periodEnd).toLocaleDateString()}

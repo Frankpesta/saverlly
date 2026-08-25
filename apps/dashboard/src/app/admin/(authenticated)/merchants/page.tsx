@@ -2,10 +2,10 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion } from "motion/react"
 import { toast } from "sonner"
-import { ShoppingBagIcon, CircleCheckIcon, LinkIcon } from "lucide-react"
+import { PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -15,15 +15,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
-import { BentoGrid } from "@/components/dashboard/bento-grid"
-import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
+import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useMerchants, useUpdateMerchant } from "@/lib/api/hooks/use-merchants"
 import { useCoupons } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
 import type { AttributionMethod } from "@/lib/api/types"
 import { usePagination } from "@/hooks/use-pagination"
+import { cn } from "@/lib/utils"
 import { NewMerchantDialog } from "./new-merchant-dialog"
 
 const METHOD_LABEL: Record<AttributionMethod, string> = {
@@ -56,25 +57,23 @@ export default function MerchantsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Merchants</h2>
-          <p className="text-sm text-muted-foreground">
-            Every store tracked for commission, and how coupon codes get sourced for it.
-          </p>
-        </div>
-        <NewMerchantDialog />
-      </div>
+      <WorkspaceHeader
+        eyebrow="Commerce directory"
+        title="Merchants"
+        description="Every store tracked for commission, and how coupon codes get sourced for it."
+        actions={<NewMerchantDialog />}
+      />
 
-      <BentoGrid>
-        <StatTile label="Total merchants" value={stats.total} icon={<ShoppingBagIcon />} />
-        <StatTile label="Active" value={stats.active} icon={<CircleCheckIcon />} />
-        <StatTile label="With affiliate program" value={stats.withProgram} icon={<LinkIcon />} />
-      </BentoGrid>
+      <CollectionSummary items={[
+        { label: "Merchants", value: stats.total, detail: "Tracked stores" },
+        { label: "Active", value: stats.active, detail: "Currently enabled" },
+        { label: "With programme", value: stats.withProgram, detail: "Affiliate-linked" },
+      ]} />
 
       {isError && <p className="text-sm text-destructive">Could not load merchants.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <CollectionArea title="Merchant directory" description="Manage tracking configuration and coupon sourcing." count={totalItems}>
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -122,6 +121,7 @@ export default function MerchantsPage() {
           onPageChange={setPage}
         />
       </div>
+      </CollectionArea>
     </div>
   )
 }
@@ -148,12 +148,7 @@ function MerchantRow({
   }
 
   return (
-    <motion.tr
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.03 }}
-      className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-    >
+    <TableRow index={index}>
       <TableCell className="font-medium">
         <Link href={`/admin/merchants/${merchant.id}`} className="hover:underline">
           {merchant.name}
@@ -161,7 +156,7 @@ function MerchantRow({
       </TableCell>
       <TableCell>{merchant.domain}</TableCell>
       <TableCell>
-        <Badge variant="outline">{METHOD_LABEL[merchant.attributionMethod]}</Badge>
+        <Badge variant="info">{METHOD_LABEL[merchant.attributionMethod]}</Badge>
       </TableCell>
       <TableCell>{couponCount}</TableCell>
       <TableCell>
@@ -173,13 +168,16 @@ function MerchantRow({
         />
       </TableCell>
       <TableCell>
-        <Link
-          href={`/admin/merchants/${merchant.id}`}
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          Edit
-        </Link>
+        <TableRowActions>
+          <Link
+            href={`/admin/merchants/${merchant.id}`}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+            aria-label={`Edit ${merchant.name}`}
+          >
+            <PencilIcon className="size-3.5" />
+          </Link>
+        </TableRowActions>
       </TableCell>
-    </motion.tr>
+    </TableRow>
   )
 }

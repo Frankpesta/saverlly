@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion } from "motion/react"
-import { MegaphoneIcon, CircleCheckIcon, ClockIcon } from "lucide-react"
+import { MegaphoneIcon, CircleCheckIcon, ClockIcon, PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -13,6 +13,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
@@ -21,6 +22,9 @@ import { useAnnouncements } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { usePagination } from "@/hooks/use-pagination"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
+import { ANNOUNCEMENT_STATUS_BADGE_VARIANT, type AnnouncementStatus } from "@/lib/dashboard/status-labels"
+import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
+import { cn } from "@/lib/utils"
 import { NewAnnouncementDialog } from "./new-announcement-dialog"
 
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
@@ -29,19 +33,13 @@ const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   MAX_N_TIMES: "Max N times",
 }
 
-function statusFor(announcement: Announcement, now: number): "Scheduled" | "Active" | "Expired" {
+function statusFor(announcement: Announcement, now: number): AnnouncementStatus {
   const start = new Date(announcement.startAt).getTime()
   const end = new Date(announcement.endAt).getTime()
   if (now < start) return "Scheduled"
   if (now > end) return "Expired"
   return "Active"
 }
-
-const STATUS_BADGE_VARIANT = {
-  Scheduled: "secondary",
-  Active: "default",
-  Expired: "secondary",
-} as const
 
 export default function AnnouncementsPage() {
   const { data: announcements, isLoading, isError } = useAnnouncements()
@@ -61,6 +59,11 @@ export default function AnnouncementsPage() {
     return { total: list.length, active, scheduled }
   }, [announcements, now])
 
+  const totalGrowth = React.useMemo(
+    () => monthOverMonthGrowth(announcements ?? [], (a) => a.createdAt, () => 1),
+    [announcements],
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -74,14 +77,20 @@ export default function AnnouncementsPage() {
       </div>
 
       <BentoGrid>
-        <StatTile label="Total announcements" value={stats.total} icon={<MegaphoneIcon />} />
+        <StatTile
+          label="Total announcements"
+          value={stats.total}
+          icon={<MegaphoneIcon />}
+          delta={totalGrowth}
+          subtext={totalGrowth !== null ? "vs last month" : undefined}
+        />
         <StatTile label="Active now" value={stats.active} icon={<CircleCheckIcon />} />
         <StatTile label="Scheduled" value={stats.scheduled} icon={<ClockIcon />} />
       </BentoGrid>
 
       {isError && <p className="text-sm text-destructive">Could not load announcements.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -113,13 +122,7 @@ export default function AnnouncementsPage() {
             {pageItems.map((announcement, index) => {
               const status = statusFor(announcement, now)
               return (
-                <motion.tr
-                  key={announcement.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: index * 0.03 }}
-                  className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-                >
+                <TableRow key={announcement.id} index={index}>
                   <TableCell className="font-medium">
                     <Link
                       href={`/portal/announcements/${announcement.id}`}
@@ -129,7 +132,7 @@ export default function AnnouncementsPage() {
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_BADGE_VARIANT[status]}>{status}</Badge>
+                    <Badge variant={ANNOUNCEMENT_STATUS_BADGE_VARIANT[status]}>{status}</Badge>
                   </TableCell>
                   <TableCell>{REPEAT_LABEL[announcement.repeatPolicy]}</TableCell>
                   <TableCell>
@@ -138,14 +141,17 @@ export default function AnnouncementsPage() {
                       : `${announcement.locationIds.length} of ${locations?.length ?? "…"}`}
                   </TableCell>
                   <TableCell>
-                    <Link
-                      href={`/portal/announcements/${announcement.id}`}
-                      className="text-sm text-muted-foreground hover:underline"
-                    >
-                      Edit
-                    </Link>
+                    <TableRowActions>
+                      <Link
+                        href={`/portal/announcements/${announcement.id}`}
+                        className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                        aria-label={`Edit ${announcement.title}`}
+                      >
+                        <PencilIcon className="size-3.5" />
+                      </Link>
+                    </TableRowActions>
                   </TableCell>
-                </motion.tr>
+                </TableRow>
               )
             })}
           </TableBody>

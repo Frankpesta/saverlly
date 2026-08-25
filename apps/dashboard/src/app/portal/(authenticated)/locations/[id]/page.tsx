@@ -14,8 +14,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useLocation, useUpdateLocation } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
 import type { Location } from "@/lib/api/types"
@@ -28,22 +28,23 @@ export default function LocationDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/portal/locations"
-        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:underline"
-      >
-        <ArrowLeftIcon className="size-4" />
-        Back to Locations
-      </Link>
+      <div className="border-b border-black/[0.09] pb-6">
+        <Link href="/portal/locations" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeftIcon className="size-4" />
+          Locations
+        </Link>
+        <p className="mt-5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Location profile</p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight">{location?.name ?? "Location"}</h2>
+      </div>
 
       {isError && <p className="text-sm text-destructive">Could not load this location.</p>}
       {isLoading && <Skeleton className="h-64 w-full max-w-lg" />}
 
       {location && (
-        <div className="flex flex-wrap items-start gap-6">
-          <Card className="w-full max-w-lg">
+        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <Card>
             <CardHeader>
-              <CardTitle>{location.name}</CardTitle>
+              <CardTitle>Location details</CardTitle>
             </CardHeader>
             <LocationEditForm key={location.id} location={location} />
           </Card>
@@ -85,47 +86,43 @@ function LocationEditForm({ location }: { location: Location }) {
   return (
     <form onSubmit={handleSubmit}>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="loc-name">Name</Label>
-          <Input id="loc-name" value={name} onChange={(e) => setName(e.target.value)} required />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="loc-address">Address</Label>
-          <Input
-            id="loc-address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            required
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="loc-city">City</Label>
+        <FormGrid>
+          <FormField label="Name" htmlFor="loc-name">
+            <Input id="loc-name" value={name} onChange={(e) => setName(e.target.value)} required />
+          </FormField>
+          <FormField label="Address" htmlFor="loc-address">
+            <Input
+              id="loc-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              required
+            />
+          </FormField>
+        </FormGrid>
+        <FormGrid>
+          <FormField label="City" htmlFor="loc-city">
             <Input id="loc-city" value={city} onChange={(e) => setCity(e.target.value)} required />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="loc-state">State</Label>
+          </FormField>
+          <FormField label="State" htmlFor="loc-state">
             <Input
               id="loc-state"
               value={state}
               onChange={(e) => setState(e.target.value)}
               required
             />
-          </div>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="loc-country">Country</Label>
+          </FormField>
+        </FormGrid>
+        <FormField label="Country" htmlFor="loc-country">
           <Input
             id="loc-country"
             value={country}
             onChange={(e) => setCountry(e.target.value)}
             required
           />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="loc-tags">Tags</Label>
+        </FormField>
+        <FormField label="Tags" htmlFor="loc-tags">
           <Input id="loc-tags" value={tags} onChange={(e) => setTags(e.target.value)} />
-        </div>
+        </FormField>
       </CardContent>
       <CardFooter>
         <Button type="submit" disabled={updateLocation.isPending}>

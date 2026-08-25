@@ -1,7 +1,6 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -9,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import type { AttributionMethod } from "@/lib/api/types"
 
 export type AttributionFieldsValue = {
@@ -43,8 +43,7 @@ export function AttributionFields({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor={`${idPrefix}-method`}>Tracking method</Label>
+      <FormField label="Tracking method" htmlFor={`${idPrefix}-method`}>
         <Select
           value={value.attributionMethod}
           onValueChange={(v) => onChange({ ...value, attributionMethod: v as AttributionMethod })}
@@ -60,11 +59,14 @@ export function AttributionFields({
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </FormField>
 
       {needsTrackingUrl && (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor={`${idPrefix}-tracking-url`}>Affiliate tracking URL</Label>
+        <FormField
+          label="Affiliate tracking URL"
+          htmlFor={`${idPrefix}-tracking-url`}
+          hint="Sets the tracking cookie on visit."
+        >
           <Input
             id={`${idPrefix}-tracking-url`}
             type="url"
@@ -73,14 +75,12 @@ export function AttributionFields({
             onChange={(e) => onChange({ ...value, affiliateTrackingUrl: e.target.value })}
             required
           />
-          <p className="text-sm text-muted-foreground">Sets the tracking cookie on visit.</p>
-        </div>
+        </FormField>
       )}
 
       {needsUrlParam && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`${idPrefix}-param-key`}>URL param key</Label>
+        <FormGrid>
+          <FormField label="URL param key" htmlFor={`${idPrefix}-param-key`}>
             <Input
               id={`${idPrefix}-param-key`}
               placeholder="irclickid"
@@ -88,17 +88,16 @@ export function AttributionFields({
               onChange={(e) => onChange({ ...value, affiliateUrlParamKey: e.target.value })}
               required
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`${idPrefix}-param-value`}>Platform&apos;s tracking ID</Label>
+          </FormField>
+          <FormField label="Platform's tracking ID" htmlFor={`${idPrefix}-param-value`}>
             <Input
               id={`${idPrefix}-param-value`}
               value={value.affiliateUrlParamValue}
               onChange={(e) => onChange({ ...value, affiliateUrlParamValue: e.target.value })}
               required
             />
-          </div>
-        </div>
+          </FormField>
+        </FormGrid>
       )}
     </div>
   )

@@ -25,7 +25,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -36,6 +35,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { DateTimePicker } from "@/components/dashboard/date-time-picker"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import {
   useAnnouncement,
   useDeleteAnnouncement,
@@ -74,14 +74,17 @@ export default function AnnouncementDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <Link
-          href="/portal/announcements"
-          className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:underline"
-        >
-          <ArrowLeftIcon className="size-4" />
-          Back to Announcements
-        </Link>
+      <div className="flex flex-col gap-4 border-b border-black/[0.09] pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3">
+          <Link href="/portal/announcements" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeftIcon className="size-4" />
+            Announcements
+          </Link>
+          <div>
+            <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Announcement</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">{announcement?.title ?? "Announcement"}</h2>
+          </div>
+        </div>
         {announcement && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -116,7 +119,7 @@ export default function AnnouncementDetailPage() {
       {isLoading && <Skeleton className="h-64 w-full max-w-lg" />}
 
       {announcement && (
-        <div className="flex flex-wrap items-start gap-6">
+        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <AnnouncementEditForm key={announcement.id} announcement={announcement} />
         </div>
       )}
@@ -177,17 +180,15 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
 
   return (
     <>
-      <Card className="w-full max-w-lg">
+      <Card>
         <CardHeader>
           <CardTitle>Content</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ann-title">Title</Label>
+          <FormField label="Title" htmlFor="ann-title">
             <Input id="ann-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ann-body">Body</Label>
+          </FormField>
+          <FormField label="Body" htmlFor="ann-body">
             <Textarea
               id="ann-body"
               value={body}
@@ -195,9 +196,8 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
               rows={4}
               required
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ann-media">Image (optional)</Label>
+          </FormField>
+          <FormField label="Image (optional)" htmlFor="ann-media">
             <div className="flex gap-2">
               <Input
                 id="ann-media"
@@ -221,29 +221,26 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
                 {uploadImage.isPending ? "Uploading…" : "Upload"}
               </Button>
             </div>
-          </div>
+          </FormField>
           <AnnouncementPreview title={title} body={body} mediaUrl={mediaUrl || undefined} />
         </CardContent>
       </Card>
 
-      <Card className="w-full max-w-lg">
+      <Card>
         <CardHeader>
           <CardTitle>Schedule &amp; targeting</CardTitle>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="ann-start">Starts</Label>
+            <FormGrid>
+              <FormField label="Starts" htmlFor="ann-start">
                 <DateTimePicker id="ann-start" value={startAt} onChange={setStartAt} required />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="ann-end">Ends</Label>
+              </FormField>
+              <FormField label="Ends" htmlFor="ann-end">
                 <DateTimePicker id="ann-end" value={endAt} onChange={setEndAt} required />
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="ann-repeat">Repeat policy</Label>
+              </FormField>
+            </FormGrid>
+            <FormField label="Repeat policy" htmlFor="ann-repeat">
               <Select
                 value={repeatPolicy}
                 onValueChange={(v) => setRepeatPolicy(v as AnnouncementRepeatPolicy)}
@@ -259,10 +256,9 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
             {repeatPolicy === "MAX_N_TIMES" && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="ann-max-count">Display up to</Label>
+              <FormField label="Display up to" htmlFor="ann-max-count">
                 <Input
                   id="ann-max-count"
                   type="number"
@@ -271,7 +267,7 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
                   onChange={(e) => setMaxDisplayCount(e.target.value)}
                   required
                 />
-              </div>
+              </FormField>
             )}
             <LocationTargetPicker
               locations={locations ?? []}

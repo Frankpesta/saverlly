@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { CopyIcon, UserPlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -21,6 +20,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateKioskUser, type CreateKioskUserResult } from "@/lib/api/hooks/use-kiosk-users"
 import { ApiError } from "@/lib/api/client"
 import type { KioskAssignableRole } from "@/lib/api/types"
@@ -81,29 +81,29 @@ export function AddKioskUserDialog({ kioskId }: { kioskId: string }) {
             </DialogHeader>
 
             <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
-              <div className="flex flex-col gap-4 px-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="add-user-email">Email</Label>
-                  <Input
-                    id="add-user-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="add-user-role">Role</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as KioskAssignableRole)}>
-                    <SelectTrigger id="add-user-role" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="KIOSK_OWNER">Kiosk owner</SelectItem>
-                      <SelectItem value="LOCATION_MANAGER">Location manager</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="flex flex-col gap-4 px-6">
+                <FormGrid>
+                  <FormField label="Email" htmlFor="add-user-email">
+                    <Input
+                      id="add-user-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </FormField>
+                  <FormField label="Role" htmlFor="add-user-role">
+                    <Select value={role} onValueChange={(v) => setRole(v as KioskAssignableRole)}>
+                      <SelectTrigger id="add-user-role" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="KIOSK_OWNER">Kiosk owner</SelectItem>
+                        <SelectItem value="LOCATION_MANAGER">Location manager</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                </FormGrid>
               </div>
 
               <DialogFooter>
@@ -120,8 +120,8 @@ export function AddKioskUserDialog({ kioskId }: { kioskId: string }) {
               <DialogDescription>Share these credentials with {result.user.email}</DialogDescription>
             </DialogHeader>
 
-            <div className="flex flex-col gap-4 px-4">
-              <div className="flex flex-col gap-2 rounded-xl border border-black/8 px-4 py-3">
+            <div className="flex flex-col gap-4 px-6">
+              <div className="flex flex-col gap-2 rounded-lg border border-black/8 px-4 py-3">
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
                   <p className="text-sm font-medium">{result.user.email}</p>

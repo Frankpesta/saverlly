@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { DateTimePicker } from "@/components/dashboard/date-time-picker"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateAnnouncement, useUploadAnnouncementImage } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
@@ -123,13 +124,13 @@ export function NewAnnouncementDialog() {
       </Button>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <WizardStepDots count={STEPS.length} current={step} />
           <DialogTitle>{STEPS[step].title}</DialogTitle>
+          <WizardStepDots count={STEPS.length} current={step} steps={STEPS} />
           <DialogDescription>{STEPS[step].description}</DialogDescription>
         </DialogHeader>
 
         <form
-          className="flex flex-1 flex-col justify-between overflow-y-auto"
+          className="flex flex-col justify-between"
           onSubmit={
             step < 2
               ? (e) => {
@@ -139,20 +140,18 @@ export function NewAnnouncementDialog() {
               : handleCreate
           }
         >
-          <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-4 px-6">
             {step === 0 && (
               <>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-title">Title</Label>
+                <FormField label="Title" htmlFor="new-ann-title">
                   <Input
                     id="new-ann-title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     required
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-body">Body</Label>
+                </FormField>
+                <FormField label="Body" htmlFor="new-ann-body">
                   <Textarea
                     id="new-ann-body"
                     value={body}
@@ -160,9 +159,8 @@ export function NewAnnouncementDialog() {
                     rows={4}
                     required
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-media">Image (optional)</Label>
+                </FormField>
+                <FormField label="Image (optional)" htmlFor="new-ann-media">
                   <div className="flex gap-2">
                     <Input
                       id="new-ann-media"
@@ -187,25 +185,22 @@ export function NewAnnouncementDialog() {
                       {uploadImage.isPending ? "Uploading…" : "Upload"}
                     </Button>
                   </div>
-                </div>
+                </FormField>
                 <AnnouncementPreview title={title} body={body} mediaUrl={mediaUrl || undefined} />
               </>
             )}
 
             {step === 1 && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-ann-start">Starts</Label>
+                <FormGrid>
+                  <FormField label="Starts" htmlFor="new-ann-start">
                     <DateTimePicker id="new-ann-start" value={startAt} onChange={setStartAt} required />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-ann-end">Ends</Label>
+                  </FormField>
+                  <FormField label="Ends" htmlFor="new-ann-end">
                     <DateTimePicker id="new-ann-end" value={endAt} onChange={setEndAt} required />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-repeat">Repeat policy</Label>
+                  </FormField>
+                </FormGrid>
+                <FormField label="Repeat policy" htmlFor="new-ann-repeat">
                   <Select
                     value={repeatPolicy}
                     onValueChange={(v) => setRepeatPolicy(v as AnnouncementRepeatPolicy)}
@@ -221,10 +216,13 @@ export function NewAnnouncementDialog() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </FormField>
                 {repeatPolicy === "MAX_N_TIMES" && (
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-ann-max-count">Display up to</Label>
+                  <FormField
+                    label="Display up to"
+                    htmlFor="new-ann-max-count"
+                    hint="Times per device, ever, across all logins."
+                  >
                     <Input
                       id="new-ann-max-count"
                       type="number"
@@ -233,10 +231,7 @@ export function NewAnnouncementDialog() {
                       onChange={(e) => setMaxDisplayCount(e.target.value)}
                       required
                     />
-                    <p className="text-sm text-muted-foreground">
-                      Times per device, ever, across all logins.
-                    </p>
-                  </div>
+                  </FormField>
                 )}
               </>
             )}

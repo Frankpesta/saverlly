@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { DateTimePicker } from "@/components/dashboard/date-time-picker"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateAnnouncement, useUploadAnnouncementImage } from "@/lib/api/hooks/use-announcements"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { useLocations } from "@/lib/api/hooks/use-locations"
@@ -148,13 +149,13 @@ export function NewAnnouncementDialog() {
       </Button>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <WizardStepDots count={stepKeys.length} current={step} />
           <DialogTitle>{STEP_INFO[stepKey].title}</DialogTitle>
+          <WizardStepDots count={stepKeys.length} current={step} steps={stepKeys.map((key) => STEP_INFO[key])} />
           <DialogDescription>{STEP_INFO[stepKey].description}</DialogDescription>
         </DialogHeader>
 
         <form
-          className="flex flex-1 flex-col justify-between overflow-y-auto"
+          className="flex flex-col justify-between"
           onSubmit={
             isLastStep
               ? handleCreate
@@ -164,10 +165,10 @@ export function NewAnnouncementDialog() {
                 }
           }
         >
-          <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-4 px-6">
             {stepKey === "content" && (
               <>
-                <div className="flex items-center justify-between rounded-xl border border-black/8 p-3">
+                <div className="flex items-center justify-between rounded-lg border border-black/8 p-3">
                   <div>
                     <Label htmlFor="new-ann-broadcast">Broadcast to all kiosks</Label>
                     <p className="text-sm text-muted-foreground">
@@ -180,17 +181,15 @@ export function NewAnnouncementDialog() {
                     onCheckedChange={setBroadcast}
                   />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-title">Title</Label>
+                <FormField label="Title" htmlFor="new-ann-title">
                   <Input
                     id="new-ann-title"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     required
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-body">Body</Label>
+                </FormField>
+                <FormField label="Body" htmlFor="new-ann-body">
                   <Textarea
                     id="new-ann-body"
                     value={body}
@@ -198,9 +197,8 @@ export function NewAnnouncementDialog() {
                     rows={4}
                     required
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-media">Image (optional)</Label>
+                </FormField>
+                <FormField label="Image (optional)" htmlFor="new-ann-media">
                   <div className="flex gap-2">
                     <Input
                       id="new-ann-media"
@@ -225,14 +223,13 @@ export function NewAnnouncementDialog() {
                       {uploadImage.isPending ? "Uploading…" : "Upload"}
                     </Button>
                   </div>
-                </div>
+                </FormField>
                 <AnnouncementPreview title={title} body={body} mediaUrl={mediaUrl || undefined} />
               </>
             )}
 
             {stepKey === "kiosk" && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="new-ann-kiosk">Kiosk</Label>
+              <FormField label="Kiosk" htmlFor="new-ann-kiosk">
                 <Select value={kioskId} onValueChange={setKioskId} required>
                   <SelectTrigger id="new-ann-kiosk" className="w-full">
                     <SelectValue placeholder="Select a kiosk" />
@@ -245,23 +242,20 @@ export function NewAnnouncementDialog() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </FormField>
             )}
 
             {stepKey === "schedule" && (
               <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-ann-start">Starts</Label>
+                <FormGrid>
+                  <FormField label="Starts" htmlFor="new-ann-start">
                     <DateTimePicker id="new-ann-start" value={startAt} onChange={setStartAt} required />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-ann-end">Ends</Label>
+                  </FormField>
+                  <FormField label="Ends" htmlFor="new-ann-end">
                     <DateTimePicker id="new-ann-end" value={endAt} onChange={setEndAt} required />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-ann-repeat">Repeat policy</Label>
+                  </FormField>
+                </FormGrid>
+                <FormField label="Repeat policy" htmlFor="new-ann-repeat">
                   <Select
                     value={repeatPolicy}
                     onValueChange={(v) => setRepeatPolicy(v as AnnouncementRepeatPolicy)}
@@ -277,10 +271,13 @@ export function NewAnnouncementDialog() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </FormField>
                 {repeatPolicy === "MAX_N_TIMES" && (
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-ann-max-count">Display up to</Label>
+                  <FormField
+                    label="Display up to"
+                    htmlFor="new-ann-max-count"
+                    hint="Times per device, ever, across all logins."
+                  >
                     <Input
                       id="new-ann-max-count"
                       type="number"
@@ -289,10 +286,7 @@ export function NewAnnouncementDialog() {
                       onChange={(e) => setMaxDisplayCount(e.target.value)}
                       required
                     />
-                    <p className="text-sm text-muted-foreground">
-                      Times per device, ever, across all logins.
-                    </p>
-                  </div>
+                  </FormField>
                 )}
               </>
             )}

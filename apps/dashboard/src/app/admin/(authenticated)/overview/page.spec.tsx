@@ -259,12 +259,17 @@ describe("AdminOverviewPage", () => {
   it("ranks top kiosks and top merchants from confirmed commissions only", async () => {
     renderWithClient(<AdminOverviewPage />)
 
-    const kioskRow = await screen.findByText((_, el) => el?.textContent === "1. Kiosk One")
-    expect(kioskRow).toBeInTheDocument()
+    const topKiosksPanel = (await screen.findByText("Top performing kiosks")).closest(
+      '[data-slot="dashboard-surface"]',
+    ) as HTMLElement
+    const kioskRow = (await within(topKiosksPanel).findByText("Kiosk One")).closest("tr")!
+    expect(within(kioskRow).getByText("1")).toBeInTheDocument()
 
     // Scope to the Top merchants panel — "Jumia" also legitimately appears in the Recent
     // Commission Events table below (which shows all statuses, not just confirmed).
-    const topMerchantsPanel = screen.getByText("Top merchants").closest("div.rounded-2xl") as HTMLElement
+    const topMerchantsPanel = screen.getByText("Top merchants").closest(
+      '[data-slot="dashboard-surface"]',
+    ) as HTMLElement
     expect(within(topMerchantsPanel).getByText("Amazon")).toBeInTheDocument()
     expect(within(topMerchantsPanel).queryByText("Jumia")).not.toBeInTheDocument() // only the CONFIRMED event's merchant qualifies
   })
@@ -288,11 +293,15 @@ describe("AdminOverviewPage", () => {
   it("lists the most recently updated kiosk first in recent activity", async () => {
     renderWithClient(<AdminOverviewPage />)
 
-    const activityLink = await screen.findByRole("link", { name: /Kiosk One/ })
+    const heading = await screen.findByText("Recent platform activity")
+    const card = heading.closest('[data-slot="dashboard-surface"]') as HTMLElement
+    expect(card).not.toBeNull()
+
+    const activityLink = await within(card).findByRole("link", { name: /Kiosk One/ })
     expect(activityLink).toHaveTextContent("was updated")
     expect(activityLink).toHaveAttribute("href", "/admin/kiosks/kiosk-1")
 
-    const createdLink = screen.getByRole("link", { name: /Kiosk Two/ })
+    const createdLink = within(card).getByRole("link", { name: /Kiosk Two/ })
     expect(createdLink).toHaveTextContent("was created")
   })
 })

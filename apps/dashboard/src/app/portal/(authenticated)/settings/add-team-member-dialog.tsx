@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { CopyIcon, UserPlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -14,6 +13,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { FormField } from "@/components/dashboard/form-section"
 import { useCreateKioskUser, type CreateKioskUserResult } from "@/lib/api/hooks/use-kiosk-users"
 import { ApiError } from "@/lib/api/client"
 
@@ -77,9 +77,8 @@ export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
             </DialogHeader>
 
             <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
-              <div className="flex flex-col gap-4 px-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="team-member-email">Email</Label>
+              <div className="flex flex-col gap-4 px-6">
+                <FormField label="Email" htmlFor="team-member-email">
                   <Input
                     id="team-member-email"
                     type="email"
@@ -87,7 +86,7 @@ export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
-                </div>
+                </FormField>
               </div>
 
               <DialogFooter>
@@ -104,8 +103,8 @@ export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
               <DialogDescription>Share these credentials with {result.user.email}</DialogDescription>
             </DialogHeader>
 
-            <div className="flex flex-col gap-4 px-4">
-              <div className="flex flex-col gap-2 rounded-xl border border-black/8 px-4 py-3">
+            <div className="flex flex-col gap-4 px-6">
+              <div className="flex flex-col gap-2 rounded-lg border border-black/8 px-4 py-3">
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
                   <p className="text-sm font-medium">{result.user.email}</p>

@@ -38,16 +38,16 @@ export function AppSidebar({
   onLogout: () => void
 }) {
   return (
-    <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border/80 bg-sidebar" {...props}>
+    <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border bg-sidebar" {...props}>
       <SidebarHeader className="px-3 py-5">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="h-10 rounded-xl data-[slot=sidebar-menu-button]:px-3!"
+              className="h-10 rounded-md data-[slot=sidebar-menu-button]:px-3!"
             >
               <Link href={homeUrl}>
-                <BrandLogo height={22} />
+                <BrandLogo height={22} dark />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
