@@ -82,14 +82,16 @@ export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {isEdit ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
           onClick={() => setOpen(true)}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:underline"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={`Edit ${program?.networkName}`}
         >
           <PencilIcon className="size-3.5" />
-          Edit
-        </button>
+        </Button>
       ) : (
         <Button onClick={() => setOpen(true)} className="gap-1.5">
           <PlusIcon className="size-4" />

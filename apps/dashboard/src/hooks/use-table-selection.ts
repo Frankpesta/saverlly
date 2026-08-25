@@ -43,6 +43,14 @@ export function useTableSelection<T>(items: T[], getId: (item: T) => string) {
     setSelectedIds(new Set())
   }
 
+  function deselectMany(ids: Iterable<string>) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+  }
+
   return {
     selectedIds,
     isSelected: (id: string) => selectedIds.has(id),
@@ -51,6 +59,7 @@ export function useTableSelection<T>(items: T[], getId: (item: T) => string) {
     allSelected,
     someSelected,
     clear,
+    deselectMany,
     selectedCount: selectedIds.size,
   }
 }

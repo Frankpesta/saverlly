@@ -69,17 +69,32 @@ export function StatTile({
 
   const chartColor = hasDelta && delta < 0 ? "var(--destructive)" : "var(--brand-teal)"
   const areaPoints = trendPoints ? `0,30 ${trendPoints} 84,30` : undefined
+  // A sparkline earns the split panel (chart needs room, icon rides along in its corner). With
+  // no trend to show, that panel was just empty tinted space around one small icon — so the
+  // icon moves inline next to the label instead and the card collapses to a single column.
+  const hasTrend = Boolean(trendPoints)
 
   return (
     <BentoCard
       variant="metric"
       span={2}
-      className={cn("dashboard-metric-card group relative grid min-h-40 grid-cols-[minmax(0,1fr)_minmax(9rem,34%)] overflow-hidden p-0 transition-shadow duration-200 hover:shadow-[0_18px_38px_rgba(17,27,24,0.09)]", className)}
+      className={cn(
+        "dashboard-metric-card group relative overflow-hidden p-0 transition-shadow duration-200 hover:shadow-[0_18px_38px_rgba(17,27,24,0.09)]",
+        hasTrend ? "grid min-h-40 grid-cols-[minmax(0,1fr)_minmax(9rem,34%)]" : "flex min-h-40 flex-col",
+        className,
+      )}
     >
       <div className="flex min-w-0 flex-col justify-between px-5 py-5 sm:px-6">
-        <span className="text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">{label}</span>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">{label}</span>
+          {icon && !hasTrend && (
+            <span className="flex shrink-0 items-center justify-center text-primary [&_svg]:size-5">
+              {icon}
+            </span>
+          )}
+        </div>
         <div className="mt-4">
-          <span className="block text-[2.25rem] leading-none font-semibold tracking-[-0.065em] sm:text-[2.55rem]">{format(animated)}</span>
+          <span className="block text-[2.25rem] leading-none font-semibold tracking-[-0.065em] tabular-nums sm:text-[2.55rem]">{format(animated)}</span>
           {(hasDelta || subtext) && (
             <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               {hasDelta && <span className={cn("inline-flex items-center gap-1 font-semibold", delta >= 0 ? "text-[var(--success)]" : "text-destructive")}>{delta >= 0 ? <ArrowUpRightIcon className="size-3.5" /> : <ArrowDownRightIcon className="size-3.5" />}{Math.abs(delta).toFixed(1)}%</span>}
@@ -88,9 +103,9 @@ export function StatTile({
           )}
         </div>
       </div>
-      <div className="relative min-h-full border-l border-black/[0.055] bg-[#f8faf9]">
-        {icon && <span className="absolute right-4 top-4 flex size-9 items-center justify-center rounded-lg bg-white text-muted-foreground shadow-[0_2px_8px_rgba(17,27,24,0.04)] [&_svg]:size-4">{icon}</span>}
-        {trendPoints && (
+      {trendPoints && (
+        <div className="relative min-h-full border-l border-black/[0.055] bg-[#f8faf9]">
+          {icon && <span className="absolute right-4 top-4 flex items-center justify-center text-primary [&_svg]:size-5">{icon}</span>}
           <div className="absolute inset-x-3 bottom-4 h-[54%]">
             <svg viewBox="0 0 84 30" preserveAspectRatio="none" aria-label={`${label} trend`} role="img" className="size-full overflow-visible">
               <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={chartColor} stopOpacity="0.25" /><stop offset="100%" stopColor={chartColor} stopOpacity="0" /></linearGradient></defs>
@@ -98,8 +113,8 @@ export function StatTile({
               <polyline fill="none" points={trendPoints} stroke={chartColor} strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </BentoCard>
   )
 }

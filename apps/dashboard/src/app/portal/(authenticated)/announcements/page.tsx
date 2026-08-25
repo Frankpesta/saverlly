@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { MegaphoneIcon, CircleCheckIcon, ClockIcon } from "lucide-react"
+import { MegaphoneIcon, CircleCheckIcon, ClockIcon, PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -23,6 +24,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { ANNOUNCEMENT_STATUS_BADGE_VARIANT, type AnnouncementStatus } from "@/lib/dashboard/status-labels"
 import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
+import { cn } from "@/lib/utils"
 import { NewAnnouncementDialog } from "./new-announcement-dialog"
 
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
@@ -142,9 +144,10 @@ export default function AnnouncementsPage() {
                     <TableRowActions>
                       <Link
                         href={`/portal/announcements/${announcement.id}`}
-                        className="text-sm text-muted-foreground hover:underline"
+                        className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                        aria-label={`Edit ${announcement.title}`}
                       >
-                        Edit
+                        <PencilIcon className="size-3.5" />
                       </Link>
                     </TableRowActions>
                   </TableCell>

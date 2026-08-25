@@ -293,11 +293,15 @@ describe("AdminOverviewPage", () => {
   it("lists the most recently updated kiosk first in recent activity", async () => {
     renderWithClient(<AdminOverviewPage />)
 
-    const activityLink = await screen.findByRole("link", { name: /Kiosk One/ })
+    const heading = await screen.findByText("Recent platform activity")
+    const card = heading.closest('[data-slot="dashboard-surface"]') as HTMLElement
+    expect(card).not.toBeNull()
+
+    const activityLink = await within(card).findByRole("link", { name: /Kiosk One/ })
     expect(activityLink).toHaveTextContent("was updated")
     expect(activityLink).toHaveAttribute("href", "/admin/kiosks/kiosk-1")
 
-    const createdLink = screen.getByRole("link", { name: /Kiosk Two/ })
+    const createdLink = within(card).getByRole("link", { name: /Kiosk Two/ })
     expect(createdLink).toHaveTextContent("was created")
   })
 })

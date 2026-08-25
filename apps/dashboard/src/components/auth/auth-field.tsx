@@ -37,7 +37,6 @@ export function AuthField({
       <label htmlFor={id} className={cn("auth-field-label", icon && "auth-field-label-icon")}>
         {label}
       </label>
-      <span className="auth-field-focus-line" aria-hidden />
     </div>
   )
 }

@@ -104,6 +104,10 @@ export function GlobalSearch() {
   const trimmed = rawQuery.trim()
   const hasQuery = trimmed.length >= MIN_QUERY_LENGTH
   const results = data ?? []
+  // Ignore a stale filter chip left over from a previous query once its type no longer
+  // has any matches, so a new search never renders as empty just because activeType wasn't reset.
+  const effectiveActiveType =
+    activeType && results.some((r) => r.type === activeType) ? activeType : null
 
   return (
     <>
@@ -138,7 +142,7 @@ export function GlobalSearch() {
                 onClick={() => setActiveType((prev) => (prev === type ? null : type))}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                  activeType === type
+                  effectiveActiveType === type
                     ? "border-transparent bg-[var(--brand-teal)] text-white"
                     : "border-border text-muted-foreground hover:border-[var(--brand-teal-soft)] hover:text-foreground",
                 )}
@@ -162,7 +166,7 @@ export function GlobalSearch() {
           )}
           {hasQuery &&
             !isFetching &&
-            GROUP_ORDER.filter((type) => !activeType || type === activeType).map((type) => {
+            GROUP_ORDER.filter((type) => !effectiveActiveType || type === effectiveActiveType).map((type) => {
               const group = results.filter((r) => r.type === type)
               if (group.length === 0) return null
               return (

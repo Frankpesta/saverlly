@@ -97,6 +97,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
                       type="button"
                       variant="ghost"
                       size="icon-sm"
+                      className="text-primary"
                       onClick={() => handleRunNow(source.id)}
                       disabled={runNow.isPending}
                       aria-label="Run now"

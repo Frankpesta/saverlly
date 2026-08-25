@@ -86,16 +86,13 @@ function TableRow({ className, index, ...props }: TableRowProps) {
   )
 }
 
-/** A trailing action cell's inner wrapper — hidden until the row (its `group` ancestor) is
- *  hovered, so row-level actions (Edit, view, etc) don't compete visually with the data. */
+/** A trailing action cell's inner wrapper — icon buttons (Edit, delete, etc), always visible
+ *  rather than hover-revealed, so the actions are discoverable without a mouse. */
 function TableRowActions({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="table-row-actions"
-      className={cn(
-        "flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
-        className
-      )}
+      className={cn("flex items-center justify-end gap-1", className)}
       {...props}
     />
   )

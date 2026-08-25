@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -19,6 +21,7 @@ import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { usePagination } from "@/hooks/use-pagination"
+import { cn } from "@/lib/utils"
 import { NewLocationDialog } from "./new-location-dialog"
 
 export default function LocationsPage() {
@@ -115,9 +118,10 @@ export default function LocationsPage() {
                   <TableRowActions>
                     <Link
                       href={`/portal/locations/${location.id}`}
-                      className="text-sm text-muted-foreground hover:underline"
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${location.name}`}
                     >
-                      Edit
+                      <PencilIcon className="size-3.5" />
                     </Link>
                   </TableRowActions>
                 </TableCell>

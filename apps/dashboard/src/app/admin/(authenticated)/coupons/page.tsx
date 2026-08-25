@@ -98,13 +98,14 @@ export default function CouponsPage() {
     setBulkDeleting(true)
     const results = await Promise.allSettled(ids.map((id) => deleteCoupon.mutateAsync(id)))
     setBulkDeleting(false)
-    const failed = results.filter((r) => r.status === "rejected").length
+    const succeededIds = ids.filter((_, i) => results[i].status === "fulfilled")
+    const failed = ids.length - succeededIds.length
     if (failed === 0) {
       toast.success(`${ids.length} coupon${ids.length === 1 ? "" : "s"} deleted.`)
     } else {
       toast.error(`${failed} of ${ids.length} coupons could not be deleted.`)
     }
-    selection.clear()
+    selection.deselectMany(succeededIds)
   }
 
   return (

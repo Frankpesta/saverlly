@@ -11,8 +11,10 @@ import {
   ClockIcon,
   CircleCheckIcon,
   TriangleAlertIcon,
+  ArrowUpRightIcon,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -363,7 +365,7 @@ export default function AdminOverviewPage() {
           </div>
           <Table>
             <TableBody>
-              {kiosksLoading &&
+              {(kiosksLoading || eventsLoading) &&
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={3}>
@@ -371,7 +373,7 @@ export default function AdminOverviewPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-              {!kiosksLoading && topKiosks.length === 0 && (
+              {!kiosksLoading && !eventsLoading && topKiosks.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={3} className="text-center text-muted-foreground">
                     No confirmed commissions yet.
@@ -391,9 +393,10 @@ export default function AdminOverviewPage() {
                     <TableRowActions>
                       <Link
                         href={`/admin/kiosks/${row.key}`}
-                        className="text-sm text-muted-foreground hover:underline"
+                        className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                        aria-label={`View ${row.name}`}
                       >
-                        View
+                        <ArrowUpRightIcon className="size-3.5" />
                       </Link>
                     </TableRowActions>
                   </TableCell>
@@ -412,7 +415,15 @@ export default function AdminOverviewPage() {
           </div>
           <Table>
             <TableBody>
-              {topMerchants.length === 0 && (
+              {eventsLoading &&
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={4}>
+                      <Skeleton className="h-8 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              {!eventsLoading && topMerchants.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground">
                     No confirmed commissions yet.
@@ -436,9 +447,10 @@ export default function AdminOverviewPage() {
                     <TableRowActions>
                       <Link
                         href={`/admin/merchants/${row.key}`}
-                        className="text-sm text-muted-foreground hover:underline"
+                        className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                        aria-label={`View ${row.name}`}
                       >
-                        View
+                        <ArrowUpRightIcon className="size-3.5" />
                       </Link>
                     </TableRowActions>
                   </TableCell>

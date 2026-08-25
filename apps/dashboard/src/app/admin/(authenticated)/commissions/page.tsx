@@ -61,6 +61,13 @@ export default function AdminCommissionsPage() {
   }
 
   const { data: events, isLoading, isError } = useCommissionEvents(filter)
+  // Ticks every minute so the growth stats below recompute across a calendar-month boundary
+  // even if `events` itself hasn't changed (mirrors announcements/page.tsx).
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(events)
   const { data: kiosks } = useKiosks()
   const { data: merchants } = useMerchants()
@@ -90,7 +97,10 @@ export default function AdminCommissionsPage() {
 
   const totalGrowth = React.useMemo(
     () => monthOverMonthGrowth(events ?? [], (e) => e.reportedAt, () => 1),
-    [events],
+    // `now` isn't read directly, but it ticks every minute so this recomputes across a
+    // calendar-month boundary even if `events` itself hasn't changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, now],
   )
   const confirmedGrowth = React.useMemo(
     () =>
@@ -99,7 +109,9 @@ export default function AdminCommissionsPage() {
         (e) => e.confirmedAt ?? e.reportedAt,
         (e) => e.commissionAmount,
       ),
-    [events],
+    // see totalGrowth above
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, now],
   )
 
   function handleSyncNow() {

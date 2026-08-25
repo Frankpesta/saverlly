@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import LocationsPage from "./page"
@@ -92,10 +92,13 @@ describe("LocationsPage", () => {
     mockFetchWith("KIOSK_OWNER")
     renderWithClient(<LocationsPage />)
 
-    expect(await screen.findByText("Downtown")).toBeInTheDocument()
+    const nameCell = await screen.findByText("Downtown")
+    expect(nameCell).toBeInTheDocument()
     expect(screen.getByText("1 Main St, Springfield, IL")).toBeInTheDocument()
     expect(screen.getByText("mall")).toBeInTheDocument()
-    expect(screen.getAllByText("1").length).toBeGreaterThan(0) // device count cell
+    const row = nameCell.closest("tr")
+    expect(row).not.toBeNull()
+    expect(within(row as HTMLElement).getByText("1")).toBeInTheDocument() // device count cell
   })
 
   it("shows the New Location button for a KIOSK_OWNER", async () => {

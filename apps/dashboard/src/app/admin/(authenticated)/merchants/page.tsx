@@ -3,7 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
+import { PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -22,6 +24,7 @@ import { useCoupons } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
 import type { AttributionMethod } from "@/lib/api/types"
 import { usePagination } from "@/hooks/use-pagination"
+import { cn } from "@/lib/utils"
 import { NewMerchantDialog } from "./new-merchant-dialog"
 
 const METHOD_LABEL: Record<AttributionMethod, string> = {
@@ -168,9 +171,10 @@ function MerchantRow({
         <TableRowActions>
           <Link
             href={`/admin/merchants/${merchant.id}`}
-            className="text-sm text-muted-foreground hover:underline"
+            className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+            aria-label={`Edit ${merchant.name}`}
           >
-            Edit
+            <PencilIcon className="size-3.5" />
           </Link>
         </TableRowActions>
       </TableCell>

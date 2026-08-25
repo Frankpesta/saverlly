@@ -176,6 +176,7 @@ function ScrapeSourceRow({
             type="button"
             variant="ghost"
             size="icon-sm"
+            className="text-primary"
             onClick={handleRunNow}
             disabled={runNow.isPending}
             aria-label="Run now"

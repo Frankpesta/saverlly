@@ -3,7 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
+import { PencilIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -21,6 +23,7 @@ import { useKiosks, useUpdateKioskStatus } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
 import { usePagination } from "@/hooks/use-pagination"
 import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
+import { cn } from "@/lib/utils"
 import { NewKioskDialog } from "./new-kiosk-dialog"
 
 export default function KiosksPage() {
@@ -124,9 +127,10 @@ export default function KiosksPage() {
                   <TableRowActions>
                     <Link
                       href={`/admin/kiosks/${kiosk.id}`}
-                      className="text-sm text-muted-foreground hover:underline"
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${kiosk.name}`}
                     >
-                      Edit
+                      <PencilIcon className="size-3.5" />
                     </Link>
                   </TableRowActions>
                 </TableCell>
