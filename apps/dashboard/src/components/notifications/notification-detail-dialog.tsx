@@ -79,7 +79,7 @@ export function NotificationDetailDialog({
               </DialogDescription>
             </DialogHeader>
 
-            <p className="px-4 text-sm text-foreground">{notification.body}</p>
+            <p className="px-6 text-sm text-foreground">{notification.body}</p>
 
             {action && (
               <DialogFooter>

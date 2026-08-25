@@ -19,6 +19,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useRunScrapeSourceNow, useScrapeSources } from "@/lib/api/hooks/use-scrape-sources"
@@ -46,7 +47,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
   }
 
   return (
-    <Card className="w-full max-w-2xl">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Scrape sources</CardTitle>
         <ScrapeSourceDialog merchantId={merchantId} />
@@ -80,8 +81,8 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
               </TableRow>
             )}
 
-            {pageItems.map((source) => (
-              <TableRow key={source.id}>
+            {pageItems.map((source, index) => (
+              <TableRow key={source.id} index={index}>
                 <TableCell className="max-w-48 truncate font-medium" title={source.url}>
                   {source.url}
                 </TableCell>
@@ -90,7 +91,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
                   {!source.active && <Badge variant="secondary">Inactive</Badge>}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center justify-end gap-3">
+                  <TableRowActions>
                     <ScrapeSourceDialog merchantId={merchantId} source={source} />
                     <Button
                       type="button"
@@ -102,7 +103,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
                     >
                       <PlayIcon className="size-3.5" />
                     </Button>
-                  </div>
+                  </TableRowActions>
                 </TableCell>
               </TableRow>
             ))}

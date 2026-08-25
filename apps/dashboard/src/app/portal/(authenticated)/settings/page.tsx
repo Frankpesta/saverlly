@@ -1,11 +1,12 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ChangePasswordCard } from "@/components/settings/change-password-card"
+import { SettingsSection } from "@/components/settings/settings-section"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { useKiosk } from "@/lib/api/hooks/use-kiosks"
+import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
 import { TeamSection } from "./team-section"
 
 const ROLE_LABEL: Record<string, string> = {
@@ -28,30 +29,24 @@ export default function PortalSettingsPage() {
         <p className="text-sm text-muted-foreground">Your account, kiosk, and team.</p>
       </div>
 
-      <div className="flex flex-wrap items-start gap-6">
-        <Card className="w-full max-w-lg">
-          <CardHeader>
-            <CardTitle>Account</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2">
+        <SettingsSection title="Account" description="The identity and access level for this workspace.">
+          <div className="flex flex-col gap-3">
             {userLoading && <Skeleton className="h-10 w-full" />}
             {currentUser && (
-              <div className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3">
+              <div className="flex items-center justify-between border-y border-black/[0.06] py-3">
                 <span className="text-sm font-medium">{currentUser.email}</span>
                 <Badge variant="secondary">{ROLE_LABEL[currentUser.role] ?? currentUser.role}</Badge>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SettingsSection>
 
         <ChangePasswordCard />
 
         {isKioskOwner && (
-          <Card className="w-full max-w-lg">
-            <CardHeader>
-              <CardTitle>Kiosk</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
+          <SettingsSection title="Kiosk" description="Managed by your Saverlly administrator.">
+            <div className="flex flex-col gap-3">
               {kioskLoading && <Skeleton className="h-10 w-full" />}
               {kiosk && (
                 <>
@@ -61,8 +56,8 @@ export default function PortalSettingsPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Status</span>
-                    <Badge variant={kiosk.status === "ACTIVE" ? "default" : "secondary"}>
-                      {kiosk.status}
+                    <Badge variant={KIOSK_STATUS_BADGE_VARIANT[kiosk.status]}>
+                      {KIOSK_STATUS_LABEL[kiosk.status]}
                     </Badge>
                   </div>
                   <div className="flex items-center justify-between">
@@ -78,20 +73,16 @@ export default function PortalSettingsPage() {
                   </p>
                 </>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </SettingsSection>
         )}
 
         {isKioskOwner && currentUser?.kioskId && <TeamSection kioskId={currentUser.kioskId} />}
 
         {!userLoading && !isKioskOwner && (
-          <Card className="w-full max-w-lg">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">
-                Contact your kiosk owner to manage kiosk details or team access.
-              </p>
-            </CardContent>
-          </Card>
+          <SettingsSection title="Workspace access">
+            <p className="text-sm text-muted-foreground">Contact your kiosk owner to manage kiosk details or team access.</p>
+          </SettingsSection>
         )}
       </div>
     </div>

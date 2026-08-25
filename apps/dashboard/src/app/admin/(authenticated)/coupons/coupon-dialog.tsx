@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { PencilIcon, PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -22,6 +21,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { DatePicker } from "@/components/dashboard/date-picker"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateCoupon, useUpdateCoupon } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
 import type { Coupon, CouponDiscountType, Merchant } from "@/lib/api/types"
@@ -123,7 +123,7 @@ export function CouponDialog({
           Edit
         </button>
       ) : (
-        <Button onClick={() => setOpen(true)} size="sm" className="gap-1.5">
+        <Button onClick={() => setOpen(true)} className="gap-1.5">
           <PlusIcon className="size-4" />
           New Coupon
         </Button>
@@ -137,10 +137,9 @@ export function CouponDialog({
         </DialogHeader>
 
         <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-4 px-6">
             {!merchantId && !isEdit && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="coupon-merchant">Merchant</Label>
+              <FormField label="Merchant" htmlFor="coupon-merchant">
                 <Select value={selectedMerchantId} onValueChange={setSelectedMerchantId} required>
                   <SelectTrigger id="coupon-merchant" className="w-full">
                     <SelectValue placeholder="Select a merchant" />
@@ -153,23 +152,22 @@ export function CouponDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </FormField>
             )}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="coupon-code">Code</Label>
-              <Input id="coupon-code" value={code} onChange={(e) => setCode(e.target.value)} required />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="coupon-description">Description (optional)</Label>
-              <Input
-                id="coupon-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="coupon-discount-type">Discount type</Label>
+            <FormGrid>
+              <FormField label="Code" htmlFor="coupon-code">
+                <Input id="coupon-code" value={code} onChange={(e) => setCode(e.target.value)} required />
+              </FormField>
+              <FormField label="Description (optional)" htmlFor="coupon-description">
+                <Input
+                  id="coupon-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </FormField>
+            </FormGrid>
+            <FormGrid>
+              <FormField label="Discount type" htmlFor="coupon-discount-type">
                 <Select value={discountType} onValueChange={(v) => setDiscountType(v as CouponDiscountType)}>
                   <SelectTrigger id="coupon-discount-type" className="w-full">
                     <SelectValue />
@@ -182,9 +180,8 @@ export function CouponDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="coupon-discount-value">Value (optional)</Label>
+              </FormField>
+              <FormField label="Value (optional)" htmlFor="coupon-discount-value">
                 <Input
                   id="coupon-discount-value"
                   type="number"
@@ -193,12 +190,11 @@ export function CouponDialog({
                   value={discountValue}
                   onChange={(e) => setDiscountValue(e.target.value)}
                 />
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="coupon-expires">Expires (optional)</Label>
+              </FormField>
+            </FormGrid>
+            <FormField label="Expires (optional)" htmlFor="coupon-expires">
               <DatePicker id="coupon-expires" value={expiresAt} onChange={setExpiresAt} />
-            </div>
+            </FormField>
           </div>
 
           <DialogFooter>

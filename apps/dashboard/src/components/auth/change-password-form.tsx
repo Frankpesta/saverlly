@@ -3,13 +3,11 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "motion/react"
-import { AlertCircleIcon, Loader2Icon } from "lucide-react"
+import { AlertCircleIcon, ArrowRightIcon, KeyRoundIcon, Loader2Icon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AuthShell } from "@/components/auth/auth-shell"
+import { AuthField } from "@/components/auth/auth-field"
 
 export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagline: string }) {
   const router = useRouter()
@@ -59,67 +57,28 @@ export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagl
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="w-full max-w-sm"
       >
-        <Card>
-          <CardHeader>
-            <CardTitle>Set a new password</CardTitle>
-            <CardDescription>
-              You&apos;re using a temporary password — set your own before continuing.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+        <div className="mb-10 flex flex-col gap-2">
+          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-teal)] uppercase">Secure your account</p>
+          <h1 className="text-3xl font-semibold tracking-[-0.045em]">Set a new password</h1>
+          <p className="text-sm leading-6 text-muted-foreground">You&apos;re using a temporary password. Create one only you know before continuing.</p>
+        </div>
+        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
               {error && (
                 <Alert variant="destructive">
                   <AlertCircleIcon />
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="current-password">Current password</Label>
-                <Input
-                  id="current-password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  className="h-11"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="new-password">New password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  className="h-11"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-                <p className="text-sm text-muted-foreground">At least 8 characters.</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="confirm-new-password">Confirm new password</Label>
-                <Input
-                  id="confirm-new-password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                  className="h-11"
-                  value={confirmNewPassword}
-                  onChange={(e) => setConfirmNewPassword(e.target.value)}
-                />
-              </div>
-              <Button type="submit" disabled={submitting} className="mt-2 h-11">
+              <AuthField id="current-password" label="Current password" type="password" autoComplete="current-password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} icon={<KeyRoundIcon />} />
+              <AuthField id="new-password" label="New password" type="password" autoComplete="new-password" minLength={8} required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} icon={<KeyRoundIcon />} />
+              <AuthField id="confirm-new-password" label="Confirm new password" type="password" autoComplete="new-password" minLength={8} required value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} icon={<KeyRoundIcon />} />
+              <p className="-mt-2 text-xs text-muted-foreground">Use at least 8 characters.</p>
+              <Button type="submit" disabled={submitting} className="auth-submit mt-2 h-12">
                 {submitting && <Loader2Icon className="animate-spin" />}
                 {submitting ? "Saving…" : "Set new password"}
+                {!submitting && <ArrowRightIcon className="size-4" />}
               </Button>
             </form>
-          </CardContent>
-        </Card>
       </motion.div>
     </AuthShell>
   )

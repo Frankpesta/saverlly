@@ -47,9 +47,9 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="rounded-xl border border-transparent px-2 data-[state=open]:border-sidebar-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="rounded-md border border-transparent px-2 data-[state=open]:border-sidebar-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-xl ring-1 ring-black/5">
+              <Avatar className="h-8 w-8 rounded-md ring-1 ring-white/15">
                 {user.avatar && (
                   <AvatarImage src={user.avatar} alt={user.name} />
                 )}
@@ -59,7 +59,7 @@ export function NavUser({
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="truncate text-xs text-sidebar-foreground/55">
                   {user.email}
                 </span>
               </div>

@@ -2,8 +2,10 @@
 
 import * as React from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { SearchIcon } from "lucide-react"
+import { CornerDownLeftIcon, SearchIcon } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   CommandDialog,
   CommandEmpty,
@@ -65,6 +67,7 @@ export function GlobalSearch() {
   const [open, setOpen] = React.useState(false)
   const [rawQuery, setRawQuery] = React.useState("")
   const [debouncedQuery, setDebouncedQuery] = React.useState("")
+  const [activeType, setActiveType] = React.useState<SearchResultType | null>(null)
 
   React.useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(rawQuery), DEBOUNCE_MS)
@@ -89,6 +92,7 @@ export function GlobalSearch() {
     if (!next) {
       setRawQuery("")
       setDebouncedQuery("")
+      setActiveType(null)
     }
   }
 
@@ -125,6 +129,25 @@ export function GlobalSearch() {
         description="Search kiosks, locations, devices, merchants, coupons, and announcements"
       >
         <CommandInput placeholder="Search..." value={rawQuery} onValueChange={setRawQuery} />
+        {hasQuery && !isFetching && results.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 border-b border-border/70 px-3 py-2.5">
+            {GROUP_ORDER.filter((type) => results.some((r) => r.type === type)).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setActiveType((prev) => (prev === type ? null : type))}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  activeType === type
+                    ? "border-transparent bg-[var(--brand-teal)] text-white"
+                    : "border-border text-muted-foreground hover:border-[var(--brand-teal-soft)] hover:text-foreground",
+                )}
+              >
+                {GROUP_LABEL[type]} · {results.filter((r) => r.type === type).length}
+              </button>
+            ))}
+          </div>
+        )}
         <CommandList>
           {!hasQuery && (
             <div className="py-6 text-center text-sm text-muted-foreground">
@@ -139,18 +162,28 @@ export function GlobalSearch() {
           )}
           {hasQuery &&
             !isFetching &&
-            GROUP_ORDER.map((type) => {
+            GROUP_ORDER.filter((type) => !activeType || type === activeType).map((type) => {
               const group = results.filter((r) => r.type === type)
               if (group.length === 0) return null
               return (
-                <CommandGroup key={type} heading={GROUP_LABEL[type]}>
+                <CommandGroup
+                  key={type}
+                  heading={
+                    <span className="flex items-center gap-1.5">
+                      {GROUP_LABEL[type]}
+                      <Badge variant="secondary" className="h-4 px-1.5 text-[0.65rem]">
+                        {group.length}
+                      </Badge>
+                    </span>
+                  }
+                >
                   {group.map((result) => (
                     <CommandItem
                       key={`${result.type}-${result.id}`}
                       value={`${result.type}-${result.id}`}
                       onSelect={() => handleSelect(result)}
                     >
-                      <div className="flex flex-col overflow-hidden">
+                      <div className="flex flex-1 flex-col overflow-hidden">
                         <span className="truncate">{result.title}</span>
                         {result.subtitle && (
                           <span className="truncate text-xs text-muted-foreground">
@@ -158,6 +191,9 @@ export function GlobalSearch() {
                           </span>
                         )}
                       </div>
+                      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground opacity-0 transition-opacity group-data-[selected=true]:opacity-100">
+                        Select <CornerDownLeftIcon className="size-3" />
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

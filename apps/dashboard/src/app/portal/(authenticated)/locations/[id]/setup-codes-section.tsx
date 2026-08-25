@@ -47,7 +47,7 @@ export function SetupCodesSection({ locationId }: { locationId: string }) {
   }
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Setup codes</CardTitle>
         <Button
@@ -72,7 +72,7 @@ export function SetupCodesSection({ locationId }: { locationId: string }) {
         {codes?.map((code) => (
           <div
             key={code.id}
-            className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3"
+            className="flex items-center justify-between rounded-lg border border-black/8 px-4 py-3"
           >
             <div className="flex items-center gap-2">
               <code className="rounded-md bg-muted px-2 py-1 font-mono text-sm tracking-wider">
@@ -86,7 +86,7 @@ export function SetupCodesSection({ locationId }: { locationId: string }) {
               >
                 <CopyIcon className="size-3.5" />
               </Button>
-              <Badge variant={code.active ? "default" : "secondary"}>
+              <Badge variant={code.active ? "success" : "secondary"}>
                 {code.active ? "Active" : "Revoked"}
               </Badge>
             </div>

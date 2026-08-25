@@ -5,8 +5,8 @@ import { toast } from "sonner"
 import { Loader2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { FormField } from "@/components/dashboard/form-section"
 
 export function ChangePasswordCard() {
   const [currentPassword, setCurrentPassword] = React.useState("")
@@ -52,15 +52,14 @@ export function ChangePasswordCard() {
   }
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card>
       <CardHeader>
         <CardTitle>Password</CardTitle>
         <CardDescription>Update the password you use to sign in.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="settings-current-password">Current password</Label>
+          <FormField label="Current password" htmlFor="settings-current-password">
             <Input
               id="settings-current-password"
               type="password"
@@ -69,9 +68,8 @@ export function ChangePasswordCard() {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="settings-new-password">New password</Label>
+          </FormField>
+          <FormField label="New password" htmlFor="settings-new-password" hint="At least 8 characters.">
             <Input
               id="settings-new-password"
               type="password"
@@ -81,10 +79,8 @@ export function ChangePasswordCard() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
-            <p className="text-sm text-muted-foreground">At least 8 characters.</p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="settings-confirm-new-password">Confirm new password</Label>
+          </FormField>
+          <FormField label="Confirm new password" htmlFor="settings-confirm-new-password">
             <Input
               id="settings-confirm-new-password"
               type="password"
@@ -94,7 +90,7 @@ export function ChangePasswordCard() {
               value={confirmNewPassword}
               onChange={(e) => setConfirmNewPassword(e.target.value)}
             />
-          </div>
+          </FormField>
           <Button type="submit" disabled={submitting} className="mt-1 w-fit">
             {submitting && <Loader2Icon className="animate-spin" />}
             {submitting ? "Updating…" : "Update password"}

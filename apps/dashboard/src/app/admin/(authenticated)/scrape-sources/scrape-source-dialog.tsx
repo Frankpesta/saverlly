@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { PencilIcon, PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -21,6 +20,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateScrapeSource, useUpdateScrapeSource } from "@/lib/api/hooks/use-scrape-sources"
 import { ApiError } from "@/lib/api/client"
 import type { Merchant, ScrapeSource } from "@/lib/api/types"
@@ -117,7 +117,7 @@ export function ScrapeSourceDialog({
           Edit
         </button>
       ) : (
-        <Button onClick={() => setOpen(true)} size="sm" className="gap-1.5">
+        <Button onClick={() => setOpen(true)} className="gap-1.5">
           <PlusIcon className="size-4" />
           New Scrape Source
         </Button>
@@ -131,9 +131,8 @@ export function ScrapeSourceDialog({
         </DialogHeader>
 
         <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-4 px-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="scrape-url">Page URL</Label>
+          <div className="flex flex-col gap-4 px-6">
+            <FormField label="Page URL" htmlFor="scrape-url">
               <Input
                 id="scrape-url"
                 type="url"
@@ -142,10 +141,9 @@ export function ScrapeSourceDialog({
                 onChange={(e) => setUrl(e.target.value)}
                 required
               />
-            </div>
+            </FormField>
             {!merchantId && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="scrape-merchant">Merchant</Label>
+              <FormField label="Merchant" htmlFor="scrape-merchant">
                 <Select value={selectedMerchantId} onValueChange={setSelectedMerchantId} required>
                   <SelectTrigger id="scrape-merchant" className="w-full">
                     <SelectValue placeholder="Select a merchant" />
@@ -158,28 +156,31 @@ export function ScrapeSourceDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </FormField>
             )}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="scrape-code-selector">Coupon code selector</Label>
-              <Input
-                id="scrape-code-selector"
-                placeholder=".coupon-code"
-                value={codeSelector}
-                onChange={(e) => setCodeSelector(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="scrape-description-selector">Description selector (optional)</Label>
-              <Input
-                id="scrape-description-selector"
-                value={descriptionSelector}
-                onChange={(e) => setDescriptionSelector(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="scrape-interval">Scrape every (minutes)</Label>
+            <FormGrid>
+              <FormField label="Coupon code selector" htmlFor="scrape-code-selector">
+                <Input
+                  id="scrape-code-selector"
+                  placeholder=".coupon-code"
+                  value={codeSelector}
+                  onChange={(e) => setCodeSelector(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Description selector (optional)" htmlFor="scrape-description-selector">
+                <Input
+                  id="scrape-description-selector"
+                  value={descriptionSelector}
+                  onChange={(e) => setDescriptionSelector(e.target.value)}
+                />
+              </FormField>
+            </FormGrid>
+            <FormField
+              label="Scrape every (minutes)"
+              htmlFor="scrape-interval"
+              hint="Defaults to daily (1440 minutes)."
+            >
               <Input
                 id="scrape-interval"
                 type="number"
@@ -188,8 +189,7 @@ export function ScrapeSourceDialog({
                 onChange={(e) => setIntervalMinutes(e.target.value)}
                 required
               />
-              <p className="text-sm text-muted-foreground">Defaults to daily (1440 minutes).</p>
-            </div>
+            </FormField>
           </div>
 
           <DialogFooter>

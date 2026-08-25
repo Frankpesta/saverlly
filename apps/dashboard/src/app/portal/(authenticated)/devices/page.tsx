@@ -1,9 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "motion/react"
 import { toast } from "sonner"
-import { MonitorIcon, CircleCheckIcon, CirclePauseIcon, DownloadIcon } from "lucide-react"
+import { DownloadIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,9 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { BentoGrid } from "@/components/dashboard/bento-grid"
-import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
+import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useDevices, useUpdateDevice } from "@/lib/api/hooks/use-devices"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
@@ -66,14 +64,11 @@ export default function DevicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Devices</h2>
-          <p className="text-sm text-muted-foreground">
-            Every device registered across your locations.
-          </p>
-        </div>
-        {process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL ? (
+      <WorkspaceHeader
+        eyebrow="Device management"
+        title="Devices"
+        description="Every device registered across your locations."
+        actions={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL ? (
           <div className="flex flex-col items-end gap-1">
             <Button type="button" variant="outline" className="gap-1.5" asChild>
               <a href={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL} download>
@@ -98,17 +93,18 @@ export default function DevicesPage() {
             Download Agent
           </Button>
         )}
-      </div>
+      />
 
-      <BentoGrid>
-        <StatTile label="Total devices" value={stats.total} icon={<MonitorIcon />} />
-        <StatTile label="Active" value={stats.active} icon={<CircleCheckIcon />} />
-        <StatTile label="Seen in the last hour" value={stats.online} icon={<CirclePauseIcon />} />
-      </BentoGrid>
+      <CollectionSummary items={[
+        { label: "Devices", value: stats.total, detail: "Registered endpoints" },
+        { label: "Active", value: stats.active, detail: "Available to report" },
+        { label: "Seen in the last hour", value: stats.online, detail: "Currently responsive" },
+      ]} />
 
       {isError && <p className="text-sm text-destructive">Could not load devices.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <CollectionArea title="Device directory" description="Review device health and manage whether each endpoint is active." count={totalItems}>
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -137,13 +133,7 @@ export default function DevicesPage() {
             )}
 
             {pageItems.map((device, index) => (
-              <motion.tr
-                key={device.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: index * 0.03 }}
-                className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-              >
+              <TableRow key={device.id} index={index}>
                 <TableCell className="font-medium">{device.label}</TableCell>
                 <TableCell>{locationNameById.get(device.locationId) ?? "—"}</TableCell>
                 <TableCell>
@@ -157,12 +147,12 @@ export default function DevicesPage() {
                       disabled={updateDevice.isPending}
                       aria-label={`Toggle ${device.label} status`}
                     />
-                    <Badge variant={device.active ? "default" : "secondary"}>
+                    <Badge variant={device.active ? "success" : "secondary"}>
                       {device.active ? "Active" : "Disabled"}
                     </Badge>
                   </div>
                 </TableCell>
-              </motion.tr>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
@@ -174,6 +164,7 @@ export default function DevicesPage() {
           onPageChange={setPage}
         />
       </div>
+      </CollectionArea>
     </div>
   )
 }

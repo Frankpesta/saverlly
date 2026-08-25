@@ -24,6 +24,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateMerchant } from "@/lib/api/hooks/use-merchants"
 import { useAffiliatePrograms } from "@/lib/api/hooks/use-affiliate-programs"
 import { useCreateScrapeSource } from "@/lib/api/hooks/use-scrape-sources"
@@ -133,13 +134,13 @@ export function NewMerchantDialog() {
       </Button>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <WizardStepDots count={STEPS.length} current={step} />
           <DialogTitle>{STEPS[step].title}</DialogTitle>
+          <WizardStepDots count={STEPS.length} current={step} steps={STEPS} />
           <DialogDescription>{STEPS[step].description}</DialogDescription>
         </DialogHeader>
 
         <form
-          className="flex flex-1 flex-col justify-between overflow-y-auto"
+          className="flex flex-col justify-between"
           onSubmit={
             step < 2
               ? (e) => {
@@ -149,20 +150,18 @@ export function NewMerchantDialog() {
               : handleCreate
           }
         >
-          <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-4 px-6">
             {step === 0 && (
-              <>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-merchant-name">Name</Label>
+              <FormGrid>
+                <FormField label="Name" htmlFor="new-merchant-name">
                   <Input
                     id="new-merchant-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-merchant-domain">Domain</Label>
+                </FormField>
+                <FormField label="Domain" htmlFor="new-merchant-domain">
                   <Input
                     id="new-merchant-domain"
                     placeholder="target.com"
@@ -170,8 +169,8 @@ export function NewMerchantDialog() {
                     onChange={(e) => setDomain(e.target.value)}
                     required
                   />
-                </div>
-              </>
+                </FormField>
+              </FormGrid>
             )}
 
             {step === 1 && (
@@ -180,8 +179,7 @@ export function NewMerchantDialog() {
 
             {step === 2 && (
               <>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-merchant-program">Affiliate program (optional)</Label>
+                <FormField label="Affiliate program (optional)" htmlFor="new-merchant-program">
                   <Select value={affiliateProgramId} onValueChange={setAffiliateProgramId}>
                     <SelectTrigger id="new-merchant-program" className="w-full">
                       <SelectValue placeholder="None" />
@@ -200,9 +198,9 @@ export function NewMerchantDialog() {
                   >
                     Manage affiliate programs →
                   </Link>
-                </div>
+                </FormField>
 
-                <div className="flex items-center justify-between rounded-xl border border-black/8 p-3">
+                <div className="flex items-center justify-between rounded-lg border border-black/8 p-3">
                   <div>
                     <Label htmlFor="new-merchant-add-scrape">Add a scrape source now</Label>
                     <p className="text-sm text-muted-foreground">
@@ -218,8 +216,7 @@ export function NewMerchantDialog() {
 
                 {addScrapeSource && (
                   <>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="new-merchant-scrape-url">Page URL</Label>
+                    <FormField label="Page URL" htmlFor="new-merchant-scrape-url">
                       <Input
                         id="new-merchant-scrape-url"
                         type="url"
@@ -228,9 +225,8 @@ export function NewMerchantDialog() {
                         onChange={(e) => setScrapeUrl(e.target.value)}
                         required={addScrapeSource}
                       />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="new-merchant-code-selector">Coupon code selector</Label>
+                    </FormField>
+                    <FormField label="Coupon code selector" htmlFor="new-merchant-code-selector">
                       <Input
                         id="new-merchant-code-selector"
                         placeholder=".coupon-code"
@@ -238,17 +234,17 @@ export function NewMerchantDialog() {
                         onChange={(e) => setCodeSelector(e.target.value)}
                         required={addScrapeSource}
                       />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="new-merchant-description-selector">
-                        Description selector (optional)
-                      </Label>
+                    </FormField>
+                    <FormField
+                      label="Description selector (optional)"
+                      htmlFor="new-merchant-description-selector"
+                    >
                       <Input
                         id="new-merchant-description-selector"
                         value={descriptionSelector}
                         onChange={(e) => setDescriptionSelector(e.target.value)}
                       />
-                    </div>
+                    </FormField>
                   </>
                 )}
               </>

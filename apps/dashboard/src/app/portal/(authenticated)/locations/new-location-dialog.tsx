@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateLocation } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
 
@@ -77,8 +77,8 @@ export function NewLocationDialog() {
       </Button>
       <DialogContent>
         <DialogHeader>
-          <WizardStepDots count={STEPS.length} current={step} />
           <DialogTitle>{STEPS[step].title}</DialogTitle>
+          <WizardStepDots count={STEPS.length} current={step} steps={STEPS} />
           <DialogDescription>{STEPS[step].description}</DialogDescription>
         </DialogHeader>
 
@@ -93,72 +93,69 @@ export function NewLocationDialog() {
               : handleCreate
           }
         >
-          <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-4 px-6">
             {step === 0 && (
               <>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-location-name">Name</Label>
-                  <Input
-                    id="new-location-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-location-address">Address</Label>
-                  <Input
-                    id="new-location-address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-location-city">City</Label>
+                <FormGrid>
+                  <FormField label="Name" htmlFor="new-location-name">
+                    <Input
+                      id="new-location-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </FormField>
+                  <FormField label="Address" htmlFor="new-location-address">
+                    <Input
+                      id="new-location-address"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      required
+                    />
+                  </FormField>
+                </FormGrid>
+                <FormGrid>
+                  <FormField label="City" htmlFor="new-location-city">
                     <Input
                       id="new-location-city"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       required
                     />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="new-location-state">State</Label>
+                  </FormField>
+                  <FormField label="State" htmlFor="new-location-state">
                     <Input
                       id="new-location-state"
                       value={state}
                       onChange={(e) => setState(e.target.value)}
                       required
                     />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-location-country">Country</Label>
+                  </FormField>
+                </FormGrid>
+                <FormField label="Country" htmlFor="new-location-country">
                   <Input
                     id="new-location-country"
                     value={country}
                     onChange={(e) => setCountry(e.target.value)}
                     required
                   />
-                </div>
+                </FormField>
               </>
             )}
 
             {step === 1 && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="new-location-tags">Tags</Label>
+              <FormField
+                label="Tags"
+                htmlFor="new-location-tags"
+                hint="Comma-separated. Used for future ad targeting."
+              >
                 <Input
                   id="new-location-tags"
                   placeholder="mall, downtown, high-traffic"
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                 />
-                <p className="text-sm text-muted-foreground">
-                  Comma-separated. Used for future ad targeting.
-                </p>
-              </div>
+              </FormField>
             )}
           </div>
 

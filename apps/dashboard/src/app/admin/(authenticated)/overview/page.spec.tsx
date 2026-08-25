@@ -259,12 +259,17 @@ describe("AdminOverviewPage", () => {
   it("ranks top kiosks and top merchants from confirmed commissions only", async () => {
     renderWithClient(<AdminOverviewPage />)
 
-    const kioskRow = await screen.findByText((_, el) => el?.textContent === "1. Kiosk One")
-    expect(kioskRow).toBeInTheDocument()
+    const topKiosksPanel = (await screen.findByText("Top performing kiosks")).closest(
+      '[data-slot="dashboard-surface"]',
+    ) as HTMLElement
+    const kioskRow = (await within(topKiosksPanel).findByText("Kiosk One")).closest("tr")!
+    expect(within(kioskRow).getByText("1")).toBeInTheDocument()
 
     // Scope to the Top merchants panel — "Jumia" also legitimately appears in the Recent
     // Commission Events table below (which shows all statuses, not just confirmed).
-    const topMerchantsPanel = screen.getByText("Top merchants").closest("div.rounded-2xl") as HTMLElement
+    const topMerchantsPanel = screen.getByText("Top merchants").closest(
+      '[data-slot="dashboard-surface"]',
+    ) as HTMLElement
     expect(within(topMerchantsPanel).getByText("Amazon")).toBeInTheDocument()
     expect(within(topMerchantsPanel).queryByText("Jumia")).not.toBeInTheDocument() // only the CONFIRMED event's merchant qualifies
   })

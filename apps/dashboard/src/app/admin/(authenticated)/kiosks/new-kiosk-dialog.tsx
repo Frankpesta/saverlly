@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import { CopyIcon, PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateKiosk, type CreateKioskResult } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
 
@@ -93,8 +93,8 @@ export function NewKioskDialog() {
       </Button>
       <DialogContent>
         <DialogHeader>
-          <WizardStepDots count={stepKeys.length} current={step} />
           <DialogTitle>{STEP_INFO[stepKey].title}</DialogTitle>
+          <WizardStepDots count={stepKeys.length} current={step} steps={stepKeys.map((key) => STEP_INFO[key])} />
           <DialogDescription>{STEP_INFO[stepKey].description}</DialogDescription>
         </DialogHeader>
 
@@ -114,20 +114,18 @@ export function NewKioskDialog() {
                   }
           }
         >
-          <div className="flex flex-col gap-4 px-4">
+          <div className="flex flex-col gap-4 px-6">
             {stepKey === "business" && (
-              <>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-kiosk-name">Name</Label>
+              <FormGrid>
+                <FormField label="Name" htmlFor="new-kiosk-name">
                   <Input
                     id="new-kiosk-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="new-kiosk-email">Contact email</Label>
+                </FormField>
+                <FormField label="Contact email" htmlFor="new-kiosk-email">
                   <Input
                     id="new-kiosk-email"
                     type="email"
@@ -135,13 +133,16 @@ export function NewKioskDialog() {
                     onChange={(e) => setContactEmail(e.target.value)}
                     required
                   />
-                </div>
-              </>
+                </FormField>
+              </FormGrid>
             )}
 
             {stepKey === "revenue" && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="new-kiosk-revenue">Revenue share (%)</Label>
+              <FormField
+                label="Revenue share (%)"
+                htmlFor="new-kiosk-revenue"
+                hint={`The percentage of commission ${name || "this kiosk"} keeps. New kiosks start active.`}
+              >
                 <Input
                   id="new-kiosk-revenue"
                   type="number"
@@ -152,16 +153,15 @@ export function NewKioskDialog() {
                   onChange={(e) => setRevenueSharePct(e.target.value)}
                   required
                 />
-                <p className="text-sm text-muted-foreground">
-                  The percentage of commission {name || "this kiosk"} keeps. New kiosks start
-                  active.
-                </p>
-              </div>
+              </FormField>
             )}
 
             {stepKey === "owner" && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="new-kiosk-owner-email">Owner email</Label>
+              <FormField
+                label="Owner email"
+                htmlFor="new-kiosk-owner-email"
+                hint="We'll generate a secure password and email it to them — you'll also see it once on the next screen."
+              >
                 <Input
                   id="new-kiosk-owner-email"
                   type="email"
@@ -169,16 +169,12 @@ export function NewKioskDialog() {
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   required
                 />
-                <p className="text-sm text-muted-foreground">
-                  We&apos;ll generate a secure password and email it to them — you&apos;ll also
-                  see it once on the next screen.
-                </p>
-              </div>
+              </FormField>
             )}
 
             {stepKey === "reveal" && result && (
               <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-2 rounded-xl border border-black/8 px-4 py-3">
+                <div className="flex flex-col gap-2 rounded-lg border border-black/8 px-4 py-3">
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
                     <p className="text-sm font-medium">{result.owner.email}</p>

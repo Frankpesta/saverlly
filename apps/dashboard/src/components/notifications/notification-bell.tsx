@@ -53,7 +53,7 @@ export function NotificationBell() {
             type="button"
             variant="outline"
             size="icon"
-            className="relative rounded-lg border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
+            className="relative rounded-xl border-transparent text-muted-foreground hover:border-border hover:bg-background hover:text-foreground"
             aria-label="Notifications"
           >
             <BellIcon className="size-4" />

@@ -16,6 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { KeyValueEditor } from "@/components/dashboard/key-value-editor"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import {
   useCreateAffiliateProgram,
   useUpdateAffiliateProgram,
@@ -106,22 +107,22 @@ export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram
         </DialogHeader>
 
         <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-4 px-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="program-network-name">Network name</Label>
-              <Input
-                id="program-network-name"
-                placeholder="Impact"
-                value={networkName}
-                onChange={(e) => setNetworkName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="program-id">Program ID (optional)</Label>
-              <Input id="program-id" value={programId} onChange={(e) => setProgramId(e.target.value)} />
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-black/8 p-3">
+          <div className="flex flex-col gap-4 px-6">
+            <FormGrid>
+              <FormField label="Network name" htmlFor="program-network-name">
+                <Input
+                  id="program-network-name"
+                  placeholder="Impact"
+                  value={networkName}
+                  onChange={(e) => setNetworkName(e.target.value)}
+                  required
+                />
+              </FormField>
+              <FormField label="Program ID (optional)" htmlFor="program-id">
+                <Input id="program-id" value={programId} onChange={(e) => setProgramId(e.target.value)} />
+              </FormField>
+            </FormGrid>
+            <div className="flex items-center justify-between rounded-lg border border-black/8 p-3">
               <div>
                 <Label htmlFor="program-has-api">Has a coupon API</Label>
                 <p className="text-sm text-muted-foreground">

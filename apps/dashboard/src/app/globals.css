@@ -1,4 +1,5 @@
 @import "tailwindcss";
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -56,6 +57,19 @@
   --brand-teal-soft: #bfe6e1;
   --brand-black: #1c1c1c;
 
+  /* Semantic palette — teal stays the only brand/primary-action color (buttons, active nav,
+     logo, focus rings). These four exist purely to encode status/category/delta meaning in
+     tags, deltas, and chart legends, the same way Stripe/Ramp/Attio layer a semantic palette
+     on top of one brand color rather than reusing it for everything. */
+  --success: #1a9c6b;
+  --success-tint: #e6f6ee;
+  --warning: #b7791f;
+  --warning-tint: #fbf1de;
+  --info: #2f6fed;
+  --info-tint: #eaf1fe;
+  --violet: #7c5cd1;
+  --violet-tint: #f1edfb;
+
   --background: #ffffff;
   --page-plane: #f6f8f7;
   --foreground: var(--brand-black);
@@ -75,19 +89,24 @@
   --border: #e4e9e7;
   --input: #dbe3e0;
   --ring: var(--brand-teal);
+  /* A real categorical palette for multi-series charts/legends (segmented bars, etc) —
+     previously grayscale and unused; kept in sync with the semantic tokens above so a chart
+     series and a status badge for the same concept always read as the same color. */
   --chart-1: var(--brand-teal);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.875rem;
-  --sidebar: #fbfcfc;
-  --sidebar-foreground: var(--brand-black);
+  --chart-2: var(--info);
+  --chart-3: var(--warning);
+  --chart-4: var(--violet);
+  --chart-5: var(--destructive);
+  /* Was 0.875rem — every rounded-* utility derives from this (see --radius-sm..4xl above), so
+     cards/dialogs/inputs all read noticeably crisper/less "bubbly" from this one change. */
+  --radius: 0.5rem;
+  --sidebar: #161918;
+  --sidebar-foreground: #f7f9f8;
   --sidebar-primary: var(--brand-teal);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--brand-teal-tint);
-  --sidebar-accent-foreground: var(--brand-black);
-  --sidebar-border: #e4e9e7;
+  --sidebar-primary-foreground: var(--brand-black);
+  --sidebar-accent: #242a28;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #303735;
   --sidebar-ring: var(--brand-teal);
 }
 
@@ -107,4 +126,32 @@
     background: var(--brand-teal-soft);
     color: var(--brand-black);
   }
+}
+
+@layer components {
+  .auth-page { min-height: 100svh; display: grid; place-items: center; padding: clamp(1rem, 4vw, 3rem); background: #edf1ef; }
+  .auth-frame { display: grid; width: min(100%, 75rem); min-height: min(46rem, calc(100svh - 4rem)); grid-template-columns: minmax(0, 0.95fr) minmax(22rem, 1.05fr); overflow: hidden; background: white; box-shadow: 0 28px 80px rgb(10 22 19 / 0.12); }
+  .auth-form-pane { display: flex; flex-direction: column; justify-content: center; padding: clamp(2.5rem, 7vw, 6.5rem); }
+  .auth-mobile-logo { position: absolute; top: clamp(2rem, 5vw, 4rem); }
+  .auth-brand-pane { position: relative; display: flex; flex-direction: column; overflow: hidden; padding: clamp(2.5rem, 5vw, 4.5rem); background: #161918; }
+  .auth-brand-orbit { position: absolute; border: 1px solid rgb(88 195 183 / 0.32); border-radius: 999px; }
+  .auth-brand-orbit-one { width: 40rem; height: 40rem; top: -17rem; right: -15rem; }
+  .auth-brand-orbit-two { width: 28rem; height: 28rem; bottom: -15rem; left: -12rem; border-color: rgb(255 255 255 / 0.12); }
+  .auth-brand-grid { position: absolute; inset: 0; opacity: .22; background-image: linear-gradient(rgb(255 255 255 / .06) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .06) 1px, transparent 1px); background-size: 2.5rem 2.5rem; mask-image: linear-gradient(to bottom, black, transparent 72%); }
+  .auth-field { position: relative; height: 3.1rem; border: 1px solid #d9e0dd; background: #fff; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+  .auth-field:hover { border-color: #b9c7c1; }
+  .auth-field:focus-within { border-color: var(--brand-teal); box-shadow: 0 8px 22px rgb(44 115 106 / .11); transform: translateY(-1px); }
+  .auth-field-input { width: 100%; height: 100%; padding: .92rem .9rem .18rem; color: var(--brand-black); outline: none; background: transparent; font-size: .9rem; }
+  .auth-field-input-icon { padding-left: 2.85rem; }
+  .auth-field-label { position: absolute; top: 50%; left: .9rem; transform: translateY(-50%); color: #7b8581; font-size: .95rem; pointer-events: none; transition: top .16s ease, transform .16s ease, font-size .16s ease, color .16s ease; }
+  .auth-field-label-icon { left: 2.85rem; }
+  .auth-field-active .auth-field-label { top: .68rem; transform: translateY(-50%); color: var(--brand-teal); font-size: .64rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .auth-field-icon { position: absolute; z-index: 1; top: 50%; left: .9rem; transform: translateY(-50%); color: #8a9691; transition: color .16s ease; }
+  .auth-field-icon svg { width: 1rem; height: 1rem; }
+  .auth-field:focus-within .auth-field-icon { color: var(--brand-teal); }
+  .auth-field-focus-line { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--brand-teal); transform: scaleX(0); transform-origin: left; transition: transform .24s ease; }
+  .auth-field:focus-within .auth-field-focus-line { transform: scaleX(1); }
+  .auth-submit { justify-content: space-between; padding-inline: 1.25rem; background: var(--brand-black); color: white; transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+  .auth-submit:hover:not(:disabled) { transform: translateY(-1px); background: #29302e; box-shadow: 0 10px 24px rgb(16 25 23 / .18); }
+  @media (max-width: 767px) { .auth-page { padding: 0; background: white; } .auth-frame { min-height: 100svh; grid-template-columns: 1fr; box-shadow: none; } .auth-brand-pane { display: none; } .auth-form-pane { padding: 6.5rem 1.5rem 3rem; } }
 }

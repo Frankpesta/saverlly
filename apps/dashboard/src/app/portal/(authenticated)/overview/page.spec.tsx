@@ -195,7 +195,7 @@ describe("PortalOverviewPage", () => {
   it("shows the kiosk's status and operational counts in the header", async () => {
     renderWithClient(<PortalOverviewPage />)
 
-    expect(await screen.findByText("ACTIVE")).toBeInTheDocument()
+    expect(await screen.findByText("Active")).toBeInTheDocument()
     expect(screen.getByText("Kiosk One")).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText("1 active devices")).toBeInTheDocument())
   })

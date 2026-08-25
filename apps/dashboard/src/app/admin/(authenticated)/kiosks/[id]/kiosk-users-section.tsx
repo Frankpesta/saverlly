@@ -29,7 +29,7 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
   }
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Users</CardTitle>
         <AddKioskUserDialog kioskId={kioskId} />
@@ -43,7 +43,7 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
         {users?.map((user) => (
           <div
             key={user.id}
-            className="flex items-center justify-between rounded-xl border border-black/8 px-4 py-3"
+            className="flex items-center justify-between rounded-lg border border-black/8 px-4 py-3"
           >
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-medium">{user.email}</span>

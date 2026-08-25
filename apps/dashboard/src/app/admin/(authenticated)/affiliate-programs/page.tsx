@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "motion/react"
 import { LinkIcon, ZapIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -12,6 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
@@ -48,7 +48,7 @@ export default function AffiliateProgramsPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load affiliate programs.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -78,29 +78,25 @@ export default function AffiliateProgramsPage() {
             )}
 
             {pageItems.map((program, index) => (
-              <motion.tr
-                key={program.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: index * 0.03 }}
-                className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-              >
+              <TableRow key={program.id} index={index}>
                 <TableCell className="font-medium">{program.networkName}</TableCell>
                 <TableCell>{program.programId ?? "—"}</TableCell>
                 <TableCell>
-                  <Badge variant={program.hasCouponApi ? "default" : "secondary"}>
+                  <Badge variant={program.hasCouponApi ? "success" : "secondary"}>
                     {program.hasCouponApi ? "Yes" : "No"}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={program.hasCredentials ? "default" : "outline"}>
+                  <Badge variant={program.hasCredentials ? "info" : "outline"}>
                     {program.hasCredentials ? "Configured" : "None"}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <AffiliateProgramDialog program={program} />
+                  <TableRowActions>
+                    <AffiliateProgramDialog program={program} />
+                  </TableRowActions>
                 </TableCell>
-              </motion.tr>
+              </TableRow>
             ))}
           </TableBody>
         </Table>

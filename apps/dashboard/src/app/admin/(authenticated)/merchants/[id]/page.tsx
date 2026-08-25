@@ -35,6 +35,7 @@ import {
 } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
 import type { CheckoutRecipe, Merchant } from "@/lib/api/types"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { AttributionFields, type AttributionFieldsValue } from "../attribution-fields"
 import { MerchantCouponsSection } from "./merchant-coupons-section"
 import { MerchantScrapeSourcesSection } from "./merchant-scrape-sources-section"
@@ -58,14 +59,21 @@ export default function MerchantDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <Link
-          href="/admin/merchants"
-          className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:underline"
-        >
-          <ArrowLeftIcon className="size-4" />
-          Back to Merchants
-        </Link>
+      <div className="flex flex-col gap-4 border-b border-black/[0.09] pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3">
+          <Link
+            href="/admin/merchants"
+            className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeftIcon className="size-4" />
+            Merchants
+          </Link>
+          <div>
+            <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Merchant profile</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">{merchant?.name ?? "Merchant"}</h2>
+            {merchant && <p className="mt-1 text-sm text-muted-foreground">{merchant.domain}</p>}
+          </div>
+        </div>
         {merchant && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -100,7 +108,7 @@ export default function MerchantDetailPage() {
       {isLoading && <Skeleton className="h-64 w-full max-w-2xl" />}
 
       {merchant && (
-        <div className="flex flex-wrap items-start gap-6">
+        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <MerchantEditForm key={merchant.id} merchant={merchant} />
           <CheckoutRecipeForm key={`${merchant.id}-recipe`} merchant={merchant} />
           <MerchantCouponsSection merchantId={merchant.id} />
@@ -144,7 +152,7 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
   }
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{merchant.name}</CardTitle>
         <div className="flex items-center gap-2">
@@ -154,19 +162,19 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="merchant-name">Name</Label>
-            <Input id="merchant-name" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="merchant-domain">Domain</Label>
-            <Input
-              id="merchant-domain"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              required
-            />
-          </div>
+          <FormGrid>
+            <FormField label="Name" htmlFor="merchant-name">
+              <Input id="merchant-name" value={name} onChange={(e) => setName(e.target.value)} required />
+            </FormField>
+            <FormField label="Domain" htmlFor="merchant-domain">
+              <Input
+                id="merchant-domain"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                required
+              />
+            </FormField>
+          </FormGrid>
           <AttributionFields idPrefix="merchant-edit" value={tracking} onChange={setTracking} />
         </CardContent>
         <CardFooter>
@@ -222,67 +230,68 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
   }
 
   return (
-    <Card className="w-full max-w-lg">
+    <Card>
       <CardHeader>
         <CardTitle>Checkout recipe</CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="recipe-coupon-field">Coupon field selector</Label>
-            <Input
-              id="recipe-coupon-field"
-              placeholder="input[name='promoCode']"
-              value={couponFieldSelector}
-              onChange={(e) => setCouponFieldSelector(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="recipe-apply-button">Apply button selector</Label>
-            <Input
-              id="recipe-apply-button"
-              placeholder="button[data-testid='apply-promo']"
-              value={applyButtonSelector}
-              onChange={(e) => setApplyButtonSelector(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="recipe-success">Success indicator selector</Label>
-            <Input
-              id="recipe-success"
-              placeholder=".promo-success-message"
-              value={successIndicatorSelector}
-              onChange={(e) => setSuccessIndicatorSelector(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="recipe-failure">Failure indicator selector</Label>
-            <Input
-              id="recipe-failure"
-              placeholder=".promo-error-message"
-              value={failureIndicatorSelector}
-              onChange={(e) => setFailureIndicatorSelector(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="recipe-cart-total">Cart total selector</Label>
+          <FormGrid>
+            <FormField label="Coupon field selector" htmlFor="recipe-coupon-field">
+              <Input
+                id="recipe-coupon-field"
+                placeholder="input[name='promoCode']"
+                value={couponFieldSelector}
+                onChange={(e) => setCouponFieldSelector(e.target.value)}
+              />
+            </FormField>
+            <FormField label="Apply button selector" htmlFor="recipe-apply-button">
+              <Input
+                id="recipe-apply-button"
+                placeholder="button[data-testid='apply-promo']"
+                value={applyButtonSelector}
+                onChange={(e) => setApplyButtonSelector(e.target.value)}
+              />
+            </FormField>
+          </FormGrid>
+          <FormGrid>
+            <FormField label="Success indicator selector" htmlFor="recipe-success">
+              <Input
+                id="recipe-success"
+                placeholder=".promo-success-message"
+                value={successIndicatorSelector}
+                onChange={(e) => setSuccessIndicatorSelector(e.target.value)}
+              />
+            </FormField>
+            <FormField label="Failure indicator selector" htmlFor="recipe-failure">
+              <Input
+                id="recipe-failure"
+                placeholder=".promo-error-message"
+                value={failureIndicatorSelector}
+                onChange={(e) => setFailureIndicatorSelector(e.target.value)}
+              />
+            </FormField>
+          </FormGrid>
+          <FormField label="Cart total selector" htmlFor="recipe-cart-total">
             <Input
               id="recipe-cart-total"
               placeholder=".order-summary-total"
               value={cartTotalSelector}
               onChange={(e) => setCartTotalSelector(e.target.value)}
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="recipe-url-patterns">Checkout URL patterns</Label>
+          </FormField>
+          <FormField
+            label="Checkout URL patterns"
+            htmlFor="recipe-url-patterns"
+            hint="Comma-separated."
+          >
             <Input
               id="recipe-url-patterns"
               placeholder="/checkout, /cart/checkout"
               value={checkoutUrlPatterns}
               onChange={(e) => setCheckoutUrlPatterns(e.target.value)}
             />
-            <p className="text-sm text-muted-foreground">Comma-separated.</p>
-          </div>
+          </FormField>
         </CardContent>
         <CardFooter>
           <Button type="submit" disabled={updateMerchant.isPending}>

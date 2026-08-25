@@ -32,6 +32,7 @@ import { usePayouts, useProcessPayout } from "@/lib/api/hooks/use-payouts"
 import { ApiError } from "@/lib/api/client"
 import { formatCurrency } from "@/lib/format-currency"
 import { PAYOUT_STATUS_BADGE_VARIANT, PAYOUT_STATUS_LABEL } from "@/lib/dashboard/status-labels"
+import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
 import { usePagination } from "@/hooks/use-pagination"
 import type { Payout } from "@/lib/api/types"
 
@@ -50,6 +51,20 @@ export default function AdminPayoutsPage() {
     }
   }, [payouts])
 
+  const totalGrowth = React.useMemo(
+    () => monthOverMonthGrowth(payouts ?? [], (p) => p.createdAt, () => 1),
+    [payouts],
+  )
+  const paidGrowth = React.useMemo(
+    () =>
+      monthOverMonthGrowth(
+        (payouts ?? []).filter((p) => p.status === "paid"),
+        (p) => p.paidAt,
+        (p) => p.totalAmount,
+      ),
+    [payouts],
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -60,7 +75,13 @@ export default function AdminPayoutsPage() {
       </div>
 
       <BentoGrid>
-        <StatTile label="Total payouts" value={stats.total} icon={<CreditCardIcon />} />
+        <StatTile
+          label="Total payouts"
+          value={stats.total}
+          icon={<CreditCardIcon />}
+          delta={totalGrowth}
+          subtext={totalGrowth !== null ? "vs last month" : undefined}
+        />
         <StatTile
           label="Awaiting processing"
           value={stats.pendingAmount}
@@ -72,12 +93,14 @@ export default function AdminPayoutsPage() {
           value={stats.paidAmount}
           format={formatCurrency}
           icon={<CircleCheckIcon />}
+          delta={paidGrowth}
+          subtext={paidGrowth !== null ? "vs last month" : undefined}
         />
       </BentoGrid>
 
       {isError && <p className="text-sm text-destructive">Could not load payouts.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -107,8 +130,8 @@ export default function AdminPayoutsPage() {
               </TableRow>
             )}
 
-            {pageItems.map((payout) => (
-              <PayoutRow key={payout.id} payout={payout} />
+            {pageItems.map((payout, index) => (
+              <PayoutRow key={payout.id} payout={payout} index={index} />
             ))}
           </TableBody>
         </Table>
@@ -124,7 +147,7 @@ export default function AdminPayoutsPage() {
   )
 }
 
-function PayoutRow({ payout }: { payout: Payout }) {
+function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
   const processPayout = useProcessPayout()
 
   function handleProcess() {
@@ -138,7 +161,7 @@ function PayoutRow({ payout }: { payout: Payout }) {
   const stripeConnected = payout.kiosk?.stripeConnected ?? false
 
   return (
-    <TableRow>
+    <TableRow index={index}>
       <TableCell className="font-medium">{payout.kiosk?.name ?? "—"}</TableCell>
       <TableCell>
         {new Date(payout.periodStart).toLocaleDateString()} –{" "}
@@ -151,7 +174,7 @@ function PayoutRow({ payout }: { payout: Payout }) {
         </Badge>
       </TableCell>
       <TableCell>
-        <Badge variant={stripeConnected ? "default" : "secondary"}>
+        <Badge variant={stripeConnected ? "success" : "secondary"}>
           {stripeConnected ? "Connected" : "Not connected"}
         </Badge>
       </TableCell>

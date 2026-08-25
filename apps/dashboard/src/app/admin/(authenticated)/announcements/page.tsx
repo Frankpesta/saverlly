@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion } from "motion/react"
 import { MegaphoneIcon, CircleCheckIcon, RadioIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -13,6 +12,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
@@ -22,6 +22,8 @@ import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { usePagination } from "@/hooks/use-pagination"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
+import { ANNOUNCEMENT_STATUS_BADGE_VARIANT, type AnnouncementStatus } from "@/lib/dashboard/status-labels"
+import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
 import { NewAnnouncementDialog } from "./new-announcement-dialog"
 
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
@@ -30,19 +32,13 @@ const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   MAX_N_TIMES: "Max N times",
 }
 
-function statusFor(announcement: Announcement, now: number): "Scheduled" | "Active" | "Expired" {
+function statusFor(announcement: Announcement, now: number): AnnouncementStatus {
   const start = new Date(announcement.startAt).getTime()
   const end = new Date(announcement.endAt).getTime()
   if (now < start) return "Scheduled"
   if (now > end) return "Expired"
   return "Active"
 }
-
-const STATUS_BADGE_VARIANT = {
-  Scheduled: "secondary",
-  Active: "default",
-  Expired: "secondary",
-} as const
 
 export default function AdminAnnouncementsPage() {
   const { data: announcements, isLoading, isError } = useAnnouncements()
@@ -77,6 +73,11 @@ export default function AdminAnnouncementsPage() {
     return { total: list.length, active, broadcasts }
   }, [announcements, now])
 
+  const totalGrowth = React.useMemo(
+    () => monthOverMonthGrowth(announcements ?? [], (a) => a.createdAt, () => 1),
+    [announcements],
+  )
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -90,14 +91,20 @@ export default function AdminAnnouncementsPage() {
       </div>
 
       <BentoGrid>
-        <StatTile label="Total announcements" value={stats.total} icon={<MegaphoneIcon />} />
+        <StatTile
+          label="Total announcements"
+          value={stats.total}
+          icon={<MegaphoneIcon />}
+          delta={totalGrowth}
+          subtext={totalGrowth !== null ? "vs last month" : undefined}
+        />
         <StatTile label="Active now" value={stats.active} icon={<CircleCheckIcon />} />
         <StatTile label="Broadcasts" value={stats.broadcasts} icon={<RadioIcon />} />
       </BentoGrid>
 
       {isError && <p className="text-sm text-destructive">Could not load announcements.</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-black/8">
+      <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
             <TableRow>
@@ -131,13 +138,7 @@ export default function AdminAnnouncementsPage() {
               const status = statusFor(announcement, now)
               const isBroadcast = announcement.kioskId === null
               return (
-                <motion.tr
-                  key={announcement.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25, delay: index * 0.03 }}
-                  className="border-b border-black/6 transition-colors last:border-0 hover:bg-[var(--brand-teal-tint)]/50"
-                >
+                <TableRow key={announcement.id} index={index}>
                   <TableCell className="font-medium">
                     <Link
                       href={`/admin/announcements/${announcement.id}`}
@@ -148,7 +149,7 @@ export default function AdminAnnouncementsPage() {
                   </TableCell>
                   <TableCell>
                     {isBroadcast ? (
-                      <Badge variant="default" className="gap-1">
+                      <Badge variant="info" className="gap-1">
                         <RadioIcon className="size-3" />
                         All kiosks
                       </Badge>
@@ -157,7 +158,7 @@ export default function AdminAnnouncementsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_BADGE_VARIANT[status]}>{status}</Badge>
+                    <Badge variant={ANNOUNCEMENT_STATUS_BADGE_VARIANT[status]}>{status}</Badge>
                   </TableCell>
                   <TableCell>{REPEAT_LABEL[announcement.repeatPolicy]}</TableCell>
                   <TableCell>
@@ -168,14 +169,16 @@ export default function AdminAnnouncementsPage() {
                         : `${announcement.locationIds.length} of ${locationCountByKiosk.get(announcement.kioskId ?? "") ?? "…"}`}
                   </TableCell>
                   <TableCell>
-                    <Link
-                      href={`/admin/announcements/${announcement.id}`}
-                      className="text-sm text-muted-foreground hover:underline"
-                    >
-                      Edit
-                    </Link>
+                    <TableRowActions>
+                      <Link
+                        href={`/admin/announcements/${announcement.id}`}
+                        className="text-sm text-muted-foreground hover:underline"
+                      >
+                        Edit
+                      </Link>
+                    </TableRowActions>
                   </TableCell>
-                </motion.tr>
+                </TableRow>
               )
             })}
           </TableBody>
