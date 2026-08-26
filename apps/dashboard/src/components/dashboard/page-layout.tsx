@@ -15,7 +15,7 @@ export function WorkspaceHeader({
   className?: string
 }) {
   return (
-    <header className={cn("flex flex-col gap-4 border-b border-black/[0.09] pb-6 sm:flex-row sm:items-end sm:justify-between", className)}>
+    <header className={cn("flex flex-col gap-4 border-b border-black/[0.09] dark:border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between", className)}>
       <div className="max-w-2xl">
         {eyebrow && <p className="mb-2 text-[11px] font-bold tracking-[0.14em] text-[var(--brand-teal-deep)] uppercase">{eyebrow}</p>}
         <h1 className="text-3xl font-semibold tracking-[-0.045em] text-foreground">{title}</h1>
@@ -34,7 +34,7 @@ export function CollectionSummary({
   className?: string
 }) {
   return (
-    <dl className={cn("grid divide-y divide-black/[0.07] border-y border-black/[0.09] sm:grid-cols-3 sm:divide-x sm:divide-y-0", className)}>
+    <dl className={cn("grid divide-y divide-black/[0.07] dark:divide-white/10 border-y border-black/[0.09] dark:border-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0", className)}>
       {items.map((item) => (
         <div key={item.label} className="min-w-0 py-4 sm:px-5 sm:first:pl-0 sm:last:pr-0">
           <dt className="text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">{item.label}</dt>

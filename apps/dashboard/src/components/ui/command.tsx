@@ -42,7 +42,13 @@ function CommandDialog({
   return (
     <Dialog {...props}>
       <DialogContent
-        className={cn("overflow-hidden p-0 ring-[var(--brand-teal-soft)]", className)}
+        className={cn(
+          // DialogContent's close button defaults to top-5/right-5, tuned for a normal padded
+          // header — this dialog's header is sr-only and its real "header" is the compact h-9
+          // search bar, so the button needs to sit higher to stay centered against it.
+          "overflow-hidden p-0 ring-[var(--brand-teal-soft)] [&_[data-slot=dialog-close]]:top-1.5 [&_[data-slot=dialog-close]]:right-3",
+          className,
+        )}
         showCloseButton={showCloseButton}
       >
         <DialogHeader className="sr-only">

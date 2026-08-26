@@ -5,7 +5,8 @@ export function AuthShell({ tagline, children }: { tagline: string; children: Re
   return (
     <div className="auth-page">
       <div className="auth-form-pane">
-        <BrandLogo height={22} className="auth-mobile-logo" />
+        <BrandLogo height={22} className="auth-mobile-logo dark:hidden" />
+        <BrandLogo dark height={22} className="auth-mobile-logo hidden dark:block" />
         {children}
       </div>
       <aside className="auth-brand-pane">

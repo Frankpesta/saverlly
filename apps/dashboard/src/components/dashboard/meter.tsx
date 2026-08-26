@@ -27,8 +27,8 @@ export function Meter({
         <span className="text-[2.4rem] leading-none font-semibold tracking-[-0.065em]">{pct}%</span>
         <span className="text-sm text-muted-foreground">{caption ?? `${value} of ${max}`}</span>
       </div>
-      <div className="flex items-center border-l border-black/[0.055] bg-[#f8faf9] px-5">
-      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--brand-teal-tint)]">
+      <div className="flex items-center border-l border-black/[0.055] bg-[#f8faf9] px-5 dark:border-white/[0.06] dark:bg-white/[0.03]">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--brand-teal-tint)] dark:bg-white/10">
         <motion.div
           className="h-full bg-[var(--brand-teal)]"
           initial={{ width: 0 }}

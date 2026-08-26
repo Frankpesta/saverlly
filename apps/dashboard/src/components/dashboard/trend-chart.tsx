@@ -52,18 +52,18 @@ export function TrendChart({
               <stop offset="100%" stopColor="var(--brand-teal)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid vertical={false} stroke="#e1e0d9" strokeDasharray="0" />
+          <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="0" />
           <XAxis
             dataKey="label"
             tickLine={false}
-            axisLine={{ stroke: "#c3c2b7" }}
-            tick={{ fontSize: 12, fill: "#898781" }}
+            axisLine={{ stroke: "var(--border)" }}
+            tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
             minTickGap={32}
           />
           <YAxis
             tickLine={false}
             axisLine={false}
-            tick={{ fontSize: 12, fill: "#898781" }}
+            tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
             tickFormatter={compactCurrency}
             width={56}
           />
@@ -72,9 +72,11 @@ export function TrendChart({
             formatter={(value) => [formatCurrency(Number(value)), valueLabel]}
             contentStyle={{
               borderRadius: 12,
-              border: "1px solid rgba(11,11,11,0.08)",
+              border: "1px solid var(--border)",
               boxShadow: "0 4px 16px rgba(11,11,11,0.08)",
               fontSize: 13,
+              backgroundColor: "var(--popover)",
+              color: "var(--popover-foreground)",
             }}
           />
           <Area type="monotone" dataKey="value" stroke="var(--brand-teal)" strokeWidth={2} fill="url(#trend-fill)" />
