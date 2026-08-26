@@ -174,7 +174,7 @@
 
   ::selection {
     background: var(--brand-teal-soft);
-    color: var(--brand-black);
+    color: var(--foreground);
   }
 }
 

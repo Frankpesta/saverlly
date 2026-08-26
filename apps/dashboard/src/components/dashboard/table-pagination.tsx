@@ -37,6 +37,7 @@ export function TablePagination({
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
           className="gap-1"
+          aria-label="Previous page"
         >
           <ChevronLeftIcon className="size-3.5" />
           <span className="hidden sm:inline">Previous</span>
@@ -51,6 +52,7 @@ export function TablePagination({
           disabled={page >= pageCount}
           onClick={() => onPageChange(page + 1)}
           className="gap-1"
+          aria-label="Next page"
         >
           <span className="hidden sm:inline">Next</span>
           <ChevronRightIcon className="size-3.5" />
