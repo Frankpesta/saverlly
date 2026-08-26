@@ -9,6 +9,32 @@ import { UpdateDeviceDto } from './dto/update-device.dto';
 
 const DEVICE_TOKEN_BYTES = 32;
 
+// Device.lastSeenAt only gets written going forward (DeviceAuthGuard, on every authenticated
+// device request) — it's null for every device that was active before that guard change shipped.
+// Falling back to the most recent CouponTestEvent/AttributionAttempt per device means a device
+// with real historical activity doesn't show "Never" just because it predates the heartbeat write.
+const latestActivityInclude = {
+  couponTestEvents: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { createdAt: true } },
+  attributionAttempts: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { createdAt: true } },
+};
+
+function withDerivedLastSeenAt<
+  T extends {
+    lastSeenAt: Date | null;
+    couponTestEvents: { createdAt: Date }[];
+    attributionAttempts: { createdAt: Date }[];
+  },
+>(device: T) {
+  const { couponTestEvents, attributionAttempts, ...rest } = device;
+  const timestamps = [rest.lastSeenAt, couponTestEvents[0]?.createdAt, attributionAttempts[0]?.createdAt].filter(
+    (d): d is Date => d != null,
+  );
+  return {
+    ...rest,
+    lastSeenAt: timestamps.length ? new Date(Math.max(...timestamps.map((d) => d.getTime()))) : null,
+  };
+}
+
 @Injectable()
 export class DevicesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,7 +71,11 @@ export class DevicesService {
 
   async findAll(currentUser: JwtPayload) {
     if (currentUser.role === UserRole.ADMIN) {
-      return this.prisma.device.findMany({ orderBy: { createdAt: 'desc' } });
+      const devices = await this.prisma.device.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: latestActivityInclude,
+      });
+      return devices.map(withDerivedLastSeenAt);
     }
 
     if (currentUser.role === UserRole.LOCATION_MANAGER) {
@@ -53,17 +83,21 @@ export class DevicesService {
         where: { id: currentUser.sub },
         select: { managedLocationIds: true },
       });
-      return this.prisma.device.findMany({
+      const devices = await this.prisma.device.findMany({
         where: { locationId: { in: manager?.managedLocationIds ?? [] } },
         orderBy: { createdAt: 'desc' },
+        include: latestActivityInclude,
       });
+      return devices.map(withDerivedLastSeenAt);
     }
 
     // KIOSK_OWNER
-    return this.prisma.device.findMany({
+    const devices = await this.prisma.device.findMany({
       where: { location: { kioskId: currentUser.kioskId! } },
       orderBy: { createdAt: 'desc' },
+      include: latestActivityInclude,
     });
+    return devices.map(withDerivedLastSeenAt);
   }
 
   async findOne(id: string) {
