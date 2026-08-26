@@ -25,11 +25,11 @@ export function TablePagination({
   const end = Math.min(page * pageSize, totalItems)
 
   return (
-    <div className="mt-3 flex items-center justify-between rounded-xl border border-black/[0.06] bg-card px-5 py-3 shadow-[0_8px_24px_rgba(17,27,24,0.035)]">
+    <div className="mt-3 flex flex-col gap-3 rounded-xl border border-black/[0.06] bg-card px-4 py-3 shadow-[0_8px_24px_rgba(17,27,24,0.035)] dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <p className="text-sm text-muted-foreground">
         Showing {start}–{end} of {totalItems}
       </p>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
         <Button
           type="button"
           variant="outline"
@@ -37,11 +37,12 @@ export function TablePagination({
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
           className="gap-1"
+          aria-label="Previous page"
         >
           <ChevronLeftIcon className="size-3.5" />
-          Previous
+          <span className="hidden sm:inline">Previous</span>
         </Button>
-        <span className="text-sm text-muted-foreground">
+        <span className="text-sm whitespace-nowrap text-muted-foreground">
           Page {page} of {pageCount}
         </span>
         <Button
@@ -51,8 +52,9 @@ export function TablePagination({
           disabled={page >= pageCount}
           onClick={() => onPageChange(page + 1)}
           className="gap-1"
+          aria-label="Next page"
         >
-          Next
+          <span className="hidden sm:inline">Next</span>
           <ChevronRightIcon className="size-3.5" />
         </Button>
       </div>

@@ -15,7 +15,7 @@ export function SettingsSection({
   className?: string
 }) {
   return (
-    <section className={cn("border-t border-black/[0.09] pt-5", className)}>
+    <section className={cn("border-t border-black/[0.09] dark:border-white/10 pt-5", className)}>
       <div className="mb-5 flex flex-col gap-1">
         <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
         {description && <p className="text-sm leading-6 text-muted-foreground">{description}</p>}

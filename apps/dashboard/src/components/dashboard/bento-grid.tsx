@@ -9,7 +9,7 @@ export function BentoGrid({
   children: React.ReactNode
 }) {
   return (
-    <div className={cn("dashboard-bento-grid grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4", className)}>
+    <div className={cn("dashboard-bento-grid grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-6", className)}>
       {children}
     </div>
   )
@@ -40,8 +40,8 @@ export function BentoCard({
       data-slot="dashboard-surface"
       className={cn(
         variant === "metric"
-          ? "col-span-1 overflow-hidden rounded-[1.15rem] border border-black/[0.05] bg-card p-5 shadow-[0_14px_36px_rgba(17,27,24,0.06)]"
-          : "col-span-1 border-t border-black/[0.09] py-5",
+          ? "col-span-1 overflow-hidden rounded-[1.15rem] border border-black/[0.05] bg-card p-5 shadow-[0_14px_36px_rgba(17,27,24,0.06)] dark:border-white/10"
+          : "col-span-1 border-t border-black/[0.09] py-5 dark:border-white/10",
         spanClass,
         className,
       )}

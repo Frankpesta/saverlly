@@ -7,7 +7,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto rounded-xl border border-black/[0.07] bg-card shadow-[0_8px_24px_rgba(17,27,24,0.035)]"
+      className="relative w-full overflow-x-auto rounded-xl border border-black/[0.07] bg-card shadow-[0_8px_24px_rgba(17,27,24,0.035)] dark:border-white/10"
     >
       <table
         data-slot="table"
@@ -22,7 +22,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("bg-[#f8faf9] [&_tr]:border-b [&_tr]:border-black/[0.06]", className)}
+      className={cn("bg-[#f8faf9] [&_tr]:border-b [&_tr]:border-black/[0.06] dark:bg-white/[0.03] dark:[&_tr]:border-white/10", className)}
       {...props}
     />
   )
@@ -66,7 +66,7 @@ type TableRowProps = Omit<
 
 function TableRow({ className, index, ...props }: TableRowProps) {
   const rowClassName = cn(
-    "group border-b border-black/[0.055] transition-colors hover:bg-[var(--brand-teal-tint)]/45 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-[var(--brand-teal-tint)]",
+    "group border-b border-black/[0.055] dark:border-white/10 transition-colors hover:bg-[var(--brand-teal-tint)]/45 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-[var(--brand-teal-tint)]",
     className
   )
 

@@ -49,7 +49,7 @@ export default function KioskDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 border-b border-black/[0.09] pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-black/[0.09] dark:border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-3">
           <Link href="/admin/kiosks" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeftIcon className="size-4" />

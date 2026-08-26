@@ -22,8 +22,8 @@ export function AnnouncementPreview({
           />
         )}
         <div className="flex flex-col gap-1.5 p-4">
-          <p className="text-base font-semibold">{title || "Announcement title"}</p>
-          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+          <p className="text-base font-semibold text-[var(--brand-black)]">{title || "Announcement title"}</p>
+          <p className="whitespace-pre-wrap text-sm text-black/60">
             {body || "Announcement body text goes here."}
           </p>
         </div>

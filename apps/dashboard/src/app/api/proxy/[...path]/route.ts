@@ -40,7 +40,12 @@ async function handle(
   }
 
   const body = await response.arrayBuffer()
-  return new NextResponse(body, {
+  // The Fetch spec forbids a body on null-body statuses (204/205/304) — even a zero-length
+  // ArrayBuffer counts as "has a body" and makes the Response constructor throw, turning a
+  // successful backend delete (204) into a 500 here while the deletion already happened.
+  const isNullBodyStatus = response.status === 204 || response.status === 205 || response.status === 304
+
+  return new NextResponse(isNullBodyStatus ? null : body, {
     status: response.status,
     headers: {
       "Content-Type": response.headers.get("content-type") ?? "application/json",

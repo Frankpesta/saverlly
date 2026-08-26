@@ -104,7 +104,7 @@ export function StatTile({
         </div>
       </div>
       {trendPoints && (
-        <div className="relative min-h-full border-l border-black/[0.055] bg-[#f8faf9]">
+        <div className="relative min-h-full border-l border-black/[0.055] bg-[#f8faf9] dark:border-white/[0.06] dark:bg-white/[0.03]">
           {icon && <span className="absolute right-4 top-4 flex items-center justify-center text-primary [&_svg]:size-5">{icon}</span>}
           <div className="absolute inset-x-3 bottom-4 h-[54%]">
             <svg viewBox="0 0 84 30" preserveAspectRatio="none" aria-label={`${label} trend`} role="img" className="size-full overflow-visible">

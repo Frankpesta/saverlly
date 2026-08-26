@@ -29,13 +29,13 @@ export function Gauge({
         <p className="text-[2.4rem] leading-none font-semibold tracking-[-0.065em]">{pct}%</p>
         {caption && <p className="text-sm text-muted-foreground">{caption}</p>}
       </div>
-      <div className="flex flex-col justify-center border-l border-black/[0.055] bg-[#f8faf9] px-5">
-        <div className="flex h-2 overflow-hidden rounded-full bg-[#edf1ef]">
+      <div className="flex flex-col justify-center border-l border-black/[0.055] bg-[#f8faf9] px-5 dark:border-white/[0.06] dark:bg-white/[0.03]">
+        <div className="flex h-2 overflow-hidden rounded-full bg-[#edf1ef] dark:bg-white/10">
           <motion.span className="bg-[var(--brand-teal)]" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.65, ease: "easeOut" }} />
         </div>
         <div className="mt-4 flex flex-col gap-2 text-xs">
           <span className="flex items-center gap-1.5 text-muted-foreground"><i className="size-2 rounded-full bg-[var(--brand-teal)]" />{value} active</span>
-          <span className="flex items-center gap-1.5 text-muted-foreground"><i className="size-2 rounded-full bg-[#cbd3d0]" />{inactive} inactive</span>
+          <span className="flex items-center gap-1.5 text-muted-foreground"><i className="size-2 rounded-full bg-[#cbd3d0] dark:bg-white/25" />{inactive} inactive</span>
         </div>
       </div>
     </BentoCard>

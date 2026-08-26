@@ -21,7 +21,7 @@ export default function AdminSettingsPage() {
           <div className="flex flex-col gap-3">
             {userLoading && <Skeleton className="h-10 w-full" />}
             {currentUser && (
-              <div className="flex items-center justify-between border-y border-black/[0.06] py-3">
+              <div className="flex items-center justify-between border-y border-black/[0.06] dark:border-white/10 py-3">
                 <span className="text-sm font-medium">{currentUser.email}</span>
                 <Badge variant="secondary">Admin</Badge>
               </div>

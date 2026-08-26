@@ -31,7 +31,7 @@ export default function AdminLocationDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="border-b border-black/[0.09] pb-6">
+      <div className="border-b border-black/[0.09] dark:border-white/10 pb-6">
         <Link href="/admin/locations" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeftIcon className="size-4" />
           Locations
