@@ -14,7 +14,9 @@ const navMain = [
   { title: "Locations", url: "/portal/locations", icon: <MapPinIcon /> },
   { title: "Devices", url: "/portal/devices", icon: <MonitorIcon /> },
   { title: "Announcements", url: "/portal/announcements", icon: <MegaphoneIcon /> },
-  { title: "Earnings", url: "/portal/earnings", icon: <WalletIcon /> },
+  // Earnings (commissions/payouts) is a KIOSK_OWNER-only concept server-side — a location
+  // manager hitting it would just get 403s throughout, so it's excluded below for that role.
+  { title: "Earnings", url: "/portal/earnings", icon: <WalletIcon />, ownerOnly: true },
 ]
 
 const navSecondary = [
@@ -27,15 +29,17 @@ export default async function PortalLayout({
   children: React.ReactNode
 }) {
   const user = await getCurrentUser()
+  const isKioskOwner = user?.role === "KIOSK_OWNER"
+  const visibleNavMain = navMain.filter((item) => !item.ownerOnly || isKioskOwner)
 
   return (
     <AuthenticatedShell
       homeUrl="/portal/overview"
       loginPath="/portal/login"
       fallbackTitle="Kiosk Portal"
-      navMain={navMain}
+      navMain={visibleNavMain}
       navSecondary={navSecondary}
-      user={{ name: user?.email ?? "Owner", email: user?.email ?? "" }}
+      user={{ name: user?.name || user?.email || "Owner", email: user?.email ?? "" }}
     >
       {children}
     </AuthenticatedShell>

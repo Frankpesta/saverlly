@@ -39,7 +39,7 @@ describe("ChangePasswordCard", () => {
     expect(screen.getByLabelText("New password")).toHaveValue("")
   })
 
-  it("shows a toast and does not submit when the new passwords don't match", async () => {
+  it("shows an inline error and does not submit when the new passwords don't match", async () => {
     render(<ChangePasswordCard />)
 
     await userEvent.type(screen.getByLabelText("Current password"), "MyPassword123!")
@@ -47,7 +47,7 @@ describe("ChangePasswordCard", () => {
     await userEvent.type(screen.getByLabelText("Confirm new password"), "Mismatch123!")
     await userEvent.click(screen.getByRole("button", { name: /update password/i }))
 
-    expect(toast.error).toHaveBeenCalledWith("New passwords don't match.")
+    expect(await screen.findByText("New passwords don't match.")).toBeInTheDocument()
     expect(global.fetch).not.toHaveBeenCalled()
   })
 

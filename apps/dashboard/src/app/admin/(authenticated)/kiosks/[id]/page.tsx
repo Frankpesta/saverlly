@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ArrowLeftIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -16,8 +16,13 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
+import { RevenueShareInput } from "@/components/dashboard/revenue-share-input"
 import { Switch } from "@/components/ui/switch"
+import { DeleteKioskButton } from "./delete-kiosk-button"
 import {
   useKiosk,
   useUpdateKiosk,
@@ -26,10 +31,20 @@ import {
 import { ApiError } from "@/lib/api/client"
 import type { Kiosk } from "@/lib/api/types"
 import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
+import { nameSchema, revenueShareSchema } from "@/lib/validation/schemas"
 import { KioskUsersSection } from "./kiosk-users-section"
+import { KioskLocationsSection } from "./kiosk-locations-section"
+
+const kioskEditSchema = z.object({
+  name: nameSchema,
+  revenueSharePct: revenueShareSchema,
+})
+
+type KioskEditFormValues = z.infer<typeof kioskEditSchema>
 
 export default function KioskDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const { data: kiosk, isLoading, isError } = useKiosk(id)
   const updateStatus = useUpdateKioskStatus()
 
@@ -61,7 +76,10 @@ export default function KioskDetailPage() {
           </div>
         </div>
         {kiosk && (
-          <Badge variant={KIOSK_STATUS_BADGE_VARIANT[kiosk.status]}>{KIOSK_STATUS_LABEL[kiosk.status]}</Badge>
+          <div className="flex items-center gap-3">
+            <Badge variant={KIOSK_STATUS_BADGE_VARIANT[kiosk.status]}>{KIOSK_STATUS_LABEL[kiosk.status]}</Badge>
+            <DeleteKioskButton kiosk={kiosk} onDeleted={() => router.push("/admin/kiosks")} />
+          </div>
         )}
       </div>
 
@@ -87,7 +105,10 @@ export default function KioskDetailPage() {
             <KioskEditForm key={kiosk.id} kiosk={kiosk} />
           </Card>
 
-          <KioskUsersSection kioskId={kiosk.id} />
+          <div className="flex flex-col gap-10">
+            <KioskUsersSection kioskId={kiosk.id} />
+            <KioskLocationsSection kioskId={kiosk.id} />
+          </div>
         </div>
       )}
     </div>
@@ -96,55 +117,53 @@ export default function KioskDetailPage() {
 
 function KioskEditForm({ kiosk }: { kiosk: Kiosk }) {
   const updateKiosk = useUpdateKiosk(kiosk.id)
-  const [name, setName] = React.useState(kiosk.name)
-  const [revenueSharePct, setRevenueSharePct] = React.useState(kiosk.revenueSharePct)
-  const [contactEmail, setContactEmail] = React.useState(kiosk.contactEmail)
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<KioskEditFormValues>({
+    resolver: zodResolver(kioskEditSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: { name: kiosk.name, revenueSharePct: Number(kiosk.revenueSharePct) },
+  })
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    updateKiosk.mutate(
-      { name, revenueSharePct: Number(revenueSharePct), contactEmail },
-      {
-        onSuccess: () => toast.success("Kiosk updated."),
-        onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not update kiosk."),
-      },
-    )
+  function onSubmit(values: KioskEditFormValues) {
+    updateKiosk.mutate(values, {
+      onSuccess: () => toast.success("Kiosk updated."),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not update kiosk."),
+    })
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <CardContent className="flex flex-col gap-4">
         <FormGrid>
-          <FormField label="Name" htmlFor="name">
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <FormField label="Name" htmlFor="name" error={errors.name?.message}>
+            <Input id="name" {...register("name")} />
           </FormField>
-          <FormField label="Revenue Share (%)" htmlFor="revenueSharePct">
-            <Input
-              id="revenueSharePct"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={revenueSharePct}
-              onChange={(e) => setRevenueSharePct(e.target.value)}
-              required
+          <FormField label="Revenue Share (%)" htmlFor="revenueSharePct" error={errors.revenueSharePct?.message}>
+            <Controller
+              name="revenueSharePct"
+              control={control}
+              render={({ field, fieldState }) => (
+                <RevenueShareInput
+                  id="revenueSharePct"
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  aria-invalid={!!fieldState.error}
+                />
+              )}
             />
           </FormField>
         </FormGrid>
-        <FormField label="Contact Email" htmlFor="contactEmail">
-          <Input
-            id="contactEmail"
-            type="email"
-            value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
-            required
-          />
-        </FormField>
       </CardContent>
       <CardFooter>
-        <Button type="submit" disabled={updateKiosk.isPending}>
-          {updateKiosk.isPending ? "Saving…" : "Save changes"}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving…" : "Save changes"}
         </Button>
       </CardFooter>
     </form>

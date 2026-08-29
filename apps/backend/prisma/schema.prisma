@@ -24,6 +24,7 @@ enum KioskStatus {
 model User {
   id                 String         @id @default(uuid())
   email              String         @unique
+  name               String? // shown in greetings instead of the email local-part once set; nullable since older rows predate this field
   passwordHash       String
   mustChangePassword Boolean        @default(true) // true for server-generated passwords; forces a change on next login
   role               UserRole
@@ -44,7 +45,6 @@ model Kiosk {
   name                 String
   status               KioskStatus    @default(ACTIVE) // admin sets directly, no approval workflow
   revenueSharePct      Decimal        @db.Decimal(5, 2) // e.g. 30.00 = 30%
-  contactEmail         String
   stripeAccountId      String? // Stripe Connect Express account id, set once kiosk starts onboarding (Phase 5)
   stripePayoutsEnabled Boolean        @default(false) // synced from Stripe's account.updated webhook — true once onboarding is fully complete and the account can actually receive transfers
   createdAt            DateTime       @default(now())
@@ -63,7 +63,7 @@ model Location {
   address            String
   city               String
   state              String
-  country            String
+  zip                String? // US 5-digit ZIP for now — nullable/string so a later switch to allow letters/dashes (e.g. Canadian postal codes) is just a validation change, not a schema one
   latitude           Float?
   longitude          Float?
   tags               String[] // e.g. ["mall", "downtown", "high-traffic"] — used for future ad targeting

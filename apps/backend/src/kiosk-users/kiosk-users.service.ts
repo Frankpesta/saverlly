@@ -35,6 +35,7 @@ export class KioskUsersService {
 
     const user = await this.prisma.user.create({
       data: {
+        name: dto.name,
         email: dto.email,
         passwordHash,
         role: dto.role,
@@ -102,11 +103,27 @@ export class KioskUsersService {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
+        name: dto.name,
         role: dto.role,
         disabled: dto.disabled,
         managedLocationIds: dto.managedLocationIds,
       },
       select: KIOSK_USER_SAFE_SELECT,
+    });
+  }
+
+  async remove(kioskId: string, userId: string, actingRole: UserRole) {
+    const target = await this.prisma.user.findFirst({
+      where: { id: userId, kioskId },
+    });
+    if (!target) {
+      throw new NotFoundException('User not found in this kiosk');
+    }
+    this.assertRoleAssignable(actingRole, target.role);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.notification.deleteMany({ where: { userId } });
+      await tx.user.delete({ where: { id: userId } });
     });
   }
 

@@ -3,6 +3,7 @@ import { KioskStatus, UserRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { hashToken } from '../common/crypto/token-hash.util';
+import { deleteDevicesCascade } from '../common/prisma/cascade-delete.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
@@ -115,7 +116,6 @@ export class DevicesService {
 
   async remove(id: string) {
     await this.findOne(id);
-    await this.prisma.deviceToken.deleteMany({ where: { deviceId: id } });
-    await this.prisma.device.delete({ where: { id } });
+    await this.prisma.$transaction((tx) => deleteDevicesCascade(tx, [id]));
   }
 }

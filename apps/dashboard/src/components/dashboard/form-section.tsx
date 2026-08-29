@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { isValidElement, cloneElement, type ReactElement, type ReactNode } from "react"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 
@@ -45,21 +45,38 @@ export function FormField({
   label,
   htmlFor,
   hint,
+  error,
   children,
   className,
 }: {
   label: string
   htmlFor?: string
-  /** Small muted helper line under the label, e.g. a format hint. */
+  /** Small muted helper line under the label, e.g. a format hint. Hidden while `error` is set,
+   *  so the two don't stack and compete for attention. */
   hint?: string
+  /** A zod/react-hook-form validation message — rendered in place of `hint` when present. */
+  error?: string
   children: ReactNode
   className?: string
 }) {
+  // Single-element children (the overwhelming common case — one Input/Combobox/etc. per field)
+  // get `aria-invalid` injected automatically so the red-border styling built into those
+  // components picks it up without every call site having to wire it by hand. Controller-wrapped
+  // fields ignore the extra prop harmlessly and set it themselves via `fieldState.error` instead.
+  const content =
+    error && isValidElement(children)
+      ? cloneElement(children as ReactElement<{ "aria-invalid"?: boolean }>, { "aria-invalid": true })
+      : children
+
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      {content}
+      {error ? (
+        <p className="text-xs text-destructive">{error}</p>
+      ) : (
+        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
     </div>
   )
 }

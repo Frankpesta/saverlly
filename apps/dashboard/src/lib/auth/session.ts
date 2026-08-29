@@ -25,6 +25,33 @@ export async function logoutRequest(accessToken: string): Promise<void> {
   })
 }
 
+export async function forgotPasswordRequest(email: string): Promise<void> {
+  // Always resolves — the backend responds the same way whether or not the email is
+  // registered, so there's nothing meaningful to branch on here either.
+  await backendFetch("/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  })
+}
+
+export async function resetPasswordRequest(
+  token: string,
+  newPassword: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await backendFetch("/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, newPassword }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    const message = Array.isArray(data?.message) ? data.message[0] : data?.message
+    return { ok: false, error: message ?? "Could not reset password." }
+  }
+  return { ok: true }
+}
+
 /** Reads the refresh cookie, exchanges it for a fresh token pair, and rotates both cookies. */
 export async function refreshSession(): Promise<string | null> {
   const cookieStore = await cookies()

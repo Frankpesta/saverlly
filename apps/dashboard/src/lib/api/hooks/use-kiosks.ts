@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
-import type { Kiosk, KioskStatus, KioskUser } from "@/lib/api/types"
+import type { Kiosk, KioskContact, KioskStatus, KioskUser } from "@/lib/api/types"
 
 const kiosksKey = ["kiosks"] as const
 const kioskKey = (id: string) => ["kiosks", id] as const
@@ -17,8 +17,7 @@ export function useKiosks() {
 export type CreateKioskPayload = {
   name: string
   revenueSharePct: number
-  contactEmail: string
-  owner: { email: string }
+  owner: { name: string; email: string }
 }
 
 export type CreateKioskResult = {
@@ -67,7 +66,6 @@ export function useUpdateKioskStatus() {
 export type UpdateKioskPayload = Partial<{
   name: string
   revenueSharePct: number
-  contactEmail: string
 }>
 
 export function useUpdateKiosk(id: string) {
@@ -81,6 +79,32 @@ export function useUpdateKiosk(id: string) {
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: kiosksKey })
       queryClient.setQueryData(kioskKey(updated.id), updated)
+    },
+  })
+}
+
+export function useKioskContact(enabled = true) {
+  return useQuery({
+    queryKey: ["my", "kiosk-contact"],
+    queryFn: () => apiFetch<KioskContact>("/my/kiosk-contact"),
+    enabled,
+  })
+}
+
+export function useDeleteKiosk() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/kiosks/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      // Deleting a kiosk cascades to its locations/devices/announcements/payouts server-side.
+      queryClient.invalidateQueries({ queryKey: kiosksKey })
+      queryClient.invalidateQueries({ queryKey: ["locations"] })
+      queryClient.invalidateQueries({ queryKey: ["devices"] })
+      queryClient.invalidateQueries({ queryKey: ["announcements"] })
+      queryClient.invalidateQueries({ queryKey: ["payouts"] })
     },
   })
 }

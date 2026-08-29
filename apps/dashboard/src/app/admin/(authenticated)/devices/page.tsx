@@ -12,10 +12,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
+import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
-import { useDevices, useUpdateDevice } from "@/lib/api/hooks/use-devices"
+import { useDeleteDevice, useDevices, useUpdateDevice } from "@/lib/api/hooks/use-devices"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
@@ -29,6 +31,7 @@ export default function AdminDevicesPage() {
   const { data: locations } = useLocations()
   const { data: kiosks } = useKiosks()
   const updateDevice = useUpdateDevice()
+  const deleteDevice = useDeleteDevice()
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(devices)
 
   const kioskNameById = React.useMemo(() => {
@@ -69,6 +72,14 @@ export default function AdminDevicesPage() {
     )
   }
 
+  function handleDelete(id: string) {
+    deleteDevice.mutate(id, {
+      onSuccess: () => toast.success("Device deleted."),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not delete device."),
+    })
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
@@ -95,13 +106,14 @@ export default function AdminDevicesPage() {
               <TableHead>Location</TableHead>
               <TableHead>Last seen</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-16" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading &&
               Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Skeleton className="h-6 w-full" />
                   </TableCell>
                 </TableRow>
@@ -109,7 +121,7 @@ export default function AdminDevicesPage() {
 
             {!isLoading && devices?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   No devices registered yet.
                 </TableCell>
               </TableRow>
@@ -135,10 +147,19 @@ export default function AdminDevicesPage() {
                         disabled={updateDevice.isPending}
                         aria-label={`Toggle ${device.label} status`}
                       />
-                      <Badge variant={device.active ? "success" : "secondary"}>
+                      <Badge variant={device.active ? "success" : "destructive"}>
                         {device.active ? "Active" : "Disabled"}
                       </Badge>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <TableRowActions>
+                      <DeleteRowButton
+                        itemLabel={device.label}
+                        onConfirm={() => handleDelete(device.id)}
+                        isPending={deleteDevice.isPending}
+                      />
+                    </TableRowActions>
                   </TableCell>
                 </TableRow>
               )

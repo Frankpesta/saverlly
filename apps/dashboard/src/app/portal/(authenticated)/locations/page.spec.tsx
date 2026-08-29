@@ -20,6 +20,7 @@ jest.mock("next/link", () => {
 
 const currentUser: UserProfile = {
   id: "user-1",
+  name: "Kiosk Owner",
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -33,7 +34,7 @@ const locations: Location[] = [
     address: "1 Main St",
     city: "Springfield",
     state: "IL",
-    country: "US",
+    zip: "00000",
     latitude: null,
     longitude: null,
     tags: ["mall"],
@@ -116,6 +117,9 @@ describe("LocationsPage", () => {
     expect(screen.queryByRole("button", { name: /new location/i })).not.toBeInTheDocument()
   })
 
+  // More interaction steps than the default 5000ms budget comfortably covers now that
+  // City/State are each their own combobox popover (open, search, pick), not plain text
+  // inputs — genuinely slower, not a hang (confirmed passing well within 20s solo).
   it("walks the New Location wizard and submits the create request", async () => {
     mockFetchWith("KIOSK_OWNER")
     renderWithClient(<LocationsPage />)
@@ -124,9 +128,14 @@ describe("LocationsPage", () => {
 
     await userEvent.type(screen.getByLabelText("Name"), "Uptown")
     await userEvent.type(screen.getByLabelText("Address"), "2 Elm St")
-    await userEvent.type(screen.getByLabelText("City"), "Springfield")
-    await userEvent.type(screen.getByLabelText("State"), "IL")
-    await userEvent.type(screen.getByLabelText("Country"), "US")
+    await userEvent.click(screen.getByRole("combobox", { name: "City" }))
+    await userEvent.type(screen.getByPlaceholderText("Type a city..."), "Springfield")
+    await userEvent.click(await screen.findByRole("option", { name: "Springfield" }))
+
+    await userEvent.click(screen.getByRole("combobox", { name: "State" }))
+    await userEvent.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
+
+    await userEvent.type(screen.getByLabelText("Zip"), "00000")
     await userEvent.click(screen.getByRole("button", { name: /continue/i }))
 
     await userEvent.type(await screen.findByLabelText("Tags"), "mall, downtown")
@@ -142,11 +151,11 @@ describe("LocationsPage", () => {
             address: "2 Elm St",
             city: "Springfield",
             state: "IL",
-            country: "US",
+            zip: "00000",
             tags: ["mall", "downtown"],
           }),
         }),
       ),
     )
-  })
+  }, 20000)
 })

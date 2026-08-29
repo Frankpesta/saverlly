@@ -1,13 +1,27 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { motion } from "motion/react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { AlertCircleIcon, ArrowRightIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { AuthShell } from "@/components/auth/auth-shell"
 import { AuthField } from "@/components/auth/auth-field"
+import { emailSchema } from "@/lib/validation/schemas"
+
+const loginSchema = z.object({
+  email: emailSchema,
+  // Not the full passwordSchema here — a login field shouldn't re-validate an existing
+  // password against today's strength rules, only guard against submitting empty.
+  password: z.string().min(1, "Password is required"),
+})
+
+type LoginFormValues = z.infer<typeof loginSchema>
 
 export function LoginForm({
   portal,
@@ -19,21 +33,26 @@ export function LoginForm({
   tagline: string
 }) {
   const router = useRouter()
-  const [email, setEmail] = React.useState("")
-  const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
-  const [submitting, setSubmitting] = React.useState(false)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: { email: "", password: "" },
+  })
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    setSubmitting(true)
+  async function onSubmit(values: LoginFormValues) {
     setError(null)
 
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, portal }),
+        body: JSON.stringify({ ...values, portal }),
       })
       const data = await res.json()
 
@@ -46,8 +65,6 @@ export function LoginForm({
       router.refresh()
     } catch {
       setError("Could not reach the server. Please try again.")
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -65,19 +82,43 @@ export function LoginForm({
           <p className="text-sm leading-6 text-muted-foreground">Sign in to continue to your workspace.</p>
         </div>
 
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+        <form className="flex flex-col gap-5" onSubmit={handleSubmit(onSubmit)} noValidate>
           {error && (
             <Alert variant="destructive">
               <AlertCircleIcon />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <AuthField id="email" label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} icon={<MailIcon />} />
-          <AuthField id="password" label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} icon={<LockIcon />} />
-          <Button type="submit" disabled={submitting} className="auth-submit mt-2 h-12">
-            {submitting && <Loader2Icon className="animate-spin" />}
-            {submitting ? "Signing in…" : "Sign in"}
-            {!submitting && <ArrowRightIcon className="size-4" />}
+          <AuthField
+            id="email"
+            label="Email"
+            type="email"
+            autoComplete="email"
+            icon={<MailIcon />}
+            error={errors.email?.message}
+            {...register("email")}
+          />
+          <div className="flex flex-col gap-2">
+            <AuthField
+              id="password"
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              icon={<LockIcon />}
+              error={errors.password?.message}
+              {...register("password")}
+            />
+            <Link
+              href={`/${portal}/forgot-password`}
+              className="self-end text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <Button type="submit" disabled={isSubmitting} className="auth-submit mt-2 h-12">
+            {isSubmitting && <Loader2Icon className="animate-spin" />}
+            {isSubmitting ? "Signing in…" : "Sign in"}
+            {!isSubmitting && <ArrowRightIcon className="size-4" />}
           </Button>
         </form>
       </motion.div>

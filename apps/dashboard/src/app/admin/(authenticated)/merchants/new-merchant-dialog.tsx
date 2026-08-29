@@ -4,17 +4,16 @@ import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { PlusIcon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Combobox,
+} from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -29,47 +28,91 @@ import { useCreateMerchant } from "@/lib/api/hooks/use-merchants"
 import { useAffiliatePrograms } from "@/lib/api/hooks/use-affiliate-programs"
 import { useCreateScrapeSource } from "@/lib/api/hooks/use-scrape-sources"
 import { ApiError } from "@/lib/api/client"
-import { AttributionFields, type AttributionFieldsValue } from "./attribution-fields"
+import { attributionFieldsSchema, nameSchema } from "@/lib/validation/schemas"
+import { AttributionFields } from "./attribution-fields"
 
-const STEPS = [
-  { title: "Basic info", description: "Who is this store?" },
-  { title: "Tracking method", description: "How do we earn commission from this store?" },
-  { title: "Coupon sourcing", description: "Optional — how should coupon codes get in?" },
-] as const
+type StepKey = "info" | "tracking" | "sourcing"
 
-const EMPTY_TRACKING: AttributionFieldsValue = {
-  attributionMethod: "COOKIE",
-  affiliateTrackingUrl: "",
-  affiliateUrlParamKey: "",
-  affiliateUrlParamValue: "",
+const STEP_INFO: Record<StepKey, { title: string; description: string }> = {
+  info: { title: "Basic info", description: "Who is this store?" },
+  tracking: { title: "Tracking method", description: "How do we earn commission from this store?" },
+  sourcing: { title: "Coupon sourcing", description: "Optional — how should coupon codes get in?" },
 }
+
+const stepKeys: StepKey[] = ["info", "tracking", "sourcing"]
+
+const STEP_FIELDS: Partial<Record<StepKey, ("name" | "domain" | "tracking")[]>> = {
+  info: ["name", "domain"],
+  tracking: ["tracking"],
+}
+
+const newMerchantSchema = z
+  .object({
+    name: nameSchema,
+    domain: z.string().trim().min(1, "Domain is required"),
+    tracking: attributionFieldsSchema,
+    affiliateProgramId: z.string(),
+    addScrapeSource: z.boolean(),
+    scrapeUrl: z.string().trim(),
+    codeSelector: z.string().trim(),
+    descriptionSelector: z.string().trim(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.addScrapeSource) {
+      if (!data.scrapeUrl) {
+        ctx.addIssue({ code: "custom", message: "Required to add a scrape source now", path: ["scrapeUrl"] })
+      }
+      if (!data.codeSelector) {
+        ctx.addIssue({ code: "custom", message: "Required to add a scrape source now", path: ["codeSelector"] })
+      }
+    }
+  })
+
+type NewMerchantFormValues = z.infer<typeof newMerchantSchema>
 
 export function NewMerchantDialog() {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState(0)
-  const [name, setName] = React.useState("")
-  const [domain, setDomain] = React.useState("")
-  const [tracking, setTracking] = React.useState<AttributionFieldsValue>(EMPTY_TRACKING)
-  const [affiliateProgramId, setAffiliateProgramId] = React.useState<string>("")
-  const [addScrapeSource, setAddScrapeSource] = React.useState(false)
-  const [scrapeUrl, setScrapeUrl] = React.useState("")
-  const [codeSelector, setCodeSelector] = React.useState("")
-  const [descriptionSelector, setDescriptionSelector] = React.useState("")
 
   const createMerchant = useCreateMerchant()
   const createScrapeSource = useCreateScrapeSource()
   const { data: affiliatePrograms } = useAffiliatePrograms()
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    trigger,
+    watch,
+    reset: resetForm,
+    formState: { errors, isSubmitting },
+  } = useForm<NewMerchantFormValues>({
+    resolver: zodResolver(newMerchantSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      name: "",
+      domain: "",
+      tracking: {
+        attributionMethod: "COOKIE",
+        affiliateTrackingUrl: "",
+        affiliateUrlParamKey: "",
+        affiliateUrlParamValue: "",
+      },
+      affiliateProgramId: "",
+      addScrapeSource: false,
+      scrapeUrl: "",
+      codeSelector: "",
+      descriptionSelector: "",
+    },
+  })
+
+  const stepKey = stepKeys[step]
+  const addScrapeSource = watch("addScrapeSource")
+
   function reset() {
     setStep(0)
-    setName("")
-    setDomain("")
-    setTracking(EMPTY_TRACKING)
-    setAffiliateProgramId("")
-    setAddScrapeSource(false)
-    setScrapeUrl("")
-    setCodeSelector("")
-    setDescriptionSelector("")
+    resetForm()
   }
 
   function handleOpenChange(next: boolean) {
@@ -77,26 +120,34 @@ export function NewMerchantDialog() {
     if (!next) reset()
   }
 
-  async function handleCreate(event: React.FormEvent) {
-    event.preventDefault()
+  async function handleContinue() {
+    const fields = STEP_FIELDS[stepKey]
+    if (fields && !(await trigger(fields))) return
+    setStep(step + 1)
+  }
+
+  function onSubmit(values: NewMerchantFormValues) {
     createMerchant.mutate(
       {
-        name,
-        domain,
-        attributionMethod: tracking.attributionMethod,
-        affiliateTrackingUrl: tracking.affiliateTrackingUrl || undefined,
-        affiliateUrlParamKey: tracking.affiliateUrlParamKey || undefined,
-        affiliateUrlParamValue: tracking.affiliateUrlParamValue || undefined,
-        affiliateProgramId: affiliateProgramId || undefined,
+        name: values.name,
+        domain: values.domain,
+        attributionMethod: values.tracking.attributionMethod,
+        affiliateTrackingUrl: values.tracking.affiliateTrackingUrl || undefined,
+        affiliateUrlParamKey: values.tracking.affiliateUrlParamKey || undefined,
+        affiliateUrlParamValue: values.tracking.affiliateUrlParamValue || undefined,
+        affiliateProgramId: values.affiliateProgramId || undefined,
       },
       {
         onSuccess: async (merchant) => {
-          if (addScrapeSource && scrapeUrl && codeSelector) {
+          if (values.addScrapeSource && values.scrapeUrl && values.codeSelector) {
             try {
               await createScrapeSource.mutateAsync({
-                url: scrapeUrl,
+                url: values.scrapeUrl,
                 merchantId: merchant.id,
-                selectorConfig: { codeSelector, descriptionSelector: descriptionSelector || undefined },
+                selectorConfig: {
+                  codeSelector: values.codeSelector,
+                  descriptionSelector: values.descriptionSelector || undefined,
+                },
               })
             } catch (error) {
               toast.error(
@@ -108,7 +159,7 @@ export function NewMerchantDialog() {
               return
             }
           }
-          toast.success(`${name} was added.`)
+          toast.success(`${values.name} was added.`)
           handleOpenChange(false)
         },
         onError: (error) =>
@@ -117,14 +168,8 @@ export function NewMerchantDialog() {
     )
   }
 
-  const canContinueStep2 =
-    tracking.attributionMethod === "COOKIE"
-      ? !!tracking.affiliateTrackingUrl
-      : tracking.attributionMethod === "URL_PARAM"
-        ? !!tracking.affiliateUrlParamKey && !!tracking.affiliateUrlParamValue
-        : !!tracking.affiliateTrackingUrl && !!tracking.affiliateUrlParamKey && !!tracking.affiliateUrlParamValue
-
-  const isPending = createMerchant.isPending || createScrapeSource.isPending
+  const isPending = createMerchant.isPending || createScrapeSource.isPending || isSubmitting
+  const isLastStep = stepKey === "sourcing"
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -134,64 +179,76 @@ export function NewMerchantDialog() {
       </Button>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{STEPS[step].title}</DialogTitle>
-          <WizardStepDots count={STEPS.length} current={step} steps={STEPS} />
-          <DialogDescription>{STEPS[step].description}</DialogDescription>
+          <DialogTitle>{STEP_INFO[stepKey].title}</DialogTitle>
+          <WizardStepDots count={stepKeys.length} current={step} steps={stepKeys.map((key) => STEP_INFO[key])} />
+          <DialogDescription>{STEP_INFO[stepKey].description}</DialogDescription>
         </DialogHeader>
 
         <form
           className="flex flex-col justify-between"
           onSubmit={
-            step < 2
-              ? (e) => {
+            isLastStep
+              ? handleSubmit(onSubmit)
+              : (e) => {
                   e.preventDefault()
-                  setStep(step + 1)
+                  handleContinue()
                 }
-              : handleCreate
           }
+          noValidate
         >
           <div className="flex flex-col gap-4 px-6">
-            {step === 0 && (
+            {stepKey === "info" && (
               <FormGrid>
-                <FormField label="Name" htmlFor="new-merchant-name">
-                  <Input
-                    id="new-merchant-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
+                <FormField label="Name" htmlFor="new-merchant-name" error={errors.name?.message}>
+                  <Input id="new-merchant-name" {...register("name")} />
                 </FormField>
-                <FormField label="Domain" htmlFor="new-merchant-domain">
-                  <Input
-                    id="new-merchant-domain"
-                    placeholder="target.com"
-                    value={domain}
-                    onChange={(e) => setDomain(e.target.value)}
-                    required
-                  />
+                <FormField label="Domain" htmlFor="new-merchant-domain" error={errors.domain?.message}>
+                  <Input id="new-merchant-domain" placeholder="target.com" {...register("domain")} />
                 </FormField>
               </FormGrid>
             )}
 
-            {step === 1 && (
-              <AttributionFields idPrefix="new-merchant" value={tracking} onChange={setTracking} />
+            {stepKey === "tracking" && (
+              <Controller
+                name="tracking"
+                control={control}
+                render={({ field }) => (
+                  <AttributionFields
+                    idPrefix="new-merchant"
+                    value={field.value}
+                    onChange={field.onChange}
+                    errors={{
+                      affiliateTrackingUrl: errors.tracking?.affiliateTrackingUrl?.message,
+                      affiliateUrlParamKey: errors.tracking?.affiliateUrlParamKey?.message,
+                      affiliateUrlParamValue: errors.tracking?.affiliateUrlParamValue?.message,
+                    }}
+                  />
+                )}
+              />
             )}
 
-            {step === 2 && (
+            {stepKey === "sourcing" && (
               <>
                 <FormField label="Affiliate program (optional)" htmlFor="new-merchant-program">
-                  <Select value={affiliateProgramId} onValueChange={setAffiliateProgramId}>
-                    <SelectTrigger id="new-merchant-program" className="w-full">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {affiliatePrograms?.map((program) => (
-                        <SelectItem key={program.id} value={program.id}>
-                          {program.networkName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="affiliateProgramId"
+                    control={control}
+                    render={({ field }) => (
+                      <Combobox
+                        id="new-merchant-program"
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        placeholder="None"
+                        searchPlaceholder="Search affiliate programs..."
+                        options={
+                          affiliatePrograms?.map((program) => ({
+                            value: program.id,
+                            label: program.networkName,
+                          })) ?? []
+                        }
+                      />
+                    )}
+                  />
                   <Link
                     href="/admin/affiliate-programs"
                     className="text-sm text-muted-foreground hover:underline"
@@ -207,43 +264,41 @@ export function NewMerchantDialog() {
                       You can also add this later from Scrape Sources.
                     </p>
                   </div>
-                  <Switch
-                    id="new-merchant-add-scrape"
-                    checked={addScrapeSource}
-                    onCheckedChange={setAddScrapeSource}
+                  <Controller
+                    name="addScrapeSource"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch
+                        id="new-merchant-add-scrape"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
                   />
                 </div>
 
                 {addScrapeSource && (
                   <>
-                    <FormField label="Page URL" htmlFor="new-merchant-scrape-url">
+                    <FormField label="Page URL" htmlFor="new-merchant-scrape-url" error={errors.scrapeUrl?.message}>
                       <Input
                         id="new-merchant-scrape-url"
                         type="url"
                         placeholder="https://…"
-                        value={scrapeUrl}
-                        onChange={(e) => setScrapeUrl(e.target.value)}
-                        required={addScrapeSource}
+                        {...register("scrapeUrl")}
                       />
                     </FormField>
-                    <FormField label="Coupon code selector" htmlFor="new-merchant-code-selector">
-                      <Input
-                        id="new-merchant-code-selector"
-                        placeholder=".coupon-code"
-                        value={codeSelector}
-                        onChange={(e) => setCodeSelector(e.target.value)}
-                        required={addScrapeSource}
-                      />
+                    <FormField
+                      label="Coupon code selector"
+                      htmlFor="new-merchant-code-selector"
+                      error={errors.codeSelector?.message}
+                    >
+                      <Input id="new-merchant-code-selector" placeholder=".coupon-code" {...register("codeSelector")} />
                     </FormField>
                     <FormField
                       label="Description selector (optional)"
                       htmlFor="new-merchant-description-selector"
                     >
-                      <Input
-                        id="new-merchant-description-selector"
-                        value={descriptionSelector}
-                        onChange={(e) => setDescriptionSelector(e.target.value)}
-                      />
+                      <Input id="new-merchant-description-selector" {...register("descriptionSelector")} />
                     </FormField>
                   </>
                 )}
@@ -257,8 +312,8 @@ export function NewMerchantDialog() {
                 Back
               </Button>
             )}
-            <Button type="submit" disabled={(step === 1 && !canContinueStep2) || isPending}>
-              {step < 2 ? "Continue" : isPending ? "Adding…" : "Add store"}
+            <Button type="submit" disabled={isPending}>
+              {isLastStep ? (isPending ? "Adding…" : "Add store") : "Continue"}
             </Button>
           </DialogFooter>
         </form>

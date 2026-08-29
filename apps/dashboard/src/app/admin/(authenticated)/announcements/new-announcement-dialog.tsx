@@ -3,18 +3,17 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { PlusIcon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Combobox,
+} from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -44,33 +43,90 @@ const STEP_INFO: Record<StepKey, { title: string; description: string }> = {
   targeting: { title: "Targeting", description: "Which locations should show it?" },
 }
 
+const REPEAT_POLICIES = ["ONCE", "EVERY_LOGIN", "MAX_N_TIMES"] as const
+
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   ONCE: "Once",
   EVERY_LOGIN: "Every login",
   MAX_N_TIMES: "A set number of times",
 }
 
+const STEP_FIELDS: Partial<Record<StepKey, ("title" | "body" | "kioskId" | "startAt" | "endAt" | "repeatPolicy" | "maxDisplayCount")[]>> = {
+  content: ["title", "body"],
+  kiosk: ["kioskId"],
+  schedule: ["startAt", "endAt", "repeatPolicy", "maxDisplayCount"],
+}
+
+const newAnnouncementSchema = z
+  .object({
+    broadcast: z.boolean(),
+    kioskId: z.string(),
+    title: z.string().trim().min(1, "Title is required"),
+    body: z.string().trim().min(1, "Body is required"),
+    mediaUrl: z.string().trim(),
+    startAt: z.string().min(1, "Start date is required"),
+    endAt: z.string().min(1, "End date is required"),
+    repeatPolicy: z.enum(REPEAT_POLICIES),
+    maxDisplayCount: z.string().trim(),
+    locationIds: z.array(z.string()),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.broadcast && !data.kioskId) {
+      ctx.addIssue({ code: "custom", message: "Select a kiosk", path: ["kioskId"] })
+    }
+    if (data.repeatPolicy === "MAX_N_TIMES") {
+      const n = Number(data.maxDisplayCount)
+      if (!data.maxDisplayCount || Number.isNaN(n) || n < 1) {
+        ctx.addIssue({ code: "custom", message: "Enter a number of at least 1", path: ["maxDisplayCount"] })
+      }
+    }
+  })
+
+type NewAnnouncementFormValues = z.infer<typeof newAnnouncementSchema>
+
 export function NewAnnouncementDialog() {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState(0)
-  const [broadcast, setBroadcast] = React.useState(false)
-  const [kioskId, setKioskId] = React.useState("")
-  const [title, setTitle] = React.useState("")
-  const [body, setBody] = React.useState("")
-  const [mediaUrl, setMediaUrl] = React.useState("")
-  const [startAt, setStartAt] = React.useState(() => toDatetimeLocal(new Date()))
-  const [endAt, setEndAt] = React.useState(() =>
-    toDatetimeLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-  )
-  const [repeatPolicy, setRepeatPolicy] = React.useState<AnnouncementRepeatPolicy>("ONCE")
-  const [maxDisplayCount, setMaxDisplayCount] = React.useState("3")
-  const [locationIds, setLocationIds] = React.useState<string[]>([])
 
   const createAnnouncement = useCreateAnnouncement()
   const uploadImage = useUploadAnnouncementImage()
   const { data: kiosks } = useKiosks()
   const { data: allLocations } = useLocations()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    trigger,
+    watch,
+    setValue,
+    reset: resetForm,
+    formState: { errors, isSubmitting },
+  } = useForm<NewAnnouncementFormValues>({
+    resolver: zodResolver(newAnnouncementSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      broadcast: false,
+      kioskId: "",
+      title: "",
+      body: "",
+      mediaUrl: "",
+      startAt: toDatetimeLocal(new Date()),
+      endAt: toDatetimeLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+      repeatPolicy: "ONCE",
+      maxDisplayCount: "3",
+      locationIds: [],
+    },
+  })
+
+  const broadcast = watch("broadcast")
+  const kioskId = watch("kioskId")
+  const title = watch("title")
+  const body = watch("body")
+  const mediaUrl = watch("mediaUrl")
+  const repeatPolicy = watch("repeatPolicy")
 
   // A broadcast targets everyone — there's nothing to pick a kiosk or locations for.
   const stepKeys: StepKey[] = broadcast
@@ -86,16 +142,18 @@ export function NewAnnouncementDialog() {
 
   function reset() {
     setStep(0)
-    setBroadcast(false)
-    setKioskId("")
-    setTitle("")
-    setBody("")
-    setMediaUrl("")
-    setStartAt(toDatetimeLocal(new Date()))
-    setEndAt(toDatetimeLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)))
-    setRepeatPolicy("ONCE")
-    setMaxDisplayCount("3")
-    setLocationIds([])
+    resetForm({
+      broadcast: false,
+      kioskId: "",
+      title: "",
+      body: "",
+      mediaUrl: "",
+      startAt: toDatetimeLocal(new Date()),
+      endAt: toDatetimeLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+      repeatPolicy: "ONCE",
+      maxDisplayCount: "3",
+      locationIds: [],
+    })
   }
 
   function handleOpenChange(next: boolean) {
@@ -108,29 +166,34 @@ export function NewAnnouncementDialog() {
     event.target.value = ""
     if (!file) return
     uploadImage.mutate(file, {
-      onSuccess: (data) => setMediaUrl(data.url),
+      onSuccess: (data) => setValue("mediaUrl", data.url),
       onError: (error) =>
         toast.error(error instanceof ApiError ? error.message : "Could not upload image."),
     })
   }
 
-  function handleCreate(event: React.FormEvent) {
-    event.preventDefault()
+  async function handleContinue() {
+    const fields = STEP_FIELDS[stepKey]
+    if (fields && !(await trigger(fields))) return
+    setStep(step + 1)
+  }
+
+  function onSubmit(values: NewAnnouncementFormValues) {
     createAnnouncement.mutate(
       {
-        title,
-        body,
-        mediaUrl: mediaUrl || undefined,
-        startAt: new Date(startAt).toISOString(),
-        endAt: new Date(endAt).toISOString(),
-        repeatPolicy,
-        maxDisplayCount: repeatPolicy === "MAX_N_TIMES" ? Number(maxDisplayCount) : undefined,
-        broadcast,
-        ...(broadcast ? {} : { kioskId, locationIds }),
+        title: values.title,
+        body: values.body,
+        mediaUrl: values.mediaUrl || undefined,
+        startAt: new Date(values.startAt).toISOString(),
+        endAt: new Date(values.endAt).toISOString(),
+        repeatPolicy: values.repeatPolicy,
+        maxDisplayCount: values.repeatPolicy === "MAX_N_TIMES" ? Number(values.maxDisplayCount) : undefined,
+        broadcast: values.broadcast,
+        ...(values.broadcast ? {} : { kioskId: values.kioskId, locationIds: values.locationIds }),
       },
       {
         onSuccess: () => {
-          toast.success(`${title} was created.`)
+          toast.success(`${values.title} was created.`)
           handleOpenChange(false)
         },
         onError: (error) =>
@@ -138,8 +201,6 @@ export function NewAnnouncementDialog() {
       },
     )
   }
-
-  const canContinueFromStep = stepKey !== "kiosk" || !!kioskId
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -158,12 +219,13 @@ export function NewAnnouncementDialog() {
           className="flex flex-col justify-between"
           onSubmit={
             isLastStep
-              ? handleCreate
+              ? handleSubmit(onSubmit)
               : (e) => {
                   e.preventDefault()
-                  setStep(step + 1)
+                  handleContinue()
                 }
           }
+          noValidate
         >
           <div className="flex flex-col gap-4 px-6">
             {stepKey === "content" && (
@@ -175,38 +237,23 @@ export function NewAnnouncementDialog() {
                       Shows on every device across the entire platform.
                     </p>
                   </div>
-                  <Switch
-                    id="new-ann-broadcast"
-                    checked={broadcast}
-                    onCheckedChange={setBroadcast}
+                  <Controller
+                    name="broadcast"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch id="new-ann-broadcast" checked={field.value} onCheckedChange={field.onChange} />
+                    )}
                   />
                 </div>
-                <FormField label="Title" htmlFor="new-ann-title">
-                  <Input
-                    id="new-ann-title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    required
-                  />
+                <FormField label="Title" htmlFor="new-ann-title" error={errors.title?.message}>
+                  <Input id="new-ann-title" {...register("title")} />
                 </FormField>
-                <FormField label="Body" htmlFor="new-ann-body">
-                  <Textarea
-                    id="new-ann-body"
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    rows={4}
-                    required
-                  />
+                <FormField label="Body" htmlFor="new-ann-body" error={errors.body?.message}>
+                  <Textarea id="new-ann-body" rows={4} {...register("body")} aria-invalid={!!errors.body} />
                 </FormField>
                 <FormField label="Image (optional)" htmlFor="new-ann-media">
                   <div className="flex gap-2">
-                    <Input
-                      id="new-ann-media"
-                      type="url"
-                      placeholder="https://…"
-                      value={mediaUrl}
-                      onChange={(e) => setMediaUrl(e.target.value)}
-                    />
+                    <Input id="new-ann-media" type="url" placeholder="https://…" {...register("mediaUrl")} />
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -229,73 +276,94 @@ export function NewAnnouncementDialog() {
             )}
 
             {stepKey === "kiosk" && (
-              <FormField label="Kiosk" htmlFor="new-ann-kiosk">
-                <Select value={kioskId} onValueChange={setKioskId} required>
-                  <SelectTrigger id="new-ann-kiosk" className="w-full">
-                    <SelectValue placeholder="Select a kiosk" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {kiosks?.map((kiosk) => (
-                      <SelectItem key={kiosk.id} value={kiosk.id}>
-                        {kiosk.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <FormField label="Kiosk" htmlFor="new-ann-kiosk" error={errors.kioskId?.message}>
+                <Controller
+                  name="kioskId"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Combobox
+                      id="new-ann-kiosk"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder="Select a kiosk"
+                      searchPlaceholder="Search kiosks..."
+                      options={kiosks?.map((kiosk) => ({ value: kiosk.id, label: kiosk.name })) ?? []}
+                      aria-invalid={!!fieldState.error}
+                    />
+                  )}
+                />
               </FormField>
             )}
 
             {stepKey === "schedule" && (
               <>
                 <FormGrid>
-                  <FormField label="Starts" htmlFor="new-ann-start">
-                    <DateTimePicker id="new-ann-start" value={startAt} onChange={setStartAt} required />
+                  <FormField label="Starts" htmlFor="new-ann-start" error={errors.startAt?.message}>
+                    <Controller
+                      name="startAt"
+                      control={control}
+                      render={({ field, fieldState }) => (
+                        <DateTimePicker
+                          id="new-ann-start"
+                          value={field.value}
+                          onChange={field.onChange}
+                          aria-invalid={!!fieldState.error}
+                        />
+                      )}
+                    />
                   </FormField>
-                  <FormField label="Ends" htmlFor="new-ann-end">
-                    <DateTimePicker id="new-ann-end" value={endAt} onChange={setEndAt} required />
+                  <FormField label="Ends" htmlFor="new-ann-end" error={errors.endAt?.message}>
+                    <Controller
+                      name="endAt"
+                      control={control}
+                      render={({ field, fieldState }) => (
+                        <DateTimePicker
+                          id="new-ann-end"
+                          value={field.value}
+                          onChange={field.onChange}
+                          aria-invalid={!!fieldState.error}
+                        />
+                      )}
+                    />
                   </FormField>
                 </FormGrid>
                 <FormField label="Repeat policy" htmlFor="new-ann-repeat">
-                  <Select
-                    value={repeatPolicy}
-                    onValueChange={(v) => setRepeatPolicy(v as AnnouncementRepeatPolicy)}
-                  >
-                    <SelectTrigger id="new-ann-repeat" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(REPEAT_LABEL) as AnnouncementRepeatPolicy[]).map((policy) => (
-                        <SelectItem key={policy} value={policy}>
-                          {REPEAT_LABEL[policy]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="repeatPolicy"
+                    control={control}
+                    render={({ field }) => (
+                      <Combobox
+                        id="new-ann-repeat"
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        options={(Object.keys(REPEAT_LABEL) as AnnouncementRepeatPolicy[]).map((policy) => ({
+                          value: policy,
+                          label: REPEAT_LABEL[policy],
+                        }))}
+                      />
+                    )}
+                  />
                 </FormField>
                 {repeatPolicy === "MAX_N_TIMES" && (
                   <FormField
                     label="Display up to"
                     htmlFor="new-ann-max-count"
                     hint="Times per device, ever, across all logins."
+                    error={errors.maxDisplayCount?.message}
                   >
-                    <Input
-                      id="new-ann-max-count"
-                      type="number"
-                      min="1"
-                      value={maxDisplayCount}
-                      onChange={(e) => setMaxDisplayCount(e.target.value)}
-                      required
-                    />
+                    <Input id="new-ann-max-count" type="number" min="1" {...register("maxDisplayCount")} />
                   </FormField>
                 )}
               </>
             )}
 
             {stepKey === "targeting" && (
-              <LocationTargetPicker
-                locations={kioskLocations}
-                value={locationIds}
-                onChange={setLocationIds}
+              <Controller
+                name="locationIds"
+                control={control}
+                render={({ field }) => (
+                  <LocationTargetPicker locations={kioskLocations} value={field.value} onChange={field.onChange} />
+                )}
               />
             )}
           </div>
@@ -306,12 +374,8 @@ export function NewAnnouncementDialog() {
                 Back
               </Button>
             )}
-            <Button type="submit" disabled={createAnnouncement.isPending || !canContinueFromStep}>
-              {!isLastStep
-                ? "Continue"
-                : createAnnouncement.isPending
-                  ? "Creating…"
-                  : "Create announcement"}
+            <Button type="submit" disabled={isSubmitting}>
+              {!isLastStep ? "Continue" : isSubmitting ? "Creating…" : "Create announcement"}
             </Button>
           </DialogFooter>
         </form>

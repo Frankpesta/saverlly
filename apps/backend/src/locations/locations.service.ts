@@ -1,6 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { generateSetupCode } from '../common/crypto/setup-code.util';
+import { deleteLocationsCascade } from '../common/prisma/cascade-delete.util';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateLocationDto } from './dto/create-location.dto';
@@ -11,11 +16,15 @@ export class LocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(currentUser: JwtPayload, dto: CreateLocationDto) {
-    const kioskId = currentUser.role === UserRole.ADMIN ? dto.kioskId : currentUser.kioskId;
+    const kioskId =
+      currentUser.role === UserRole.ADMIN ? dto.kioskId : currentUser.kioskId;
     if (!kioskId) {
       throw new BadRequestException('kioskId is required');
     }
-    const kiosk = await this.prisma.kiosk.findUnique({ where: { id: kioskId }, select: { id: true } });
+    const kiosk = await this.prisma.kiosk.findUnique({
+      where: { id: kioskId },
+      select: { id: true },
+    });
     if (!kiosk) {
       throw new NotFoundException('Kiosk not found');
     }
@@ -27,7 +36,7 @@ export class LocationsService {
         address: dto.address,
         city: dto.city,
         state: dto.state,
-        country: dto.country,
+        zip: dto.zip,
         latitude: dto.latitude,
         longitude: dto.longitude,
         tags: dto.tags ?? [],
@@ -71,9 +80,12 @@ export class LocationsService {
     return this.prisma.location.update({ where: { id }, data: dto });
   }
 
+  /** Deleting a location cascades to everything under it — setup codes, devices, and each
+   * device's own history (tokens, coupon test events, attribution attempts, commission events) —
+   * none of which cascade at the schema level, so this has to be done explicitly. */
   async remove(id: string) {
     await this.findOne(id);
-    await this.prisma.location.delete({ where: { id } });
+    await this.prisma.$transaction((tx) => deleteLocationsCascade(tx, [id]));
   }
 
   async createSetupCode(locationId: string) {
@@ -87,7 +99,10 @@ export class LocationsService {
         });
       } catch (err) {
         const isUniqueConflict =
-          err && typeof err === 'object' && 'code' in err && err.code === 'P2002';
+          err &&
+          typeof err === 'object' &&
+          'code' in err &&
+          err.code === 'P2002';
         if (!isUniqueConflict || attempt === MAX_ATTEMPTS - 1) {
           throw err;
         }
@@ -111,6 +126,9 @@ export class LocationsService {
     if (!code) {
       throw new NotFoundException('Setup code not found for this location');
     }
-    return this.prisma.locationSetupCode.update({ where: { id: codeId }, data: { active } });
+    return this.prisma.locationSetupCode.update({
+      where: { id: codeId },
+      data: { active },
+    });
   }
 }

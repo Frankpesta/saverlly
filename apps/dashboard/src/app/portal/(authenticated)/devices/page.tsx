@@ -14,11 +14,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowActions,
 } from "@/components/ui/table"
+import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
-import { useDevices, useUpdateDevice } from "@/lib/api/hooks/use-devices"
+import { useDeleteDevice, useDevices, useUpdateDevice } from "@/lib/api/hooks/use-devices"
 import { useLocations } from "@/lib/api/hooks/use-locations"
+import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
 import { usePagination } from "@/hooks/use-pagination"
@@ -28,7 +31,10 @@ const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour — matches the extension's
 export default function DevicesPage() {
   const { data: devices, isLoading, isError } = useDevices()
   const { data: locations } = useLocations()
+  const { data: currentUser } = useCurrentUser()
+  const isKioskOwner = currentUser?.role === "KIOSK_OWNER"
   const updateDevice = useUpdateDevice()
+  const deleteDevice = useDeleteDevice()
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(devices)
 
   const locationNameById = React.useMemo(() => {
@@ -60,6 +66,14 @@ export default function DevicesPage() {
           toast.error(error instanceof ApiError ? error.message : "Could not update device."),
       },
     )
+  }
+
+  function handleDelete(id: string) {
+    deleteDevice.mutate(id, {
+      onSuccess: () => toast.success("Device deleted."),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not delete device."),
+    })
   }
 
   return (
@@ -112,13 +126,14 @@ export default function DevicesPage() {
               <TableHead>Location</TableHead>
               <TableHead>Last seen</TableHead>
               <TableHead>Status</TableHead>
+              {isKioskOwner && <TableHead className="w-16" />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading &&
               Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={4}>
+                  <TableCell colSpan={isKioskOwner ? 5 : 4}>
                     <Skeleton className="h-6 w-full" />
                   </TableCell>
                 </TableRow>
@@ -126,7 +141,7 @@ export default function DevicesPage() {
 
             {!isLoading && devices?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={isKioskOwner ? 5 : 4} className="text-center text-muted-foreground">
                   No devices registered yet.
                 </TableCell>
               </TableRow>
@@ -147,11 +162,22 @@ export default function DevicesPage() {
                       disabled={updateDevice.isPending}
                       aria-label={`Toggle ${device.label} status`}
                     />
-                    <Badge variant={device.active ? "success" : "secondary"}>
+                    <Badge variant={device.active ? "success" : "destructive"}>
                       {device.active ? "Active" : "Disabled"}
                     </Badge>
                   </div>
                 </TableCell>
+                {isKioskOwner && (
+                  <TableCell>
+                    <TableRowActions>
+                      <DeleteRowButton
+                        itemLabel={device.label}
+                        onConfirm={() => handleDelete(device.id)}
+                        isPending={deleteDevice.isPending}
+                      />
+                    </TableRowActions>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

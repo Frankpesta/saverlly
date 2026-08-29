@@ -3,6 +3,9 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { PencilIcon, PlusIcon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,22 +27,42 @@ import {
 import { ApiError } from "@/lib/api/client"
 import type { AffiliateProgram } from "@/lib/api/types"
 
+const affiliateProgramSchema = z.object({
+  networkName: z.string().trim().min(1, "Network name is required"),
+  programId: z.string().trim(),
+  hasCouponApi: z.boolean(),
+})
+
+type AffiliateProgramFormValues = z.infer<typeof affiliateProgramSchema>
+
 export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram }) {
   const isEdit = !!program
   const [open, setOpen] = React.useState(false)
-  const [networkName, setNetworkName] = React.useState(program?.networkName ?? "")
-  const [programId, setProgramId] = React.useState(program?.programId ?? "")
-  const [hasCouponApi, setHasCouponApi] = React.useState(program?.hasCouponApi ?? false)
   const [credentials, setCredentials] = React.useState<Record<string, string>>({})
 
   const createProgram = useCreateAffiliateProgram()
   const updateProgram = useUpdateAffiliateProgram(program?.id ?? "")
   const isPending = createProgram.isPending || updateProgram.isPending
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset: resetForm,
+    formState: { errors, isSubmitting },
+  } = useForm<AffiliateProgramFormValues>({
+    resolver: zodResolver(affiliateProgramSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      networkName: program?.networkName ?? "",
+      programId: program?.programId ?? "",
+      hasCouponApi: program?.hasCouponApi ?? true,
+    },
+  })
+
   function reset() {
-    setNetworkName("")
-    setProgramId("")
-    setHasCouponApi(false)
+    resetForm({ networkName: "", programId: "", hasCouponApi: false })
     setCredentials({})
   }
 
@@ -48,20 +71,19 @@ export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram
     if (!next && !isEdit) reset()
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  function onSubmit(values: AffiliateProgramFormValues) {
     const hasCredentialEntries = Object.keys(credentials).length > 0
     const shared = {
-      networkName,
-      programId: programId || undefined,
-      hasCouponApi,
+      networkName: values.networkName,
+      programId: values.programId || undefined,
+      hasCouponApi: values.hasCouponApi,
       ...(hasCredentialEntries ? { apiCredentials: credentials } : {}),
     }
 
     if (isEdit) {
       updateProgram.mutate(shared, {
         onSuccess: () => {
-          toast.success(`${networkName} was updated.`)
+          toast.success(`${values.networkName} was updated.`)
           handleOpenChange(false)
         },
         onError: (error) =>
@@ -70,7 +92,7 @@ export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram
     } else {
       createProgram.mutate(shared, {
         onSuccess: () => {
-          toast.success(`${networkName} was added.`)
+          toast.success(`${values.networkName} was added.`)
           handleOpenChange(false)
         },
         onError: (error) =>
@@ -108,20 +130,14 @@ export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram
           </DialogDescription>
         </DialogHeader>
 
-        <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
+        <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="flex flex-col gap-4 px-6">
             <FormGrid>
-              <FormField label="Network name" htmlFor="program-network-name">
-                <Input
-                  id="program-network-name"
-                  placeholder="Impact"
-                  value={networkName}
-                  onChange={(e) => setNetworkName(e.target.value)}
-                  required
-                />
+              <FormField label="Network name" htmlFor="program-network-name" error={errors.networkName?.message}>
+                <Input id="program-network-name" placeholder="Impact" {...register("networkName")} />
               </FormField>
               <FormField label="Program ID (optional)" htmlFor="program-id">
-                <Input id="program-id" value={programId} onChange={(e) => setProgramId(e.target.value)} />
+                <Input id="program-id" {...register("programId")} />
               </FormField>
             </FormGrid>
             <div className="flex items-center justify-between rounded-lg border border-black/8 p-3">
@@ -131,7 +147,13 @@ export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram
                   This program can feed coupon codes automatically.
                 </p>
               </div>
-              <Switch id="program-has-api" checked={hasCouponApi} onCheckedChange={setHasCouponApi} />
+              <Controller
+                name="hasCouponApi"
+                control={control}
+                render={({ field }) => (
+                  <Switch id="program-has-api" checked={field.value} onCheckedChange={field.onChange} />
+                )}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label>Credentials {isEdit && "(leave blank to keep existing)"}</Label>
@@ -140,8 +162,8 @@ export function AffiliateProgramDialog({ program }: { program?: AffiliateProgram
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : isEdit ? "Save changes" : "Add program"}
+            <Button type="submit" disabled={isPending || isSubmitting}>
+              {isPending || isSubmitting ? "Saving…" : isEdit ? "Save changes" : "Add program"}
             </Button>
           </DialogFooter>
         </form>

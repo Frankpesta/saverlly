@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -101,5 +104,23 @@ export class KiosksController {
   @ApiResponse({ status: 404, description: 'Kiosk not found' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateKioskStatusDto) {
     return this.kiosksService.updateStatus(id, dto.status);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Permanently delete a kiosk and everything under it — users, locations, devices, ' +
+      'device activity history, kiosk-scoped announcements, and payouts (admin only)',
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Kiosk and everything under it deleted',
+  })
+  @ApiResponse({ status: 403, description: 'Caller is not an admin' })
+  @ApiResponse({ status: 404, description: 'Kiosk not found' })
+  remove(@Param('id') id: string) {
+    return this.kiosksService.remove(id);
   }
 }

@@ -24,7 +24,6 @@ const kiosks: Kiosk[] = [
     name: "Main Street Kiosk",
     status: "ACTIVE",
     revenueSharePct: "30",
-    contactEmail: "kiosk@test.com",
     stripeAccountId: null,
     stripePayoutsEnabled: false,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -40,7 +39,7 @@ const locations: Location[] = [
     address: "1 Main St",
     city: "Springfield",
     state: "IL",
-    country: "US",
+    zip: "00000",
     latitude: null,
     longitude: null,
     tags: [],
@@ -156,11 +155,14 @@ describe("AdminAnnouncementsPage", () => {
     await userEvent.type(screen.getByLabelText("Body"), "Local deal.")
     await userEvent.click(screen.getByRole("button", { name: /continue/i }))
 
-    // Now on the Kiosk step — Continue is disabled until a kiosk is picked.
-    expect(screen.getByRole("button", { name: /continue/i })).toBeDisabled()
+    // Now on the Kiosk step — clicking Continue without picking one shows a validation error
+    // rather than disabling the button (gives a reason, not just an inert control).
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
+    expect(await screen.findByText("Select a kiosk", { selector: "p" })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole("combobox"))
     await userEvent.click(await screen.findByRole("option", { name: "Main Street Kiosk" }))
-    expect(screen.getByRole("button", { name: /continue/i })).toBeEnabled()
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
+    await screen.findByLabelText("Starts")
   })
 })

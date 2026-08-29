@@ -99,12 +99,18 @@ begin
 end;
 
 [UninstallRun]
+; Runs FIRST, while {app}\saverlly-agent.exe and its DPAPI-encrypted device token are still on
+; disk: deregisters this device from the backend (deletes its Device row + tokens — see
+; apps/backend/src/public-api/public-api.controller.ts's DELETE /public/devices/me) and applies
+; an ExtensionInstallBlocklist policy that force-uninstalls the Chrome extension regardless of
+; whether it's here via our own force-install or a separate manual Chrome Web Store install (see
+; apps/agent/src/lib/chrome-policy.ts's forceRemoveExtension). Best-effort/never fails the
+; uninstall — see apps/agent/src/main.ts's runUninstallOnce.
+Filename: "{app}\saverlly-agent.exe"; Parameters: "--uninstall-once"; Flags: runhidden; RunOnceId: "AgentUninstallCleanup"
 ; Mirrors the exact manual removal steps hand-verified earlier in this project's development —
 ; reg delete on a key that's already gone is a no-op, not an error, same as chrome-policy.ts's
 ; own self-healing writes treat it.
 Filename: "{sys}\schtasks.exe"; Parameters: "/delete /tn ""SaverllyKioskAgent"" /f"; Flags: runhidden; RunOnceId: "RemoveScheduledTask"
-Filename: "{sys}\reg.exe"; Parameters: "delete ""HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist"" /f"; Flags: runhidden; RunOnceId: "RemoveForcelist"
-Filename: "{sys}\reg.exe"; Parameters: "delete ""HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallAllowlist"" /f"; Flags: runhidden; RunOnceId: "RemoveAllowlist"
 Filename: "{sys}\reg.exe"; Parameters: "delete ""HKLM\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.saverlly.agent"" /f"; Flags: runhidden; RunOnceId: "RemoveNativeMessagingHost"
 
 [UninstallDelete]

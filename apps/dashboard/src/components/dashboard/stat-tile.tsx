@@ -79,7 +79,7 @@ export function StatTile({
       variant="metric"
       span={2}
       className={cn(
-        "dashboard-metric-card group relative overflow-hidden p-0 transition-shadow duration-200 hover:shadow-[0_18px_38px_rgba(17,27,24,0.09)]",
+        "dashboard-metric-card group relative overflow-hidden p-0",
         hasTrend ? "grid min-h-40 grid-cols-[minmax(0,1fr)_minmax(9rem,34%)]" : "flex min-h-40 flex-col",
         className,
       )}

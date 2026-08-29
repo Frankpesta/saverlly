@@ -85,6 +85,12 @@ export class ScrapeSourcesService implements OnModuleInit {
     return updated;
   }
 
+  async remove(id: string) {
+    const existing = await this.findOneOrThrow(id);
+    await this.unscheduleRepeat(id, existing.intervalMinutes);
+    await this.prisma.scrapeSource.delete({ where: { id } });
+  }
+
   async runNow(id: string) {
     await this.findOneOrThrow(id);
     await this.scrapeQueue.add(SCRAPE_JOB_NAME, { scrapeSourceId: id });

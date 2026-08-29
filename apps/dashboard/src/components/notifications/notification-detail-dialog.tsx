@@ -66,29 +66,36 @@ export function NotificationDetailDialog({
       <DialogContent className="sm:max-w-md">
         {notification && (
           <>
-            <DialogHeader>
+            <DialogHeader className="gap-2.5">
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">{TYPE_LABEL[notification.type]}</Badge>
+                <Badge className="bg-[var(--brand-teal-tint)] text-[var(--brand-teal)] hover:bg-[var(--brand-teal-tint)]">
+                  {TYPE_LABEL[notification.type]}
+                </Badge>
                 {!notification.readAt && (
                   <span className="size-1.5 rounded-full bg-[var(--brand-teal)]" />
                 )}
               </div>
               <DialogTitle>{notification.title}</DialogTitle>
               <DialogDescription asChild>
-                <span>{format(new Date(notification.createdAt), "PPp")} · {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}</span>
+                <span className="text-xs leading-5 text-muted-foreground/70">
+                  {format(new Date(notification.createdAt), "PPp")} ·{" "}
+                  {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                </span>
               </DialogDescription>
             </DialogHeader>
 
-            <p className="px-6 text-sm text-foreground">{notification.body}</p>
+            <p className="px-7 pb-1 text-sm text-foreground">{notification.body}</p>
 
-            {action && (
-              <DialogFooter>
+            {action ? (
+              <DialogFooter className="px-7 pb-7">
                 <Button asChild>
                   <Link href={action.href} onClick={() => onOpenChange(false)}>
                     {action.label}
                   </Link>
                 </Button>
               </DialogFooter>
+            ) : (
+              <div className="pb-7" />
             )}
           </>
         )}

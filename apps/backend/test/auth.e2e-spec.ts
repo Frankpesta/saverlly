@@ -50,6 +50,33 @@ describe('Auth (e2e)', () => {
       .expect(401);
   });
 
+  it('logs in successfully when the email casing differs from how it was stored', async () => {
+    await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+
+    const res = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: 'Admin@Test.COM', password: TEST_PASSWORD })
+      .expect(200);
+
+    expect(res.body.accessToken).toEqual(expect.any(String));
+  });
+
+  it('stores a new user email as lowercase regardless of the casing submitted', async () => {
+    await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    const loginRes = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: 'admin@test.com', password: TEST_PASSWORD })
+      .expect(200);
+
+    const res = await request(app.getHttpServer())
+      .patch('/users/me')
+      .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+      .send({ email: 'Mixed.Case@Example.COM' })
+      .expect(200);
+
+    expect(res.body.email).toBe('mixed.case@example.com');
+  });
+
   it('rejects malformed login payloads', async () => {
     await request(app.getHttpServer())
       .post('/auth/login')

@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process';
-import { applyChromeForceInstallPolicy, readListPolicy } from './chrome-policy';
+import { applyChromeForceInstallPolicy, forceRemoveExtension, readListPolicy } from './chrome-policy';
 
 jest.mock('child_process');
 const mockExecFileSync = execFileSync as jest.MockedFunction<typeof execFileSync>;
@@ -51,6 +51,41 @@ describe('applyChromeForceInstallPolicy', () => {
 
     expect(() => applyChromeForceInstallPolicy('abc123', 'https://update.example.com')).not.toThrow();
     expect(mockExecFileSync).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('forceRemoveExtension', () => {
+  beforeEach(() => {
+    mockExecFileSync.mockReset();
+    mockExecFileSync.mockReturnValue('' as never);
+  });
+
+  it('throws without shelling out at all when extensionId is missing', () => {
+    expect(() => forceRemoveExtension('')).toThrow(/extensionId/);
+    expect(mockExecFileSync).not.toHaveBeenCalled();
+  });
+
+  it('blocklists the extension, then deletes the Forcelist and Allowlist keys', () => {
+    forceRemoveExtension('abc123', { keyBase: 'HKLM\\TEST\\Chrome' });
+
+    const calls = mockExecFileSync.mock.calls.map(([, args]) => args);
+    expect(calls).toEqual([
+      ['delete', 'HKLM\\TEST\\Chrome\\ExtensionInstallBlocklist', '/f'],
+      ['add', 'HKLM\\TEST\\Chrome\\ExtensionInstallBlocklist', '/v', '1', '/t', 'REG_SZ', '/d', 'abc123', '/f'],
+      ['delete', 'HKLM\\TEST\\Chrome\\ExtensionInstallForcelist', '/f'],
+      ['delete', 'HKLM\\TEST\\Chrome\\ExtensionInstallAllowlist', '/f'],
+    ]);
+  });
+
+  it('does not let a failed Forcelist/Allowlist delete (key not found) throw', () => {
+    mockExecFileSync
+      .mockReturnValueOnce('' as never)
+      .mockReturnValueOnce('' as never)
+      .mockImplementationOnce(() => {
+        throw new Error('key not found');
+      });
+
+    expect(() => forceRemoveExtension('abc123', { keyBase: 'HKLM\\TEST\\Chrome' })).not.toThrow();
   });
 });
 

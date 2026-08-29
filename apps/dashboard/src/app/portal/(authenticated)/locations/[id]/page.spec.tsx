@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import LocationDetailPage from "./page"
-import type { Device, Location, LocationSetupCode } from "@/lib/api/types"
+import type { Device, Location, LocationSetupCode, UserProfile } from "@/lib/api/types"
 
 jest.mock("next/link", () => {
   return function MockLink({
@@ -20,6 +20,7 @@ jest.mock("next/link", () => {
 
 jest.mock("next/navigation", () => ({
   useParams: () => ({ id: "loc-1" }),
+  useRouter: () => ({ push: jest.fn() }),
 }))
 
 const location: Location = {
@@ -29,7 +30,7 @@ const location: Location = {
   address: "1 Main St",
   city: "Springfield",
   state: "IL",
-  country: "US",
+  zip: "00000",
   latitude: null,
   longitude: null,
   tags: ["mall"],
@@ -40,6 +41,14 @@ const location: Location = {
 const setupCodes: LocationSetupCode[] = [
   { id: "code-1", locationId: "loc-1", code: "ABC12345", active: true, createdAt: "2026-01-01T00:00:00.000Z" },
 ]
+
+const kioskOwner: UserProfile = {
+  id: "user-1",
+  name: "Jane Owner",
+  email: "owner@example.com",
+  role: "KIOSK_OWNER",
+  kioskId: "kiosk-1",
+}
 
 const devices: Device[] = [
   {
@@ -91,6 +100,12 @@ describe("LocationDetailPage", () => {
       if (url === "/api/proxy/devices" && method === "GET") {
         return { ok: true, status: 200, json: async () => devices } as Response
       }
+      if (url === "/api/proxy/users/me" && method === "GET") {
+        return { ok: true, status: 200, json: async () => kioskOwner } as Response
+      }
+      if (url === "/api/proxy/locations/loc-1" && method === "DELETE") {
+        return { ok: true, status: 204, json: async () => undefined } as Response
+      }
       throw new Error(`Unhandled fetch in test: ${method} ${url}`)
     }) as jest.Mock
   })
@@ -113,6 +128,23 @@ describe("LocationDetailPage", () => {
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/proxy/locations/loc-1/setup-codes",
         expect.objectContaining({ method: "POST" }),
+      ),
+    )
+  })
+
+  it("shows a delete button for a kiosk owner and deletes on confirm", async () => {
+    const user = userEvent.setup()
+    renderWithClient(<LocationDetailPage />)
+
+    const deleteButton = await screen.findByRole("button", { name: /delete/i })
+    await user.click(deleteButton)
+    const confirmButton = await screen.findByRole("button", { name: "Delete" })
+    await user.click(confirmButton)
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/proxy/locations/loc-1",
+        expect.objectContaining({ method: "DELETE" }),
       ),
     )
   })

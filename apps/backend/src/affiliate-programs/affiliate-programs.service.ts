@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { AffiliateProgram } from '@prisma/client';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { AffiliateProgram, Prisma } from '@prisma/client';
 import { decrypt, encrypt } from '../common/crypto/encryption.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAffiliateProgramDto } from './dto/create-affiliate-program.dto';
@@ -50,6 +50,18 @@ export class AffiliateProgramsService {
       },
     });
     return this.toSafeResponse(program);
+  }
+
+  async remove(id: string) {
+    await this.findOneOrThrow(id);
+    try {
+      await this.prisma.affiliateProgram.delete({ where: { id } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+        throw new ConflictException('This affiliate program is still linked to one or more merchants');
+      }
+      throw err;
+    }
   }
 
   /** Internal use only (affiliate adapters) — never exposed via a controller. */

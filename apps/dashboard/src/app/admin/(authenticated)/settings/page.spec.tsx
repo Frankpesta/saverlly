@@ -1,10 +1,12 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AdminSettingsPage from "./page"
 import type { UserProfile } from "@/lib/api/types"
 
 const admin: UserProfile = {
   id: "user-1",
+  name: "Admin User",
   email: "admin@example.com",
   role: "ADMIN",
   kioskId: null,
@@ -19,10 +21,20 @@ function renderWithClient(ui: React.ReactElement) {
 
 describe("AdminSettingsPage", () => {
   beforeEach(() => {
-    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (url === "/api/proxy/users/me") return { ok: true, status: 200, json: async () => admin } as Response
-      throw new Error(`Unhandled fetch in test: ${url}`)
+      const method = init?.method ?? "GET"
+      if (url === "/api/proxy/users/me" && method === "GET") {
+        return { ok: true, status: 200, json: async () => admin } as Response
+      }
+      if (url === "/api/proxy/users/me" && method === "PATCH") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...admin, name: "Updated Admin", email: "updated@example.com" }),
+        } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${method} ${url}`)
     }) as jest.Mock
   })
 
@@ -31,5 +43,30 @@ describe("AdminSettingsPage", () => {
 
     expect(await screen.findByText("admin@example.com")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /update password/i })).toBeInTheDocument()
+  })
+
+  it("edits the account name and email via PATCH /users/me", async () => {
+    const user = userEvent.setup()
+    renderWithClient(<AdminSettingsPage />)
+
+    await screen.findByText("admin@example.com")
+    await user.click(screen.getByRole("button", { name: "Edit account" }))
+
+    const nameInput = screen.getByPlaceholderText("Name")
+    await user.clear(nameInput)
+    await user.type(nameInput, "Updated Admin")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/proxy/users/me",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ name: "Updated Admin", email: "admin@example.com" }),
+        }),
+      ),
+    )
+
+    expect(await screen.findByText("Updated Admin")).toBeInTheDocument()
   })
 })

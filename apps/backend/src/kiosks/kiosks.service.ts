@@ -3,6 +3,7 @@ import { KioskStatus, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PASSWORD_BCRYPT_ROUNDS } from '../common/crypto/password-hash.constants';
 import { generatePassword } from '../common/crypto/password-generator.util';
+import { deleteKioskCascade } from '../common/prisma/cascade-delete.util';
 import { KIOSK_USER_SAFE_SELECT } from '../kiosk-users/kiosk-user-safe-select.const';
 import { NotificationTriggersService } from '../notifications/notification-triggers.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,12 +31,12 @@ export class KiosksService {
         data: {
           name: dto.name,
           revenueSharePct: dto.revenueSharePct,
-          contactEmail: dto.contactEmail,
           status: KioskStatus.ACTIVE,
         },
       });
       const owner = await tx.user.create({
         data: {
+          name: dto.owner.name,
           email: dto.owner.email,
           passwordHash,
           role: UserRole.KIOSK_OWNER,
@@ -81,6 +82,17 @@ export class KiosksService {
     return kiosk;
   }
 
+  /** The kiosk owner's own email doubles as the kiosk's contact address — there's no separate
+   * stored contact field. Lets a location manager reach their kiosk owner without exposing
+   * revenue share, status, or other owner-only kiosk fields. */
+  async findOwnerContact(kioskId: string) {
+    const owner = await this.prisma.user.findFirst({
+      where: { kioskId, role: UserRole.KIOSK_OWNER },
+      select: { name: true, email: true },
+    });
+    return { name: owner?.name ?? null, email: owner?.email ?? null };
+  }
+
   async update(id: string, dto: UpdateKioskDto) {
     await this.findOne(id);
     return this.prisma.kiosk.update({ where: { id }, data: dto });
@@ -89,5 +101,14 @@ export class KiosksService {
   async updateStatus(id: string, status: KioskStatus) {
     await this.findOne(id);
     return this.prisma.kiosk.update({ where: { id }, data: { status } });
+  }
+
+  /** Deletes the kiosk and everything under it — users, locations, devices, device history,
+   * kiosk-scoped announcements, payouts. See `deleteKioskCascade` for the full breakdown. */
+  async remove(id: string) {
+    await this.findOne(id);
+    await this.prisma.$transaction((tx) => deleteKioskCascade(tx, id), {
+      timeout: 20_000,
+    });
   }
 }

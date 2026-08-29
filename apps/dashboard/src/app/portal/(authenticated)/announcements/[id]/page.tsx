@@ -5,6 +5,9 @@ import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ArrowLeftIcon, Trash2Icon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,12 +29,8 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Combobox,
+} from "@/components/ui/combobox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { DateTimePicker } from "@/components/dashboard/date-time-picker"
@@ -49,11 +48,35 @@ import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { AnnouncementPreview } from "../announcement-preview"
 import { LocationTargetPicker } from "../location-target-picker"
 
+const REPEAT_POLICIES = ["ONCE", "EVERY_LOGIN", "MAX_N_TIMES"] as const
+
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   ONCE: "Once",
   EVERY_LOGIN: "Every login",
   MAX_N_TIMES: "A set number of times",
 }
+
+const announcementEditSchema = z
+  .object({
+    title: z.string().trim().min(1, "Title is required"),
+    body: z.string().trim().min(1, "Body is required"),
+    mediaUrl: z.string().trim(),
+    startAt: z.string().min(1, "Start date is required"),
+    endAt: z.string().min(1, "End date is required"),
+    repeatPolicy: z.enum(REPEAT_POLICIES),
+    maxDisplayCount: z.string().trim(),
+    locationIds: z.array(z.string()),
+  })
+  .superRefine((data, ctx) => {
+    if (data.repeatPolicy === "MAX_N_TIMES") {
+      const n = Number(data.maxDisplayCount)
+      if (!data.maxDisplayCount || Number.isNaN(n) || n < 1) {
+        ctx.addIssue({ code: "custom", message: "Enter a number of at least 1", path: ["maxDisplayCount"] })
+      }
+    }
+  })
+
+type AnnouncementEditFormValues = z.infer<typeof announcementEditSchema>
 
 export default function AnnouncementDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -133,40 +156,56 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
   const { data: locations } = useLocations()
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  const [title, setTitle] = React.useState(announcement.title)
-  const [body, setBody] = React.useState(announcement.body)
-  const [mediaUrl, setMediaUrl] = React.useState(announcement.mediaUrl ?? "")
-  const [startAt, setStartAt] = React.useState(() => toDatetimeLocal(announcement.startAt))
-  const [endAt, setEndAt] = React.useState(() => toDatetimeLocal(announcement.endAt))
-  const [repeatPolicy, setRepeatPolicy] = React.useState(announcement.repeatPolicy)
-  const [maxDisplayCount, setMaxDisplayCount] = React.useState(
-    String(announcement.maxDisplayCount ?? 3),
-  )
-  const [locationIds, setLocationIds] = React.useState(announcement.locationIds)
+  const {
+    register,
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<AnnouncementEditFormValues>({
+    resolver: zodResolver(announcementEditSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      title: announcement.title,
+      body: announcement.body,
+      mediaUrl: announcement.mediaUrl ?? "",
+      startAt: toDatetimeLocal(announcement.startAt),
+      endAt: toDatetimeLocal(announcement.endAt),
+      repeatPolicy: announcement.repeatPolicy,
+      maxDisplayCount: String(announcement.maxDisplayCount ?? 3),
+      locationIds: announcement.locationIds,
+    },
+  })
+
+  const title = watch("title")
+  const body = watch("body")
+  const mediaUrl = watch("mediaUrl")
+  const repeatPolicy = watch("repeatPolicy")
 
   function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = ""
     if (!file) return
     uploadImage.mutate(file, {
-      onSuccess: (data) => setMediaUrl(data.url),
+      onSuccess: (data) => setValue("mediaUrl", data.url),
       onError: (error) =>
         toast.error(error instanceof ApiError ? error.message : "Could not upload image."),
     })
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  function onSubmit(values: AnnouncementEditFormValues) {
     updateAnnouncement.mutate(
       {
-        title,
-        body,
-        mediaUrl: mediaUrl || undefined,
-        startAt: new Date(startAt).toISOString(),
-        endAt: new Date(endAt).toISOString(),
-        repeatPolicy,
-        maxDisplayCount: repeatPolicy === "MAX_N_TIMES" ? Number(maxDisplayCount) : undefined,
-        locationIds,
+        title: values.title,
+        body: values.body,
+        mediaUrl: values.mediaUrl || undefined,
+        startAt: new Date(values.startAt).toISOString(),
+        endAt: new Date(values.endAt).toISOString(),
+        repeatPolicy: values.repeatPolicy,
+        maxDisplayCount: values.repeatPolicy === "MAX_N_TIMES" ? Number(values.maxDisplayCount) : undefined,
+        locationIds: values.locationIds,
       },
       {
         onSuccess: () => toast.success("Announcement updated."),
@@ -185,26 +224,15 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
           <CardTitle>Content</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <FormField label="Title" htmlFor="ann-title">
-            <Input id="ann-title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <FormField label="Title" htmlFor="ann-title" error={errors.title?.message}>
+            <Input id="ann-title" {...register("title")} />
           </FormField>
-          <FormField label="Body" htmlFor="ann-body">
-            <Textarea
-              id="ann-body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={4}
-              required
-            />
+          <FormField label="Body" htmlFor="ann-body" error={errors.body?.message}>
+            <Textarea id="ann-body" rows={4} {...register("body")} aria-invalid={!!errors.body} />
           </FormField>
           <FormField label="Image (optional)" htmlFor="ann-media">
             <div className="flex gap-2">
-              <Input
-                id="ann-media"
-                type="url"
-                value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
-              />
+              <Input id="ann-media" type="url" {...register("mediaUrl")} />
               <input
                 ref={fileInputRef}
                 type="file"
@@ -230,54 +258,71 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
         <CardHeader>
           <CardTitle>Schedule &amp; targeting</CardTitle>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <CardContent className="flex flex-col gap-4">
             <FormGrid>
-              <FormField label="Starts" htmlFor="ann-start">
-                <DateTimePicker id="ann-start" value={startAt} onChange={setStartAt} required />
+              <FormField label="Starts" htmlFor="ann-start" error={errors.startAt?.message}>
+                <Controller
+                  name="startAt"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <DateTimePicker
+                      id="ann-start"
+                      value={field.value}
+                      onChange={field.onChange}
+                      aria-invalid={!!fieldState.error}
+                    />
+                  )}
+                />
               </FormField>
-              <FormField label="Ends" htmlFor="ann-end">
-                <DateTimePicker id="ann-end" value={endAt} onChange={setEndAt} required />
+              <FormField label="Ends" htmlFor="ann-end" error={errors.endAt?.message}>
+                <Controller
+                  name="endAt"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <DateTimePicker
+                      id="ann-end"
+                      value={field.value}
+                      onChange={field.onChange}
+                      aria-invalid={!!fieldState.error}
+                    />
+                  )}
+                />
               </FormField>
             </FormGrid>
             <FormField label="Repeat policy" htmlFor="ann-repeat">
-              <Select
-                value={repeatPolicy}
-                onValueChange={(v) => setRepeatPolicy(v as AnnouncementRepeatPolicy)}
-              >
-                <SelectTrigger id="ann-repeat" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(REPEAT_LABEL) as AnnouncementRepeatPolicy[]).map((policy) => (
-                    <SelectItem key={policy} value={policy}>
-                      {REPEAT_LABEL[policy]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                name="repeatPolicy"
+                control={control}
+                render={({ field }) => (
+                  <Combobox
+                    id="ann-repeat"
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    options={(Object.keys(REPEAT_LABEL) as AnnouncementRepeatPolicy[]).map((policy) => ({
+                      value: policy,
+                      label: REPEAT_LABEL[policy],
+                    }))}
+                  />
+                )}
+              />
             </FormField>
             {repeatPolicy === "MAX_N_TIMES" && (
-              <FormField label="Display up to" htmlFor="ann-max-count">
-                <Input
-                  id="ann-max-count"
-                  type="number"
-                  min="1"
-                  value={maxDisplayCount}
-                  onChange={(e) => setMaxDisplayCount(e.target.value)}
-                  required
-                />
+              <FormField label="Display up to" htmlFor="ann-max-count" error={errors.maxDisplayCount?.message}>
+                <Input id="ann-max-count" type="number" min="1" {...register("maxDisplayCount")} />
               </FormField>
             )}
-            <LocationTargetPicker
-              locations={locations ?? []}
-              value={locationIds}
-              onChange={setLocationIds}
+            <Controller
+              name="locationIds"
+              control={control}
+              render={({ field }) => (
+                <LocationTargetPicker locations={locations ?? []} value={field.value} onChange={field.onChange} />
+              )}
             />
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={updateAnnouncement.isPending}>
-              {updateAnnouncement.isPending ? "Saving…" : "Save changes"}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : "Save changes"}
             </Button>
           </CardFooter>
         </form>

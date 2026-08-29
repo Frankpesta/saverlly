@@ -3,6 +3,9 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { CopyIcon, PlusIcon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -15,8 +18,10 @@ import {
 } from "@/components/ui/dialog"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
+import { RevenueShareInput } from "@/components/dashboard/revenue-share-input"
 import { useCreateKiosk, type CreateKioskResult } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
+import { emailSchema, nameSchema, revenueShareSchema } from "@/lib/validation/schemas"
 
 type StepKey = "business" | "revenue" | "owner" | "reveal"
 
@@ -29,26 +34,52 @@ const STEP_INFO: Record<StepKey, { title: string; description: string }> = {
 
 const stepKeys: StepKey[] = ["business", "revenue", "owner", "reveal"]
 
+const STEP_FIELDS: Partial<Record<StepKey, ("name" | "revenueSharePct" | "owner.name" | "owner.email")[]>> = {
+  business: ["name"],
+  revenue: ["revenueSharePct"],
+  owner: ["owner.name", "owner.email"],
+}
+
+const newKioskSchema = z.object({
+  name: nameSchema,
+  revenueSharePct: revenueShareSchema,
+  owner: z.object({
+    name: nameSchema,
+    email: emailSchema,
+  }),
+})
+
+type NewKioskFormValues = z.infer<typeof newKioskSchema>
+
 export function NewKioskDialog() {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState(0)
-  const [name, setName] = React.useState("")
-  const [contactEmail, setContactEmail] = React.useState("")
-  const [revenueSharePct, setRevenueSharePct] = React.useState("30")
-  const [ownerEmail, setOwnerEmail] = React.useState("")
   const [result, setResult] = React.useState<CreateKioskResult | null>(null)
   const createKiosk = useCreateKiosk()
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    trigger,
+    watch,
+    reset: resetForm,
+    formState: { errors, isSubmitting },
+  } = useForm<NewKioskFormValues>({
+    resolver: zodResolver(newKioskSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: { name: "", revenueSharePct: 30, owner: { name: "", email: "" } },
+  })
+
   const stepKey = stepKeys[step]
   const isLastInputStep = stepKey === "owner"
+  const name = watch("name")
 
   function reset() {
     setStep(0)
-    setName("")
-    setContactEmail("")
-    setRevenueSharePct("30")
-    setOwnerEmail("")
     setResult(null)
+    resetForm()
   }
 
   function handleOpenChange(next: boolean) {
@@ -65,24 +96,21 @@ export function NewKioskDialog() {
     }
   }
 
-  function handleCreate(event: React.FormEvent) {
-    event.preventDefault()
-    createKiosk.mutate(
-      {
-        name,
-        contactEmail,
-        revenueSharePct: Number(revenueSharePct),
-        owner: { email: ownerEmail },
+  async function handleContinue() {
+    const fields = STEP_FIELDS[stepKey]
+    if (fields && !(await trigger(fields))) return
+    setStep(step + 1)
+  }
+
+  function onSubmit(values: NewKioskFormValues) {
+    createKiosk.mutate(values, {
+      onSuccess: (data) => {
+        setResult(data)
+        setStep(stepKeys.indexOf("reveal"))
       },
-      {
-        onSuccess: (data) => {
-          setResult(data)
-          setStep(stepKeys.indexOf("reveal"))
-        },
-        onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not create kiosk."),
-      },
-    )
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not create kiosk."),
+    })
   }
 
   return (
@@ -102,7 +130,7 @@ export function NewKioskDialog() {
           className="flex flex-1 flex-col justify-between"
           onSubmit={
             isLastInputStep
-              ? handleCreate
+              ? handleSubmit(onSubmit)
               : stepKey === "reveal"
                 ? (e) => {
                     e.preventDefault()
@@ -110,31 +138,16 @@ export function NewKioskDialog() {
                   }
                 : (e) => {
                     e.preventDefault()
-                    setStep(step + 1)
+                    handleContinue()
                   }
           }
+          noValidate
         >
           <div className="flex flex-col gap-4 px-6">
             {stepKey === "business" && (
-              <FormGrid>
-                <FormField label="Name" htmlFor="new-kiosk-name">
-                  <Input
-                    id="new-kiosk-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </FormField>
-                <FormField label="Contact email" htmlFor="new-kiosk-email">
-                  <Input
-                    id="new-kiosk-email"
-                    type="email"
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    required
-                  />
-                </FormField>
-              </FormGrid>
+              <FormField label="Name" htmlFor="new-kiosk-name" error={errors.name?.message}>
+                <Input id="new-kiosk-name" {...register("name")} />
+              </FormField>
             )}
 
             {stepKey === "revenue" && (
@@ -142,39 +155,47 @@ export function NewKioskDialog() {
                 label="Revenue share (%)"
                 htmlFor="new-kiosk-revenue"
                 hint={`The percentage of commission ${name || "this kiosk"} keeps. New kiosks start active.`}
+                error={errors.revenueSharePct?.message}
               >
-                <Input
-                  id="new-kiosk-revenue"
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={revenueSharePct}
-                  onChange={(e) => setRevenueSharePct(e.target.value)}
-                  required
+                <Controller
+                  name="revenueSharePct"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <RevenueShareInput
+                      id="new-kiosk-revenue"
+                      value={field.value}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      aria-invalid={!!fieldState.error}
+                    />
+                  )}
                 />
               </FormField>
             )}
 
             {stepKey === "owner" && (
-              <FormField
-                label="Owner email"
-                htmlFor="new-kiosk-owner-email"
-                hint="We'll generate a secure password and email it to them — you'll also see it once on the next screen."
-              >
-                <Input
-                  id="new-kiosk-owner-email"
-                  type="email"
-                  value={ownerEmail}
-                  onChange={(e) => setOwnerEmail(e.target.value)}
-                  required
-                />
-              </FormField>
+              <FormGrid>
+                <FormField label="Name" htmlFor="new-kiosk-owner-name" error={errors.owner?.name?.message}>
+                  <Input id="new-kiosk-owner-name" {...register("owner.name")} />
+                </FormField>
+                <FormField
+                  label="Owner email"
+                  htmlFor="new-kiosk-owner-email"
+                  hint="We'll generate a secure password and email it to them — you'll also see it once on the next screen. This also doubles as the kiosk's contact email."
+                  error={errors.owner?.email?.message}
+                >
+                  <Input id="new-kiosk-owner-email" type="email" {...register("owner.email")} />
+                </FormField>
+              </FormGrid>
             )}
 
             {stepKey === "reveal" && result && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-2 rounded-lg border border-black/8 px-4 py-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Name</p>
+                    <p className="text-sm font-medium">{result.owner.name}</p>
+                  </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
                     <p className="text-sm font-medium">{result.owner.email}</p>
@@ -211,11 +232,11 @@ export function NewKioskDialog() {
                 Back
               </Button>
             )}
-            <Button type="submit" disabled={createKiosk.isPending}>
+            <Button type="submit" disabled={isSubmitting}>
               {stepKey === "reveal"
                 ? "Done"
                 : isLastInputStep
-                  ? createKiosk.isPending
+                  ? isSubmitting
                     ? "Creating…"
                     : "Create kiosk"
                   : "Continue"}

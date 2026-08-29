@@ -4,10 +4,13 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ChangePasswordCard } from "@/components/settings/change-password-card"
 import { SettingsSection } from "@/components/settings/settings-section"
+import { AccountEmailField } from "@/components/settings/account-email-field"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
-import { useKiosk } from "@/lib/api/hooks/use-kiosks"
+import { useKiosk, useKioskContact } from "@/lib/api/hooks/use-kiosks"
 import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
 import { TeamSection } from "./team-section"
+
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Admin",
@@ -21,6 +24,9 @@ export default function PortalSettingsPage() {
   // GET /kiosks/:id is ADMIN/KIOSK_OWNER only — a location manager would get a 403, so only fetch
   // it (and the team roster below) when the current user is actually allowed to see it.
   const { data: kiosk, isLoading: kioskLoading } = useKiosk(isKioskOwner ? (currentUser?.kioskId ?? "") : "")
+  // A location manager can't load the kiosk itself, but is allowed this narrow projection —
+  // just enough to know who their kiosk owner is.
+  const { data: kioskContact } = useKioskContact(!userLoading && !isKioskOwner)
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,10 +40,11 @@ export default function PortalSettingsPage() {
           <div className="flex flex-col gap-3">
             {userLoading && <Skeleton className="h-10 w-full" />}
             {currentUser && (
-              <div className="flex items-center justify-between border-y border-black/[0.06] dark:border-white/10 py-3">
-                <span className="text-sm font-medium">{currentUser.email}</span>
-                <Badge variant="secondary">{ROLE_LABEL[currentUser.role] ?? currentUser.role}</Badge>
-              </div>
+              <AccountEmailField
+                name={currentUser.name}
+                email={currentUser.email}
+                roleLabel={ROLE_LABEL[currentUser.role] ?? currentUser.role}
+              />
             )}
           </div>
         </SettingsSection>
@@ -64,12 +71,16 @@ export default function PortalSettingsPage() {
                     <span className="text-sm text-muted-foreground">Revenue share</span>
                     <span className="text-sm font-medium">{kiosk.revenueSharePct}%</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Contact email</span>
-                    <span className="text-sm font-medium">{kiosk.contactEmail}</span>
-                  </div>
                   <p className="text-sm text-muted-foreground">
-                    Contact your Saverlly admin to change these details.
+                    Contact{" "}
+                    {SUPPORT_EMAIL ? (
+                      <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[var(--brand-teal)] hover:underline">
+                        your Saverlly admin
+                      </a>
+                    ) : (
+                      "your Saverlly admin"
+                    )}{" "}
+                    to change these details.
                   </p>
                 </>
               )}
@@ -81,7 +92,20 @@ export default function PortalSettingsPage() {
 
         {!userLoading && !isKioskOwner && (
           <SettingsSection title="Workspace access">
-            <p className="text-sm text-muted-foreground">Contact your kiosk owner to manage kiosk details or team access.</p>
+            <p className="text-sm text-muted-foreground">
+              Contact{" "}
+              {kioskContact?.email ? (
+                <a
+                  href={`mailto:${kioskContact.email}`}
+                  className="text-[var(--brand-teal)] hover:underline"
+                >
+                  {kioskContact.name || "your kiosk owner"}
+                </a>
+              ) : (
+                "your kiosk owner"
+              )}{" "}
+              to manage kiosk details or team access.
+            </p>
           </SettingsSection>
         )}
       </div>

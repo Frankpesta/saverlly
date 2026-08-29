@@ -77,7 +77,7 @@
   --violet-tint: #f1edfb;
 
   --background: #ffffff;
-  --page-plane: #eef2f0;
+  --page-plane: #ffffff;
   --foreground: var(--brand-black);
   --card: #ffffff;
   --card-foreground: var(--brand-black);
@@ -205,6 +205,8 @@
   .auth-field { position: relative; height: 3.25rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--page-plane); transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
   .auth-field:hover { border-color: var(--input); }
   .auth-field:focus-within { border-color: var(--brand-teal); background: var(--card); box-shadow: 0 0 0 3px rgb(88 195 183 / .18); }
+  .auth-field-invalid { border-color: var(--destructive); }
+  .auth-field-invalid:focus-within { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive), transparent 80%); }
   .auth-field-input { width: 100%; height: 100%; padding: .95rem 1rem .2rem; color: var(--foreground); outline: none; background: transparent; font-size: .9rem; }
   .auth-field-input-icon { padding-left: 2.9rem; }
   .auth-field-label { position: absolute; top: 50%; left: 1rem; transform: translateY(-50%); color: var(--muted-foreground); font-size: .95rem; pointer-events: none; transition: top .16s ease, transform .16s ease, font-size .16s ease, color .16s ease; }

@@ -15,6 +15,7 @@ export function useKioskUsers(kioskId: string) {
 }
 
 export type CreateKioskUserPayload = {
+  name: string
   email: string
   role: KioskAssignableRole
 }
@@ -39,8 +40,10 @@ export function useCreateKioskUser(kioskId: string) {
 }
 
 export type UpdateKioskUserPayload = Partial<{
+  name: string
   role: KioskAssignableRole
   disabled: boolean
+  managedLocationIds: string[]
 }>
 
 export function useUpdateKioskUser(kioskId: string) {
@@ -50,6 +53,19 @@ export function useUpdateKioskUser(kioskId: string) {
       apiFetch<KioskUser>(`/kiosks/${kioskId}/users/${userId}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kioskUsersKey(kioskId) })
+    },
+  })
+}
+
+export function useDeleteKioskUser(kioskId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch<void>(`/kiosks/${kioskId}/users/${userId}`, {
+        method: "DELETE",
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: kioskUsersKey(kioskId) })

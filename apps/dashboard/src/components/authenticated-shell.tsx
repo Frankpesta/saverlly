@@ -55,7 +55,7 @@ export function AuthenticatedShell({
       />
       <SidebarInset className="min-h-svh bg-[var(--page-plane)]">
         <SiteHeader title={activeItem?.title ?? fallbackTitle} />
-        <main className="flex flex-1 flex-col gap-6 px-5 py-6 sm:px-7 lg:px-10 lg:py-8">{children}</main>
+        <main className="flex min-w-0 flex-1 flex-col gap-6 px-5 py-6 sm:px-7 lg:px-10 lg:py-8">{children}</main>
         <DashboardFooter label={fallbackTitle} />
       </SidebarInset>
     </SidebarProvider>

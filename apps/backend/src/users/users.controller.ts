@@ -1,8 +1,9 @@
-import { Controller, Get, NotFoundException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Patch, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import { UpdateMeDto } from './dto/update-me.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users')
@@ -21,6 +22,22 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+    const { passwordHash: _passwordHash, refreshTokenHash: _refreshTokenHash, ...safeUser } = user;
+    return safeUser;
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('jwt')
+  @ApiOperation({
+    summary:
+      "Update the current authenticated user's own profile — email only, not role/kiosk/managedLocationIds",
+  })
+  @ApiResponse({ status: 200, description: 'Updated' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 409, description: 'Email already in use' })
+  async updateMe(@CurrentUser() currentUser: JwtPayload, @Body() dto: UpdateMeDto) {
+    const user = await this.usersService.updateMe(currentUser.sub, dto);
     const { passwordHash: _passwordHash, refreshTokenHash: _refreshTokenHash, ...safeUser } = user;
     return safeUser;
   }

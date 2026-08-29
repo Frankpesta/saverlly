@@ -70,7 +70,11 @@ describe('Tenant isolation (e2e)', () => {
       await request(app.getHttpServer())
         .post('/kiosks')
         .set('Authorization', `Bearer ${ownerAToken}`)
-        .send({ name: 'x', revenueSharePct: 10, contactEmail: 'x@test.com' })
+        .send({
+          name: 'x',
+          revenueSharePct: 10,
+          owner: { name: 'Owner', email: 'x@test.com' },
+        })
         .expect(403);
     });
 

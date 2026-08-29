@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { UserRole } from '@prisma/client';
+import { NormalizeEmail } from '../../common/transformers/normalize-email.decorator';
 
 // A kiosk's own users are always KIOSK_OWNER or LOCATION_MANAGER — ADMIN is never kiosk-scoped.
 export const KIOSK_ASSIGNABLE_ROLES = [
@@ -9,7 +10,13 @@ export const KIOSK_ASSIGNABLE_ROLES = [
 ] as const;
 
 export class CreateKioskUserDto {
+  @ApiProperty({ example: 'Jane Doe' })
+  @IsString()
+  @MinLength(1)
+  name: string;
+
   @ApiProperty()
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 

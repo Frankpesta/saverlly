@@ -22,7 +22,6 @@ async function main() {
       name: 'Dashboard Verify Kiosk One',
       status: 'ACTIVE',
       revenueSharePct: 30,
-      contactEmail: 'owner1@dashboard-verify.test',
     },
   });
 
@@ -31,7 +30,6 @@ async function main() {
       name: 'Dashboard Verify Kiosk Two',
       status: 'INACTIVE',
       revenueSharePct: 25.5,
-      contactEmail: 'owner2@dashboard-verify.test',
     },
   });
 
@@ -40,12 +38,12 @@ async function main() {
       name: 'Dashboard Verify Kiosk Three',
       status: 'ACTIVE',
       revenueSharePct: 40,
-      contactEmail: 'owner3@dashboard-verify.test',
     },
   });
 
   await prisma.user.create({
     data: {
+      name: 'Test Owner',
       email: 'owner@dashboard-verify.test',
       passwordHash,
       role: 'KIOSK_OWNER',

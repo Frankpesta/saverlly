@@ -79,7 +79,6 @@ export default function KiosksPage() {
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Revenue Share</TableHead>
-              <TableHead>Contact Email</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -87,7 +86,7 @@ export default function KiosksPage() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={4}>
                     <Skeleton className="h-6 w-full" />
                   </TableCell>
                 </TableRow>
@@ -95,7 +94,7 @@ export default function KiosksPage() {
 
             {!isLoading && kiosks?.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
                   No kiosks yet.
                 </TableCell>
               </TableRow>
@@ -122,7 +121,6 @@ export default function KiosksPage() {
                   </div>
                 </TableCell>
                 <TableCell>{kiosk.revenueSharePct}%</TableCell>
-                <TableCell>{kiosk.contactEmail}</TableCell>
                 <TableCell>
                   <TableRowActions>
                     <Link
