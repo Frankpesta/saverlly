@@ -1,12 +1,11 @@
 "use client"
 
-import Link from "next/link"
-import { ArrowRightIcon } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ChangePasswordCard } from "@/components/settings/change-password-card"
 import { SettingsSection } from "@/components/settings/settings-section"
 import { AccountEmailField } from "@/components/settings/account-email-field"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
+import { AdminTeamSection } from "./admin-team-section"
 
 export default function AdminSettingsPage() {
   const { data: currentUser, isLoading: userLoading } = useCurrentUser()
@@ -31,16 +30,11 @@ export default function AdminSettingsPage() {
         <ChangePasswordCard />
 
         <SettingsSection
-          title="Team"
-          description="Kiosk owners and location managers are added from each kiosk's own page."
+          title="Employees"
+          description="Admin-level teammates, with full access to this console. Kiosk owners and location managers are added from each kiosk's own page instead."
+          className="lg:col-span-2"
         >
-          <Link
-            href="/admin/kiosks"
-            className="flex w-fit items-center gap-1.5 text-sm font-medium text-[var(--brand-teal)] hover:underline"
-          >
-            Go to Kiosks to add a user
-            <ArrowRightIcon className="size-4" />
-          </Link>
+          <AdminTeamSection />
         </SettingsSection>
       </div>
     </div>

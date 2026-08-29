@@ -25,6 +25,7 @@ describe('pollAndDisplayAnnouncements', () => {
   it('displays and records only the announcements that shouldShowAnnouncement allows', async () => {
     mockFetchActiveAnnouncements.mockResolvedValue([ann('shown'), ann('skipped')]);
     mockShouldShow.mockImplementation((a) => a.id === 'shown');
+    mockShowOverlay.mockReturnValue(true);
 
     await pollAndDisplayAnnouncements('tok');
 
@@ -32,6 +33,17 @@ describe('pollAndDisplayAnnouncements', () => {
     expect(mockShowOverlay).toHaveBeenCalledWith('Title shown', 'Body shown');
     expect(mockRecordShown).toHaveBeenCalledTimes(1);
     expect(mockRecordShown).toHaveBeenCalledWith(expect.objectContaining({ id: 'shown' }));
+  });
+
+  it('does not record as shown when nobody is logged in to see the popup', async () => {
+    mockFetchActiveAnnouncements.mockResolvedValue([ann('a')]);
+    mockShouldShow.mockReturnValue(true);
+    mockShowOverlay.mockReturnValue(false);
+
+    await pollAndDisplayAnnouncements('tok');
+
+    expect(mockShowOverlay).toHaveBeenCalledTimes(1);
+    expect(mockRecordShown).not.toHaveBeenCalled();
   });
 
   it('does nothing when there are no active announcements', async () => {

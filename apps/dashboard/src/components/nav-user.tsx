@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import {
   Avatar,
   AvatarFallback,
@@ -33,9 +34,11 @@ function initials(name: string) {
 
 export function NavUser({
   user,
+  settingsUrl,
   onLogout,
 }: {
   user: { name: string; email: string; avatar?: string }
+  settingsUrl?: string
   onLogout: () => void
 }) {
   const { isMobile } = useSidebar()
@@ -92,9 +95,18 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <CircleUserRoundIcon />
-                Account
+              <DropdownMenuItem asChild={!!settingsUrl} disabled={!settingsUrl}>
+                {settingsUrl ? (
+                  <Link href={settingsUrl}>
+                    <CircleUserRoundIcon />
+                    Account
+                  </Link>
+                ) : (
+                  <>
+                    <CircleUserRoundIcon />
+                    Account
+                  </>
+                )}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

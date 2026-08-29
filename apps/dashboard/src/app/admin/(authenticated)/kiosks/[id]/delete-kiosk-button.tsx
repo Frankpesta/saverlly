@@ -22,8 +22,8 @@ import { exactMatchSchema } from "@/lib/validation/schemas"
 import type { Kiosk } from "@/lib/api/types"
 
 /**
- * Deleting a kiosk is irreversible and destroys everything under it — every user, location,
- * device, device activity history, announcement, and payout — so it's gated behind typing the
+ * Deleting a kiosk is irreversible and destroys everything under it: every user, location,
+ * device, device activity history, announcement, and payout. So it's gated behind typing the
  * kiosk's exact name, not just a click-through confirmation like every other delete in the app.
  */
 const confirmDeleteSchema = (kioskName: string) =>
@@ -80,7 +80,7 @@ export function DeleteKioskButton({ kiosk, onDeleted }: { kiosk: Kiosk; onDelete
             <DialogTitle>Delete {kiosk.name}?</DialogTitle>
           </div>
           <DialogDescription>
-            This permanently deletes the kiosk and everything under it — every user and login,
+            This permanently deletes the kiosk and everything under it. Every user and login,
             every location and device, all device activity history, kiosk-scoped announcements,
             and payout records. This can&apos;t be undone.
           </DialogDescription>

@@ -172,7 +172,7 @@ export function NewAnnouncementDialog() {
         <PlusIcon className="size-4" />
         New Announcement
       </Button>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{STEPS[step].title}</DialogTitle>
           <WizardStepDots count={STEPS.length} current={step} steps={STEPS} />
@@ -193,35 +193,39 @@ export function NewAnnouncementDialog() {
         >
           <div className="flex flex-col gap-4 px-6">
             {step === 0 && (
-              <>
-                <FormField label="Title" htmlFor="new-ann-title" error={errors.title?.message}>
-                  <Input id="new-ann-title" {...register("title")} />
-                </FormField>
-                <FormField label="Body" htmlFor="new-ann-body" error={errors.body?.message}>
-                  <Textarea id="new-ann-body" rows={4} {...register("body")} aria-invalid={!!errors.body} />
-                </FormField>
-                <FormField label="Image (optional)" htmlFor="new-ann-media">
-                  <div className="flex gap-2">
-                    <Input id="new-ann-media" type="url" placeholder="https://…" {...register("mediaUrl")} />
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/gif"
-                      className="hidden"
-                      onChange={handleFileSelected}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={uploadImage.isPending}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {uploadImage.isPending ? "Uploading…" : "Upload"}
-                    </Button>
-                  </div>
-                </FormField>
-                <AnnouncementPreview title={title} body={body} mediaUrl={mediaUrl || undefined} />
-              </>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <div className="flex flex-col gap-4">
+                  <FormField label="Title" htmlFor="new-ann-title" error={errors.title?.message}>
+                    <Input id="new-ann-title" {...register("title")} />
+                  </FormField>
+                  <FormField label="Body" htmlFor="new-ann-body" error={errors.body?.message}>
+                    <Textarea id="new-ann-body" rows={4} {...register("body")} aria-invalid={!!errors.body} />
+                  </FormField>
+                  <FormField label="Image (optional)" htmlFor="new-ann-media">
+                    <div className="flex gap-2">
+                      <Input id="new-ann-media" type="url" placeholder="https://…" {...register("mediaUrl")} />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        onChange={handleFileSelected}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={uploadImage.isPending}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        {uploadImage.isPending ? "Uploading…" : "Upload"}
+                      </Button>
+                    </div>
+                  </FormField>
+                </div>
+                <div className="md:sticky md:top-0 md:self-start">
+                  <AnnouncementPreview title={title} body={body} mediaUrl={mediaUrl || undefined} />
+                </div>
+              </div>
             )}
 
             {step === 1 && (

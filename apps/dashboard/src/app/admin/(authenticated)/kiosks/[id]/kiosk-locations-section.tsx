@@ -9,6 +9,7 @@ import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TagInput } from "@/components/dashboard/tag-input"
 import { useLocations, useUpdateLocation, useDeleteLocation } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
 import type { Location } from "@/lib/api/types"
@@ -43,14 +44,13 @@ export function KioskLocationsSection({ kioskId }: { kioskId: string }) {
 
 function LocationRow({ location }: { location: Location }) {
   const [name, setName] = React.useState(location.name)
-  const [tags, setTags] = React.useState(location.tags.join(", "))
+  const [tags, setTags] = React.useState<string[]>(location.tags)
   const updateLocation = useUpdateLocation(location.id)
   const deleteLocation = useDeleteLocation()
 
   function handleSave() {
-    const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean)
     updateLocation.mutate(
-      { name, tags: tagList },
+      { name, tags },
       {
         onSuccess: () => toast.success("Location updated."),
         onError: (error) =>
@@ -67,7 +67,10 @@ function LocationRow({ location }: { location: Location }) {
     })
   }
 
-  const dirty = name !== location.name || tags !== location.tags.join(", ")
+  const dirty =
+    name !== location.name ||
+    tags.length !== location.tags.length ||
+    tags.some((tag, i) => tag !== location.tags[i])
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-black/8 px-4 py-3">
@@ -86,24 +89,22 @@ function LocationRow({ location }: { location: Location }) {
           isPending={deleteLocation.isPending}
         />
       </div>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name"
           className="sm:flex-1"
         />
-        <Input
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          placeholder="Tags, comma separated"
-          className="sm:flex-1"
-        />
+        <div className="sm:flex-1">
+          <TagInput value={tags} onChange={setTags} placeholder="Tags, comma separated" />
+        </div>
         <Button
           type="button"
           size="sm"
           disabled={!dirty || updateLocation.isPending}
           onClick={handleSave}
+          className="sm:mt-0.5"
         >
           {updateLocation.isPending ? "Saving…" : "Save"}
         </Button>

@@ -30,6 +30,7 @@ export function AuthenticatedShell({
   const activeItem = [...navMain, ...(navSecondary ?? [])].find((item) =>
     pathname.startsWith(item.url),
   )
+  const settingsUrl = navSecondary?.find((item) => item.title === "Settings")?.url
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -51,6 +52,7 @@ export function AuthenticatedShell({
         navMain={navMain}
         navSecondary={navSecondary}
         user={user}
+        settingsUrl={settingsUrl}
         onLogout={handleLogout}
       />
       <SidebarInset className="min-h-svh bg-[var(--page-plane)]">

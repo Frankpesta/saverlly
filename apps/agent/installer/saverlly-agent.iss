@@ -111,6 +111,10 @@ Filename: "{app}\saverlly-agent.exe"; Parameters: "--uninstall-once"; Flags: run
 ; reg delete on a key that's already gone is a no-op, not an error, same as chrome-policy.ts's
 ; own self-healing writes treat it.
 Filename: "{sys}\schtasks.exe"; Parameters: "/delete /tn ""SaverllyKioskAgent"" /f"; Flags: runhidden; RunOnceId: "RemoveScheduledTask"
+; The per-user announcement-overlay relay task (apps/agent/src/lib/overlay.ts) — created/recreated
+; on demand whenever an announcement actually needs to be shown, so it may not exist yet on a
+; freshly installed machine; schtasks /delete on a missing task is a no-op, not an error.
+Filename: "{sys}\schtasks.exe"; Parameters: "/delete /tn ""SaverllyAnnouncementOverlay"" /f"; Flags: runhidden; RunOnceId: "RemoveAnnouncementOverlayTask"
 Filename: "{sys}\reg.exe"; Parameters: "delete ""HKLM\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.saverlly.agent"" /f"; Flags: runhidden; RunOnceId: "RemoveNativeMessagingHost"
 
 [UninstallDelete]

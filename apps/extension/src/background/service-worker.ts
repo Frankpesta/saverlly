@@ -160,8 +160,8 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
     // ignored — see comment above
   }
 
-  // No competing affiliate link — apply automatically, no manual "Apply Coupons" click needed.
-  await triggerApply(tabId);
+  // No competing affiliate link — surface the popup's "Apply Coupons" prompt and wait for the
+  // user to click it (APPLY_BEST_COUPON), rather than applying automatically.
 }
 
 async function triggerApply(tabId: number): Promise<void> {

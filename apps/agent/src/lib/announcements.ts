@@ -9,7 +9,12 @@ export async function pollAndDisplayAnnouncements(token: string): Promise<void> 
     if (!shouldShowAnnouncement(announcement)) {
       continue;
     }
-    showAnnouncementOverlay(announcement.title, announcement.body);
-    recordAnnouncementShown(announcement);
+    // Only record as shown if a popup actually got dispatched to a real logged-in session —
+    // showAnnouncementOverlay returns false when nobody's logged in (lock/login screen), and a
+    // ONCE/MAX_N_TIMES announcement shouldn't burn its one showing on nobody.
+    const shown = showAnnouncementOverlay(announcement.title, announcement.body);
+    if (shown) {
+      recordAnnouncementShown(announcement);
+    }
   }
 }

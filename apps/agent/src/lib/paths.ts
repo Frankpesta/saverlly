@@ -29,3 +29,7 @@ export function announcementStateFilePath(): string {
 export function agentStatusStateFilePath(): string {
   return path.join(agentDir(), 'status-state.json');
 }
+
+export function announcementOverlayScriptPath(): string {
+  return path.join(agentDir(), 'announcement-overlay.ps1');
+}
