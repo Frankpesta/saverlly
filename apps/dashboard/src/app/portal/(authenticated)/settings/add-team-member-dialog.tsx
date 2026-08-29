@@ -2,6 +2,9 @@
 
 import * as React from "react"
 import { toast } from "sonner"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { CopyIcon, UserPlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,9 +16,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { FormField } from "@/components/dashboard/form-section"
+import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateKioskUser, type CreateKioskUserResult } from "@/lib/api/hooks/use-kiosk-users"
 import { ApiError } from "@/lib/api/client"
+import { emailSchema, nameSchema } from "@/lib/validation/schemas"
+
+const addTeamMemberSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+})
+
+type AddTeamMemberFormValues = z.infer<typeof addTeamMemberSchema>
 
 /**
  * A kiosk-owner may only create LOCATION_MANAGER accounts under their own kiosk (never a peer
@@ -24,12 +35,23 @@ import { ApiError } from "@/lib/api/client"
  */
 export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
   const [open, setOpen] = React.useState(false)
-  const [email, setEmail] = React.useState("")
   const [result, setResult] = React.useState<CreateKioskUserResult | null>(null)
   const createUser = useCreateKioskUser(kioskId)
 
+  const {
+    register,
+    handleSubmit,
+    reset: resetForm,
+    formState: { errors, isSubmitting },
+  } = useForm<AddTeamMemberFormValues>({
+    resolver: zodResolver(addTeamMemberSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: { name: "", email: "" },
+  })
+
   function reset() {
-    setEmail("")
+    resetForm()
     setResult(null)
   }
 
@@ -47,10 +69,9 @@ export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
     }
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  function onSubmit(values: AddTeamMemberFormValues) {
     createUser.mutate(
-      { email, role: "LOCATION_MANAGER" },
+      { ...values, role: "LOCATION_MANAGER" },
       {
         onSuccess: (data) => setResult(data),
         onError: (error) =>
@@ -76,22 +97,21 @@ export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
               </DialogDescription>
             </DialogHeader>
 
-            <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
+            <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="flex flex-col gap-4 px-6">
-                <FormField label="Email" htmlFor="team-member-email">
-                  <Input
-                    id="team-member-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </FormField>
+                <FormGrid>
+                  <FormField label="Name" htmlFor="team-member-name" error={errors.name?.message}>
+                    <Input id="team-member-name" {...register("name")} />
+                  </FormField>
+                  <FormField label="Email" htmlFor="team-member-email" error={errors.email?.message}>
+                    <Input id="team-member-email" type="email" {...register("email")} />
+                  </FormField>
+                </FormGrid>
               </div>
 
               <DialogFooter>
-                <Button type="submit" disabled={createUser.isPending}>
-                  {createUser.isPending ? "Adding…" : "Add team member"}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Adding…" : "Add team member"}
                 </Button>
               </DialogFooter>
             </form>
@@ -105,6 +125,10 @@ export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {
 
             <div className="flex flex-col gap-4 px-6">
               <div className="flex flex-col gap-2 rounded-lg border border-black/8 px-4 py-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Name</p>
+                  <p className="text-sm font-medium">{result.user.name}</p>
+                </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
                   <p className="text-sm font-medium">{result.user.email}</p>

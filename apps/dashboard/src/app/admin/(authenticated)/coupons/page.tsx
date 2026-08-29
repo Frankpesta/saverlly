@@ -19,12 +19,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Combobox,
+} from "@/components/ui/combobox"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -137,19 +133,17 @@ export default function CouponsPage() {
       </BentoGrid>
 
       <div className="flex items-center gap-2">
-        <Select value={merchantFilter} onValueChange={setMerchantFilter}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="All merchants" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_MERCHANTS}>All merchants</SelectItem>
-            {merchants?.map((merchant) => (
-              <SelectItem key={merchant.id} value={merchant.id}>
-                {merchant.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          value={merchantFilter}
+          onValueChange={setMerchantFilter}
+          className="w-64"
+          placeholder="All merchants"
+          searchPlaceholder="Search merchants..."
+          options={[
+            { value: ALL_MERCHANTS, label: "All merchants" },
+            ...(merchants?.map((merchant) => ({ value: merchant.id, label: merchant.name })) ?? []),
+          ]}
+        />
       </div>
 
       {isError && <p className="text-sm text-destructive">Could not load coupons.</p>}

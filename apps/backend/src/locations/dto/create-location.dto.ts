@@ -6,8 +6,13 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MinLength,
 } from 'class-validator';
+
+// US 5-digit ZIP only, for now — the client has said they want to allow letters/dashes later
+// (e.g. Canadian postal codes), so this stays a single regex swap, not a schema change.
+export const ZIP_PATTERN = /^\d{5}$/;
 
 export class CreateLocationDto {
   @ApiPropertyOptional({
@@ -37,10 +42,10 @@ export class CreateLocationDto {
   @MinLength(1)
   state: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '78701', description: 'US 5-digit ZIP' })
   @IsString()
-  @MinLength(1)
-  country: string;
+  @Matches(ZIP_PATTERN, { message: 'zip must be exactly 5 digits' })
+  zip: string;
 
   @ApiPropertyOptional()
   @IsOptional()

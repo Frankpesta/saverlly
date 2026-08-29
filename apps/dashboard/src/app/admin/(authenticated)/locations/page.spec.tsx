@@ -24,7 +24,6 @@ const kiosks: Kiosk[] = [
     name: "Kiosk One",
     status: "ACTIVE",
     revenueSharePct: "30",
-    contactEmail: "owner1@example.com",
     stripeAccountId: null,
     stripePayoutsEnabled: false,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -40,7 +39,7 @@ const locations: Location[] = [
     address: "1 Main St",
     city: "Springfield",
     state: "IL",
-    country: "US",
+    zip: "00000",
     latitude: null,
     longitude: null,
     tags: ["mall"],
@@ -108,23 +107,36 @@ describe("AdminLocationsPage", () => {
     renderWithClient(<AdminLocationsPage />)
 
     await userEvent.click(await screen.findByRole("button", { name: /new location/i }))
-    const continueButton = screen.getByRole("button", { name: /continue/i })
-    expect(continueButton).toBeDisabled()
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
+
+    // "Select a kiosk" also appears as the (unselected) Combobox trigger's own placeholder text,
+    // so this specifically targets the rendered zod error message, not the placeholder.
+    expect(await screen.findByText("Select a kiosk", { selector: "p" })).toBeInTheDocument()
+    expect(screen.queryByLabelText("Tags")).not.toBeInTheDocument()
   })
 
+  // More interaction steps than the default 5000ms budget comfortably covers now that
+  // Kiosk/City/State are each their own combobox popover (open, search, pick), not plain
+  // text inputs — genuinely slower, not a hang (confirmed passing well within 20s solo).
   it("walks the wizard with a kiosk selection and submits the create request", async () => {
     renderWithClient(<AdminLocationsPage />)
 
     await userEvent.click(await screen.findByRole("button", { name: /new location/i }))
 
-    await userEvent.click(screen.getByRole("combobox"))
+    await userEvent.click(screen.getByRole("combobox", { name: "Kiosk" }))
     await userEvent.click(await screen.findByRole("option", { name: "Kiosk One" }))
 
     await userEvent.type(screen.getByLabelText("Name"), "Uptown")
     await userEvent.type(screen.getByLabelText("Address"), "2 Elm St")
-    await userEvent.type(screen.getByLabelText("City"), "Springfield")
-    await userEvent.type(screen.getByLabelText("State"), "IL")
-    await userEvent.type(screen.getByLabelText("Country"), "US")
+
+    await userEvent.click(screen.getByRole("combobox", { name: "City" }))
+    await userEvent.type(screen.getByPlaceholderText("Type a city..."), "Springfield")
+    await userEvent.click(await screen.findByRole("option", { name: "Springfield" }))
+
+    await userEvent.click(screen.getByRole("combobox", { name: "State" }))
+    await userEvent.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
+
+    await userEvent.type(screen.getByLabelText("Zip"), "00000")
     await userEvent.click(screen.getByRole("button", { name: /continue/i }))
 
     await userEvent.click(await screen.findByRole("button", { name: /create location/i }))
@@ -140,12 +152,12 @@ describe("AdminLocationsPage", () => {
             address: "2 Elm St",
             city: "Springfield",
             state: "IL",
-            country: "US",
+            zip: "00000",
           }),
         }),
       ),
     )
-  })
+  }, 20000)
 
   it("paginates at 25 rows per page and navigates to the next page", async () => {
     const manyLocations: Location[] = Array.from({ length: 30 }, (_, i) => ({

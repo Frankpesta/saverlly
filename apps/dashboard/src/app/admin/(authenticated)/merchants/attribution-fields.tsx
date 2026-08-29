@@ -2,20 +2,16 @@
 
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Combobox,
+} from "@/components/ui/combobox"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import type { AttributionMethod } from "@/lib/api/types"
 
 export type AttributionFieldsValue = {
   attributionMethod: AttributionMethod
-  affiliateTrackingUrl: string
-  affiliateUrlParamKey: string
-  affiliateUrlParamValue: string
+  affiliateTrackingUrl?: string
+  affiliateUrlParamKey?: string
+  affiliateUrlParamValue?: string
 }
 
 const METHOD_LABEL: Record<AttributionMethod, string> = {
@@ -29,14 +25,18 @@ const METHOD_LABEL: Record<AttributionMethod, string> = {
  * fields are required mirrors the backend's own validation exactly (merchants.service.ts
  * assertTrackingFieldsPresent): trackingUrl for COOKIE/BOTH, paramKey+paramValue for URL_PARAM/BOTH.
  */
+export type AttributionFieldsErrors = Partial<Record<keyof AttributionFieldsValue, string>>
+
 export function AttributionFields({
   value,
   onChange,
   idPrefix,
+  errors,
 }: {
   value: AttributionFieldsValue
   onChange: (next: AttributionFieldsValue) => void
   idPrefix: string
+  errors?: AttributionFieldsErrors
 }) {
   const needsTrackingUrl = value.attributionMethod === "COOKIE" || value.attributionMethod === "BOTH"
   const needsUrlParam = value.attributionMethod === "URL_PARAM" || value.attributionMethod === "BOTH"
@@ -44,21 +44,15 @@ export function AttributionFields({
   return (
     <div className="flex flex-col gap-4">
       <FormField label="Tracking method" htmlFor={`${idPrefix}-method`}>
-        <Select
+        <Combobox
+          id={`${idPrefix}-method`}
           value={value.attributionMethod}
           onValueChange={(v) => onChange({ ...value, attributionMethod: v as AttributionMethod })}
-        >
-          <SelectTrigger id={`${idPrefix}-method`} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(METHOD_LABEL) as AttributionMethod[]).map((method) => (
-              <SelectItem key={method} value={method}>
-                {METHOD_LABEL[method]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={(Object.keys(METHOD_LABEL) as AttributionMethod[]).map((method) => ({
+            value: method,
+            label: METHOD_LABEL[method],
+          }))}
+        />
       </FormField>
 
       {needsTrackingUrl && (
@@ -66,6 +60,7 @@ export function AttributionFields({
           label="Affiliate tracking URL"
           htmlFor={`${idPrefix}-tracking-url`}
           hint="Sets the tracking cookie on visit."
+          error={errors?.affiliateTrackingUrl}
         >
           <Input
             id={`${idPrefix}-tracking-url`}
@@ -73,28 +68,32 @@ export function AttributionFields({
             placeholder="https://…"
             value={value.affiliateTrackingUrl}
             onChange={(e) => onChange({ ...value, affiliateTrackingUrl: e.target.value })}
-            required
+            aria-invalid={!!errors?.affiliateTrackingUrl}
           />
         </FormField>
       )}
 
       {needsUrlParam && (
         <FormGrid>
-          <FormField label="URL param key" htmlFor={`${idPrefix}-param-key`}>
+          <FormField label="URL param key" htmlFor={`${idPrefix}-param-key`} error={errors?.affiliateUrlParamKey}>
             <Input
               id={`${idPrefix}-param-key`}
               placeholder="irclickid"
               value={value.affiliateUrlParamKey}
               onChange={(e) => onChange({ ...value, affiliateUrlParamKey: e.target.value })}
-              required
+              aria-invalid={!!errors?.affiliateUrlParamKey}
             />
           </FormField>
-          <FormField label="Platform's tracking ID" htmlFor={`${idPrefix}-param-value`}>
+          <FormField
+            label="Platform's tracking ID"
+            htmlFor={`${idPrefix}-param-value`}
+            error={errors?.affiliateUrlParamValue}
+          >
             <Input
               id={`${idPrefix}-param-value`}
               value={value.affiliateUrlParamValue}
               onChange={(e) => onChange({ ...value, affiliateUrlParamValue: e.target.value })}
-              required
+              aria-invalid={!!errors?.affiliateUrlParamValue}
             />
           </FormField>
         </FormGrid>

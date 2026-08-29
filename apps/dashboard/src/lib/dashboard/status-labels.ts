@@ -37,7 +37,7 @@ export const KIOSK_STATUS_LABEL: Record<KioskStatus, string> = {
 
 export const KIOSK_STATUS_BADGE_VARIANT: Record<KioskStatus, BadgeVariant> = {
   ACTIVE: "success",
-  INACTIVE: "secondary",
+  INACTIVE: "destructive",
 }
 
 /** Client-computed from an announcement's startAt/endAt window (see each announcements list

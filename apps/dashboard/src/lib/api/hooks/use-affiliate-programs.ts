@@ -49,3 +49,16 @@ export function useUpdateAffiliateProgram(id: string) {
     },
   })
 }
+
+export function useDeleteAffiliateProgram() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/affiliate-programs/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: affiliateProgramsKey })
+    },
+  })
+}

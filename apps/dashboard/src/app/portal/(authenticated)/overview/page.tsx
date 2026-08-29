@@ -160,7 +160,7 @@ export default function PortalOverviewPage() {
     [announcements],
   )
 
-  const displayName = currentUser?.email.split("@")[0] ?? "there"
+  const displayName = currentUser?.name || currentUser?.email.split("@")[0] || "there"
 
   return (
     <div className="flex flex-col gap-8">

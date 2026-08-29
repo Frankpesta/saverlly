@@ -33,8 +33,7 @@ describe('Kiosk + owner creation (e2e)', () => {
       .send({
         name: 'New Kiosk',
         revenueSharePct: 25,
-        contactEmail: 'contact@newkiosk.test',
-        owner: { email: 'owner@newkiosk.test' },
+        owner: { name: 'Kiosk Owner', email: 'owner@newkiosk.test' },
       })
       .expect(201);
 
@@ -81,7 +80,6 @@ describe('Kiosk + owner creation (e2e)', () => {
       .send({
         name: 'No Owner Kiosk',
         revenueSharePct: 25,
-        contactEmail: 'contact@noowner.test',
       })
       .expect(400);
   });
@@ -96,8 +94,7 @@ describe('Kiosk + owner creation (e2e)', () => {
       .send({
         name: 'Blocked Kiosk',
         revenueSharePct: 25,
-        contactEmail: 'contact@blocked.test',
-        owner: { email: 'owner2@blocked.test' },
+        owner: { name: 'Owner Two', email: 'owner2@blocked.test' },
       })
       .expect(403);
   });
@@ -112,8 +109,7 @@ describe('Kiosk + owner creation (e2e)', () => {
       .send({
         name: 'Bad',
         revenueSharePct: 25,
-        contactEmail: 'x@x.test',
-        owner: { email: 'not-an-email' },
+        owner: { name: 'Bad Owner', email: 'not-an-email' },
       })
       .expect(400);
 

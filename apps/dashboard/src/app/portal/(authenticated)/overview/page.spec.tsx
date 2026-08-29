@@ -28,6 +28,7 @@ jest.mock("next/link", () => {
 
 const currentUser: UserProfile = {
   id: "user-1",
+  name: "Jane Owner",
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -38,7 +39,6 @@ const kiosk: Kiosk = {
   name: "Kiosk One",
   status: "ACTIVE",
   revenueSharePct: "30",
-  contactEmail: "owner1@example.com",
   stripeAccountId: null,
   stripePayoutsEnabled: false,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -55,7 +55,7 @@ const locations: Location[] = [
     address: "1 Main St",
     city: "Lagos",
     state: "Lagos",
-    country: "Nigeria",
+    zip: "100001",
     latitude: null,
     longitude: null,
     tags: [],
@@ -233,5 +233,12 @@ describe("PortalOverviewPage", () => {
     // "Lagos Central" appears in both the Devices-by-location panel and the Locations panel.
     await waitFor(() => expect(screen.getAllByText("Lagos Central").length).toBe(2))
     expect(screen.getByText("2 devices")).toBeInTheDocument()
+  })
+
+  it("greets the user by name rather than by their email local-part", async () => {
+    renderWithClient(<PortalOverviewPage />)
+
+    expect(await screen.findByText(/Jane Owner/)).toBeInTheDocument()
+    expect(screen.queryByText(/owner,/)).not.toBeInTheDocument()
   })
 })

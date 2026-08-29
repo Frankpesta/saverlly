@@ -6,6 +6,7 @@ import type { Kiosk, KioskUser, UserProfile } from "@/lib/api/types"
 
 const owner: UserProfile = {
   id: "user-1",
+  name: "Jane Owner",
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -13,6 +14,7 @@ const owner: UserProfile = {
 
 const manager: UserProfile = {
   id: "user-2",
+  name: "Max Manager",
   email: "manager@example.com",
   role: "LOCATION_MANAGER",
   kioskId: "kiosk-1",
@@ -23,7 +25,6 @@ const kiosk: Kiosk = {
   name: "Kiosk One",
   status: "ACTIVE",
   revenueSharePct: "30",
-  contactEmail: "owner1@example.com",
   stripeAccountId: null,
   stripePayoutsEnabled: false,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -33,6 +34,7 @@ const kiosk: Kiosk = {
 const users: KioskUser[] = [
   {
     id: "user-1",
+    name: "Jane Owner",
     email: "owner@example.com",
     role: "KIOSK_OWNER",
     kioskId: "kiosk-1",
@@ -44,6 +46,7 @@ const users: KioskUser[] = [
   },
   {
     id: "user-2",
+    name: "Max Manager",
     email: "manager@example.com",
     role: "LOCATION_MANAGER",
     kioskId: "kiosk-1",
@@ -117,6 +120,7 @@ describe("PortalSettingsPage", () => {
 
       await screen.findByText("manager@example.com")
       await user.click(screen.getByRole("button", { name: /add team member/i }))
+      await user.type(screen.getByLabelText("Name"), "New Person")
       await user.type(screen.getByLabelText("Email"), "new@example.com")
       await user.click(screen.getByRole("button", { name: "Add team member" }))
 
@@ -125,7 +129,11 @@ describe("PortalSettingsPage", () => {
           "/api/proxy/kiosks/kiosk-1/users",
           expect.objectContaining({
             method: "POST",
-            body: JSON.stringify({ email: "new@example.com", role: "LOCATION_MANAGER" }),
+            body: JSON.stringify({
+              name: "New Person",
+              email: "new@example.com",
+              role: "LOCATION_MANAGER",
+            }),
           }),
         ),
       )
@@ -139,6 +147,8 @@ describe("PortalSettingsPage", () => {
       global.fetch = jest.fn(async (input: RequestInfo | URL) => {
         const url = String(input)
         if (url === "/api/proxy/users/me") return { ok: true, status: 200, json: async () => manager } as Response
+        if (url === "/api/proxy/my/kiosk-contact")
+          return { ok: true, status: 200, json: async () => ({ name: "Jane Owner", email: "owner@example.com" }) } as Response
         throw new Error(`Unhandled fetch in test: ${url}`)
       }) as jest.Mock
     })
@@ -147,12 +157,16 @@ describe("PortalSettingsPage", () => {
       renderWithClient(<PortalSettingsPage />)
 
       expect(await screen.findByText("manager@example.com")).toBeInTheDocument()
-      expect(
-        screen.getByText("Contact your kiosk owner to manage kiosk details or team access."),
-      ).toBeInTheDocument()
 
       expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1", expect.anything())
       expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1/users", expect.anything())
+    })
+
+    it("links the kiosk-owner contact as a mailto so a location manager can reach them directly", async () => {
+      renderWithClient(<PortalSettingsPage />)
+
+      const link = await screen.findByRole("link", { name: "Jane Owner" })
+      expect(link).toHaveAttribute("href", "mailto:owner@example.com")
     })
 
     it("still shows the self-service change-password card for a location manager", async () => {

@@ -59,13 +59,13 @@ describe("GlobalSearch", () => {
     expect(await screen.findByPlaceholderText("Search...")).toBeInTheDocument()
   })
 
-  it("opens via Cmd+K from a closed state", async () => {
+  it("does not open on Cmd+K — the shortcut was removed, search only opens via click", async () => {
     renderWithClient()
 
     expect(screen.queryByPlaceholderText("Search...")).not.toBeInTheDocument()
     await userEvent.keyboard("{Meta>}k{/Meta}")
 
-    expect(await screen.findByPlaceholderText("Search...")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("Search...")).not.toBeInTheDocument()
   })
 
   it("shows an idle hint and fires no request for fewer than 2 characters", async () => {

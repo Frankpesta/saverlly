@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { toast } from "sonner"
 import { LinkIcon, ZapIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,15 +15,26 @@ import {
   TableRowActions,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
+import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
-import { useAffiliatePrograms } from "@/lib/api/hooks/use-affiliate-programs"
+import { useAffiliatePrograms, useDeleteAffiliateProgram } from "@/lib/api/hooks/use-affiliate-programs"
+import { ApiError } from "@/lib/api/client"
 import { usePagination } from "@/hooks/use-pagination"
 import { AffiliateProgramDialog } from "./affiliate-program-dialog"
 
 export default function AffiliateProgramsPage() {
   const { data: programs, isLoading, isError } = useAffiliatePrograms()
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(programs)
+  const deleteProgram = useDeleteAffiliateProgram()
+
+  function handleDelete(id: string) {
+    deleteProgram.mutate(id, {
+      onSuccess: () => toast.success("Affiliate program deleted."),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not delete affiliate program."),
+    })
+  }
 
   const stats = React.useMemo(() => {
     const list = programs ?? []
@@ -94,6 +106,12 @@ export default function AffiliateProgramsPage() {
                 <TableCell>
                   <TableRowActions>
                     <AffiliateProgramDialog program={program} />
+                    <DeleteRowButton
+                      itemLabel={program.networkName}
+                      description="Merchants still linked to this program will need a new one before you can delete it."
+                      onConfirm={() => handleDelete(program.id)}
+                      isPending={deleteProgram.isPending}
+                    />
                   </TableRowActions>
                 </TableCell>
               </TableRow>

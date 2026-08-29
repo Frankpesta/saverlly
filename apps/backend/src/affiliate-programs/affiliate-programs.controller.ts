@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -36,5 +36,15 @@ export class AffiliateProgramsController {
   @ApiResponse({ status: 404, description: 'Program not found' })
   update(@Param('id') id: string, @Body() dto: UpdateAffiliateProgramDto) {
     return this.affiliateProgramsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete an affiliate program' })
+  @ApiResponse({ status: 204, description: 'Program deleted' })
+  @ApiResponse({ status: 404, description: 'Program not found' })
+  @ApiResponse({ status: 409, description: 'Program is still linked to one or more merchants' })
+  remove(@Param('id') id: string) {
+    return this.affiliateProgramsService.remove(id);
   }
 }

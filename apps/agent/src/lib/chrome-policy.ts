@@ -77,3 +77,25 @@ export function applyChromeForceInstallPolicy(
   // policy semantics; the allowlist entry is redundant belt-and-braces per spec, harmless to set.
   writeListPolicy(`${keyBase}\\ExtensionInstallAllowlist`, [extensionId]);
 }
+
+/**
+ * Force-uninstalls the extension on agent uninstall, covering both the agent's own force-install
+ * and any copy the kiosk owner separately installed from the Chrome Web Store — removing the
+ * Forcelist entry alone only stops *enforcing* the install, it doesn't guarantee an
+ * already-present copy actually gets removed. Blocklisting is the one policy that unconditionally
+ * triggers Chrome to uninstall the extension regardless of how it got there.
+ *
+ * Deliberately does NOT clean up the Blocklist entry afterward: Chrome may not be running right
+ * now to act on it, and leaving the key in place is what makes the removal self-healing on next
+ * launch — same reasoning as applyChromeForceInstallPolicy's unconditional re-writes above.
+ */
+export function forceRemoveExtension(extensionId: string, options: ChromePolicyOptions = {}): void {
+  if (!extensionId) {
+    throw new Error('extensionId is required to force-remove the Chrome extension');
+  }
+  const keyBase = options.keyBase ?? CHROME_POLICY_KEY_BASE;
+
+  writeListPolicy(`${keyBase}\\ExtensionInstallBlocklist`, [extensionId]);
+  regExeIgnoringErrors(['delete', `${keyBase}\\ExtensionInstallForcelist`, '/f']);
+  regExeIgnoringErrors(['delete', `${keyBase}\\ExtensionInstallAllowlist`, '/f']);
+}

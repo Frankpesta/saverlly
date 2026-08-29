@@ -31,7 +31,11 @@ describe('Kiosk users — server-generated password (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(`/kiosks/${kiosk.id}/users`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: 'manager@test.com', role: 'LOCATION_MANAGER' })
+      .send({
+        name: 'Manager One',
+        email: 'manager@test.com',
+        role: 'LOCATION_MANAGER',
+      })
       .expect(201);
 
     expect(res.body.user.email).toBe('manager@test.com');
@@ -52,6 +56,32 @@ describe('Kiosk users — server-generated password (e2e)', () => {
     expect(notification.type).toBe('LOCATION_MANAGER_CREATED');
   });
 
+  it('stores the email lowercased so a login typed in a different casing later still matches', async () => {
+    const kiosk = await seedKiosk();
+    await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    const adminToken = await loginAs(app, 'admin@test.com');
+
+    const res = await request(app.getHttpServer())
+      .post(`/kiosks/${kiosk.id}/users`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Manager Test',
+        email: 'Manager.Test@Example.COM',
+        role: 'LOCATION_MANAGER',
+      })
+      .expect(201);
+
+    expect(res.body.user.email).toBe('manager.test@example.com');
+
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'MANAGER.TEST@example.com',
+        password: res.body.generatedPassword,
+      })
+      .expect(200);
+  });
+
   it('rejects a request that still supplies a password field (no longer accepted)', async () => {
     const kiosk = await seedKiosk();
     await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
@@ -61,6 +91,7 @@ describe('Kiosk users — server-generated password (e2e)', () => {
       .post(`/kiosks/${kiosk.id}/users`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
+        name: 'Manager Two',
         email: 'manager2@test.com',
         role: 'LOCATION_MANAGER',
         password: 'IgnoredPassword123!',
@@ -76,7 +107,11 @@ describe('Kiosk users — server-generated password (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post(`/kiosks/${kiosk.id}/users`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: 'lateowner@test.com', role: 'KIOSK_OWNER' })
+      .send({
+        name: 'Late Owner',
+        email: 'lateowner@test.com',
+        role: 'KIOSK_OWNER',
+      })
       .expect(201);
 
     const userRow = await testPrisma.user.findUniqueOrThrow({
@@ -101,7 +136,7 @@ describe('Kiosk users — server-generated password (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/kiosks/${kiosk.id}/users`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ email: 'peer@test.com', role: 'KIOSK_OWNER' })
+      .send({ name: 'Peer Owner', email: 'peer@test.com', role: 'KIOSK_OWNER' })
       .expect(403);
   });
 });

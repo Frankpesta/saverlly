@@ -151,17 +151,21 @@ function AlertDialogAction({
   className,
   variant = "default",
   size = "default",
+  children,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
+  // asChild on the Radix primitive (not on Button) so the variant/size/className merge happens
+  // in Button's own single cn() call — Radix's Slot only concatenates classNames across a
+  // composition boundary, it doesn't dedupe conflicting Tailwind utilities the way cn() does,
+  // so a caller's className (e.g. the destructive-red override on a delete confirm button)
+  // would silently lose to the default variant's classes if Button were the asChild wrapper.
   return (
-    <Button variant={variant} size={size} asChild>
-      <AlertDialogPrimitive.Action
-        data-slot="alert-dialog-action"
-        className={cn(className)}
-        {...props}
-      />
-    </Button>
+    <AlertDialogPrimitive.Action asChild {...props}>
+      <Button data-slot="alert-dialog-action" variant={variant} size={size} className={className}>
+        {children}
+      </Button>
+    </AlertDialogPrimitive.Action>
   )
 }
 
@@ -169,17 +173,16 @@ function AlertDialogCancel({
   className,
   variant = "outline",
   size = "default",
+  children,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
   return (
-    <Button variant={variant} size={size} asChild>
-      <AlertDialogPrimitive.Cancel
-        data-slot="alert-dialog-cancel"
-        className={cn(className)}
-        {...props}
-      />
-    </Button>
+    <AlertDialogPrimitive.Cancel asChild {...props}>
+      <Button data-slot="alert-dialog-cancel" variant={variant} size={size} className={className}>
+        {children}
+      </Button>
+    </AlertDialogPrimitive.Cancel>
   )
 }
 

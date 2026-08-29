@@ -17,7 +17,7 @@ const locations: Location[] = [
     address: "1 Main St",
     city: "Springfield",
     state: "IL",
-    country: "US",
+    zip: "00000",
     latitude: null,
     longitude: null,
     tags: [],

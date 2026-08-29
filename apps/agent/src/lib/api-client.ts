@@ -43,6 +43,15 @@ export async function registerDevice(payload: RegisterDevicePayload): Promise<Re
   return (await res.json()) as RegisterDeviceResponse;
 }
 
+/** Deletes this device's row and tokens from the backend. Called once, on agent uninstall. */
+export async function deregisterDevice(token: string): Promise<void> {
+  const res = await apiFetch('/public/devices/me', token, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Device deregistration failed (${res.status}): ${body}`);
+  }
+}
+
 export async function fetchDeviceStatus(token: string): Promise<DeviceStatusResponse> {
   const res = await apiFetch('/public/devices/me/status', token);
   if (!res.ok) {

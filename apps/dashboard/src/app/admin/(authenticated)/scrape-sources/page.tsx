@@ -17,9 +17,11 @@ import {
   TableRowActions,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
+import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import {
+  useDeleteScrapeSource,
   useRunScrapeSourceNow,
   useScrapeSources,
   useUpdateScrapeSource,
@@ -132,6 +134,15 @@ function ScrapeSourceRow({
 }) {
   const updateSource = useUpdateScrapeSource(source.id)
   const runNow = useRunScrapeSourceNow()
+  const deleteSource = useDeleteScrapeSource()
+
+  function handleDelete() {
+    deleteSource.mutate(source.id, {
+      onSuccess: () => toast.success("Scrape source deleted."),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not delete scrape source."),
+    })
+  }
 
   function toggleActive() {
     updateSource.mutate(
@@ -183,6 +194,11 @@ function ScrapeSourceRow({
           >
             <PlayIcon className="size-3.5" />
           </Button>
+          <DeleteRowButton
+            itemLabel={merchantName ? `the scrape source for ${merchantName}` : "this scrape source"}
+            onConfirm={handleDelete}
+            isPending={deleteSource.isPending}
+          />
         </TableRowActions>
       </TableCell>
     </TableRow>

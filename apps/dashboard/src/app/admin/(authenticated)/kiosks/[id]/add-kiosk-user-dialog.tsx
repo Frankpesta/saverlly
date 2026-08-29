@@ -2,16 +2,13 @@
 
 import * as React from "react"
 import { toast } from "sonner"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { CopyIcon, UserPlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -23,18 +20,36 @@ import {
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateKioskUser, type CreateKioskUserResult } from "@/lib/api/hooks/use-kiosk-users"
 import { ApiError } from "@/lib/api/client"
-import type { KioskAssignableRole } from "@/lib/api/types"
+import { emailSchema, nameSchema } from "@/lib/validation/schemas"
+
+const addKioskUserSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  role: z.enum(["KIOSK_OWNER", "LOCATION_MANAGER"]),
+})
+
+type AddKioskUserFormValues = z.infer<typeof addKioskUserSchema>
 
 export function AddKioskUserDialog({ kioskId }: { kioskId: string }) {
   const [open, setOpen] = React.useState(false)
-  const [email, setEmail] = React.useState("")
-  const [role, setRole] = React.useState<KioskAssignableRole>("KIOSK_OWNER")
   const [result, setResult] = React.useState<CreateKioskUserResult | null>(null)
   const createUser = useCreateKioskUser(kioskId)
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset: resetForm,
+    formState: { errors, isSubmitting },
+  } = useForm<AddKioskUserFormValues>({
+    resolver: zodResolver(addKioskUserSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: { name: "", email: "", role: "KIOSK_OWNER" },
+  })
+
   function reset() {
-    setEmail("")
-    setRole("KIOSK_OWNER")
+    resetForm()
     setResult(null)
   }
 
@@ -52,16 +67,12 @@ export function AddKioskUserDialog({ kioskId }: { kioskId: string }) {
     }
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    createUser.mutate(
-      { email, role },
-      {
-        onSuccess: (data) => setResult(data),
-        onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not add user."),
-      },
-    )
+  function onSubmit(values: AddKioskUserFormValues) {
+    createUser.mutate(values, {
+      onSuccess: (data) => setResult(data),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not add user."),
+    })
   }
 
   return (
@@ -80,35 +91,39 @@ export function AddKioskUserDialog({ kioskId }: { kioskId: string }) {
               </DialogDescription>
             </DialogHeader>
 
-            <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
+            <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit(onSubmit)} noValidate>
               <div className="flex flex-col gap-4 px-6">
                 <FormGrid>
-                  <FormField label="Email" htmlFor="add-user-email">
-                    <Input
-                      id="add-user-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
+                  <FormField label="Name" htmlFor="add-user-name" error={errors.name?.message}>
+                    <Input id="add-user-name" {...register("name")} />
                   </FormField>
-                  <FormField label="Role" htmlFor="add-user-role">
-                    <Select value={role} onValueChange={(v) => setRole(v as KioskAssignableRole)}>
-                      <SelectTrigger id="add-user-role" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="KIOSK_OWNER">Kiosk owner</SelectItem>
-                        <SelectItem value="LOCATION_MANAGER">Location manager</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <FormField label="Email" htmlFor="add-user-email" error={errors.email?.message}>
+                    <Input id="add-user-email" type="email" {...register("email")} />
+                  </FormField>
+                  <FormField label="Role" htmlFor="add-user-role" error={errors.role?.message}>
+                    <Controller
+                      name="role"
+                      control={control}
+                      render={({ field, fieldState }) => (
+                        <Combobox
+                          id="add-user-role"
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          options={[
+                            { value: "KIOSK_OWNER", label: "Kiosk owner" },
+                            { value: "LOCATION_MANAGER", label: "Location manager" },
+                          ]}
+                          aria-invalid={!!fieldState.error}
+                        />
+                      )}
+                    />
                   </FormField>
                 </FormGrid>
               </div>
 
               <DialogFooter>
-                <Button type="submit" disabled={createUser.isPending}>
-                  {createUser.isPending ? "Adding…" : "Add user"}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Adding…" : "Add user"}
                 </Button>
               </DialogFooter>
             </form>
@@ -122,6 +137,10 @@ export function AddKioskUserDialog({ kioskId }: { kioskId: string }) {
 
             <div className="flex flex-col gap-4 px-6">
               <div className="flex flex-col gap-2 rounded-lg border border-black/8 px-4 py-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Name</p>
+                  <p className="text-sm font-medium">{result.user.name}</p>
+                </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
                   <p className="text-sm font-medium">{result.user.email}</p>

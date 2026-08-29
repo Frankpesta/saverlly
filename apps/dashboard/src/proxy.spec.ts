@@ -47,6 +47,16 @@ describe("proxy route gating", () => {
     expect(res.headers.get("location")).toBeNull()
   })
 
+  it.each([
+    "/admin/forgot-password",
+    "/admin/reset-password",
+    "/portal/forgot-password",
+    "/portal/reset-password",
+  ])("lets an unauthenticated request through to %s", async (path) => {
+    const res = await proxy(requestFor(path))
+    expect(res.headers.get("location")).toBeNull()
+  })
+
   it("redirects to /admin/login when there is no session cookie", async () => {
     const res = await proxy(requestFor("/admin/kiosks"))
     expect(res.headers.get("location")).toBe("http://localhost:3001/admin/login")

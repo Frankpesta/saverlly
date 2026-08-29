@@ -7,12 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Combobox,
+} from "@/components/ui/combobox"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -167,51 +163,44 @@ export default function AdminCommissionsPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-status">Status</Label>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger id="filter-status" className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All statuses</SelectItem>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {COMMISSION_STATUS_LABEL[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            id="filter-status"
+            value={status}
+            onValueChange={setStatus}
+            className="w-40"
+            options={[
+              { value: ALL, label: "All statuses" },
+              ...STATUSES.map((s) => ({ value: s, label: COMMISSION_STATUS_LABEL[s] })),
+            ]}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-kiosk">Kiosk</Label>
-          <Select value={kioskId} onValueChange={setKioskId}>
-            <SelectTrigger id="filter-kiosk" className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All kiosks</SelectItem>
-              {kiosks?.map((k) => (
-                <SelectItem key={k.id} value={k.id}>
-                  {k.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            id="filter-kiosk"
+            value={kioskId}
+            onValueChange={setKioskId}
+            className="w-48"
+            searchPlaceholder="Search kiosks..."
+            options={[
+              { value: ALL, label: "All kiosks" },
+              ...(kiosks?.map((k) => ({ value: k.id, label: k.name })) ?? []),
+            ]}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-merchant">Merchant</Label>
-          <Select value={merchantId} onValueChange={setMerchantId}>
-            <SelectTrigger id="filter-merchant" className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All merchants</SelectItem>
-              {merchants?.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            id="filter-merchant"
+            value={merchantId}
+            onValueChange={setMerchantId}
+            className="w-48"
+            searchPlaceholder="Search merchants..."
+            options={[
+              { value: ALL, label: "All merchants" },
+              ...(merchants?.map((m) => ({ value: m.id, label: m.name })) ?? []),
+            ]}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-from">From</Label>

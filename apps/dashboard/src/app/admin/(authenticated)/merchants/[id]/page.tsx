@@ -4,19 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowLeftIcon, Trash2Icon } from "lucide-react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { ArrowLeftIcon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
+import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import {
   Card,
   CardContent,
@@ -34,11 +27,38 @@ import {
   useUpdateMerchant,
 } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
-import type { CheckoutRecipe, Merchant } from "@/lib/api/types"
+import type { Merchant } from "@/lib/api/types"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
-import { AttributionFields, type AttributionFieldsValue } from "../attribution-fields"
+import { AttributionFields } from "../attribution-fields"
+import { attributionFieldsSchema, nameSchema } from "@/lib/validation/schemas"
 import { MerchantCouponsSection } from "./merchant-coupons-section"
 import { MerchantScrapeSourcesSection } from "./merchant-scrape-sources-section"
+
+const merchantEditSchema = z.object({
+  name: nameSchema,
+  domain: z.string().trim().min(1, "Domain is required"),
+  active: z.boolean(),
+  tracking: attributionFieldsSchema,
+})
+
+type MerchantEditFormValues = z.infer<typeof merchantEditSchema>
+
+const checkoutRecipeSchema = z.object({
+  couponFieldSelector: z.string().trim(),
+  applyButtonSelector: z.string().trim(),
+  successIndicatorSelector: z.string().trim(),
+  failureIndicatorSelector: z.string().trim(),
+  cartTotalSelector: z.string().trim(),
+  checkoutUrlPatterns: z.string().transform((value) =>
+    value
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean),
+  ),
+})
+
+type CheckoutRecipeFormInput = z.input<typeof checkoutRecipeSchema>
+type CheckoutRecipeFormOutput = z.output<typeof checkoutRecipeSchema>
 
 export default function MerchantDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -75,32 +95,13 @@ export default function MerchantDetailPage() {
           </div>
         </div>
         {merchant && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 text-destructive">
-                <Trash2Icon className="size-4" />
-                Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {merchant.name}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Its coupons and scrape sources will also stop being usable. This can&apos;t be
-                  undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  className="bg-destructive text-white hover:bg-destructive/90"
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <DeleteRowButton
+            variant="button"
+            itemLabel={merchant.name}
+            description="Its coupons and scrape sources will also stop being usable. This can't be undone."
+            onConfirm={handleDelete}
+            isPending={deleteMerchant.isPending}
+          />
         )}
       </div>
 
@@ -121,27 +122,38 @@ export default function MerchantDetailPage() {
 
 function MerchantEditForm({ merchant }: { merchant: Merchant }) {
   const updateMerchant = useUpdateMerchant(merchant.id)
-  const [name, setName] = React.useState(merchant.name)
-  const [domain, setDomain] = React.useState(merchant.domain)
-  const [active, setActive] = React.useState(merchant.active)
-  const [tracking, setTracking] = React.useState<AttributionFieldsValue>({
-    attributionMethod: merchant.attributionMethod,
-    affiliateTrackingUrl: merchant.affiliateTrackingUrl ?? "",
-    affiliateUrlParamKey: merchant.affiliateUrlParamKey ?? "",
-    affiliateUrlParamValue: merchant.affiliateUrlParamValue ?? "",
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<MerchantEditFormValues>({
+    resolver: zodResolver(merchantEditSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      name: merchant.name,
+      domain: merchant.domain,
+      active: merchant.active,
+      tracking: {
+        attributionMethod: merchant.attributionMethod,
+        affiliateTrackingUrl: merchant.affiliateTrackingUrl ?? "",
+        affiliateUrlParamKey: merchant.affiliateUrlParamKey ?? "",
+        affiliateUrlParamValue: merchant.affiliateUrlParamValue ?? "",
+      },
+    },
   })
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  function onSubmit(values: MerchantEditFormValues) {
     updateMerchant.mutate(
       {
-        name,
-        domain,
-        active,
-        attributionMethod: tracking.attributionMethod,
-        affiliateTrackingUrl: tracking.affiliateTrackingUrl || undefined,
-        affiliateUrlParamKey: tracking.affiliateUrlParamKey || undefined,
-        affiliateUrlParamValue: tracking.affiliateUrlParamValue || undefined,
+        name: values.name,
+        domain: values.domain,
+        active: values.active,
+        attributionMethod: values.tracking.attributionMethod,
+        affiliateTrackingUrl: values.tracking.affiliateTrackingUrl || undefined,
+        affiliateUrlParamKey: values.tracking.affiliateUrlParamKey || undefined,
+        affiliateUrlParamValue: values.tracking.affiliateUrlParamValue || undefined,
       },
       {
         onSuccess: () => toast.success("Merchant updated."),
@@ -155,31 +167,47 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{merchant.name}</CardTitle>
-        <div className="flex items-center gap-2">
-          <Switch checked={active} onCheckedChange={setActive} aria-label="Toggle merchant active" />
-          <Label className="text-sm text-muted-foreground">{active ? "Active" : "Inactive"}</Label>
-        </div>
+        <Controller
+          name="active"
+          control={control}
+          render={({ field }) => (
+            <div className="flex items-center gap-2">
+              <Switch checked={field.value} onCheckedChange={field.onChange} aria-label="Toggle merchant active" />
+              <Label className="text-sm text-muted-foreground">{field.value ? "Active" : "Inactive"}</Label>
+            </div>
+          )}
+        />
       </CardHeader>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <CardContent className="flex flex-col gap-4">
           <FormGrid>
-            <FormField label="Name" htmlFor="merchant-name">
-              <Input id="merchant-name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <FormField label="Name" htmlFor="merchant-name" error={errors.name?.message}>
+              <Input id="merchant-name" {...register("name")} />
             </FormField>
-            <FormField label="Domain" htmlFor="merchant-domain">
-              <Input
-                id="merchant-domain"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                required
-              />
+            <FormField label="Domain" htmlFor="merchant-domain" error={errors.domain?.message}>
+              <Input id="merchant-domain" {...register("domain")} />
             </FormField>
           </FormGrid>
-          <AttributionFields idPrefix="merchant-edit" value={tracking} onChange={setTracking} />
+          <Controller
+            name="tracking"
+            control={control}
+            render={({ field }) => (
+              <AttributionFields
+                idPrefix="merchant-edit"
+                value={field.value}
+                onChange={field.onChange}
+                errors={{
+                  affiliateTrackingUrl: errors.tracking?.affiliateTrackingUrl?.message,
+                  affiliateUrlParamKey: errors.tracking?.affiliateUrlParamKey?.message,
+                  affiliateUrlParamValue: errors.tracking?.affiliateUrlParamValue?.message,
+                }}
+              />
+            )}
+          />
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={updateMerchant.isPending}>
-            {updateMerchant.isPending ? "Saving…" : "Save changes"}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving…" : "Save changes"}
           </Button>
         </CardFooter>
       </form>
@@ -190,37 +218,36 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
 function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
   const updateMerchant = useUpdateMerchant(merchant.id)
   const recipe = merchant.checkoutRecipe
-  const [couponFieldSelector, setCouponFieldSelector] = React.useState(recipe?.couponFieldSelector ?? "")
-  const [applyButtonSelector, setApplyButtonSelector] = React.useState(recipe?.applyButtonSelector ?? "")
-  const [successIndicatorSelector, setSuccessIndicatorSelector] = React.useState(
-    recipe?.successIndicatorSelector ?? "",
-  )
-  const [failureIndicatorSelector, setFailureIndicatorSelector] = React.useState(
-    recipe?.failureIndicatorSelector ?? "",
-  )
-  const [cartTotalSelector, setCartTotalSelector] = React.useState(recipe?.cartTotalSelector ?? "")
-  const [checkoutUrlPatterns, setCheckoutUrlPatterns] = React.useState(
-    (recipe?.checkoutUrlPatterns ?? []).join(", "),
-  )
+  const {
+    register,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = useForm<CheckoutRecipeFormInput, unknown, CheckoutRecipeFormOutput>({
+    resolver: zodResolver(checkoutRecipeSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      couponFieldSelector: recipe?.couponFieldSelector ?? "",
+      applyButtonSelector: recipe?.applyButtonSelector ?? "",
+      successIndicatorSelector: recipe?.successIndicatorSelector ?? "",
+      failureIndicatorSelector: recipe?.failureIndicatorSelector ?? "",
+      cartTotalSelector: recipe?.cartTotalSelector ?? "",
+      checkoutUrlPatterns: (recipe?.checkoutUrlPatterns ?? []).join(", "),
+    },
+  })
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    const patterns = checkoutUrlPatterns
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean)
-
-    const checkoutRecipe: CheckoutRecipe = {
-      couponFieldSelector: couponFieldSelector || undefined,
-      applyButtonSelector: applyButtonSelector || undefined,
-      successIndicatorSelector: successIndicatorSelector || undefined,
-      failureIndicatorSelector: failureIndicatorSelector || undefined,
-      cartTotalSelector: cartTotalSelector || undefined,
-      checkoutUrlPatterns: patterns.length > 0 ? patterns : undefined,
-    }
-
+  function onSubmit(values: CheckoutRecipeFormOutput) {
     updateMerchant.mutate(
-      { checkoutRecipe },
+      {
+        checkoutRecipe: {
+          couponFieldSelector: values.couponFieldSelector || undefined,
+          applyButtonSelector: values.applyButtonSelector || undefined,
+          successIndicatorSelector: values.successIndicatorSelector || undefined,
+          failureIndicatorSelector: values.failureIndicatorSelector || undefined,
+          cartTotalSelector: values.cartTotalSelector || undefined,
+          checkoutUrlPatterns: values.checkoutUrlPatterns.length > 0 ? values.checkoutUrlPatterns : undefined,
+        },
+      },
       {
         onSuccess: () => toast.success("Checkout recipe saved."),
         onError: (error) =>
@@ -234,23 +261,21 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
       <CardHeader>
         <CardTitle>Checkout recipe</CardTitle>
       </CardHeader>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <CardContent className="flex flex-col gap-4">
           <FormGrid>
             <FormField label="Coupon field selector" htmlFor="recipe-coupon-field">
               <Input
                 id="recipe-coupon-field"
                 placeholder="input[name='promoCode']"
-                value={couponFieldSelector}
-                onChange={(e) => setCouponFieldSelector(e.target.value)}
+                {...register("couponFieldSelector")}
               />
             </FormField>
             <FormField label="Apply button selector" htmlFor="recipe-apply-button">
               <Input
                 id="recipe-apply-button"
                 placeholder="button[data-testid='apply-promo']"
-                value={applyButtonSelector}
-                onChange={(e) => setApplyButtonSelector(e.target.value)}
+                {...register("applyButtonSelector")}
               />
             </FormField>
           </FormGrid>
@@ -259,26 +284,19 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
               <Input
                 id="recipe-success"
                 placeholder=".promo-success-message"
-                value={successIndicatorSelector}
-                onChange={(e) => setSuccessIndicatorSelector(e.target.value)}
+                {...register("successIndicatorSelector")}
               />
             </FormField>
             <FormField label="Failure indicator selector" htmlFor="recipe-failure">
               <Input
                 id="recipe-failure"
                 placeholder=".promo-error-message"
-                value={failureIndicatorSelector}
-                onChange={(e) => setFailureIndicatorSelector(e.target.value)}
+                {...register("failureIndicatorSelector")}
               />
             </FormField>
           </FormGrid>
           <FormField label="Cart total selector" htmlFor="recipe-cart-total">
-            <Input
-              id="recipe-cart-total"
-              placeholder=".order-summary-total"
-              value={cartTotalSelector}
-              onChange={(e) => setCartTotalSelector(e.target.value)}
-            />
+            <Input id="recipe-cart-total" placeholder=".order-summary-total" {...register("cartTotalSelector")} />
           </FormField>
           <FormField
             label="Checkout URL patterns"
@@ -288,14 +306,13 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
             <Input
               id="recipe-url-patterns"
               placeholder="/checkout, /cart/checkout"
-              value={checkoutUrlPatterns}
-              onChange={(e) => setCheckoutUrlPatterns(e.target.value)}
+              {...register("checkoutUrlPatterns")}
             />
           </FormField>
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={updateMerchant.isPending}>
-            {updateMerchant.isPending ? "Saving…" : "Save recipe"}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving…" : "Save recipe"}
           </Button>
         </CardFooter>
       </form>

@@ -98,7 +98,10 @@ export default function LocationsPage() {
                     {location.name}
                   </Link>
                 </TableCell>
-                <TableCell>
+                <TableCell
+                  className="max-w-[220px] truncate"
+                  title={`${location.address}, ${location.city}, ${location.state}`}
+                >
                   {location.address}, {location.city}, {location.state}
                 </TableCell>
                 <TableCell>

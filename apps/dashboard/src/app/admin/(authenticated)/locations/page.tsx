@@ -106,7 +106,10 @@ export default function AdminLocationsPage() {
                   </Link>
                 </TableCell>
                 <TableCell>{kioskNameById.get(location.kioskId) ?? "—"}</TableCell>
-                <TableCell>
+                <TableCell
+                  className="max-w-[220px] truncate"
+                  title={`${location.address}, ${location.city}, ${location.state}`}
+                >
                   {location.address}, {location.city}, {location.state}
                 </TableCell>
                 <TableCell>

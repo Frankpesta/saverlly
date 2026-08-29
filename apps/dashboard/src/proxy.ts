@@ -10,6 +10,16 @@ const LOGIN_PATH = {
   portal: "/portal/login",
 } as const
 
+// Reachable with no session at all — same as the login page itself.
+const FORGOT_PASSWORD_PATH = {
+  admin: "/admin/forgot-password",
+  portal: "/portal/forgot-password",
+} as const
+const RESET_PASSWORD_PATH = {
+  admin: "/admin/reset-password",
+  portal: "/portal/reset-password",
+} as const
+
 const CHANGE_PASSWORD_PATH = {
   admin: "/admin/change-password",
   portal: "/portal/change-password",
@@ -81,7 +91,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
   const namespace = pathname.startsWith("/admin") ? "admin" : "portal"
 
-  if (pathname === LOGIN_PATH[namespace]) {
+  if (
+    pathname === LOGIN_PATH[namespace] ||
+    pathname === FORGOT_PASSWORD_PATH[namespace] ||
+    pathname === RESET_PASSWORD_PATH[namespace]
+  ) {
     return NextResponse.next()
   }
 

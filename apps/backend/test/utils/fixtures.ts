@@ -25,7 +25,6 @@ export async function seedKiosk(
     data: {
       name: overrides.name ?? `Kiosk ${Math.random().toString(36).slice(2, 8)}`,
       revenueSharePct: overrides.revenueSharePct ?? 30,
-      contactEmail: 'contact@test.com',
     },
   });
 }
@@ -33,6 +32,7 @@ export async function seedKiosk(
 export async function seedUser(params: {
   email: string;
   role: UserRole;
+  name?: string;
   kioskId?: string | null;
   managedLocationIds?: string[];
   disabled?: boolean;
@@ -41,7 +41,11 @@ export async function seedUser(params: {
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 12);
   return testPrisma.user.create({
     data: {
-      email: params.email,
+      name: params.name,
+      // Every real signup path lowercases the email before it ever reaches Postgres (see
+      // NormalizeEmail) — fixtures bypass the DTO layer, so they'd otherwise create rows no
+      // production write path could ever produce, and login-by-email would silently fail.
+      email: params.email.toLowerCase(),
       passwordHash,
       role: params.role,
       kioskId: params.kioskId ?? null,
@@ -67,7 +71,7 @@ export async function seedLocation(
       address: '1 Main St',
       city: 'City',
       state: 'ST',
-      country: 'US',
+      zip: '00000',
     },
   });
 }

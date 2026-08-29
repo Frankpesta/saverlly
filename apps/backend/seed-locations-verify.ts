@@ -19,7 +19,7 @@ async function main() {
       address: '123 Main St',
       city: 'Springfield',
       state: 'IL',
-      country: 'US',
+      zip: '62701',
       tags: ['mall', 'high-traffic'],
     },
   });

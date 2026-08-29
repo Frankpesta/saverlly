@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DatePicker } from "@/components/dashboard/date-picker"
 import { formatCurrency } from "@/lib/format-currency"
 
 const RANGES = [
@@ -11,6 +12,7 @@ const RANGES = [
   { label: "3M", days: 90 },
   { label: "6M", days: 182 },
   { label: "1Y", days: 365 },
+  { label: "Custom", days: null },
 ] as const
 
 type RangeLabel = (typeof RANGES)[number]["label"]
@@ -27,23 +29,44 @@ export function TrendChart({
   valueLabel?: string
 }) {
   const [range, setRange] = React.useState<RangeLabel>("30D")
-  const days = RANGES.find((r) => r.label === range)?.days ?? 30
-  const display = data.slice(-days).map((point) => ({
-    ...point,
-    label: new Date(point.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-  }))
+  const lastDate = data.at(-1)?.date
+  const [customFrom, setCustomFrom] = React.useState("")
+  const [customTo, setCustomTo] = React.useState(lastDate ?? "")
+
+  const days = RANGES.find((r) => r.label === range)?.days
+  const inCustomRange =
+    range === "Custom" && (customFrom || customTo)
+      ? (point: { date: string }) =>
+          (!customFrom || point.date >= customFrom) && (!customTo || point.date <= customTo)
+      : null
+
+  const display = (days != null ? data.slice(-days) : inCustomRange ? data.filter(inCustomRange) : data).map(
+    (point) => ({
+      ...point,
+      label: new Date(point.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    }),
+  )
 
   return (
     <div className="flex flex-col gap-3">
-      <Tabs value={range} onValueChange={(v) => setRange(v as RangeLabel)}>
-        <TabsList>
-          {RANGES.map((r) => (
-            <TabsTrigger key={r.label} value={r.label}>
-              {r.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-wrap items-center gap-2">
+        <Tabs value={range} onValueChange={(v) => setRange(v as RangeLabel)}>
+          <TabsList>
+            {RANGES.map((r) => (
+              <TabsTrigger key={r.label} value={r.label}>
+                {r.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        {range === "Custom" && (
+          <div className="flex items-center gap-1.5">
+            <DatePicker value={customFrom} onChange={setCustomFrom} placeholder="From" />
+            <span className="text-sm text-muted-foreground">–</span>
+            <DatePicker value={customTo} onChange={setCustomTo} placeholder="To" />
+          </div>
+        )}
+      </div>
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={display} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
@@ -70,6 +93,8 @@ export function TrendChart({
           <Tooltip
             cursor={{ stroke: "var(--brand-teal)", strokeWidth: 1 }}
             formatter={(value) => [formatCurrency(Number(value)), valueLabel]}
+            allowEscapeViewBox={{ x: false, y: false }}
+            wrapperStyle={{ zIndex: 20 }}
             contentStyle={{
               borderRadius: 12,
               border: "1px solid var(--border)",

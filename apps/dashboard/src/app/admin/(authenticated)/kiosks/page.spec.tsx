@@ -24,7 +24,6 @@ const kiosks: Kiosk[] = [
     name: "Kiosk One",
     status: "ACTIVE",
     revenueSharePct: "30",
-    contactEmail: "owner1@example.com",
     stripeAccountId: null,
     stripePayoutsEnabled: false,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -35,7 +34,6 @@ const kiosks: Kiosk[] = [
     name: "Kiosk Two",
     status: "INACTIVE",
     revenueSharePct: "25.5",
-    contactEmail: "owner2@example.com",
     stripeAccountId: null,
     stripePayoutsEnabled: false,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -79,6 +77,7 @@ describe("KiosksPage", () => {
             kiosk: { ...kiosks[0], id: "kiosk-3", name: "Kiosk Three" },
             owner: {
               id: "user-3",
+              name: "New Owner",
               email: "newowner3@example.com",
               role: "KIOSK_OWNER",
               kioskId: "kiosk-3",
@@ -108,7 +107,6 @@ describe("KiosksPage", () => {
     expect(within(rowTwo).getByText("Inactive")).toBeInTheDocument()
     expect(screen.getByText("30%")).toBeInTheDocument()
     expect(screen.getByText("25.5%")).toBeInTheDocument()
-    expect(screen.getByText("owner1@example.com")).toBeInTheDocument()
   })
 
   it("toggles a kiosk's status and calls the status endpoint", async () => {
@@ -155,7 +153,6 @@ describe("KiosksPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /new kiosk/i }))
 
     await userEvent.type(screen.getByLabelText("Name"), "Kiosk Three")
-    await userEvent.type(screen.getByLabelText("Contact email"), "owner3@example.com")
     await userEvent.click(screen.getByRole("button", { name: /continue/i }))
 
     const revenueInput = await screen.findByLabelText("Revenue share (%)")
@@ -163,8 +160,8 @@ describe("KiosksPage", () => {
     await userEvent.type(revenueInput, "40")
     await userEvent.click(screen.getByRole("button", { name: /continue/i }))
 
-    const ownerEmailInput = await screen.findByLabelText("Owner email")
-    await userEvent.type(ownerEmailInput, "newowner3@example.com")
+    await userEvent.type(await screen.findByLabelText("Name"), "New Owner")
+    await userEvent.type(screen.getByLabelText("Owner email"), "newowner3@example.com")
     await userEvent.click(screen.getByRole("button", { name: /create kiosk/i }))
 
     await waitFor(() =>
@@ -174,9 +171,8 @@ describe("KiosksPage", () => {
           method: "POST",
           body: JSON.stringify({
             name: "Kiosk Three",
-            contactEmail: "owner3@example.com",
             revenueSharePct: 40,
-            owner: { email: "newowner3@example.com" },
+            owner: { name: "New Owner", email: "newowner3@example.com" },
           }),
         }),
       ),

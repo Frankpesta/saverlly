@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -36,6 +36,15 @@ export class ScrapeSourcesController {
   @ApiResponse({ status: 404, description: 'Scrape source not found' })
   update(@Param('id') id: string, @Body() dto: UpdateScrapeSourceDto) {
     return this.scrapeSourcesService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a scrape source — unschedules its repeat job' })
+  @ApiResponse({ status: 204, description: 'Scrape source deleted' })
+  @ApiResponse({ status: 404, description: 'Scrape source not found' })
+  remove(@Param('id') id: string) {
+    return this.scrapeSourcesService.remove(id);
   }
 
   @Post(':id/run-now')

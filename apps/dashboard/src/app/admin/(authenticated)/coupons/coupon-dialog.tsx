@@ -3,15 +3,13 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { PencilIcon, PlusIcon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -31,6 +29,22 @@ const DISCOUNT_LABEL: Record<CouponDiscountType, string> = {
   fixed: "Fixed amount off",
   unknown: "Unspecified",
 }
+
+const DISCOUNT_TYPES = ["percent", "fixed", "unknown"] as const
+
+const couponSchema = z.object({
+  merchantId: z.string(),
+  code: z.string().trim().min(1, "Code is required"),
+  description: z.string().trim(),
+  discountType: z.enum(DISCOUNT_TYPES),
+  discountValue: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || (!Number.isNaN(Number(v)) && Number(v) >= 0), "Enter a valid non-negative number"),
+  expiresAt: z.string().trim(),
+})
+
+type CouponFormValues = z.infer<typeof couponSchema>
 
 function toDateInput(iso: string): string {
   return iso.slice(0, 10)
@@ -52,24 +66,44 @@ export function CouponDialog({
 }) {
   const isEdit = !!coupon
   const [open, setOpen] = React.useState(false)
-  const [selectedMerchantId, setSelectedMerchantId] = React.useState(merchantId ?? coupon?.merchantId ?? "")
-  const [code, setCode] = React.useState(coupon?.code ?? "")
-  const [description, setDescription] = React.useState(coupon?.description ?? "")
-  const [discountType, setDiscountType] = React.useState<CouponDiscountType>(coupon?.discountType ?? "unknown")
-  const [discountValue, setDiscountValue] = React.useState(coupon?.discountValue?.toString() ?? "")
-  const [expiresAt, setExpiresAt] = React.useState(coupon?.expiresAt ? toDateInput(coupon.expiresAt) : "")
 
   const createCoupon = useCreateCoupon()
   const updateCoupon = useUpdateCoupon(coupon?.id ?? "")
   const isPending = createCoupon.isPending || updateCoupon.isPending
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    setError,
+    reset: resetForm,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<CouponFormValues>({
+    resolver: zodResolver(couponSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      merchantId: merchantId ?? coupon?.merchantId ?? "",
+      code: coupon?.code ?? "",
+      description: coupon?.description ?? "",
+      discountType: coupon?.discountType ?? "unknown",
+      discountValue: coupon?.discountValue?.toString() ?? "",
+      expiresAt: coupon?.expiresAt ? toDateInput(coupon.expiresAt) : "",
+    },
+  })
+
+  const discountType = watch("discountType")
+
   function reset() {
-    setSelectedMerchantId(merchantId ?? "")
-    setCode("")
-    setDescription("")
-    setDiscountType("unknown")
-    setDiscountValue("")
-    setExpiresAt("")
+    resetForm({
+      merchantId: merchantId ?? "",
+      code: "",
+      description: "",
+      discountType: "unknown",
+      discountValue: "",
+      expiresAt: "",
+    })
   }
 
   function handleOpenChange(next: boolean) {
@@ -77,20 +111,23 @@ export function CouponDialog({
     if (!next && !isEdit) reset()
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
+  function onSubmit(values: CouponFormValues) {
+    if (!merchantId && !isEdit && !values.merchantId) {
+      setError("merchantId", { message: "Choose a merchant for this coupon." })
+      return
+    }
     const shared = {
-      code,
-      description: description || undefined,
-      discountType,
-      discountValue: discountValue ? Number(discountValue) : undefined,
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+      code: values.code,
+      description: values.description || undefined,
+      discountType: values.discountType,
+      discountValue: values.discountValue ? Number(values.discountValue) : undefined,
+      expiresAt: values.expiresAt ? new Date(values.expiresAt).toISOString() : undefined,
     }
 
     if (isEdit) {
       updateCoupon.mutate(shared, {
         onSuccess: () => {
-          toast.success(`${code} was updated.`)
+          toast.success(`${values.code} was updated.`)
           handleOpenChange(false)
         },
         onError: (error) =>
@@ -98,10 +135,10 @@ export function CouponDialog({
       })
     } else {
       createCoupon.mutate(
-        { merchantId: selectedMerchantId, ...shared },
+        { merchantId: values.merchantId, ...shared },
         {
           onSuccess: () => {
-            toast.success(`${code} was added.`)
+            toast.success(`${values.code} was added.`)
             handleOpenChange(false)
           },
           onError: (error) =>
@@ -138,70 +175,91 @@ export function CouponDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
+        <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="flex flex-col gap-4 px-6">
             {!merchantId && !isEdit && (
-              <FormField label="Merchant" htmlFor="coupon-merchant">
-                <Select value={selectedMerchantId} onValueChange={setSelectedMerchantId} required>
-                  <SelectTrigger id="coupon-merchant" className="w-full">
-                    <SelectValue placeholder="Select a merchant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {merchants?.map((merchant) => (
-                      <SelectItem key={merchant.id} value={merchant.id}>
-                        {merchant.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <FormField label="Merchant" htmlFor="coupon-merchant" error={errors.merchantId?.message}>
+                <Controller
+                  name="merchantId"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Combobox
+                      id="coupon-merchant"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder="Select a merchant"
+                      searchPlaceholder="Search merchants..."
+                      options={merchants?.map((merchant) => ({ value: merchant.id, label: merchant.name })) ?? []}
+                      aria-invalid={!!fieldState.error}
+                    />
+                  )}
+                />
               </FormField>
             )}
             <FormGrid>
-              <FormField label="Code" htmlFor="coupon-code">
-                <Input id="coupon-code" value={code} onChange={(e) => setCode(e.target.value)} required />
+              <FormField label="Code" htmlFor="coupon-code" error={errors.code?.message}>
+                <Input id="coupon-code" {...register("code")} />
               </FormField>
               <FormField label="Description (optional)" htmlFor="coupon-description">
-                <Input
-                  id="coupon-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
+                <Input id="coupon-description" {...register("description")} />
               </FormField>
             </FormGrid>
             <FormGrid>
               <FormField label="Discount type" htmlFor="coupon-discount-type">
-                <Select value={discountType} onValueChange={(v) => setDiscountType(v as CouponDiscountType)}>
-                  <SelectTrigger id="coupon-discount-type" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(DISCOUNT_LABEL) as CouponDiscountType[]).map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {DISCOUNT_LABEL[type]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-              <FormField label="Value (optional)" htmlFor="coupon-discount-value">
-                <Input
-                  id="coupon-discount-value"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={discountValue}
-                  onChange={(e) => setDiscountValue(e.target.value)}
+                <Controller
+                  name="discountType"
+                  control={control}
+                  render={({ field }) => (
+                    <Combobox
+                      id="coupon-discount-type"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      options={(Object.keys(DISCOUNT_LABEL) as CouponDiscountType[]).map((type) => ({
+                        value: type,
+                        label: DISCOUNT_LABEL[type],
+                      }))}
+                    />
+                  )}
                 />
+              </FormField>
+              <FormField label="Value (optional)" htmlFor="coupon-discount-value" error={errors.discountValue?.message}>
+                <div className="relative">
+                  {discountType === "fixed" && (
+                    <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+                      $
+                    </span>
+                  )}
+                  <Input
+                    id="coupon-discount-value"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    {...register("discountValue")}
+                    className={cn(
+                      discountType === "fixed" && "pl-6",
+                      discountType === "percent" && "pr-7",
+                    )}
+                  />
+                  {discountType === "percent" && (
+                    <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">
+                      %
+                    </span>
+                  )}
+                </div>
               </FormField>
             </FormGrid>
             <FormField label="Expires (optional)" htmlFor="coupon-expires">
-              <DatePicker id="coupon-expires" value={expiresAt} onChange={setExpiresAt} />
+              <Controller
+                name="expiresAt"
+                control={control}
+                render={({ field }) => <DatePicker id="coupon-expires" value={field.value} onChange={field.onChange} />}
+              />
             </FormField>
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={isPending || (!merchantId && !isEdit && !selectedMerchantId)}>
-              {isPending ? "Saving…" : isEdit ? "Save changes" : "Add coupon"}
+            <Button type="submit" disabled={isPending || isSubmitting}>
+              {isPending || isSubmitting ? "Saving…" : isEdit ? "Save changes" : "Add coupon"}
             </Button>
           </DialogFooter>
         </form>

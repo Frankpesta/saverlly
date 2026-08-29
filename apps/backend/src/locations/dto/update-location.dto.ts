@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsLatitude, IsLongitude, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsLatitude, IsLongitude, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { ZIP_PATTERN } from './create-location.dto';
 
 export class UpdateLocationDto {
   @ApiPropertyOptional()
@@ -26,11 +27,11 @@ export class UpdateLocationDto {
   @MinLength(1)
   state?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '78701', description: 'US 5-digit ZIP' })
   @IsOptional()
   @IsString()
-  @MinLength(1)
-  country?: string;
+  @Matches(ZIP_PATTERN, { message: 'zip must be exactly 5 digits' })
+  zip?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

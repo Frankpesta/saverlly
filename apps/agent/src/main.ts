@@ -1,13 +1,15 @@
 import * as os from 'os';
+import { deregisterDevice } from './lib/api-client';
 import { pollAndDisplayAnnouncements } from './lib/announcements';
-import { CHROME_WEB_STORE_UPDATE_URL } from './lib/chrome-policy';
+import { CHROME_WEB_STORE_UPDATE_URL, forceRemoveExtension } from './lib/chrome-policy';
 import { ANNOUNCEMENT_POLL_INTERVAL_MS, STATUS_SYNC_INTERVAL_MS } from './lib/config';
-import { parseInstallerSetupArgs } from './lib/installer-mode';
+import { isUninstallOnce, parseInstallerSetupArgs } from './lib/installer-mode';
 import { isNativeMessagingInvocation, respondWithDeviceToken } from './lib/native-host-mode';
 import { nativeMessagingHostExePath } from './lib/native-messaging-host';
 import { ensureRegistered } from './lib/registration';
 import { ensureRunAtLoginTask } from './lib/run-at-login';
 import { runStatusSync } from './lib/status-sync';
+import { loadDeviceToken } from './lib/token-storage';
 
 // In a real packaged exe these two process.env reads are almost always already resolved to
 // literal strings by scripts/build.js's esbuild `define` — see that file for why a runtime
@@ -94,7 +96,35 @@ async function runSetupOnce(): Promise<void> {
   console.log('[saverlly-agent] setup complete');
 }
 
+// Invoked by the GUI installer's [UninstallRun] step via `--uninstall-once`, while the agent's
+// files and DPAPI-encrypted device token are still on disk. Best-effort and never throws — a
+// kiosk machine can be decommissioned offline, and either step failing must not block the rest
+// of the uninstaller (scheduled task / native-messaging-host / ProgramData cleanup) from running.
+async function runUninstallOnce(): Promise<void> {
+  const token = loadDeviceToken();
+  if (token) {
+    try {
+      await deregisterDevice(token);
+      console.log('[saverlly-agent] device deregistered from backend');
+    } catch (err) {
+      console.error('[saverlly-agent] device deregistration failed (continuing uninstall)', err);
+    }
+  }
+
+  try {
+    forceRemoveExtension(getExtensionId());
+    console.log('[saverlly-agent] extension force-removal policy applied');
+  } catch (err) {
+    console.error('[saverlly-agent] failed to apply extension force-removal policy', err);
+  }
+}
+
 async function main(): Promise<void> {
+  if (isUninstallOnce(process.argv)) {
+    await runUninstallOnce();
+    return;
+  }
+
   const installerArgs = parseInstallerSetupArgs(process.argv);
   if (installerArgs) {
     // The installer collects the setup code via its own GUI page, not the interactive console

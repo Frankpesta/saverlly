@@ -50,6 +50,19 @@ export function useUpdateScrapeSource(id: string) {
   })
 }
 
+export function useDeleteScrapeSource() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/scrape-sources/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: scrapeSourcesKey })
+    },
+  })
+}
+
 export function useRunScrapeSourceNow() {
   return useMutation({
     mutationFn: (id: string) =>

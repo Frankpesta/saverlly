@@ -1,8 +1,9 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Device } from '@prisma/client';
 import { CurrentDevice } from '../common/decorators/current-device.decorator';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
+import { DevicesService } from '../devices/devices.service';
 import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
 import { AttributionAttemptDto } from './dto/attribution-attempt.dto';
 import { CreateCouponTestEventDto } from './dto/create-coupon-test-event.dto';
@@ -16,7 +17,10 @@ import { PublicApiService } from './public-api.service';
 @Controller('public')
 @UseGuards(DeviceAuthGuard)
 export class PublicApiController {
-  constructor(private readonly publicApiService: PublicApiService) {}
+  constructor(
+    private readonly publicApiService: PublicApiService,
+    private readonly devicesService: DevicesService,
+  ) {}
 
   @Get('devices/me/status')
   @ApiOperation({
@@ -27,6 +31,21 @@ export class PublicApiController {
   @ApiResponse({ status: 401, description: 'Missing/invalid device token, device disabled, or kiosk inactive' })
   getDeviceStatus(@CurrentDevice() device: Device): Promise<DeviceStatusDto> {
     return this.publicApiService.getDeviceStatus(device.id);
+  }
+
+  @Delete('devices/me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Deregister this device — deletes its Device row and tokens entirely',
+    description:
+      'Self-service counterpart to the admin-only DELETE /devices/:id, authenticated by the device\'s ' +
+      'own token instead of a human JWT. Called by the desktop agent as its last authenticated act during ' +
+      'uninstall, so a decommissioned kiosk machine does not linger in the dashboard as a stale device.',
+  })
+  @ApiResponse({ status: 204, description: 'Device and its tokens deleted' })
+  @ApiResponse({ status: 401, description: 'Missing/invalid device token, device disabled, or kiosk inactive' })
+  deregisterDevice(@CurrentDevice() device: Device): Promise<void> {
+    return this.devicesService.remove(device.id);
   }
 
   @Get('devices/me/savings')

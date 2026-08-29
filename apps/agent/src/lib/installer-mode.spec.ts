@@ -1,4 +1,4 @@
-import { parseInstallerSetupArgs } from './installer-mode';
+import { isUninstallOnce, parseInstallerSetupArgs } from './installer-mode';
 
 describe('parseInstallerSetupArgs', () => {
   it('returns null when --setup-once is not present (normal background-agent startup)', () => {
@@ -24,5 +24,19 @@ describe('parseInstallerSetupArgs', () => {
     expect(parseInstallerSetupArgs(['exe.exe', '--setup-code=XYZ789', '--setup-once'])).toEqual({
       setupCode: 'XYZ789',
     });
+  });
+});
+
+describe('isUninstallOnce', () => {
+  it('is false for normal background-agent startup', () => {
+    expect(isUninstallOnce(['exe.exe'])).toBe(false);
+  });
+
+  it('is false for --setup-once (the opposite lifecycle end)', () => {
+    expect(isUninstallOnce(['exe.exe', '--setup-once', '--setup-code=ABC123'])).toBe(false);
+  });
+
+  it('is true when --uninstall-once is present, as passed by [UninstallRun]', () => {
+    expect(isUninstallOnce(['exe.exe', '--uninstall-once'])).toBe(true);
   });
 });

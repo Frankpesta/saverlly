@@ -3,15 +3,12 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { PencilIcon, PlusIcon } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import {
   Dialog,
   DialogContent,
@@ -24,6 +21,49 @@ import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { useCreateScrapeSource, useUpdateScrapeSource } from "@/lib/api/hooks/use-scrape-sources"
 import { ApiError } from "@/lib/api/client"
 import type { Merchant, ScrapeSource } from "@/lib/api/types"
+
+const UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440, weeks: 10080 } as const
+type IntervalUnit = keyof typeof UNIT_MINUTES
+const UNIT_OPTIONS: { value: IntervalUnit; label: string }[] = [
+  { value: "minutes", label: "Minutes" },
+  { value: "hours", label: "Hours" },
+  { value: "days", label: "Days" },
+  { value: "weeks", label: "Weeks" },
+]
+
+const scrapeSourceSchema = z
+  .object({
+    merchantId: z.string(),
+    url: z.string().trim().min(1, "Page URL is required"),
+    codeSelector: z.string().trim().min(1, "Coupon code selector is required"),
+    descriptionSelector: z.string().trim(),
+    intervalAmount: z
+      .string()
+      .trim()
+      .regex(/^\d+$/, "Enter a whole number")
+      .refine((value) => Number(value) > 0, "Must be at least 1"),
+    intervalUnit: z.enum(["minutes", "hours", "days", "weeks"]),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.merchantId) {
+      ctx.addIssue({ code: "custom", message: "Choose a merchant", path: ["merchantId"] })
+    }
+  })
+
+type ScrapeSourceFormValues = z.infer<typeof scrapeSourceSchema>
+
+/** Picks the largest unit the total divides evenly into, so an edit form shows "1 day" instead
+ * of "1440 minutes" — falls back to raw minutes when nothing divides evenly. */
+function decomposeMinutes(totalMinutes: number): { amount: string; unit: IntervalUnit } {
+  const units: IntervalUnit[] = ["weeks", "days", "hours", "minutes"]
+  for (const unit of units) {
+    const perUnit = UNIT_MINUTES[unit]
+    if (totalMinutes % perUnit === 0) {
+      return { amount: String(totalMinutes / perUnit), unit }
+    }
+  }
+  return { amount: String(totalMinutes), unit: "minutes" }
+}
 
 /**
  * Create-or-edit scrape source dialog. Pass `merchantId` when used inside a merchant's own page
@@ -42,28 +82,43 @@ export function ScrapeSourceDialog({
 }) {
   const isEdit = !!source
   const [open, setOpen] = React.useState(false)
-  const [selectedMerchantId, setSelectedMerchantId] = React.useState(
-    merchantId ?? source?.merchantId ?? "",
-  )
-  const [url, setUrl] = React.useState(source?.url ?? "")
-  const [codeSelector, setCodeSelector] = React.useState(source?.selectorConfig.codeSelector ?? "")
-  const [descriptionSelector, setDescriptionSelector] = React.useState(
-    source?.selectorConfig.descriptionSelector ?? "",
-  )
-  const [intervalMinutes, setIntervalMinutes] = React.useState(
-    String(source?.intervalMinutes ?? 1440),
-  )
 
   const createSource = useCreateScrapeSource()
   const updateSource = useUpdateScrapeSource(source?.id ?? "")
   const isPending = createSource.isPending || updateSource.isPending
 
+  const initialInterval = decomposeMinutes(source?.intervalMinutes ?? 1440)
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset: resetForm,
+    formState: { errors, isSubmitting },
+  } = useForm<ScrapeSourceFormValues>({
+    resolver: zodResolver(scrapeSourceSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      merchantId: merchantId ?? source?.merchantId ?? "",
+      url: source?.url ?? "",
+      codeSelector: source?.selectorConfig.codeSelector ?? "",
+      descriptionSelector: source?.selectorConfig.descriptionSelector ?? "",
+      intervalAmount: initialInterval.amount,
+      intervalUnit: initialInterval.unit,
+    },
+  })
+
   function reset() {
-    setSelectedMerchantId(merchantId ?? "")
-    setUrl("")
-    setCodeSelector("")
-    setDescriptionSelector("")
-    setIntervalMinutes("1440")
+    const reverted = decomposeMinutes(1440)
+    resetForm({
+      merchantId: merchantId ?? "",
+      url: "",
+      codeSelector: "",
+      descriptionSelector: "",
+      intervalAmount: reverted.amount,
+      intervalUnit: reverted.unit,
+    })
   }
 
   function handleOpenChange(next: boolean) {
@@ -71,17 +126,15 @@ export function ScrapeSourceDialog({
     if (!next && !isEdit) reset()
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    if (!selectedMerchantId) {
-      toast.error("Choose a merchant for this scrape source.")
-      return
-    }
+  function onSubmit(values: ScrapeSourceFormValues) {
     const shared = {
-      url,
-      merchantId: selectedMerchantId,
-      selectorConfig: { codeSelector, descriptionSelector: descriptionSelector || undefined },
-      intervalMinutes: Number(intervalMinutes),
+      url: values.url,
+      merchantId: values.merchantId,
+      selectorConfig: {
+        codeSelector: values.codeSelector,
+        descriptionSelector: values.descriptionSelector || undefined,
+      },
+      intervalMinutes: Number(values.intervalAmount) * UNIT_MINUTES[values.intervalUnit],
     }
 
     if (isEdit) {
@@ -132,71 +185,67 @@ export function ScrapeSourceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit}>
+        <form className="flex flex-1 flex-col justify-between" onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="flex flex-col gap-4 px-6">
-            <FormField label="Page URL" htmlFor="scrape-url">
-              <Input
-                id="scrape-url"
-                type="url"
-                placeholder="https://…"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                required
-              />
+            <FormField label="Page URL" htmlFor="scrape-url" error={errors.url?.message}>
+              <Input id="scrape-url" type="url" placeholder="https://…" {...register("url")} />
             </FormField>
             {!merchantId && (
-              <FormField label="Merchant" htmlFor="scrape-merchant">
-                <Select value={selectedMerchantId} onValueChange={setSelectedMerchantId} required>
-                  <SelectTrigger id="scrape-merchant" className="w-full">
-                    <SelectValue placeholder="Select a merchant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {merchants?.map((merchant) => (
-                      <SelectItem key={merchant.id} value={merchant.id}>
-                        {merchant.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <FormField label="Merchant" htmlFor="scrape-merchant" error={errors.merchantId?.message}>
+                <Controller
+                  name="merchantId"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <Combobox
+                      id="scrape-merchant"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder="Select a merchant"
+                      searchPlaceholder="Search merchants..."
+                      options={merchants?.map((merchant) => ({ value: merchant.id, label: merchant.name })) ?? []}
+                      aria-invalid={!!fieldState.error}
+                    />
+                  )}
+                />
               </FormField>
             )}
             <FormGrid>
-              <FormField label="Coupon code selector" htmlFor="scrape-code-selector">
-                <Input
-                  id="scrape-code-selector"
-                  placeholder=".coupon-code"
-                  value={codeSelector}
-                  onChange={(e) => setCodeSelector(e.target.value)}
-                  required
-                />
+              <FormField label="Coupon code selector" htmlFor="scrape-code-selector" error={errors.codeSelector?.message}>
+                <Input id="scrape-code-selector" placeholder=".coupon-code" {...register("codeSelector")} />
               </FormField>
               <FormField label="Description selector (optional)" htmlFor="scrape-description-selector">
-                <Input
-                  id="scrape-description-selector"
-                  value={descriptionSelector}
-                  onChange={(e) => setDescriptionSelector(e.target.value)}
-                />
+                <Input id="scrape-description-selector" {...register("descriptionSelector")} />
               </FormField>
             </FormGrid>
             <FormField
-              label="Scrape every (minutes)"
+              label="Scrape every"
               htmlFor="scrape-interval"
-              hint="Defaults to daily (1440 minutes)."
+              hint="Defaults to daily."
+              error={errors.intervalAmount?.message}
             >
-              <Input
-                id="scrape-interval"
-                type="number"
-                min="1"
-                value={intervalMinutes}
-                onChange={(e) => setIntervalMinutes(e.target.value)}
-                required
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="scrape-interval"
+                  type="number"
+                  min="1"
+                  {...register("intervalAmount")}
+                  aria-invalid={!!errors.intervalAmount}
+                  className="w-24"
+                />
+                <Controller
+                  name="intervalUnit"
+                  control={control}
+                  render={({ field }) => (
+                    <Combobox value={field.value} onValueChange={field.onChange} options={UNIT_OPTIONS} className="flex-1" />
+                  )}
+                />
+              </div>
             </FormField>
           </div>
 
           <DialogFooter>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : isEdit ? "Save changes" : "Add scrape source"}
+            <Button type="submit" disabled={isPending || isSubmitting}>
+              {isPending || isSubmitting ? "Saving…" : isEdit ? "Save changes" : "Add scrape source"}
             </Button>
           </DialogFooter>
         </form>

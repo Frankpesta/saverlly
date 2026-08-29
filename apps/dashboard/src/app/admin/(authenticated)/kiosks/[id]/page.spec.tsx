@@ -20,6 +20,7 @@ jest.mock("next/link", () => {
 
 jest.mock("next/navigation", () => ({
   useParams: () => ({ id: "kiosk-1" }),
+  useRouter: () => ({ push: jest.fn() }),
 }))
 
 const kiosk: Kiosk = {
@@ -27,7 +28,6 @@ const kiosk: Kiosk = {
   name: "Kiosk One",
   status: "ACTIVE",
   revenueSharePct: "30",
-  contactEmail: "owner1@example.com",
   stripeAccountId: null,
   stripePayoutsEnabled: false,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -37,6 +37,7 @@ const kiosk: Kiosk = {
 const kioskUsers: KioskUser[] = [
   {
     id: "user-1",
+    name: "Owner One",
     email: "owner1@example.com",
     role: "KIOSK_OWNER",
     kioskId: "kiosk-1",
@@ -75,6 +76,7 @@ describe("KioskDetailPage", () => {
             user: {
               ...kioskUsers[0],
               id: "user-2",
+              name: "New Manager",
               email: "manager@example.com",
               role: "LOCATION_MANAGER",
             },
@@ -131,6 +133,7 @@ describe("KioskDetailPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /add user/i }))
 
     const dialog = await screen.findByRole("dialog")
+    await userEvent.type(within(dialog).getByLabelText("Name"), "New Manager")
     await userEvent.type(within(dialog).getByLabelText("Email"), "manager@example.com")
     await userEvent.click(within(dialog).getByRole("combobox"))
     await userEvent.click(await screen.findByRole("option", { name: "Location manager" }))
@@ -142,6 +145,7 @@ describe("KioskDetailPage", () => {
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
+            name: "New Manager",
             email: "manager@example.com",
             role: "LOCATION_MANAGER",
           }),

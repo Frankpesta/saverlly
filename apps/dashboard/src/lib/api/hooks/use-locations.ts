@@ -29,7 +29,7 @@ export type CreateLocationPayload = {
   address: string
   city: string
   state: string
-  country: string
+  zip: string
   latitude?: number
   longitude?: number
   tags?: string[]
@@ -62,6 +62,22 @@ export function useUpdateLocation(id: string) {
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: locationsKey })
       queryClient.setQueryData(locationKey(updated.id), updated)
+    },
+  })
+}
+
+export function useDeleteLocation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/locations/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      // Deleting a location cascades to its devices (and their tokens/activity history)
+      // server-side, so the devices list is stale too, not just locations.
+      queryClient.invalidateQueries({ queryKey: locationsKey })
+      queryClient.invalidateQueries({ queryKey: ["devices"] })
     },
   })
 }

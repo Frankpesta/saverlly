@@ -15,6 +15,7 @@ export type TokenPair = {
 
 export type UserProfile = {
   id: string
+  name: string | null
   email: string
   role: UserRole
   kioskId: string | null
@@ -27,7 +28,6 @@ export type Kiosk = {
   name: string
   status: KioskStatus
   revenueSharePct: string
-  contactEmail: string
   stripeAccountId: string | null
   stripePayoutsEnabled: boolean
   createdAt: string
@@ -39,6 +39,7 @@ export type KioskAssignableRole = Extract<UserRole, "KIOSK_OWNER" | "LOCATION_MA
 
 export type KioskUser = {
   id: string
+  name: string | null
   email: string
   role: KioskAssignableRole
   kioskId: string
@@ -49,6 +50,14 @@ export type KioskUser = {
   updatedAt: string
 }
 
+/** The kiosk owner's own email doubles as the kiosk's contact — there's no separate stored
+ * contact field. Returned by `/my/kiosk-contact` for a location manager who needs to reach
+ * their kiosk owner. */
+export type KioskContact = {
+  name: string | null
+  email: string | null
+}
+
 export type Location = {
   id: string
   kioskId: string
@@ -56,7 +65,7 @@ export type Location = {
   address: string
   city: string
   state: string
-  country: string
+  zip: string | null
   latitude: number | null
   longitude: number | null
   tags: string[]

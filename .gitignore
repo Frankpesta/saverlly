@@ -3,6 +3,9 @@ node_modules/
 .pnp
 .pnp.js
 
+# corrections
+corrections/
+
 # Build outputs
 dist/
 build/

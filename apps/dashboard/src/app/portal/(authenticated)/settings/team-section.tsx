@@ -46,7 +46,8 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
             className="flex items-center justify-between rounded-lg border border-black/8 px-4 py-3"
           >
             <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium">{user.email}</span>
+              <span className="text-sm font-medium">{user.name || user.email}</span>
+              {user.name && <span className="text-xs text-muted-foreground">{user.email}</span>}
               <Badge variant="secondary" className="w-fit">
                 {ROLE_LABEL[user.role]}
               </Badge>

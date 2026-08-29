@@ -6,6 +6,7 @@ import type { Balance, CommissionEvent, Device, Kiosk, Payout, UserProfile } fro
 
 const currentUser: UserProfile = {
   id: "user-1",
+  name: "Kiosk Owner",
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -16,7 +17,6 @@ const kioskNotConnected: Kiosk = {
   name: "Kiosk One",
   status: "ACTIVE",
   revenueSharePct: "30",
-  contactEmail: "owner1@example.com",
   stripeAccountId: null,
   stripePayoutsEnabled: false,
   createdAt: "2026-01-01T00:00:00.000Z",

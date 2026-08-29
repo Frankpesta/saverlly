@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ArrowLeftIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,30 +15,73 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
-import { useLocation, useUpdateLocation } from "@/lib/api/hooks/use-locations"
+import { CityStateFields } from "@/components/dashboard/city-state-fields"
+import { TagInput } from "@/components/dashboard/tag-input"
+import { useDeleteLocation, useLocation, useUpdateLocation } from "@/lib/api/hooks/use-locations"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
 import type { Location } from "@/lib/api/types"
+import { nameSchema, zipSchema } from "@/lib/validation/schemas"
 import { SetupCodesSection } from "./setup-codes-section"
 import { LocationDevicesSection } from "./location-devices-section"
 
+const locationEditSchema = z.object({
+  name: nameSchema,
+  address: z.string().trim().min(1, "Address is required"),
+  city: z.string().trim().min(1, "City is required"),
+  state: z.string().min(1, "Select a state"),
+  zip: zipSchema,
+  tags: z.array(z.string()),
+})
+
+type LocationEditFormValues = z.infer<typeof locationEditSchema>
+
 export default function AdminLocationDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const { data: location, isLoading, isError } = useLocation(id)
   const { data: kiosks } = useKiosks()
   const kioskName = kiosks?.find((k) => k.id === location?.kioskId)?.name
+  const deleteLocation = useDeleteLocation()
+
+  function handleDelete() {
+    deleteLocation.mutate(id, {
+      onSuccess: () => {
+        toast.success("Location deleted.")
+        router.push("/admin/locations")
+      },
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not delete location."),
+    })
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="border-b border-black/[0.09] dark:border-white/10 pb-6">
-        <Link href="/admin/locations" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeftIcon className="size-4" />
-          Locations
-        </Link>
-        <p className="mt-5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Location profile</p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight">{location?.name ?? "Location"}</h2>
-        {kioskName && <p className="mt-1 text-sm text-muted-foreground">{kioskName}</p>}
+      <div className="flex flex-col gap-4 border-b border-black/[0.09] dark:border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Link href="/admin/locations" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeftIcon className="size-4" />
+            Locations
+          </Link>
+          <p className="mt-5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Location profile</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">{location?.name ?? "Location"}</h2>
+          {kioskName && <p className="mt-1 text-sm text-muted-foreground">{kioskName}</p>}
+        </div>
+        {location && (
+          <DeleteRowButton
+            variant="button"
+            itemLabel={location.name}
+            description="Its setup codes, devices, and all device activity history will be deleted too. This can't be undone."
+            onConfirm={handleDelete}
+            isPending={deleteLocation.isPending}
+            ariaLabel={`Delete ${location.name}`}
+          />
+        )}
       </div>
 
       {isError && <p className="text-sm text-destructive">Could not load this location.</p>}
@@ -63,74 +106,80 @@ export default function AdminLocationDetailPage() {
 
 function LocationEditForm({ location }: { location: Location }) {
   const updateLocation = useUpdateLocation(location.id)
-  const [name, setName] = React.useState(location.name)
-  const [address, setAddress] = React.useState(location.address)
-  const [city, setCity] = React.useState(location.city)
-  const [state, setState] = React.useState(location.state)
-  const [country, setCountry] = React.useState(location.country)
-  const [tags, setTags] = React.useState(location.tags.join(", "))
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LocationEditFormValues>({
+    resolver: zodResolver(locationEditSchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      name: location.name,
+      address: location.address,
+      city: location.city,
+      state: location.state,
+      zip: location.zip ?? "",
+      tags: location.tags,
+    },
+  })
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    const tagList = tags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean)
-
-    updateLocation.mutate(
-      { name, address, city, state, country, tags: tagList },
-      {
-        onSuccess: () => toast.success("Location updated."),
-        onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not update location."),
-      },
-    )
+  function onSubmit(values: LocationEditFormValues) {
+    updateLocation.mutate(values, {
+      onSuccess: () => toast.success("Location updated."),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not update location."),
+    })
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
       <CardContent className="flex flex-col gap-4">
         <FormGrid>
-          <FormField label="Name" htmlFor="loc-name">
-            <Input id="loc-name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <FormField label="Name" htmlFor="loc-name" error={errors.name?.message}>
+            <Input id="loc-name" {...register("name")} />
           </FormField>
-          <FormField label="Address" htmlFor="loc-address">
-            <Input
-              id="loc-address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-            />
+          <FormField label="Address" htmlFor="loc-address" error={errors.address?.message}>
+            <Input id="loc-address" {...register("address")} />
           </FormField>
         </FormGrid>
-        <FormGrid>
-          <FormField label="City" htmlFor="loc-city">
-            <Input id="loc-city" value={city} onChange={(e) => setCity(e.target.value)} required />
-          </FormField>
-          <FormField label="State" htmlFor="loc-state">
-            <Input
-              id="loc-state"
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-              required
-            />
-          </FormField>
-        </FormGrid>
-        <FormField label="Country" htmlFor="loc-country">
-          <Input
-            id="loc-country"
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            required
+        <CityStateFields idPrefix="loc" control={control} cityName="city" stateName="state" />
+        <FormField label="Zip" htmlFor="loc-zip" hint="5-digit US ZIP code." error={errors.zip?.message}>
+          <Controller
+            name="zip"
+            control={control}
+            render={({ field, fieldState }) => (
+              <Input
+                id="loc-zip"
+                value={field.value}
+                onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                onBlur={field.onBlur}
+                inputMode="numeric"
+                maxLength={5}
+                aria-invalid={!!fieldState.error}
+              />
+            )}
           />
         </FormField>
         <FormField label="Tags" htmlFor="loc-tags">
-          <Input id="loc-tags" value={tags} onChange={(e) => setTags(e.target.value)} />
+          <Controller
+            name="tags"
+            control={control}
+            render={({ field }) => (
+              <TagInput
+                id="loc-tags"
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="mall, downtown, high-traffic"
+              />
+            )}
+          />
         </FormField>
       </CardContent>
       <CardFooter>
-        <Button type="submit" disabled={updateLocation.isPending}>
-          {updateLocation.isPending ? "Saving…" : "Save changes"}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving…" : "Save changes"}
         </Button>
       </CardFooter>
     </form>

@@ -26,3 +26,16 @@ export function useUpdateDevice() {
     },
   })
 }
+
+export function useDeleteDevice() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/devices/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: devicesKey })
+    },
+  })
+}
