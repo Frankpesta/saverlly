@@ -102,7 +102,7 @@ export function AddAdminUserDialog() {
               </div>
 
               <DialogFooter>
-                <Button type="submit" disabled={isSubmitting} className="py-2">
+                <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? "Adding…" : "Add employee"}
                 </Button>
               </DialogFooter>
