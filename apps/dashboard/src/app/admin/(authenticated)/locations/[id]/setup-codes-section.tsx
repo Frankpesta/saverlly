@@ -70,7 +70,7 @@ export function SetupCodesSection({ locationId }: { locationId: string }) {
         {!isLoading && !code && (
           <div className="flex flex-col items-start gap-3">
             <p className="text-sm text-muted-foreground">
-              No setup code yet — generate one to register devices at this location.
+              No setup code yet. Generate one to register devices at this location.
             </p>
             <Button
               size="sm"
