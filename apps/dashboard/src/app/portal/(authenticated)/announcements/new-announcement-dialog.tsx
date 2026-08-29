@@ -23,6 +23,7 @@ import {
 import { DateTimePicker } from "@/components/dashboard/date-time-picker"
 import { WizardStepDots } from "@/components/dashboard/wizard-step-dots"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
+import { ImageUploadField } from "@/components/dashboard/image-upload-field"
 import { useCreateAnnouncement, useUploadAnnouncementImage } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
@@ -74,7 +75,6 @@ export function NewAnnouncementDialog() {
   const createAnnouncement = useCreateAnnouncement()
   const uploadImage = useUploadAnnouncementImage()
   const { data: locations } = useLocations()
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -125,10 +125,7 @@ export function NewAnnouncementDialog() {
     if (!next) reset()
   }
 
-  function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ""
-    if (!file) return
+  function handleUploadFile(file: File) {
     uploadImage.mutate(file, {
       onSuccess: (data) => setValue("mediaUrl", data.url),
       onError: (error) =>
@@ -202,24 +199,13 @@ export function NewAnnouncementDialog() {
                     <Textarea id="new-ann-body" rows={4} {...register("body")} aria-invalid={!!errors.body} />
                   </FormField>
                   <FormField label="Image (optional)" htmlFor="new-ann-media">
-                    <div className="flex gap-2">
-                      <Input id="new-ann-media" type="url" placeholder="https://…" {...register("mediaUrl")} />
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        className="hidden"
-                        onChange={handleFileSelected}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={uploadImage.isPending}
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        {uploadImage.isPending ? "Uploading…" : "Upload"}
-                      </Button>
-                    </div>
+                    <ImageUploadField
+                      id="new-ann-media"
+                      value={mediaUrl}
+                      onChange={(url) => setValue("mediaUrl", url)}
+                      onUploadFile={handleUploadFile}
+                      isUploading={uploadImage.isPending}
+                    />
                   </FormField>
                 </div>
                 <div className="md:sticky md:top-0 md:self-start">

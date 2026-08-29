@@ -134,7 +134,7 @@ function LocationEditForm({ location }: { location: Location }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="contents">
       <CardContent className="flex flex-col gap-4">
         <FormGrid>
           <FormField label="Name" htmlFor="loc-name" error={errors.name?.message}>

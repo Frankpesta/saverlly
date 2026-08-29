@@ -147,13 +147,13 @@ describe("AnnouncementsPage", () => {
     expect(body.locationIds).toEqual([])
   })
 
-  it("uploads an image and fills the mediaUrl field with the returned url", async () => {
+  it("uploads an image and shows it in the preview via the returned url", async () => {
     renderWithClient(<AnnouncementsPage />)
 
     await userEvent.click(await screen.findByRole("button", { name: /new announcement/i }))
-    await screen.findByLabelText("Image (optional)")
-
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    expect(fileInput).toHaveAttribute("id", "new-ann-media")
+
     const file = new File(["fake-bytes"], "promo.png", { type: "image/png" })
     await userEvent.upload(fileInput, file)
 
@@ -164,10 +164,15 @@ describe("AnnouncementsPage", () => {
       ),
     )
 
-    await waitFor(() =>
-      expect(
-        (screen.getByLabelText("Image (optional)") as HTMLInputElement).value,
-      ).toBe("http://localhost:3000/uploads/announcements/uploaded.png"),
-    )
+    const expectedSrc = `/api/image-proxy?url=${encodeURIComponent(
+      "http://localhost:3000/uploads/announcements/uploaded.png",
+    )}`
+    // getByRole("img") excludes decorative alt="" images from the accessibility tree, so this
+    // queries the DOM directly instead — both the upload thumbnail and the live preview should
+    // pick up the uploaded url via the image proxy.
+    await waitFor(() => {
+      const images = Array.from(document.querySelectorAll("img"))
+      expect(images.some((img) => img.getAttribute("src") === expectedSrc)).toBe(true)
+    })
   })
 })

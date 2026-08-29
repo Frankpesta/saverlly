@@ -178,7 +178,7 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
           )}
         />
       </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="contents">
         <CardContent className="flex flex-col gap-4">
           <FormGrid>
             <FormField label="Name" htmlFor="merchant-name" error={errors.name?.message}>
@@ -261,7 +261,7 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
       <CardHeader>
         <CardTitle>Checkout recipe</CardTitle>
       </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="contents">
         <CardContent className="flex flex-col gap-4">
           <FormGrid>
             <FormField label="Coupon field selector" htmlFor="recipe-coupon-field">

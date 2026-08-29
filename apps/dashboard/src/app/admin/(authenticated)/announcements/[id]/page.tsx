@@ -36,6 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { DateTimePicker } from "@/components/dashboard/date-time-picker"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
+import { ImageUploadField } from "@/components/dashboard/image-upload-field"
 import {
   useAnnouncement,
   useDeleteAnnouncement,
@@ -158,7 +159,6 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
   const uploadImage = useUploadAnnouncementImage()
   const { data: kiosks } = useKiosks()
   const { data: allLocations } = useLocations()
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const kioskName = kiosks?.find((k) => k.id === announcement.kioskId)?.name
   const kioskLocations = React.useMemo(
@@ -194,10 +194,7 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
   const mediaUrl = watch("mediaUrl")
   const repeatPolicy = watch("repeatPolicy")
 
-  function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ""
-    if (!file) return
+  function handleUploadFile(file: File) {
     uploadImage.mutate(file, {
       onSuccess: (data) => setValue("mediaUrl", data.url),
       onError: (error) =>
@@ -251,24 +248,13 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
             <Textarea id="ann-body" rows={4} {...register("body")} aria-invalid={!!errors.body} />
           </FormField>
           <FormField label="Image (optional)" htmlFor="ann-media">
-            <div className="flex gap-2">
-              <Input id="ann-media" type="url" {...register("mediaUrl")} />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="hidden"
-                onChange={handleFileSelected}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={uploadImage.isPending}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {uploadImage.isPending ? "Uploading…" : "Upload"}
-              </Button>
-            </div>
+            <ImageUploadField
+              id="ann-media"
+              value={mediaUrl}
+              onChange={(url) => setValue("mediaUrl", url)}
+              onUploadFile={handleUploadFile}
+              isUploading={uploadImage.isPending}
+            />
           </FormField>
           <AnnouncementPreview title={title} body={body} mediaUrl={mediaUrl || undefined} />
         </CardContent>
@@ -278,7 +264,7 @@ function AnnouncementEditForm({ announcement }: { announcement: Announcement }) 
         <CardHeader>
           <CardTitle>{isBroadcast ? "Schedule" : "Schedule & targeting"}</CardTitle>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="contents">
           <CardContent className="flex flex-col gap-4">
             <FormGrid>
               <FormField label="Starts" htmlFor="ann-start" error={errors.startAt?.message}>

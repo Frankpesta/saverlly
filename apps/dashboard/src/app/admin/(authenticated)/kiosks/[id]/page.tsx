@@ -138,7 +138,7 @@ function KioskEditForm({ kiosk }: { kiosk: Kiosk }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="contents">
       <CardContent className="flex flex-col gap-4">
         <FormGrid>
           <FormField label="Name" htmlFor="name" error={errors.name?.message}>
