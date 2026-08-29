@@ -6,10 +6,11 @@ import { motion } from "motion/react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowLeftIcon, ArrowRightIcon, Loader2Icon, MailIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowRightIcon, Loader2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { FormField } from "@/components/dashboard/form-section"
 import { AuthShell } from "@/components/auth/auth-shell"
-import { AuthField } from "@/components/auth/auth-field"
 import { emailSchema } from "@/lib/validation/schemas"
 
 const forgotPasswordSchema = z.object({ email: emailSchema })
@@ -80,15 +81,9 @@ export function ForgotPasswordForm({
           </div>
         ) : (
           <form className="flex flex-col gap-5" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <AuthField
-              id="email"
-              label="Email"
-              type="email"
-              autoComplete="email"
-              icon={<MailIcon />}
-              error={errors.email?.message}
-              {...register("email")}
-            />
+            <FormField label="Email" htmlFor="email" error={errors.email?.message}>
+              <Input id="email" type="email" autoComplete="email" {...register("email")} />
+            </FormField>
             <Button type="submit" disabled={isSubmitting} className="auth-submit mt-2 h-12">
               {isSubmitting && <Loader2Icon className="animate-spin" />}
               {isSubmitting ? "Sending…" : "Send reset link"}

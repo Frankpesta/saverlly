@@ -7,11 +7,13 @@ import { motion } from "motion/react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { AlertCircleIcon, ArrowRightIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react"
+import { AlertCircleIcon, ArrowRightIcon, Loader2Icon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
+import { FormField } from "@/components/dashboard/form-section"
 import { AuthShell } from "@/components/auth/auth-shell"
-import { AuthField } from "@/components/auth/auth-field"
 import { emailSchema } from "@/lib/validation/schemas"
 
 const loginSchema = z.object({
@@ -89,25 +91,13 @@ export function LoginForm({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <AuthField
-            id="email"
-            label="Email"
-            type="email"
-            autoComplete="email"
-            icon={<MailIcon />}
-            error={errors.email?.message}
-            {...register("email")}
-          />
+          <FormField label="Email" htmlFor="email" error={errors.email?.message}>
+            <Input id="email" type="email" autoComplete="email" {...register("email")} />
+          </FormField>
           <div className="flex flex-col gap-2">
-            <AuthField
-              id="password"
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              icon={<LockIcon />}
-              error={errors.password?.message}
-              {...register("password")}
-            />
+            <FormField label="Password" htmlFor="password" error={errors.password?.message}>
+              <PasswordInput id="password" autoComplete="current-password" {...register("password")} />
+            </FormField>
             <Link
               href={`/${portal}/forgot-password`}
               className="self-end text-xs font-medium text-muted-foreground hover:text-foreground"

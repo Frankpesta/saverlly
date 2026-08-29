@@ -7,11 +7,12 @@ import { motion } from "motion/react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { AlertCircleIcon, ArrowRightIcon, Loader2Icon, LockIcon } from "lucide-react"
+import { AlertCircleIcon, ArrowRightIcon, Loader2Icon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { PasswordInput } from "@/components/ui/password-input"
+import { FormField } from "@/components/dashboard/form-section"
 import { AuthShell } from "@/components/auth/auth-shell"
-import { AuthField } from "@/components/auth/auth-field"
 import { PasswordStrengthBar } from "@/components/dashboard/password-strength"
 import { passwordMismatchIssue, passwordSchema, passwordsMatch } from "@/lib/validation/schemas"
 
@@ -98,26 +99,14 @@ export function ResetPasswordForm({
             </Alert>
           )}
           <div className="flex flex-col gap-2">
-            <AuthField
-              id="password"
-              label="New password"
-              type="password"
-              autoComplete="new-password"
-              icon={<LockIcon />}
-              error={errors.newPassword?.message}
-              {...register("newPassword")}
-            />
+            <FormField label="New password" htmlFor="password" error={errors.newPassword?.message}>
+              <PasswordInput id="password" autoComplete="new-password" {...register("newPassword")} />
+            </FormField>
             <PasswordStrengthBar password={watch("newPassword")} />
           </div>
-          <AuthField
-            id="confirm"
-            label="Confirm password"
-            type="password"
-            autoComplete="new-password"
-            icon={<LockIcon />}
-            error={errors.confirmPassword?.message}
-            {...register("confirmPassword")}
-          />
+          <FormField label="Confirm password" htmlFor="confirm" error={errors.confirmPassword?.message}>
+            <PasswordInput id="confirm" autoComplete="new-password" {...register("confirmPassword")} />
+          </FormField>
           <Button type="submit" disabled={isSubmitting} className="auth-submit mt-2 h-12">
             {isSubmitting && <Loader2Icon className="animate-spin" />}
             {isSubmitting ? "Resetting…" : "Reset password"}

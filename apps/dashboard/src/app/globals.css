@@ -190,7 +190,10 @@
     background: var(--background);
   }
   .auth-form-pane { position: relative; display: flex; flex-direction: column; justify-content: center; padding: clamp(2.5rem, 7vw, 7rem); }
-  .auth-mobile-logo { position: absolute; top: clamp(2rem, 5vw, 4rem); left: clamp(2.5rem, 7vw, 7rem); }
+  /* Only actually needed below the 767px breakpoint, where .auth-brand-pane (and its own big
+     logo) is hidden entirely — display:none by default so it doesn't sit absolutely positioned
+     on top of the "SECURE SIGN IN" heading on every other screen size. */
+  .auth-mobile-logo { display: none; position: absolute; top: clamp(2rem, 5vw, 4rem); left: clamp(2.5rem, 7vw, 7rem); }
   /* The brand panel stays fixed dark/teal in both themes — same "always dark" treatment as the
      sidebar, it's a brand statement, not page chrome that should invert. Uses --sidebar directly
      (not a duplicated literal) so the two always-dark surfaces can't drift apart. */
@@ -199,22 +202,6 @@
   .auth-brand-orbit-one { width: 40rem; height: 40rem; top: -17rem; right: -15rem; }
   .auth-brand-orbit-two { width: 28rem; height: 28rem; bottom: -15rem; left: -12rem; border-color: rgb(255 255 255 / 0.12); }
   .auth-brand-grid { position: absolute; inset: 0; opacity: .22; background-image: linear-gradient(rgb(255 255 255 / .06) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .06) 1px, transparent 1px); background-size: 2.5rem 2.5rem; mask-image: linear-gradient(to bottom, black, transparent 72%); }
-  /* Fields rest on a faint tint (matches --page-plane) so they read as distinct inputs against
-     the pane, then lift to a full --card fill + brand ring on focus — the same resting/focus
-     contrast pattern as the app's shared <Input>, not a bespoke auth-only look. */
-  .auth-field { position: relative; height: 3.25rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--page-plane); transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease; }
-  .auth-field:hover { border-color: var(--input); }
-  .auth-field:focus-within { border-color: var(--brand-teal); background: var(--card); box-shadow: 0 0 0 3px rgb(88 195 183 / .18); }
-  .auth-field-invalid { border-color: var(--destructive); }
-  .auth-field-invalid:focus-within { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive), transparent 80%); }
-  .auth-field-input { width: 100%; height: 100%; padding: .95rem 1rem .2rem; color: var(--foreground); outline: none; background: transparent; font-size: .9rem; }
-  .auth-field-input-icon { padding-left: 2.9rem; }
-  .auth-field-label { position: absolute; top: 50%; left: 1rem; transform: translateY(-50%); color: var(--muted-foreground); font-size: .95rem; pointer-events: none; transition: top .16s ease, transform .16s ease, font-size .16s ease, color .16s ease; }
-  .auth-field-label-icon { left: 2.9rem; }
-  .auth-field-active .auth-field-label { top: .72rem; transform: translateY(-50%); color: var(--brand-teal); font-size: .64rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-  .auth-field-icon { position: absolute; z-index: 1; top: 50%; left: 1rem; transform: translateY(-50%); color: var(--muted-foreground); transition: color .16s ease; }
-  .auth-field-icon svg { width: 1rem; height: 1rem; }
-  .auth-field:focus-within .auth-field-icon { color: var(--brand-teal); }
   /* Light mode: a solid black CTA reads as the strongest possible contrast against the white
      pane. Dark mode inverts that logic — a near-white button against the dark pane keeps the
      same "boldest element on the page" role instead of nearly disappearing into a dark-on-dark
@@ -223,5 +210,5 @@
   .auth-submit:hover:not(:disabled) { transform: translateY(-1px); background: #29302e; box-shadow: 0 10px 24px rgb(16 25 23 / .18); }
   .dark .auth-submit { background: var(--foreground); color: var(--brand-black); }
   .dark .auth-submit:hover:not(:disabled) { background: #d7dcda; box-shadow: 0 10px 24px rgb(0 0 0 / .32); }
-  @media (max-width: 767px) { .auth-page { grid-template-columns: 1fr; } .auth-brand-pane { display: none; } .auth-form-pane { padding: 6.5rem 1.5rem 3rem; } .auth-mobile-logo { left: 1.5rem; } }
+  @media (max-width: 767px) { .auth-page { grid-template-columns: 1fr; } .auth-brand-pane { display: none; } .auth-form-pane { padding: 6.5rem 1.5rem 3rem; } .auth-mobile-logo { display: block; left: 1.5rem; } }
 }
