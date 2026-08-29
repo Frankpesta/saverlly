@@ -50,7 +50,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[1.35rem] bg-popover bg-clip-padding text-sm text-popover-foreground shadow-[0_32px_100px_rgba(7,18,15,0.3)] ring-1 ring-white/70 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden duration-200 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-xl [&>form]:overflow-visible",
+          "fixed top-1/2 left-1/2 z-50 max-h-[calc(100svh-2rem)] w-[calc(100%-1.5rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[1.35rem] bg-popover bg-clip-padding text-sm text-popover-foreground shadow-[0_32px_100px_rgba(7,18,15,0.3)] ring-1 ring-white/70 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden duration-200 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-2xl [&>form]:overflow-visible",
           className,
         )}
         {...props}

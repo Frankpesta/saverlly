@@ -69,21 +69,21 @@ model Location {
   tags               String[] // e.g. ["mall", "downtown", "high-traffic"] — used for future ad targeting
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
-  devices            Device[]
-  locationSetupCodes LocationSetupCode[]
+  devices           Device[]
+  locationSetupCode LocationSetupCode?
 
   @@index([kioskId])
 }
 
+// One setup code per location — regenerating replaces the existing code in place rather than
+// adding another row, so a location never has more than one code (active or otherwise) at once.
 model LocationSetupCode {
   id         String   @id @default(uuid())
-  locationId String
+  locationId String   @unique
   location   Location @relation(fields: [locationId], references: [id])
   code       String   @unique // short, human-enterable (e.g. 8 chars, unambiguous charset)
-  active     Boolean  @default(true) // kiosk owner can revoke/regenerate
+  active     Boolean  @default(true) // kiosk owner can revoke/reactivate
   createdAt  DateTime @default(now())
-
-  @@index([locationId])
 }
 
 model Device {

@@ -88,14 +88,20 @@ export class LocationsService {
     await this.prisma.$transaction((tx) => deleteLocationsCascade(tx, [id]));
   }
 
+  /** A location only ever has one setup code. The first call creates it; every call after that
+   * regenerates the existing row in place (new code string, reactivated) rather than adding a
+   * second row — `locationId` is `@unique` on `LocationSetupCode`, so this is the only shape
+   * that's actually possible now. */
   async createSetupCode(locationId: string) {
     await this.findOne(locationId);
 
     const MAX_ATTEMPTS = 5;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        return await this.prisma.locationSetupCode.create({
-          data: { locationId, code: generateSetupCode() },
+        return await this.prisma.locationSetupCode.upsert({
+          where: { locationId },
+          create: { locationId, code: generateSetupCode() },
+          update: { code: generateSetupCode(), active: true },
         });
       } catch (err) {
         const isUniqueConflict =
@@ -111,23 +117,20 @@ export class LocationsService {
     throw new Error('Failed to generate a unique setup code');
   }
 
-  async findSetupCodes(locationId: string) {
+  async findSetupCode(locationId: string) {
     await this.findOne(locationId);
-    return this.prisma.locationSetupCode.findMany({
-      where: { locationId },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.prisma.locationSetupCode.findUnique({ where: { locationId } });
   }
 
-  async updateSetupCode(locationId: string, codeId: string, active: boolean) {
-    const code = await this.prisma.locationSetupCode.findFirst({
-      where: { id: codeId, locationId },
+  async updateSetupCode(locationId: string, active: boolean) {
+    const code = await this.prisma.locationSetupCode.findUnique({
+      where: { locationId },
     });
     if (!code) {
       throw new NotFoundException('Setup code not found for this location');
     }
     return this.prisma.locationSetupCode.update({
-      where: { id: codeId },
+      where: { locationId },
       data: { active },
     });
   }

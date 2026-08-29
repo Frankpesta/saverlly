@@ -38,9 +38,13 @@ const location: Location = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 }
 
-const setupCodes: LocationSetupCode[] = [
-  { id: "code-1", locationId: "loc-1", code: "ABC12345", active: true, createdAt: "2026-01-01T00:00:00.000Z" },
-]
+const setupCode: LocationSetupCode = {
+  id: "code-1",
+  locationId: "loc-1",
+  code: "ABC12345",
+  active: true,
+  createdAt: "2026-01-01T00:00:00.000Z",
+}
 
 const kioskOwner: UserProfile = {
   id: "user-1",
@@ -80,21 +84,21 @@ describe("LocationDetailPage", () => {
       if (url === "/api/proxy/locations/loc-1" && method === "GET") {
         return { ok: true, status: 200, json: async () => location } as Response
       }
-      if (url === "/api/proxy/locations/loc-1/setup-codes" && method === "GET") {
-        return { ok: true, status: 200, json: async () => setupCodes } as Response
+      if (url === "/api/proxy/locations/loc-1/setup-code" && method === "GET") {
+        return { ok: true, status: 200, json: async () => ({ setupCode }) } as Response
       }
-      if (url === "/api/proxy/locations/loc-1/setup-codes" && method === "POST") {
+      if (url === "/api/proxy/locations/loc-1/setup-code" && method === "POST") {
         return {
           ok: true,
           status: 201,
-          json: async () => ({ id: "code-2", locationId: "loc-1", code: "XYZ98765", active: true, createdAt: "2026-01-02T00:00:00.000Z" }),
+          json: async () => ({ id: "code-1", locationId: "loc-1", code: "XYZ98765", active: true, createdAt: "2026-01-02T00:00:00.000Z" }),
         } as Response
       }
-      if (url === "/api/proxy/locations/loc-1/setup-codes/code-1" && method === "PATCH") {
+      if (url === "/api/proxy/locations/loc-1/setup-code" && method === "PATCH") {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ ...setupCodes[0], active: false }),
+          json: async () => ({ ...setupCode, active: false }),
         } as Response
       }
       if (url === "/api/proxy/devices" && method === "GET") {
@@ -118,15 +122,15 @@ describe("LocationDetailPage", () => {
     expect(await screen.findByText("Computer 1")).toBeInTheDocument()
   })
 
-  it("generates a new setup code", async () => {
+  it("regenerates the setup code", async () => {
     renderWithClient(<LocationDetailPage />)
 
     await screen.findByText("ABC12345")
-    await userEvent.click(screen.getByRole("button", { name: /generate/i }))
+    await userEvent.click(screen.getByRole("button", { name: /regenerate/i }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/locations/loc-1/setup-codes",
+        "/api/proxy/locations/loc-1/setup-code",
         expect.objectContaining({ method: "POST" }),
       ),
     )
@@ -159,7 +163,7 @@ describe("LocationDetailPage", () => {
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/locations/loc-1/setup-codes/code-1",
+        "/api/proxy/locations/loc-1/setup-code",
         expect.objectContaining({
           method: "PATCH",
           body: JSON.stringify({ active: false }),

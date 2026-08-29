@@ -50,6 +50,18 @@ export type KioskUser = {
   updatedAt: string
 }
 
+export type AdminUser = {
+  id: string
+  name: string | null
+  email: string
+  role: "ADMIN"
+  kioskId: null
+  disabled: boolean
+  mustChangePassword: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 /** The kiosk owner's own email doubles as the kiosk's contact — there's no separate stored
  * contact field. Returned by `/my/kiosk-contact` for a location manager who needs to reach
  * their kiosk owner. */

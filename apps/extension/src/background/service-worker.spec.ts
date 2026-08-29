@@ -181,7 +181,7 @@ describe('top-frame navigation handling', () => {
   });
 });
 
-describe('CHECKOUT_CONFIRMED auto-apply', () => {
+describe('CHECKOUT_CONFIRMED manual-trigger', () => {
   beforeEach(() => {
     mockIsDormant.mockReset().mockResolvedValue(false);
     mockGetCachedMerchant.mockReset().mockResolvedValue(null);
@@ -196,13 +196,27 @@ describe('CHECKOUT_CONFIRMED auto-apply', () => {
     chromeMock.action.openPopup.mockClear();
   });
 
-  it('applies coupons automatically, with no APPLY_BEST_COUPON click, when no competing affiliate link is active', async () => {
+  it('shows the ready badge but does not apply coupons until APPLY_BEST_COUPON is sent, when no competing affiliate link is active', async () => {
     await sendMessage(
       { type: 'CHECKOUT_CONFIRMED', merchantId: 'm1', referrer: '' },
       { tab: { id: 7 } } as chrome.runtime.MessageSender,
     );
 
     expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({ tabId: 7, text: '%' });
+    expect(chromeMock.scripting.executeScript).not.toHaveBeenCalledWith(
+      expect.objectContaining({ files: ['content-scripts/coupon-applier.js'] }),
+    );
+  });
+
+  it('applies coupons once the popup sends APPLY_BEST_COUPON for the ready tab', async () => {
+    chromeMock.tabs.query.mockResolvedValue([{ id: 7 }]);
+
+    await sendMessage(
+      { type: 'CHECKOUT_CONFIRMED', merchantId: 'm1', referrer: '' },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+    await sendMessage({ type: 'APPLY_BEST_COUPON' });
+
     expect(chromeMock.scripting.executeScript).toHaveBeenLastCalledWith(
       expect.objectContaining({ target: { tabId: 7 }, files: ['content-scripts/coupon-applier.js'] }),
     );
@@ -225,7 +239,7 @@ describe('CHECKOUT_CONFIRMED auto-apply', () => {
     );
   });
 
-  it('lets GET_TAB_STATE reflect the auto-apply run already in progress, for a popup opened mid-run', async () => {
+  it('lets GET_TAB_STATE reflect the ready-but-not-yet-applied state, for a popup opened right after checkout is confirmed', async () => {
     chromeMock.tabs.query.mockResolvedValue([{ id: 7 }]);
 
     await sendMessage(
@@ -235,13 +249,13 @@ describe('CHECKOUT_CONFIRMED auto-apply', () => {
 
     const state = (await sendMessage({ type: 'GET_TAB_STATE' })) as {
       suppressedStepdown: boolean;
+      applyProgress: unknown;
       applyResult: unknown;
     } | null;
 
     expect(state).not.toBeNull();
     expect(state?.suppressedStepdown).toBe(false);
-    // Real completion is driven by the injected coupon-applier content script (not exercised
-    // here), so the run is still "in progress" as far as the background worker knows.
+    expect(state?.applyProgress).toBeNull();
     expect(state?.applyResult).toBeNull();
   });
 });

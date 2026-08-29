@@ -105,6 +105,44 @@ describe('Auth (e2e)', () => {
     await request(app.getHttpServer()).get('/users/me').expect(401);
   });
 
+  it('rejects an already-issued access token immediately once the user is disabled — not just at next login', async () => {
+    const user = await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    const loginRes = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: 'admin@test.com', password: TEST_PASSWORD })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+      .expect(200);
+
+    await testPrisma.user.update({ where: { id: user.id }, data: { disabled: true } });
+
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+      .expect(401);
+  });
+
+  it('rejects an already-issued access token immediately once the user no longer exists', async () => {
+    const user = await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    const loginRes = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: 'admin@test.com', password: TEST_PASSWORD })
+      .expect(200);
+
+    await testPrisma.user.delete({ where: { id: user.id } });
+
+    // Exactly what a deleted kiosk's cascade-deleted owner/manager rows produce: the still
+    // technically-unexpired access token must stop working on the very next request, not
+    // linger until its natural expiry.
+    await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', `Bearer ${loginRes.body.accessToken}`)
+      .expect(401);
+  });
+
   it('issues a new token pair on refresh and rotates the stored hash', async () => {
     await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
     const loginRes = await request(app.getHttpServer())

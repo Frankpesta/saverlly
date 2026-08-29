@@ -359,7 +359,7 @@ export default function AdminOverviewPage() {
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Top performing kiosks</h3>
-            <Link href="/admin/kiosks" className="text-sm text-muted-foreground hover:underline">
+            <Link href="/admin/kiosks/top-performers" className="text-sm text-muted-foreground hover:underline">
               View all →
             </Link>
           </div>
@@ -409,7 +409,7 @@ export default function AdminOverviewPage() {
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Top merchants</h3>
-            <Link href="/admin/merchants" className="text-sm text-muted-foreground hover:underline">
+            <Link href="/admin/merchants/top-performers" className="text-sm text-muted-foreground hover:underline">
               View all →
             </Link>
           </div>

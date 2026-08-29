@@ -110,43 +110,40 @@ export class LocationsController {
     return this.locationsService.remove(id);
   }
 
-  @Post(':id/setup-codes')
+  @Post(':id/setup-code')
   @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.LOCATION)
   @ApiOperation({
-    summary: 'Generate a new reusable device setup code for this location',
+    summary:
+      "Generate this location's device setup code — regenerates in place if one already exists (a location only ever has one)",
   })
-  @ApiResponse({ status: 201, description: 'Setup code created' })
+  @ApiResponse({ status: 201, description: 'Setup code created or regenerated' })
   createSetupCode(@Param('id') id: string) {
     return this.locationsService.createSetupCode(id);
   }
 
-  @Get(':id/setup-codes')
+  @Get(':id/setup-code')
   @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.LOCATION)
-  @ApiOperation({ summary: 'List setup codes for this location' })
-  @ApiResponse({ status: 200, description: 'Setup codes' })
-  findSetupCodes(@Param('id') id: string) {
-    return this.locationsService.findSetupCodes(id);
+  @ApiOperation({ summary: "This location's setup code, or null if none has been generated yet" })
+  @ApiResponse({ status: 200, description: 'The setup code, or null' })
+  async findSetupCode(@Param('id') id: string) {
+    // Wrapped rather than returned bare: a controller returning a raw `null` sends an empty
+    // body with no Content-Type (Nest/Express quirk, same class of issue as the
+    // GET /notifications/unread-count fix), which the dashboard's `res.json()` can't parse.
+    return { setupCode: await this.locationsService.findSetupCode(id) };
   }
 
-  @Patch(':id/setup-codes/:codeId')
+  @Patch(':id/setup-code')
   @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.LOCATION)
-  @ApiOperation({ summary: 'Revoke or reactivate a setup code' })
+  @ApiOperation({ summary: 'Revoke or reactivate this location\'s setup code' })
   @ApiResponse({ status: 200, description: 'Setup code updated' })
-  @ApiResponse({
-    status: 404,
-    description: 'Setup code does not belong to this location',
-  })
-  updateSetupCode(
-    @Param('id') id: string,
-    @Param('codeId') codeId: string,
-    @Body() dto: UpdateSetupCodeDto,
-  ) {
-    return this.locationsService.updateSetupCode(id, codeId, dto.active);
+  @ApiResponse({ status: 404, description: 'This location has no setup code yet' })
+  updateSetupCode(@Param('id') id: string, @Body() dto: UpdateSetupCodeDto) {
+    return this.locationsService.updateSetupCode(id, dto.active);
   }
 }

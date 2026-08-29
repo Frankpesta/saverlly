@@ -290,17 +290,20 @@ async function init(): Promise<void> {
     render('suppressed');
     return;
   }
-  // Applying starts automatically as soon as checkout is confirmed (background service
-  // worker), not on a popup click — restore whatever that run's already reached instead
-  // of showing a stale "idle" prompt, whether the popup opened live or was reopened after
-  // the run already finished.
+  // Applying only starts on a popup click (APPLY_BEST_COUPON) — if a run is already in
+  // progress or finished (e.g. the popup was closed and reopened mid-run), restore that
+  // state instead of showing a stale "idle" prompt; otherwise show the manual prompt.
   progress = tabState.applyProgress;
   if (tabState.applyResult) {
     lastResult = tabState.applyResult;
     render(tabState.applyResult.result === 'applied' ? 'success' : 'failure');
     return;
   }
-  render('applying');
+  if (tabState.applyProgress) {
+    render('applying');
+    return;
+  }
+  render('idle');
 }
 
 void init();
