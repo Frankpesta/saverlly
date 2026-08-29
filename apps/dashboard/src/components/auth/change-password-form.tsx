@@ -6,11 +6,12 @@ import { motion } from "motion/react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { AlertCircleIcon, ArrowRightIcon, KeyRoundIcon, Loader2Icon } from "lucide-react"
+import { AlertCircleIcon, ArrowRightIcon, Loader2Icon } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { PasswordInput } from "@/components/ui/password-input"
+import { FormField } from "@/components/dashboard/form-section"
 import { AuthShell } from "@/components/auth/auth-shell"
-import { AuthField } from "@/components/auth/auth-field"
 import { PasswordStrengthBar } from "@/components/dashboard/password-strength"
 import { passwordMismatchIssue, passwordSchema, passwordsMatch } from "@/lib/validation/schemas"
 
@@ -84,36 +85,26 @@ export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagl
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <AuthField
-            id="current-password"
-            label="Current password"
-            type="password"
-            autoComplete="current-password"
-            icon={<KeyRoundIcon />}
-            error={errors.currentPassword?.message}
-            {...register("currentPassword")}
-          />
+          <FormField label="Current password" htmlFor="current-password" error={errors.currentPassword?.message}>
+            <PasswordInput id="current-password" autoComplete="current-password" {...register("currentPassword")} />
+          </FormField>
           <div className="flex flex-col gap-2">
-            <AuthField
-              id="new-password"
-              label="New password"
-              type="password"
-              autoComplete="new-password"
-              icon={<KeyRoundIcon />}
-              error={errors.newPassword?.message}
-              {...register("newPassword")}
-            />
+            <FormField label="New password" htmlFor="new-password" error={errors.newPassword?.message}>
+              <PasswordInput id="new-password" autoComplete="new-password" {...register("newPassword")} />
+            </FormField>
             <PasswordStrengthBar password={watch("newPassword")} />
           </div>
-          <AuthField
-            id="confirm-new-password"
+          <FormField
             label="Confirm new password"
-            type="password"
-            autoComplete="new-password"
-            icon={<KeyRoundIcon />}
+            htmlFor="confirm-new-password"
             error={errors.confirmNewPassword?.message}
-            {...register("confirmNewPassword")}
-          />
+          >
+            <PasswordInput
+              id="confirm-new-password"
+              autoComplete="new-password"
+              {...register("confirmNewPassword")}
+            />
+          </FormField>
           <p className="-mt-2 text-xs text-muted-foreground">At least 8 characters, with a letter and a number.</p>
           <Button type="submit" disabled={isSubmitting} className="auth-submit mt-2 h-12">
             {isSubmitting && <Loader2Icon className="animate-spin" />}

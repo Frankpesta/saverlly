@@ -74,7 +74,7 @@ export function AddAdminUserDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <Button size="sm" onClick={() => setOpen(true)} className="gap-1.5">
+      <Button onClick={() => setOpen(true)} className="gap-1.5">
         <UserPlusIcon className="size-4" />
         Add employee
       </Button>
