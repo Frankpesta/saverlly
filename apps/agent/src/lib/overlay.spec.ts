@@ -92,4 +92,25 @@ describe('showAnnouncementOverlay', () => {
     expect(written).toContain("$form.Text = 'Kiosk''s Sale'");
     expect(written).toContain("$label.Text = 'Don''t miss it'");
   });
+
+  it('embeds an image-download block wired to a PictureBox when mediaUrl is provided', () => {
+    showAnnouncementOverlay('Sale', 'Everything 20% off', 'https://example.com/pic.png');
+
+    const written = mockWriteFileSync.mock.calls[0][1] as string;
+    expect(written).toContain("Invoke-WebRequest -Uri 'https://example.com/pic.png'");
+    expect(written).toContain('$pictureBox = New-Object System.Windows.Forms.PictureBox');
+    expect(written).toContain("$pictureBox.SizeMode = 'Zoom'");
+  });
+
+  it("escapes a single quote in mediaUrl and omits the image block entirely when there's no mediaUrl", () => {
+    showAnnouncementOverlay('Sale', 'Everything 20% off', "https://example.com/pic's.png");
+    const withImage = mockWriteFileSync.mock.calls[0][1] as string;
+    expect(withImage).toContain("Invoke-WebRequest -Uri 'https://example.com/pic''s.png'");
+
+    mockWriteFileSync.mockClear();
+    showAnnouncementOverlay('Sale', 'Everything 20% off');
+    const withoutImage = mockWriteFileSync.mock.calls[0][1] as string;
+    expect(withoutImage).not.toContain('Invoke-WebRequest');
+    expect(withoutImage).not.toContain('PictureBox');
+  });
 });

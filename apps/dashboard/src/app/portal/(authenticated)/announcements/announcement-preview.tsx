@@ -58,10 +58,6 @@ export function AnnouncementPreview({
           </div>
         </div>
       </div>
-      <p className="text-center text-xs text-muted-foreground">
-        Approximate preview — the kiosk overlay today renders title and body only; image display
-        isn&apos;t wired into the desktop agent yet.
-      </p>
     </div>
   )
 }

@@ -11,7 +11,11 @@ function psQuote(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-function overlayScript(title: string, body: string): string {
+function overlayScript(title: string, body: string, mediaUrl?: string | null): string {
+  // Controls are added Bottom/Top first, Fill last — WinForms docking gives non-Fill controls
+  // their edge in add order, then Fill claims whatever's left, so this ordering reliably lands
+  // the button at the bottom, the image (if any) at the top, and the body text in between
+  // regardless of whether the image block below actually runs.
   return `
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -24,6 +28,30 @@ $form.MinimizeBox = $false
 $form.MaximizeBox = $false
 $form.Width = 480
 $form.Height = 260
+$okButton = New-Object System.Windows.Forms.Button
+$okButton.Text = 'OK'
+$okButton.Dock = 'Bottom'
+$okButton.Height = 40
+$okButton.Add_Click({ $form.Close() })
+$form.Controls.Add($okButton)
+$tempImagePath = $null
+${
+  mediaUrl
+    ? `try {
+  $tempImagePath = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'saverlly-announcement-' + [System.Guid]::NewGuid().ToString() + '.img')
+  Invoke-WebRequest -Uri '${psQuote(mediaUrl)}' -OutFile $tempImagePath -TimeoutSec 10 -UseBasicParsing
+  $pictureBox = New-Object System.Windows.Forms.PictureBox
+  $pictureBox.Image = [System.Drawing.Image]::FromFile($tempImagePath)
+  $pictureBox.SizeMode = 'Zoom'
+  $pictureBox.Dock = 'Top'
+  $pictureBox.Height = 180
+  $form.Controls.Add($pictureBox)
+  $form.Height = $form.Height + 180
+} catch {
+  $tempImagePath = $null
+}`
+    : ''
+}
 $label = New-Object System.Windows.Forms.Label
 $label.Text = '${psQuote(body)}'
 $label.AutoSize = $false
@@ -32,14 +60,9 @@ $label.Padding = New-Object System.Windows.Forms.Padding(16)
 $label.TextAlign = 'MiddleCenter'
 $label.Font = New-Object System.Drawing.Font('Segoe UI', 12)
 $form.Controls.Add($label)
-$okButton = New-Object System.Windows.Forms.Button
-$okButton.Text = 'OK'
-$okButton.Dock = 'Bottom'
-$okButton.Height = 40
-$okButton.Add_Click({ $form.Close() })
-$form.Controls.Add($okButton)
 $form.AcceptButton = $okButton
 $form.Add_Shown({ $form.Activate() })
+$form.Add_FormClosed({ if ($tempImagePath -and (Test-Path $tempImagePath)) { Remove-Item $tempImagePath -Force -ErrorAction SilentlyContinue } })
 [void]$form.ShowDialog()
 `;
 }
@@ -114,7 +137,7 @@ function ensureOverlayRelayTask(username: string, scriptPath: string): void {
  * screen — so callers can avoid marking a ONCE/MAX_N_TIMES announcement as shown when no one
  * could have actually seen it.
  */
-export function showAnnouncementOverlay(title: string, body: string): boolean {
+export function showAnnouncementOverlay(title: string, body: string, mediaUrl?: string | null): boolean {
   const username = getInteractiveUsername();
   if (!username) {
     return false;
@@ -122,7 +145,7 @@ export function showAnnouncementOverlay(title: string, body: string): boolean {
 
   const scriptPath = announcementOverlayScriptPath();
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
-  fs.writeFileSync(scriptPath, overlayScript(title, body), 'utf8');
+  fs.writeFileSync(scriptPath, overlayScript(title, body, mediaUrl), 'utf8');
 
   ensureOverlayRelayTask(username, scriptPath);
   execFileSync('schtasks', ['/run', '/tn', ANNOUNCEMENT_OVERLAY_TASK_NAME], { stdio: 'ignore' });
