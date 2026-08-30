@@ -92,7 +92,7 @@ describe("NotificationBell", () => {
     )
   })
 
-  it("marks all read via the header action", async () => {
+  it("marks all read via the footer action", async () => {
     renderWithClient(<NotificationBell />)
 
     await screen.findByText("1")
