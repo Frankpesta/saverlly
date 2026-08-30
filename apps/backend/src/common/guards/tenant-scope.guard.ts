@@ -103,7 +103,10 @@ export class TenantScopeGuard implements CanActivate {
     if (!announcement) {
       return false;
     }
-    if (announcement.kioskId !== null && announcement.kioskId !== user.kioskId) {
+    if (
+      announcement.kioskId !== null &&
+      announcement.kioskId !== user.kioskId
+    ) {
       return false;
     }
     if (user.role === UserRole.LOCATION_MANAGER) {
@@ -167,6 +170,13 @@ export class TenantScopeGuard implements CanActivate {
         // Routes using this type must not be reachable by LOCATION_MANAGER.
         return announcement ? { kioskId: announcement.kioskId } : null;
       }
+      case TenantResourceType.ANNOUNCEMENT_VIEW:
+        // Never reached — canActivate() intercepts this type before calling resolveScope,
+        // since "viewable" needs the broadcast/overlap rules in canViewAnnouncement instead
+        // of this method's generic kioskId-equality check.
+        throw new Error(
+          'ANNOUNCEMENT_VIEW must be handled by canViewAnnouncement',
+        );
     }
   }
 }
