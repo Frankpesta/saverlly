@@ -352,6 +352,126 @@ describe('Announcements (e2e)', () => {
         .send({ locationIds: ['00000000-0000-0000-0000-000000000000'] })
         .expect(400);
     });
+
+    it('lets a kiosk-owner view (but not edit or delete) a platform-wide broadcast', async () => {
+      const { token } = await ownerCtx();
+      const broadcast = await seedAnnouncement(null, { title: 'For everyone' });
+
+      const res = await request(app.getHttpServer())
+        .get(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(res.body.title).toBe('For everyone');
+
+      await request(app.getHttpServer())
+        .patch(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Hijacked' })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .delete(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+  });
+
+  describe('location-manager visibility', () => {
+    async function locationManagerCtx(managedLocationIds: string[] = []) {
+      const kiosk = await seedKiosk();
+      const location = await seedLocation(kiosk.id);
+      await seedUser({
+        email: 'lm@test.com',
+        role: 'LOCATION_MANAGER',
+        kioskId: kiosk.id,
+        managedLocationIds:
+          managedLocationIds.length > 0 ? managedLocationIds : [location.id],
+      });
+      const token = await loginAs(app, 'lm@test.com');
+      return { kiosk, location, token };
+    }
+
+    it('lets a location-manager view a kiosk-wide announcement (empty locationIds)', async () => {
+      const { kiosk, token } = await locationManagerCtx();
+      const announcement = await seedAnnouncement(kiosk.id);
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${announcement.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+    });
+
+    it('lets a location-manager view an announcement scoped to one of their managed locations', async () => {
+      const kiosk = await seedKiosk();
+      const managedLocation = await seedLocation(kiosk.id);
+      const otherLocation = await seedLocation(kiosk.id);
+      await seedUser({
+        email: 'lm@test.com',
+        role: 'LOCATION_MANAGER',
+        kioskId: kiosk.id,
+        managedLocationIds: [managedLocation.id, otherLocation.id],
+      });
+      const token = await loginAs(app, 'lm@test.com');
+      const announcement = await seedAnnouncement(kiosk.id, {
+        locationIds: [managedLocation.id],
+      });
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${announcement.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+    });
+
+    it('lets a location-manager view a platform-wide broadcast', async () => {
+      const { token } = await locationManagerCtx();
+      const broadcast = await seedAnnouncement(null);
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+    });
+
+    it("403s a location-manager viewing an announcement outside their assigned locations", async () => {
+      const kiosk = await seedKiosk();
+      const otherLocation = await seedLocation(kiosk.id);
+      const { token } = await locationManagerCtx([]);
+      const announcement = await seedAnnouncement(kiosk.id, {
+        locationIds: [otherLocation.id],
+      });
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${announcement.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+
+    it('403s a location-manager viewing another kiosk entirely', async () => {
+      const { token } = await locationManagerCtx();
+      const otherKiosk = await seedKiosk();
+      const announcement = await seedAnnouncement(otherKiosk.id);
+
+      await request(app.getHttpServer())
+        .get(`/announcements/${announcement.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
+
+    it('403s a location-manager PATCHing or DELETEing an announcement they can view', async () => {
+      const { kiosk, token } = await locationManagerCtx();
+      const announcement = await seedAnnouncement(kiosk.id);
+
+      await request(app.getHttpServer())
+        .patch(`/announcements/${announcement.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Nope' })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .delete(`/announcements/${announcement.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+    });
   });
 
   describe('upload-image', () => {

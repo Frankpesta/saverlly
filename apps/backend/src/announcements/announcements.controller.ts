@@ -136,10 +136,16 @@ export class AnnouncementsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @UseGuards(TenantScopeGuard)
-  @TenantResource(TenantResourceType.ANNOUNCEMENT)
-  @ApiOperation({ summary: 'Get an announcement by id' })
+  @TenantResource(TenantResourceType.ANNOUNCEMENT_VIEW)
+  @ApiOperation({
+    summary: 'Get an announcement by id',
+    description:
+      'Kiosk-owner and location-manager get read-only visibility into platform-wide ' +
+      "broadcasts and their own kiosk's announcements (location-manager further scoped to " +
+      'their assigned locations) — only ADMIN or the owning KIOSK_OWNER can PATCH/DELETE one.',
+  })
   @ApiResponse({ status: 200, description: 'The announcement' })
   @ApiResponse({ status: 403, description: "Not in the caller's tenant scope" })
   @ApiResponse({ status: 404, description: 'Announcement not found' })

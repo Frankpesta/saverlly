@@ -59,6 +59,10 @@ export class TenantScopeGuard implements CanActivate {
       return false;
     }
 
+    if (options.type === TenantResourceType.ANNOUNCEMENT_VIEW) {
+      return this.canViewAnnouncement(user, resourceId);
+    }
+
     const scope = await this.resolveScope(options.type, resourceId);
     if (!scope || scope.kioskId !== user.kioskId) {
       return false;
@@ -78,6 +82,43 @@ export class TenantScopeGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  /**
+   * View-only visibility check for a single announcement — mirrors
+   * AnnouncementsService.findAll exactly: platform-wide broadcasts (kioskId: null) are visible
+   * read-only to every KIOSK_OWNER/LOCATION_MANAGER, and a LOCATION_MANAGER additionally needs
+   * the announcement to target all locations or overlap their managedLocationIds. Kept separate
+   * from resolveScope/the generic kioskId-equality check above because "viewable" is strictly
+   * broader than "same tenant" for this one resource.
+   */
+  private async canViewAnnouncement(
+    user: JwtPayload,
+    id: string,
+  ): Promise<boolean> {
+    const announcement = await this.prisma.announcement.findUnique({
+      where: { id },
+      select: { kioskId: true, locationIds: true },
+    });
+    if (!announcement) {
+      return false;
+    }
+    if (announcement.kioskId !== null && announcement.kioskId !== user.kioskId) {
+      return false;
+    }
+    if (user.role === UserRole.LOCATION_MANAGER) {
+      if (announcement.locationIds.length === 0) {
+        return true;
+      }
+      const manager = await this.prisma.user.findUnique({
+        where: { id: user.sub },
+        select: { managedLocationIds: true },
+      });
+      return announcement.locationIds.some((locationId) =>
+        manager?.managedLocationIds.includes(locationId),
+      );
+    }
+    return true; // KIOSK_OWNER
   }
 
   private async resolveScope(

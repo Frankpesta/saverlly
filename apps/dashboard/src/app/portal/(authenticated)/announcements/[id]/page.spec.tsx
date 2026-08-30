@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AnnouncementDetailPage from "./page"
-import type { Announcement, Location } from "@/lib/api/types"
+import type { Announcement, Location, UserProfile } from "@/lib/api/types"
 
 jest.mock("next/link", () => {
   return function MockLink({
@@ -19,8 +19,9 @@ jest.mock("next/link", () => {
 })
 
 const push = jest.fn()
+let mockParamsId = "ann-1"
 jest.mock("next/navigation", () => ({
-  useParams: () => ({ id: "ann-1" }),
+  useParams: () => ({ id: mockParamsId }),
   useRouter: () => ({ push }),
 }))
 
@@ -56,6 +57,29 @@ const announcement: Announcement = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 }
 
+const owner: UserProfile = {
+  id: "user-1",
+  name: "Jane Owner",
+  email: "owner@example.com",
+  role: "KIOSK_OWNER",
+  kioskId: "kiosk-1",
+}
+
+const locationManager: UserProfile = {
+  id: "user-2",
+  name: "Max Manager",
+  email: "manager@example.com",
+  role: "LOCATION_MANAGER",
+  kioskId: "kiosk-1",
+}
+
+const broadcast: Announcement = {
+  ...announcement,
+  id: "ann-2",
+  kioskId: null,
+  title: "Platform Broadcast",
+}
+
 function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -64,6 +88,10 @@ function renderWithClient(ui: React.ReactElement) {
 }
 
 describe("AnnouncementDetailPage", () => {
+  afterEach(() => {
+    mockParamsId = "ann-1"
+  })
+
   beforeEach(() => {
     push.mockClear()
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -77,6 +105,9 @@ describe("AnnouncementDetailPage", () => {
       }
       if (url === "/api/proxy/announcements/ann-1" && method === "DELETE") {
         return { ok: true, status: 204, json: async () => undefined } as Response
+      }
+      if (url === "/api/proxy/users/me") {
+        return { ok: true, status: 200, json: async () => owner } as Response
       }
       throw new Error(`Unhandled fetch in test: ${method} ${url}`)
     }) as jest.Mock
@@ -108,5 +139,52 @@ describe("AnnouncementDetailPage", () => {
       ),
     )
     await waitFor(() => expect(push).toHaveBeenCalledWith("/portal/announcements"))
+  })
+
+  it("shows a read-only preview (no edit form, no delete button) for a location manager", async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/proxy/announcements/ann-1") {
+        return { ok: true, status: 200, json: async () => announcement } as Response
+      }
+      if (url === "/api/proxy/locations") {
+        return { ok: true, status: 200, json: async () => locations } as Response
+      }
+      if (url === "/api/proxy/users/me") {
+        return { ok: true, status: 200, json: async () => locationManager } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${url}`)
+    }) as jest.Mock
+
+    renderWithClient(<AnnouncementDetailPage />)
+
+    expect(await screen.findByText("Location managers can preview announcements but can't edit them.")).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("Active Promo")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument()
+  })
+
+  it("shows a read-only preview (no edit form, no delete button) for a kiosk owner viewing a platform-wide broadcast", async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/proxy/announcements/ann-2") {
+        return { ok: true, status: 200, json: async () => broadcast } as Response
+      }
+      if (url === "/api/proxy/locations") {
+        return { ok: true, status: 200, json: async () => locations } as Response
+      }
+      if (url === "/api/proxy/users/me") {
+        return { ok: true, status: 200, json: async () => owner } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${url}`)
+    }) as jest.Mock
+    mockParamsId = "ann-2"
+
+    renderWithClient(<AnnouncementDetailPage />)
+
+    expect(
+      await screen.findByText("This is a platform-wide announcement from Saverlly — it can't be edited here."),
+    ).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("Platform Broadcast")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument()
   })
 })
