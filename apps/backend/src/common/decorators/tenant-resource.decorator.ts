@@ -26,4 +26,7 @@ export const TENANT_RESOURCE_KEY = 'tenantResource';
  * it against the caller's tenant scope. Admins bypass this check entirely.
  */
 export const TenantResource = (type: TenantResourceType, paramKey = 'id') =>
-  SetMetadata(TENANT_RESOURCE_KEY, { type, paramKey } satisfies TenantResourceOptions);
+  SetMetadata(TENANT_RESOURCE_KEY, {
+    type,
+    paramKey,
+  } satisfies TenantResourceOptions);
