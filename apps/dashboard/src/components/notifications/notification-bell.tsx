@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
@@ -67,20 +68,8 @@ export function NotificationBell() {
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md">
-          <SheetHeader className="flex-row items-center justify-between border-b border-border/70 px-5 py-4">
+          <SheetHeader className="border-b border-border/70 px-5 py-4">
             <SheetTitle>Notifications</SheetTitle>
-            {unreadCount > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-auto px-1.5 py-0.5 text-xs text-muted-foreground"
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
-              >
-                Mark all read
-              </Button>
-            )}
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-3 py-3">
             {items.length === 0 && (
@@ -110,6 +99,18 @@ export function NotificationBell() {
               ))}
             </div>
           </div>
+          {unreadCount > 0 && (
+            <SheetFooter className="border-t border-border/70 p-4">
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => markAllRead.mutate()}
+                disabled={markAllRead.isPending}
+              >
+                Mark all read
+              </Button>
+            </SheetFooter>
+          )}
         </SheetContent>
       </Sheet>
       <NotificationDetailDialog
