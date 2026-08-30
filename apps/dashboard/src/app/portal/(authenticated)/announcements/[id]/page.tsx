@@ -42,12 +42,14 @@ import {
   useUpdateAnnouncement,
   useUploadAnnouncementImage,
 } from "@/lib/api/hooks/use-announcements"
+import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
 import { toDatetimeLocal } from "@/lib/format-date"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { AnnouncementPreview } from "../announcement-preview"
 import { LocationTargetPicker } from "../location-target-picker"
+import { AnnouncementReadOnlyView } from "./announcement-readonly-view"
 
 const REPEAT_POLICIES = ["ONCE", "EVERY_LOGIN", "MAX_N_TIMES"] as const
 
@@ -82,8 +84,16 @@ type AnnouncementEditFormValues = z.infer<typeof announcementEditSchema>
 export default function AnnouncementDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { data: announcement, isLoading, isError } = useAnnouncement(id)
+  const { data: announcement, isLoading: announcementLoading, isError } = useAnnouncement(id)
+  const { data: currentUser, isLoading: userLoading } = useCurrentUser()
+  const { data: locations } = useLocations()
   const deleteAnnouncement = useDeleteAnnouncement()
+  const isLoading = announcementLoading || userLoading
+
+  // A location manager never has edit rights on announcements, and a kiosk owner can't edit a
+  // platform-wide admin broadcast (kioskId null) — TenantScopeGuard denies mutating those for
+  // anyone but ADMIN, even though everyone in scope can view/preview them.
+  const canEdit = currentUser?.role !== "LOCATION_MANAGER" && announcement?.kioskId !== null
 
   function handleDelete() {
     deleteAnnouncement.mutate(id, {
@@ -109,7 +119,7 @@ export default function AnnouncementDetailPage() {
             <h2 className="mt-1 text-2xl font-semibold tracking-tight">{announcement?.title ?? "Announcement"}</h2>
           </div>
         </div>
-        {announcement && (
+        {announcement && canEdit && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 text-destructive">
@@ -142,9 +152,19 @@ export default function AnnouncementDetailPage() {
       {isError && <p className="text-sm text-destructive">Could not load this announcement.</p>}
       {isLoading && <Skeleton className="h-64 w-full max-w-lg" />}
 
-      {announcement && (
+      {announcement && canEdit && (
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <AnnouncementEditForm key={announcement.id} announcement={announcement} />
+        </div>
+      )}
+
+      {announcement && !canEdit && (
+        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <AnnouncementReadOnlyView
+            announcement={announcement}
+            locations={locations ?? []}
+            reason={announcement.kioskId === null ? "broadcast" : "location-manager"}
+          />
         </div>
       )}
     </div>

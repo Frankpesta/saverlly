@@ -6,6 +6,10 @@ export enum TenantResourceType {
   DEVICE = 'device',
   USER = 'user',
   ANNOUNCEMENT = 'announcement',
+  /** Read-only variant of ANNOUNCEMENT: also lets KIOSK_OWNER/LOCATION_MANAGER view (not
+   * mutate) platform-wide broadcasts and announcements scoped to their locations, mirroring
+   * AnnouncementsService.findAll's visibility rules. Use only for the GET :id route. */
+  ANNOUNCEMENT_VIEW = 'announcement_view',
 }
 
 export interface TenantResourceOptions {
