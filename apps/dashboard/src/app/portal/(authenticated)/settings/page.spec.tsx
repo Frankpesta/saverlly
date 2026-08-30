@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import PortalSettingsPage from "./page"
-import type { Kiosk, KioskUser, UserProfile } from "@/lib/api/types"
+import type { Kiosk, KioskUser, Location, UserProfile } from "@/lib/api/types"
 
 const owner: UserProfile = {
   id: "user-1",
@@ -58,6 +58,23 @@ const users: KioskUser[] = [
   },
 ]
 
+const locations: Location[] = [
+  {
+    id: "loc-1",
+    kioskId: "kiosk-1",
+    name: "Downtown",
+    address: "1 Main St",
+    city: "Springfield",
+    state: "IL",
+    zip: "62701",
+    latitude: null,
+    longitude: null,
+    tags: [],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  },
+]
+
 function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -83,6 +100,16 @@ describe("PortalSettingsPage", () => {
         }
         if (url === "/api/proxy/kiosks/kiosk-1/users") {
           return { ok: true, status: 200, json: async () => users } as Response
+        }
+        if (url === "/api/proxy/locations") {
+          return { ok: true, status: 200, json: async () => locations } as Response
+        }
+        if (url === "/api/proxy/kiosks/kiosk-1/users/user-2" && method === "PATCH") {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ ...users[1], managedLocationIds: ["loc-1"] }),
+          } as Response
         }
 
         throw new Error(`Unhandled fetch in test: ${method} ${url}`)
@@ -139,6 +166,35 @@ describe("PortalSettingsPage", () => {
       )
 
       expect(await screen.findByText("Gen3ratedPassw0rd!")).toBeInTheDocument()
+    })
+
+    it("lets the kiosk owner assign a location to a location manager", async () => {
+      const user = userEvent.setup()
+      renderWithClient(<PortalSettingsPage />)
+
+      await screen.findByText("manager@example.com")
+      await user.click(screen.getByRole("button", { name: /edit manager@example.com/i }))
+
+      const checkbox = await screen.findByRole("checkbox", { name: "Downtown" })
+      await user.click(checkbox)
+      await user.click(screen.getByRole("button", { name: /save changes/i }))
+
+      await waitFor(() =>
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/proxy/kiosks/kiosk-1/users/user-2",
+          expect.objectContaining({
+            method: "PATCH",
+            body: JSON.stringify({ managedLocationIds: ["loc-1"] }),
+          }),
+        ),
+      )
+    })
+
+    it("does not offer a location-assignment edit button for the owner's own row", async () => {
+      renderWithClient(<PortalSettingsPage />)
+
+      await screen.findByText("manager@example.com")
+      expect(screen.queryByRole("button", { name: /edit owner@example.com/i })).not.toBeInTheDocument()
     })
   })
 
