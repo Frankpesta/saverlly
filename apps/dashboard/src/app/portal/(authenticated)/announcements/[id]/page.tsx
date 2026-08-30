@@ -86,7 +86,6 @@ export default function AnnouncementDetailPage() {
   const router = useRouter()
   const { data: announcement, isLoading: announcementLoading, isError } = useAnnouncement(id)
   const { data: currentUser, isLoading: userLoading } = useCurrentUser()
-  const { data: locations } = useLocations()
   const deleteAnnouncement = useDeleteAnnouncement()
   const isLoading = announcementLoading || userLoading
 
@@ -159,12 +158,8 @@ export default function AnnouncementDetailPage() {
       )}
 
       {announcement && !canEdit && (
-        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <AnnouncementReadOnlyView
-            announcement={announcement}
-            locations={locations ?? []}
-            reason={announcement.kioskId === null ? "broadcast" : "location-manager"}
-          />
+        <div className="max-w-md">
+          <AnnouncementReadOnlyView announcement={announcement} />
         </div>
       )}
     </div>

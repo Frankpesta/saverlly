@@ -141,14 +141,11 @@ describe("AnnouncementDetailPage", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/portal/announcements"))
   })
 
-  it("shows a read-only preview (no edit form, no delete button) for a location manager", async () => {
+  it("shows just the preview card (no edit form, no schedule/targeting, no delete button) for a location manager", async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url === "/api/proxy/announcements/ann-1") {
         return { ok: true, status: 200, json: async () => announcement } as Response
-      }
-      if (url === "/api/proxy/locations") {
-        return { ok: true, status: 200, json: async () => locations } as Response
       }
       if (url === "/api/proxy/users/me") {
         return { ok: true, status: 200, json: async () => locationManager } as Response
@@ -158,19 +155,18 @@ describe("AnnouncementDetailPage", () => {
 
     renderWithClient(<AnnouncementDetailPage />)
 
-    expect(await screen.findByText("Location managers can preview announcements but can't edit them.")).toBeInTheDocument()
+    expect(await screen.findByText("Live preview")).toBeInTheDocument()
+    expect(screen.getAllByText("Active Promo").length).toBeGreaterThan(0)
     expect(screen.queryByDisplayValue("Active Promo")).not.toBeInTheDocument()
+    expect(screen.queryByText("Repeat")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument()
   })
 
-  it("shows a read-only preview (no edit form, no delete button) for a kiosk owner viewing a platform-wide broadcast", async () => {
+  it("shows just the preview card (no edit form, no schedule/targeting, no delete button) for a kiosk owner viewing a platform-wide broadcast", async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url === "/api/proxy/announcements/ann-2") {
         return { ok: true, status: 200, json: async () => broadcast } as Response
-      }
-      if (url === "/api/proxy/locations") {
-        return { ok: true, status: 200, json: async () => locations } as Response
       }
       if (url === "/api/proxy/users/me") {
         return { ok: true, status: 200, json: async () => owner } as Response
@@ -181,10 +177,10 @@ describe("AnnouncementDetailPage", () => {
 
     renderWithClient(<AnnouncementDetailPage />)
 
-    expect(
-      await screen.findByText("This is a platform-wide announcement from Saverlly — it can't be edited here."),
-    ).toBeInTheDocument()
+    expect(await screen.findByText("Live preview")).toBeInTheDocument()
+    expect(screen.getAllByText("Platform Broadcast").length).toBeGreaterThan(0)
     expect(screen.queryByDisplayValue("Platform Broadcast")).not.toBeInTheDocument()
+    expect(screen.queryByText("Repeat")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument()
   })
 })
