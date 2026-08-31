@@ -13,7 +13,7 @@ echo "==> Building and starting containers"
 docker compose -f docker-compose.prod.yml up -d --build
 
 echo "==> Waiting for backend container to be healthy"
-until [ "$(docker inspect -f '{{.State.Health.Status}}' saverlly-backend 2>/dev/null)" = "healthy" ]; do
+until [ "$(docker inspect -f '{{.State.Health.Status}}' saverlly-prod-backend 2>/dev/null)" = "healthy" ]; do
   sleep 3
 done
 
