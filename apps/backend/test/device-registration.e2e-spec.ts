@@ -82,6 +82,17 @@ describe('Device registration (e2e)', () => {
     expect(first.body.token).not.toBe(second.body.token);
   });
 
+  it('registers with a setup code typed in a different case or with stray whitespace', async () => {
+    await seedSetupCode();
+
+    const res = await request(app.getHttpServer())
+      .post('/devices/register')
+      .send({ setupCode: '  regtest1  ', hostname: 'PC-1' })
+      .expect(201);
+
+    expect(res.body).toHaveProperty('token');
+  });
+
   it('400s an invalid setup code', async () => {
     await request(app.getHttpServer())
       .post('/devices/register')
