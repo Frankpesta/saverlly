@@ -99,13 +99,25 @@ begin
 end;
 
 [UninstallRun]
-; Runs FIRST, while {app}\saverlly-agent.exe and its DPAPI-encrypted device token are still on
-; disk: deregisters this device from the backend (deletes its Device row + tokens — see
-; apps/backend/src/public-api/public-api.controller.ts's DELETE /public/devices/me) and applies
-; an ExtensionInstallBlocklist policy that force-uninstalls the Chrome extension regardless of
-; whether it's here via our own force-install or a separate manual Chrome Web Store install (see
-; apps/agent/src/lib/chrome-policy.ts's forceRemoveExtension). Best-effort/never fails the
-; uninstall — see apps/agent/src/main.ts's runUninstallOnce.
+; MUST run before AgentUninstallCleanup below. The already-running background agent (started at
+; last logon by the SaverllyKioskAgent scheduled task, running forever via main.ts's
+; runBackgroundAgent setInterval loop) is still alive at this point and unconditionally
+; re-applies the Chrome ExtensionInstallForcelist/Allowlist policy every STATUS_SYNC_INTERVAL_MS
+; (status-sync.ts's runStatusSync — that's what "self-healing" means). If it isn't killed first,
+; its very next cycle re-writes Forcelist/Allowlist right back after AgentUninstallCleanup below
+; clears them, fighting the uninstall and leaving the extension force-installed. taskkill exits
+; nonzero ("not found") when no instance is running, which is fine — Inno doesn't treat that as
+; fatal for [UninstallRun] entries. /T also kills the native-messaging host exe if one happens
+; to be running as a child at this exact moment.
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM saverlly-agent.exe /T"; Flags: runhidden; RunOnceId: "KillRunningAgent"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM saverlly-agent-host.exe /T"; Flags: runhidden; RunOnceId: "KillRunningAgentHost"
+; Runs next, now that no competing background instance can undo it, while {app}\saverlly-agent.exe
+; and its DPAPI-encrypted device token are still on disk: deregisters this device from the backend
+; (deletes its Device row + tokens — see apps/backend/src/public-api/public-api.controller.ts's
+; DELETE /public/devices/me) and applies an ExtensionInstallBlocklist policy that force-uninstalls
+; the Chrome extension regardless of whether it's here via our own force-install or a separate
+; manual Chrome Web Store install (see apps/agent/src/lib/chrome-policy.ts's forceRemoveExtension).
+; Best-effort/never fails the uninstall — see apps/agent/src/main.ts's runUninstallOnce.
 Filename: "{app}\saverlly-agent.exe"; Parameters: "--uninstall-once"; Flags: runhidden; RunOnceId: "AgentUninstallCleanup"
 ; Mirrors the exact manual removal steps hand-verified earlier in this project's development —
 ; reg delete on a key that's already gone is a no-op, not an error, same as chrome-policy.ts's
