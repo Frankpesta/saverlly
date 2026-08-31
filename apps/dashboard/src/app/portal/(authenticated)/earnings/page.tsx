@@ -96,7 +96,7 @@ export default function PortalEarningsPage() {
         window.location.href = data.url
       },
       onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Could not start Stripe onboarding."),
+        toast.error(error instanceof ApiError ? error.message : "Could not start onboarding."),
     })
   }
 
@@ -108,7 +108,7 @@ export default function PortalEarningsPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Earnings</h2>
         <p className="text-sm text-muted-foreground">
-          Your balance, payout history, and Stripe payout connection.
+          Your balance, payout history, and account connection.
         </p>
       </div>
 
@@ -144,9 +144,9 @@ export default function PortalEarningsPage() {
         />
       </BentoGrid>
 
-      <Card className="border border-black/[0.06] dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
+      <Card className="border border-black/6 dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
         <CardHeader>
-          <CardTitle>Stripe payouts</CardTitle>
+          <CardTitle>Payouts</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -160,8 +160,8 @@ export default function PortalEarningsPage() {
               </Badge>
               <p className="text-sm text-muted-foreground">
                 {stripePayoutsEnabled
-                  ? "Your Stripe account is connected and ready to receive payouts."
-                  : "Connect a Stripe account so payouts can be sent to you."}
+                  ? "Your account is connected and ready to receive payouts."
+                  : "Connect your account so payouts can be sent to you."}
               </p>
             </div>
             {!stripePayoutsEnabled && (
@@ -171,14 +171,14 @@ export default function PortalEarningsPage() {
                   ? "Redirecting…"
                   : stripeAccountId
                     ? "Continue onboarding"
-                    : "Connect with Stripe"}
+                    : "Connect Account"}
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border border-black/[0.06] dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
+      <Card className="border border-black/6 dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
         <CardHeader>
           <CardTitle>Commission history</CardTitle>
         </CardHeader>
@@ -236,7 +236,7 @@ export default function PortalEarningsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border border-black/[0.06] dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
+      <Card className="border border-black/6 dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
         <CardHeader>
           <CardTitle>Payout history</CardTitle>
         </CardHeader>
