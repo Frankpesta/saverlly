@@ -12,6 +12,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { IsAnnouncementLayout } from './is-announcement-layout.validator';
 
 export class UpdateAnnouncementDto {
   @ApiPropertyOptional({ type: [String] })
@@ -36,6 +37,15 @@ export class UpdateAnnouncementDto {
   @IsOptional()
   @IsUrl()
   mediaUrl?: string;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    description: 'Freeform canvas design (AnnouncementLayout). See CreateAnnouncementDto.layout.',
+  })
+  @IsOptional()
+  @IsAnnouncementLayout()
+  layout?: unknown;
 
   @ApiPropertyOptional()
   @IsOptional()

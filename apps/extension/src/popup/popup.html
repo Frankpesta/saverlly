@@ -21,6 +21,10 @@
       <main id="content" class="popup__content">
         <p class="popup__subtext">Checking this page…</p>
       </main>
+      <!-- Sits outside #content so a promo survives every view re-render (idle/applying/success/…)
+           rather than being wiped whenever render() replaces the main panel. Stays empty and
+           takes up no space when there is no active promotion for this device. -->
+      <aside id="promo" class="popup__promo" hidden></aside>
     </div>
     <script src="popup.js"></script>
   </body>

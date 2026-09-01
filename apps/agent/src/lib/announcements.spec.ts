@@ -36,19 +36,31 @@ describe('pollAndDisplayAnnouncements', () => {
     await pollAndDisplayAnnouncements('tok');
 
     expect(mockShowOverlay).toHaveBeenCalledTimes(1);
-    expect(mockShowOverlay).toHaveBeenCalledWith('Title shown', 'Body shown', undefined);
+    expect(mockShowOverlay).toHaveBeenCalledWith(expect.objectContaining({ id: 'shown' }));
     expect(mockRecordShown).toHaveBeenCalledTimes(1);
     expect(mockRecordShown).toHaveBeenCalledWith(expect.objectContaining({ id: 'shown' }));
   });
 
-  it("passes the announcement's mediaUrl through to the overlay", async () => {
-    mockFetchActiveAnnouncements.mockResolvedValue([ann('a', { mediaUrl: 'https://example.com/pic.png' })]);
+  // The whole announcement is handed to the overlay now, not a flattened title/body/mediaUrl
+  // triple — the overlay needs `layout` to render the kiosk owner's actual design.
+  it("passes the announcement's media and layout through to the overlay", async () => {
+    const layout = { version: 1, background: '#ffffff', elements: [] };
+    mockFetchActiveAnnouncements.mockResolvedValue([
+      ann('a', { mediaUrl: 'https://example.com/pic.png', layout }),
+    ]);
     mockShouldShow.mockReturnValue(true);
     mockShowOverlay.mockReturnValue(true);
 
     await pollAndDisplayAnnouncements('tok');
 
-    expect(mockShowOverlay).toHaveBeenCalledWith('Title a', 'Body a', 'https://example.com/pic.png');
+    expect(mockShowOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Title a',
+        body: 'Body a',
+        mediaUrl: 'https://example.com/pic.png',
+        layout,
+      }),
+    );
   });
 
   it('does not record as shown when nobody is logged in to see the popup', async () => {

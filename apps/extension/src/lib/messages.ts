@@ -47,6 +47,10 @@ export interface GetLifetimeSavedMessage {
   type: 'GET_LIFETIME_SAVED';
 }
 
+export interface GetActivePromotionsMessage {
+  type: 'GET_ACTIVE_PROMOTIONS';
+}
+
 export type ExtensionMessage =
   | CheckoutConfirmedMessage
   | CouponApplyResultMessage
@@ -54,7 +58,8 @@ export type ExtensionMessage =
   | GetTabStateMessage
   | ApplyBestCouponMessage
   | ApplyDoneMessage
-  | GetLifetimeSavedMessage;
+  | GetLifetimeSavedMessage
+  | GetActivePromotionsMessage;
 
 export interface TabCheckoutState {
   merchantId: string;

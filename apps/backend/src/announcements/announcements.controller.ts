@@ -51,6 +51,13 @@ const ALLOWED_IMAGE_MIME_TYPES = [
 ];
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
+/**
+ * Kiosk-desktop announcements, authored by a kiosk owner for their own kiosk. ADMIN is
+ * deliberately absent from every route here: the admin side of announcements was replaced by
+ * Promotions (extension-facing, see PromotionsController), so announcements are now a portal-only
+ * feature. Platform-wide broadcasts (Announcement.kioskId = null) are consequently no longer
+ * creatable — existing broadcast rows still display on devices, but nothing can author a new one.
+ */
 @ApiTags('Announcements')
 @ApiBearerAuth('jwt')
 @Controller('announcements')
@@ -62,7 +69,7 @@ export class AnnouncementsController {
   ) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER)
   @ApiOperation({
     summary:
       "Create an announcement (admin specifies kioskId; kiosk-owner's own kiosk is implied)",
@@ -76,7 +83,7 @@ export class AnnouncementsController {
   }
 
   @Post('upload-image')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: "Upload an image for use as an announcement's mediaUrl",
@@ -120,7 +127,7 @@ export class AnnouncementsController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
+  @Roles(UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @ApiOperation({
     summary: 'List announcements',
     description:
@@ -136,7 +143,7 @@ export class AnnouncementsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
+  @Roles(UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.ANNOUNCEMENT_VIEW)
   @ApiOperation({
@@ -154,7 +161,7 @@ export class AnnouncementsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.ANNOUNCEMENT)
   @ApiOperation({ summary: 'Update an announcement' })
@@ -165,7 +172,7 @@ export class AnnouncementsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.ANNOUNCEMENT)
   @HttpCode(HttpStatus.NO_CONTENT)

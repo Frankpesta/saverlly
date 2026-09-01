@@ -1,2 +1,5 @@
 dist/
 release/
+# Microsoft's WebView2 host assemblies, reproducible from a pinned version by
+# scripts/fetch-webview2.js — vendored at build time rather than committed.
+vendor/

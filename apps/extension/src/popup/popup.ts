@@ -1,3 +1,4 @@
+import type { ActivePromotion } from '@saverlly/shared-types';
 import { sortCouponsBySuccessLikelihood } from '../lib/cart-total';
 import { formatCurrency, summarizeBestDiscount } from '../lib/format';
 import { ARROW_ICON, CHECK_ICON, PENDING_ICON, RING_SPINNER_ICON, SPINNER_ICON, TAG_ICON, X_ICON } from './icons';
@@ -10,6 +11,7 @@ import type {
 
 const content = document.getElementById('content') as HTMLElement;
 const lifetimeValueEl = document.getElementById('lifetime-value') as HTMLElement;
+const promoEl = document.getElementById('promo') as HTMLElement;
 
 type View = 'loading' | 'no-offer' | 'idle' | 'suppressed' | 'applying' | 'success' | 'failure' | 'coupon-list';
 type PillStatus = 'pending' | 'testing' | 'applying' | 'failed' | 'applied';
@@ -263,6 +265,47 @@ async function refreshLifetimeSaved(): Promise<void> {
   lifetimeValueEl.textContent = value === null ? '—' : formatCurrency(value);
 }
 
+/**
+ * Only ever http(s) — a promo's clickUrl comes from the admin dashboard, but the popup opening a
+ * `javascript:` or `data:` URL on the strength of a server response is not a risk worth carrying
+ * for a field a human types into a form.
+ */
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+async function renderPromo(): Promise<void> {
+  const promos = (await send({ type: 'GET_ACTIVE_PROMOTIONS' })) as ActivePromotion[] | null | undefined;
+  // Several promos can target one location at once; the popup has room for exactly one, and the
+  // backend already returns them earliest-starting first, so the longest-running one wins.
+  const promo = promos?.find((p) => isSafeHttpUrl(p.clickUrl) && isSafeHttpUrl(p.imageSmallUrl));
+  if (!promo) {
+    promoEl.hidden = true;
+    return;
+  }
+
+  promoEl.innerHTML = `
+    <span class="popup__promo-label">Sponsored</span>
+    <a class="popup__promo-link" id="promo-link" href="${escapeHtml(promo.clickUrl)}" target="_blank" rel="noopener noreferrer">
+      <img class="popup__promo-image" src="${escapeHtml(promo.imageSmallUrl)}" alt="" />
+    </a>
+  `;
+  promoEl.hidden = false;
+
+  document.getElementById('promo-link')?.addEventListener('click', (event) => {
+    // A plain anchor inside an extension popup just closes the popup on some Chrome versions
+    // without ever opening the tab — going through chrome.tabs makes the click-through reliable.
+    event.preventDefault();
+    void chrome.tabs.create({ url: promo.clickUrl });
+    window.close();
+  });
+}
+
 chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
   if (message.type === 'COUPON_APPLY_PROGRESS') {
     progress = message;
@@ -280,6 +323,9 @@ document.getElementById('close-btn')?.addEventListener('click', () => window.clo
 
 async function init(): Promise<void> {
   void refreshLifetimeSaved();
+  // Fire-and-forget alongside the view: the promo slot lives outside #content, so it is
+  // independent of which view wins below and must not delay rendering that view.
+  void renderPromo();
   const state = (await send({ type: 'GET_TAB_STATE' })) as TabCheckoutState | null | undefined;
   tabState = state ?? null;
   if (!tabState) {

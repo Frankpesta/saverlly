@@ -1,4 +1,5 @@
 import type {
+  ActivePromotion,
   AttributionAttemptResponse,
   CreateCouponTestEventPayload,
   DeviceStatusResponse,
@@ -76,6 +77,14 @@ export async function fetchLifetimeSaved(): Promise<number> {
   }
   const body: LifetimeSavingsResponse = await res.json();
   return body.lifetimeSaved;
+}
+
+export async function fetchActivePromotions(): Promise<ActivePromotion[]> {
+  const res = await apiFetch('/public/promotions/active');
+  if (!res.ok) {
+    throw new Error(`Unexpected status ${res.status} from active promotions lookup`);
+  }
+  return res.json();
 }
 
 export async function reportCouponTestEvent(payload: CreateCouponTestEventPayload): Promise<void> {

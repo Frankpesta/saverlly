@@ -1,3 +1,5 @@
+import type { AnnouncementLayout } from "@saverlly/shared-types"
+
 export type UserRole = "ADMIN" | "KIOSK_OWNER" | "LOCATION_MANAGER"
 
 export type JwtPayload = {
@@ -229,10 +231,39 @@ export type Announcement = {
   title: string
   body: string
   mediaUrl: string | null
+  /** Freeform canvas design. Null for announcements created before the canvas editor — the
+   *  editor and the kiosk agent both fall back to a default layout built from title/body/mediaUrl. */
+  layout: AnnouncementLayout | null
   startAt: string
   endAt: string
   repeatPolicy: AnnouncementRepeatPolicy
   maxDisplayCount: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * An admin-authored promotion rendered inside the Chrome extension's popup. Deliberately separate
+ * from Announcement (which targets the kiosk desktop overlay) — different author, audience,
+ * surface and data shape.
+ */
+export type Promotion = {
+  id: string
+  /** Internal label for the admin list — never shown to shoppers. */
+  name: string
+  /** 320x100 creative, rendered in the extension popup. */
+  imageSmallUrl: string
+  /** 728x90 leaderboard creative, held for the future on-page banner surface. */
+  imageLargeUrl: string
+  clickUrl: string
+  /** Location tags to target, matched against Location.tags. Union with locationIds, not intersection. */
+  targetTags: string[]
+  /** Specific location ids to target. Union with targetTags. Both empty = show everywhere. */
+  locationIds: string[]
+  startAt: string
+  endAt: string
+  /** Manual kill switch, independent of the startAt/endAt window. */
+  active: boolean
   createdAt: string
   updatedAt: string
 }

@@ -446,3 +446,46 @@ button {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* ---------- Promotion ---------- */
+
+/* The 320x100 creative is sized to fit exactly inside the 360px popup's 16px gutters, so it
+   renders 1:1 with no scaling. [hidden] is honoured explicitly because `display: block` here
+   would otherwise override the browser default and leave an empty bordered strip when there
+   is no active promo. */
+.popup__promo {
+  display: block;
+  border-top: 1px solid var(--border);
+  padding: 12px 16px 14px;
+}
+
+.popup__promo[hidden] {
+  display: none;
+}
+
+.popup__promo-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.popup__promo-link {
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.popup__promo-link:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.popup__promo-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}

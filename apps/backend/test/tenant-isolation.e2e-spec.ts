@@ -317,10 +317,13 @@ describe('Tenant isolation (e2e)', () => {
       const ids = res.body.map((a: { id: string }) => a.id).sort();
       expect(ids).toEqual([ownAnn.id, broadcast.id].sort());
 
+      // A broadcast is read-only-visible to every kiosk-owner (TenantScopeGuard's
+      // ANNOUNCEMENT_VIEW path, mirroring AnnouncementsService.findAll) — it is the write
+      // routes, not the read one, that are closed to them.
       await request(app.getHttpServer())
         .get(`/announcements/${broadcast.id}`)
         .set('Authorization', `Bearer ${ownerToken}`)
-        .expect(403);
+        .expect(200);
 
       await request(app.getHttpServer())
         .patch(`/announcements/${broadcast.id}`)
@@ -334,37 +337,43 @@ describe('Tenant isolation (e2e)', () => {
         .expect(403);
     });
 
-    it('lets an admin reach the single-resource routes for a broadcast', async () => {
+    it('blocks an admin from every announcement route, broadcast included', async () => {
+      // Announcements moved to the portal when Promotions replaced the admin side — ADMIN is no
+      // longer in @Roles on any announcement route, so even a broadcast is out of reach.
       const broadcast = await seedAnnouncement(null, { title: 'Broadcast' });
       await seedUser({ email: 'admin2@test.com', role: 'ADMIN' });
       const adminToken = await loginAs(app, 'admin2@test.com');
 
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .get(`/announcements/${broadcast.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .expect(200);
-      expect(res.body.id).toBe(broadcast.id);
+        .expect(403);
 
       await request(app.getHttpServer())
         .patch(`/announcements/${broadcast.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ title: 'Updated broadcast' })
-        .expect(200);
+        .expect(403);
 
       await request(app.getHttpServer())
         .delete(`/announcements/${broadcast.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .expect(204);
+        .expect(403);
     });
 
-    it('blocks a location-manager from creating or reaching the single-resource announcement routes', async () => {
+    it('blocks a location-manager from creating announcements, and from viewing ones outside their locations', async () => {
       const kiosk = await seedKiosk();
-      const announcement = await seedAnnouncement(kiosk.id);
+      const managedLoc = await seedLocation(kiosk.id);
+      const unmanagedLoc = await seedLocation(kiosk.id);
+      const allLocationsAnn = await seedAnnouncement(kiosk.id);
+      const unmanagedAnn = await seedAnnouncement(kiosk.id, {
+        locationIds: [unmanagedLoc.id],
+      });
       await seedUser({
         email: 'lm@test.com',
         role: 'LOCATION_MANAGER',
         kioskId: kiosk.id,
-        managedLocationIds: [],
+        managedLocationIds: [managedLoc.id],
       });
       const lmToken = await loginAs(app, 'lm@test.com');
 
@@ -379,8 +388,15 @@ describe('Tenant isolation (e2e)', () => {
         })
         .expect(403);
 
+      // Viewable: targets all locations, so it reaches theirs too.
       await request(app.getHttpServer())
-        .get(`/announcements/${announcement.id}`)
+        .get(`/announcements/${allLocationsAnn.id}`)
+        .set('Authorization', `Bearer ${lmToken}`)
+        .expect(200);
+
+      // Not viewable: scoped to a location they don't manage.
+      await request(app.getHttpServer())
+        .get(`/announcements/${unmanagedAnn.id}`)
         .set('Authorization', `Bearer ${lmToken}`)
         .expect(403);
     });

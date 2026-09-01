@@ -33,3 +33,20 @@ export function agentStatusStateFilePath(): string {
 export function announcementOverlayScriptPath(): string {
   return path.join(agentDir(), 'announcement-overlay.ps1');
 }
+
+/** The rendered announcement document the overlay's WebView2 control loads. Written next to the
+ *  script, in %PROGRAMDATA% rather than the install dir, because the script is regenerated on
+ *  every showing and Program Files isn't writable by the agent's relay task. */
+export function announcementOverlayHtmlPath(): string {
+  return path.join(agentDir(), 'announcement-overlay.html');
+}
+
+/**
+ * Where the vendored WebView2 host assemblies live at runtime: a `webview2` folder beside the
+ * running exe, put there by the installer (see saverlly-agent.iss). Resolved from the exe's own
+ * path — the same approach nativeMessagingHostExePath uses — so it follows the install location
+ * instead of assuming one.
+ */
+export function webview2DirPath(mainExePath: string = process.execPath): string {
+  return path.join(path.dirname(mainExePath), 'webview2');
+}

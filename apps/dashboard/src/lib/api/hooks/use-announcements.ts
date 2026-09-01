@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { AnnouncementLayout } from "@saverlly/shared-types"
 import { apiFetch, apiUpload } from "@/lib/api/client"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 
@@ -33,6 +34,9 @@ export type AnnouncementPayload = {
   endAt: string
   repeatPolicy?: AnnouncementRepeatPolicy
   maxDisplayCount?: number
+  /** The freeform canvas design. Sanitized server-side before it's stored, so what comes back
+   *  from the API may differ from what was sent. */
+  layout?: AnnouncementLayout | null
   /** ADMIN-only: platform-wide broadcast to every device across every kiosk. */
   broadcast?: boolean
 }

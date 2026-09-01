@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { AnnouncementRepeatPolicy } from '@prisma/client';
+import type { AnnouncementLayout } from '@saverlly/shared-types';
 
 export class ActiveAnnouncementDto {
   @ApiProperty()
@@ -21,4 +22,14 @@ export class ActiveAnnouncementDto {
 
   @ApiProperty({ nullable: true, type: Number, description: 'Set when repeatPolicy is MAX_N_TIMES' })
   maxDisplayCount: number | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: 'object',
+    additionalProperties: true,
+    description:
+      'Freeform canvas design (AnnouncementLayout). Null for announcements authored before the ' +
+      'canvas editor — the agent renders a default layout from title/body/mediaUrl in that case.',
+  })
+  layout: AnnouncementLayout | null;
 }

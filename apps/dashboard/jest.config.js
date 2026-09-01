@@ -10,6 +10,12 @@ const config = {
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/"],
+  moduleNameMapper: {
+    // Resolve the workspace package from source rather than its built dist, matching what the
+    // tsconfig path alias does for `next dev`/`next build`. Without this, tests would silently
+    // run against a stale dist whenever shared-types changed but wasn't rebuilt.
+    "^@saverlly/shared-types$": "<rootDir>/../../packages/shared-types/src/index.ts",
+  },
 };
 
 const resolveConfig = createJestConfig(config);

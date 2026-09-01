@@ -13,6 +13,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { IsAnnouncementLayout } from './is-announcement-layout.validator';
 
 export class CreateAnnouncementDto {
   @ApiPropertyOptional({
@@ -57,8 +58,24 @@ export class CreateAnnouncementDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsUrl()
+  // require_tld:false so `http://localhost:3000/uploads/...` — what our own
+  // POST /announcements/upload-image returns in local dev — is accepted. validator.js rejects
+  // any host without a TLD by default, which would make the upload→create round trip impossible
+  // on a dev machine. Same reasoning as CreatePromotionDto.
+  @IsUrl({ require_tld: false })
   mediaUrl?: string;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    description:
+      'Freeform canvas design produced by the portal editor (AnnouncementLayout). Omit for a ' +
+      'plain title/body/image announcement — the kiosk agent then renders a default layout built ' +
+      'from those fields instead.',
+  })
+  @IsOptional()
+  @IsAnnouncementLayout()
+  layout?: unknown;
 
   @ApiProperty()
   @IsDateString()

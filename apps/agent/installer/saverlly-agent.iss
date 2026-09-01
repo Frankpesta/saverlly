@@ -46,11 +46,58 @@ UninstallDisplayName={#MyAppName}
 Source: "..\release\saverlly-agent.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\release\saverlly-agent-host.exe"; DestDir: "{app}"; Flags: ignoreversion
 
+; The announcement overlay hosts a WebView2 control from PowerShell so it can render the kiosk
+; owner's saved canvas layout as real HTML (see apps/agent/src/lib/overlay.ts). These are the
+; .NET Framework host assemblies it loads with Add-Type; paths.ts's webview2DirPath() resolves
+; this exact folder as a sibling of the running exe. Vendored by scripts/fetch-webview2.js.
+; Without them the overlay silently degrades to the old fixed WinForms dialog.
+Source: "..\vendor\webview2\*.dll"; DestDir: "{app}\webview2"; Flags: ignoreversion
+
+; The runtime itself is a separate machine-wide component. Ship the ~2MB Evergreen bootstrapper
+; and run it only when the runtime is genuinely absent (most Windows 10/11 machines already have
+; it, since Edge installs it) — see WebView2RuntimeMissing below.
+Source: "..\vendor\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: WebView2RuntimeMissing
+
+[Run]
+; Silent, and deliberately NOT fatal: a kiosk that's offline at install time still gets a working
+; agent, it just falls back to the legacy overlay until the runtime turns up. Runs after
+; ssPostInstall, which is fine — nothing in --setup-once needs WebView2.
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing the WebView2 runtime..."; Flags: waituntilterminated skipifdoesntexist; Check: WebView2RuntimeMissing
+
 [Code]
 var
   SetupCodePage: TInputQueryWizardPage;
   AgentSetupSucceeded: Boolean;
   AgentSetupResultCode: Integer;
+
+// Microsoft's documented way to detect the Evergreen runtime: a non-empty `pv` under the
+// WebView2 client GUID. A per-machine install writes to HKLM (under WOW6432Node on 64-bit), a
+// per-user one to HKCU, so all three are checked. `pv` of '0.0.0.0' specifically means "known
+// but not actually installed" and must be treated as missing.
+//
+// The GUID braces are safe unescaped here: Inno only expands {constants} in [Files]/[Run]
+// parameters, never inside a [Code] Pascal string literal.
+function WebView2RuntimeMissing: Boolean;
+var
+  Version: String;
+begin
+  if RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
+  begin
+    Result := (Version = '') or (Version = '0.0.0.0');
+    Exit;
+  end;
+  if RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
+  begin
+    Result := (Version = '') or (Version = '0.0.0.0');
+    Exit;
+  end;
+  if RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version) then
+  begin
+    Result := (Version = '') or (Version = '0.0.0.0');
+    Exit;
+  end;
+  Result := True;
+end;
 
 procedure InitializeWizard;
 begin

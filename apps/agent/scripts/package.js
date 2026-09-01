@@ -74,6 +74,10 @@ function zipBundle() {
     archive.pipe(output);
     archive.file(outputExe, { name: path.basename(outputExe) });
     archive.file(hostOutputExe, { name: path.basename(hostOutputExe) });
+    // Mirrors the installer's layout: overlay.ts looks for these in a `webview2` folder beside
+    // the exe, so a manual zip extraction has to reproduce that or the overlay quietly falls
+    // back to the legacy dialog.
+    archive.directory(path.join(root, 'vendor', 'webview2'), 'webview2');
     archive.finalize();
   });
 }
@@ -116,6 +120,10 @@ async function run() {
   }
 
   fs.mkdirSync(release, { recursive: true });
+
+  // The installer's [Files] section reads apps/agent/vendor/, which isn't committed — fetch it
+  // before ISCC runs, or the compile fails on a missing Source.
+  execFileSync(process.execPath, [path.join(__dirname, 'fetch-webview2.js')], { stdio: 'inherit' });
 
   const baseBinaryPath = await need({ nodeRange: 'node22', platform: 'win32', arch: 'x64' });
   const patchedBasePath = path.join(os.tmpdir(), 'saverlly-agent-base-patched.exe');

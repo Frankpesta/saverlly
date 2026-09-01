@@ -22,7 +22,9 @@ const navMain = [
   { title: "Kiosks", url: "/admin/kiosks", icon: <StoreIcon /> },
   { title: "Locations", url: "/admin/locations", icon: <MapPinIcon /> },
   { title: "Devices", url: "/admin/devices", icon: <MonitorIcon /> },
-  { title: "Announcements", url: "/admin/announcements", icon: <MegaphoneIcon /> },
+  // Promotions replaced admin-side Announcements outright — announcements are now a kiosk-owner
+  // feature in the portal only. See apps/dashboard/src/app/portal/(authenticated)/announcements.
+  { title: "Promotions", url: "/admin/promotions", icon: <MegaphoneIcon /> },
   { title: "Merchants", url: "/admin/merchants", icon: <ShoppingBagIcon /> },
   { title: "Coupons", url: "/admin/coupons", icon: <TagIcon /> },
   { title: "Scrape Sources", url: "/admin/scrape-sources", icon: <DatabaseIcon /> },
