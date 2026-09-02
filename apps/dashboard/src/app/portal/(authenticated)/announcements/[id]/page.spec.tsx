@@ -49,6 +49,7 @@ const announcement: Announcement = {
   title: "Active Promo",
   body: "Save big!",
   mediaUrl: null,
+  layout: null,
   startAt: "2026-01-01T00:00:00.000Z",
   endAt: "2026-06-01T00:00:00.000Z",
   repeatPolicy: "EVERY_LOGIN",
@@ -125,7 +126,7 @@ describe("AnnouncementDetailPage", () => {
     renderWithClient(<AnnouncementDetailPage />)
 
     await screen.findByDisplayValue("Active Promo")
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }))
+    await userEvent.click(screen.getByRole("button", { name: "Delete Active Promo" }))
 
     const dialog = await screen.findByRole("alertdialog")
     await userEvent.click(
@@ -155,7 +156,7 @@ describe("AnnouncementDetailPage", () => {
 
     renderWithClient(<AnnouncementDetailPage />)
 
-    expect(await screen.findByText("Live preview")).toBeInTheDocument()
+    expect(await screen.findByText("Kiosk screen")).toBeInTheDocument()
     expect(screen.getAllByText("Active Promo").length).toBeGreaterThan(0)
     expect(screen.queryByDisplayValue("Active Promo")).not.toBeInTheDocument()
     expect(screen.queryByText("Repeat")).not.toBeInTheDocument()
@@ -177,7 +178,7 @@ describe("AnnouncementDetailPage", () => {
 
     renderWithClient(<AnnouncementDetailPage />)
 
-    expect(await screen.findByText("Live preview")).toBeInTheDocument()
+    expect(await screen.findByText("Kiosk screen")).toBeInTheDocument()
     expect(screen.getAllByText("Platform Broadcast").length).toBeGreaterThan(0)
     expect(screen.queryByDisplayValue("Platform Broadcast")).not.toBeInTheDocument()
     expect(screen.queryByText("Repeat")).not.toBeInTheDocument()

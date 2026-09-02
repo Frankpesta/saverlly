@@ -1,5 +1,10 @@
 import type { PublicMerchant } from '@saverlly/shared-types';
-import { fetchLifetimeSaved, fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
+import {
+  fetchActivePromotions,
+  fetchLifetimeSaved,
+  fetchMerchantByDomain,
+  reportCouponTestEvent,
+} from '../lib/api-client';
 import { runAttribution } from '../lib/attribution';
 import { STATUS_CHECK_INTERVAL_MINUTES, MERCHANT_CACHE_TTL_MS } from '../lib/config';
 import type {
@@ -267,6 +272,16 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
         return await fetchLifetimeSaved();
       } catch {
         return null;
+      }
+    }
+    case 'GET_ACTIVE_PROMOTIONS': {
+      // A dormant extension shows nothing at all, promos included — same fail-safe posture as
+      // GET_TAB_STATE. Any error degrades to "no promos" rather than breaking the popup.
+      if (await isDormant()) return [];
+      try {
+        return await fetchActivePromotions();
+      } catch {
+        return [];
       }
     }
     default:

@@ -1,5 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { render, screen, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AnnouncementsPage from "./page"
 import type { Announcement, Location } from "@/lib/api/types"
@@ -43,6 +42,7 @@ const announcements: Announcement[] = [
     title: "Active Promo",
     body: "Save big!",
     mediaUrl: null,
+    layout: null,
     startAt: "2020-01-01T00:00:00.000Z",
     endAt: "2099-01-01T00:00:00.000Z",
     repeatPolicy: "EVERY_LOGIN",
@@ -57,6 +57,7 @@ const announcements: Announcement[] = [
     title: "Future Sale",
     body: "Coming soon",
     mediaUrl: null,
+    layout: null,
     startAt: "2099-01-01T00:00:00.000Z",
     endAt: "2099-06-01T00:00:00.000Z",
     repeatPolicy: "ONCE",
@@ -84,20 +85,6 @@ describe("AnnouncementsPage", () => {
       if (url === "/api/proxy/locations" && method === "GET") {
         return { ok: true, status: 200, json: async () => locations } as Response
       }
-      if (url === "/api/proxy/announcements" && method === "POST") {
-        return {
-          ok: true,
-          status: 201,
-          json: async () => ({ ...announcements[0], id: "ann-3", title: "Weekend Deal" }),
-        } as Response
-      }
-      if (url === "/api/proxy/announcements/upload-image" && method === "POST") {
-        return {
-          ok: true,
-          status: 201,
-          json: async () => ({ url: "http://localhost:3000/uploads/announcements/uploaded.png" }),
-        } as Response
-      }
       throw new Error(`Unhandled fetch in test: ${method} ${url}`)
     }) as jest.Mock
   })
@@ -114,65 +101,33 @@ describe("AnnouncementsPage", () => {
     expect(within(futureRow).getByText("1 of 1")).toBeInTheDocument()
   })
 
-  it("walks the New Announcement wizard across all three steps and submits", async () => {
+  // Creation moved off this page onto /portal/announcements/new — the list only has to point at
+  // it now. The form itself is covered by new/page.spec.tsx.
+  it("sends both the header action and the empty state to the dedicated create page", async () => {
     renderWithClient(<AnnouncementsPage />)
 
-    await userEvent.click(await screen.findByRole("button", { name: /new announcement/i }))
-
-    await userEvent.type(screen.getByLabelText("Title"), "Weekend Deal")
-    await userEvent.type(screen.getByLabelText("Body"), "20% off this weekend only.")
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
-
-    await screen.findByLabelText("Starts")
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
-
-    const dialog = await screen.findByRole("dialog")
-    await within(dialog).findByText("All locations")
-    await userEvent.click(within(dialog).getByRole("button", { name: /create announcement/i }))
-
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/announcements",
-        expect.objectContaining({ method: "POST" }),
-      ),
+    expect(await screen.findByRole("link", { name: /new announcement/i })).toHaveAttribute(
+      "href",
+      "/portal/announcements/new",
     )
-
-    const [, init] = (global.fetch as jest.Mock).mock.calls.find(
-      ([, i]) => i?.method === "POST",
-    )
-    const body = JSON.parse(init.body)
-    expect(body.title).toBe("Weekend Deal")
-    expect(body.body).toBe("20% off this weekend only.")
-    expect(body.repeatPolicy).toBe("ONCE")
-    expect(body.locationIds).toEqual([])
+    expect(screen.queryByRole("button", { name: /new announcement/i })).not.toBeInTheDocument()
   })
 
-  it("uploads an image and shows it in the preview via the returned url", async () => {
+  it("offers the create page from the empty state when there is nothing to list", async () => {
+    ;(global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/proxy/announcements" || url === "/api/proxy/locations") {
+        return { ok: true, status: 200, json: async () => [] } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${url}`)
+    })
+
     renderWithClient(<AnnouncementsPage />)
 
-    await userEvent.click(await screen.findByRole("button", { name: /new announcement/i }))
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-    expect(fileInput).toHaveAttribute("id", "new-ann-media")
-
-    const file = new File(["fake-bytes"], "promo.png", { type: "image/png" })
-    await userEvent.upload(fileInput, file)
-
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/announcements/upload-image",
-        expect.objectContaining({ method: "POST" }),
-      ),
+    expect(await screen.findByText(/no announcements yet/i)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /create your first one/i })).toHaveAttribute(
+      "href",
+      "/portal/announcements/new",
     )
-
-    const expectedSrc = `/api/image-proxy?url=${encodeURIComponent(
-      "http://localhost:3000/uploads/announcements/uploaded.png",
-    )}`
-    // getByRole("img") excludes decorative alt="" images from the accessibility tree, so this
-    // queries the DOM directly instead — both the upload thumbnail and the live preview should
-    // pick up the uploaded url via the image proxy.
-    await waitFor(() => {
-      const images = Array.from(document.querySelectorAll("img"))
-      expect(images.some((img) => img.getAttribute("src") === expectedSrc)).toBe(true)
-    })
   })
 })

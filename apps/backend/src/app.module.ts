@@ -21,6 +21,7 @@ import { ScrapeSourcesModule } from './scrape-sources/scrape-sources.module';
 import { AffiliateSyncModule } from './affiliate-sync/affiliate-sync.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { CommissionsModule } from './commissions/commissions.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { SearchModule } from './search/search.module';
@@ -65,6 +66,7 @@ import { EmailModule } from './email/email.module';
     AffiliateSyncModule,
     PublicApiModule,
     AnnouncementsModule,
+    PromotionsModule,
     CommissionsModule,
     PayoutsModule,
     SearchModule,

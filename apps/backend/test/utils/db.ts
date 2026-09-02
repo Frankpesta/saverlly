@@ -57,6 +57,9 @@ async function deleteAllInOrder(): Promise<void> {
   await testPrisma.merchant.deleteMany();
   await testPrisma.affiliateProgram.deleteMany();
   await testPrisma.announcement.deleteMany();
+  // Promotion has no FK relations (targeting is by id/tag arrays, not joins), so its position
+  // here is arbitrary — but it still has to be cleared or promos leak between tests.
+  await testPrisma.promotion.deleteMany();
   await testPrisma.deviceToken.deleteMany();
   await testPrisma.device.deleteMany();
   await testPrisma.locationSetupCode.deleteMany();

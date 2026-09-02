@@ -4,7 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AnnouncementRepeatPolicy, UserRole } from '@prisma/client';
+import { AnnouncementRepeatPolicy, Prisma, UserRole } from '@prisma/client';
+import { parseAnnouncementLayout } from '@saverlly/shared-types';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
@@ -13,6 +14,27 @@ import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 @Injectable()
 export class AnnouncementsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Turns a client-supplied layout into what actually gets stored. The DTO validator already
+   * rejected anything unparseable, so this re-parse is not about acceptance — it's about storing
+   * the *sanitized* form (clamped dimensions, whitelisted fonts, http(s)-only image URLs) rather
+   * than the caller's original JSON. That way the kiosk renderer, which builds an HTML document
+   * out of these values, never has to trust the database.
+   *
+   * `undefined` means "not supplied, leave it alone"; `null` clears the layout back to the
+   * default title/body/image rendering, which is how a kiosk owner reverts a design.
+   */
+  private toStoredLayout(
+    layout: unknown,
+  ): Prisma.InputJsonValue | typeof Prisma.DbNull | undefined {
+    if (layout === undefined) return undefined;
+    if (layout === null) return Prisma.DbNull;
+    const parsed = parseAnnouncementLayout(layout);
+    return parsed === null
+      ? Prisma.DbNull
+      : (parsed as unknown as Prisma.InputJsonValue);
+  }
 
   async create(currentUser: JwtPayload, dto: CreateAnnouncementDto) {
     const isBroadcast =
@@ -41,6 +63,7 @@ export class AnnouncementsService {
           title: dto.title,
           body: dto.body,
           mediaUrl: dto.mediaUrl,
+          layout: this.toStoredLayout(dto.layout),
           startAt: dto.startAt,
           endAt: dto.endAt,
           repeatPolicy,
@@ -70,6 +93,7 @@ export class AnnouncementsService {
         title: dto.title,
         body: dto.body,
         mediaUrl: dto.mediaUrl,
+        layout: this.toStoredLayout(dto.layout),
         startAt: dto.startAt,
         endAt: dto.endAt,
         repeatPolicy,
@@ -154,6 +178,7 @@ export class AnnouncementsService {
         title: dto.title,
         body: dto.body,
         mediaUrl: dto.mediaUrl,
+        layout: this.toStoredLayout(dto.layout),
         startAt: dto.startAt,
         endAt: dto.endAt,
         repeatPolicy: dto.repeatPolicy,

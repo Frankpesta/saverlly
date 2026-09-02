@@ -209,6 +209,7 @@ model Announcement {
   title           String
   body            String
   mediaUrl        String? // image/asset for the visual editor
+  layout          Json? // freeform canvas design (AnnouncementLayout); null = pre-canvas announcement, agent falls back to a default layout built from title/body/mediaUrl
   startAt         DateTime
   endAt           DateTime
   repeatPolicy    AnnouncementRepeatPolicy @default(ONCE)
@@ -217,6 +218,30 @@ model Announcement {
   updatedAt       DateTime                 @updatedAt
 
   @@index([kioskId])
+}
+
+// Admin-authored promotion shown inside the Chrome extension's popup — deliberately a separate
+// model from Announcement rather than a `surface` enum on it. The two share almost nothing:
+// different author (ADMIN vs kiosk owner), audience (end-shopper vs kiosk staff), display surface
+// (extension popup vs the kiosk desktop overlay) and data shape (fixed image+link vs freeform
+// layout). Folding them together would leave most columns null and meaningless on every row.
+model Promotion {
+  id            String   @id @default(uuid())
+  name          String // internal label for the admin list — never shown to shoppers
+  imageSmallUrl String // 320x100, rendered in the extension popup today
+  imageLargeUrl String // 728x90 leaderboard, held for the future injected on-page banner surface
+  clickUrl      String // where the shopper lands when they click the promo
+  // Targeting is a union, not an intersection: a promo shows if it matches EITHER the location's
+  // tags OR its id. Both empty = show everywhere (the platform-wide case).
+  targetTags    String[] // matched against Location.tags
+  locationIds   String[] // specific locations, matched against Device.locationId
+  startAt       DateTime
+  endAt         DateTime
+  active        Boolean  @default(true) // manual kill switch, independent of the schedule window
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([active, startAt, endAt])
 }
 
 model CouponTestEvent {

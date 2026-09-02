@@ -4,6 +4,8 @@ export * from './merchant';
 export * from './device-status';
 export * from './coupon-test-event';
 export * from './announcement';
+export * from './announcement-layout';
+export * from './promotion';
 export * from './device';
 export * from './native-messaging';
 export * from './attribution';

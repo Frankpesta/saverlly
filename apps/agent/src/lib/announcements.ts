@@ -1,6 +1,18 @@
 import { fetchActiveAnnouncements } from './api-client';
-import { recordAnnouncementShown, shouldShowAnnouncement } from './announcement-state';
+import {
+  recordAnnouncementShown,
+  recordDisplayAttemptFailed,
+  shouldShowAnnouncement,
+} from './announcement-state';
 import { showAnnouncementOverlay } from './overlay';
+
+/**
+ * Reasons an overlay didn't appear that say nothing about the announcement itself — nobody is
+ * logged in yet, or the kiosk user hasn't dismissed the previous one. Both resolve on their own,
+ * so they must not consume the retry budget; a kiosk parked at the login screen would otherwise
+ * exhaust every announcement's attempts before anyone sat down at it.
+ */
+const TRANSIENT_REASONS = new Set(['no-interactive-user', 'already-showing']);
 
 /** Fetches this device's currently-active announcements and displays any not yet shown per their repeat policy. */
 export async function pollAndDisplayAnnouncements(token: string): Promise<void> {
@@ -9,12 +21,28 @@ export async function pollAndDisplayAnnouncements(token: string): Promise<void> 
     if (!shouldShowAnnouncement(announcement)) {
       continue;
     }
-    // Only record as shown if a popup actually got dispatched to a real logged-in session —
-    // showAnnouncementOverlay returns false when nobody's logged in (lock/login screen), and a
-    // ONCE/MAX_N_TIMES announcement shouldn't burn its one showing on nobody.
-    const shown = showAnnouncementOverlay(announcement.title, announcement.body, announcement.mediaUrl);
-    if (shown) {
-      recordAnnouncementShown(announcement);
+
+    // One announcement failing must not strand the ones behind it — showAnnouncementOverlay
+    // already resolves its own failures, so this only catches genuinely unexpected throws.
+    try {
+      const result = await showAnnouncementOverlay(announcement);
+
+      if (result.shown) {
+        // Only now: the overlay reported that it actually rendered on the kiosk's screen.
+        recordAnnouncementShown(announcement);
+        continue;
+      }
+
+      if (!TRANSIENT_REASONS.has(result.reason)) {
+        console.warn(
+          `[saverlly-agent] announcement ${announcement.id} did not render (${result.reason})` +
+            (result.detail ? `: ${result.detail}` : ''),
+        );
+        recordDisplayAttemptFailed(announcement);
+      }
+    } catch (err) {
+      console.error(`[saverlly-agent] announcement ${announcement.id} failed to display`, err);
+      recordDisplayAttemptFailed(announcement);
     }
   }
 }

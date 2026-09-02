@@ -61,7 +61,7 @@ export async function seedUser(params: {
 
 export async function seedLocation(
   kioskId: string,
-  overrides: Partial<{ name: string }> = {},
+  overrides: Partial<{ name: string; tags: string[] }> = {},
 ) {
   return testPrisma.location.create({
     data: {
@@ -72,6 +72,7 @@ export async function seedLocation(
       city: 'City',
       state: 'ST',
       zip: '00000',
+      tags: overrides.tags ?? [],
     },
   });
 }
@@ -190,6 +191,38 @@ export async function seedAnnouncement(
       endAt: overrides.endAt ?? new Date(now + 60_000),
       repeatPolicy: overrides.repeatPolicy ?? AnnouncementRepeatPolicy.ONCE,
       maxDisplayCount: overrides.maxDisplayCount,
+    },
+  });
+}
+
+export async function seedPromotion(
+  overrides: Partial<{
+    name: string;
+    imageSmallUrl: string;
+    imageLargeUrl: string;
+    clickUrl: string;
+    targetTags: string[];
+    locationIds: string[];
+    startAt: Date;
+    endAt: Date;
+    active: boolean;
+  }> = {},
+) {
+  const now = Date.now();
+  return testPrisma.promotion.create({
+    data: {
+      name: overrides.name ?? 'Test Promotion',
+      imageSmallUrl:
+        overrides.imageSmallUrl ?? 'https://cdn.example.com/small.png',
+      imageLargeUrl:
+        overrides.imageLargeUrl ?? 'https://cdn.example.com/large.png',
+      clickUrl: overrides.clickUrl ?? 'https://example.com/offer',
+      // Both arrays empty by default = an untargeted, platform-wide promotion.
+      targetTags: overrides.targetTags ?? [],
+      locationIds: overrides.locationIds ?? [],
+      startAt: overrides.startAt ?? new Date(now - 60_000),
+      endAt: overrides.endAt ?? new Date(now + 60_000),
+      active: overrides.active ?? true,
     },
   });
 }

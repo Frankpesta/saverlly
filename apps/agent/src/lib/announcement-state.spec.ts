@@ -2,7 +2,13 @@ import { AnnouncementRepeatPolicy, type ActiveAnnouncement } from '@saverlly/sha
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { recordAnnouncementShown, shouldShowAnnouncement } from './announcement-state';
+import {
+  MAX_DISPLAY_ATTEMPTS,
+  hasExhaustedDisplayAttempts,
+  recordAnnouncementShown,
+  recordDisplayAttemptFailed,
+  shouldShowAnnouncement,
+} from './announcement-state';
 
 function announcement(overrides: Partial<ActiveAnnouncement> = {}): Pick<
   ActiveAnnouncement,
@@ -102,5 +108,61 @@ describe('announcement-state', () => {
     fs.writeFileSync(filePath, '{ not valid json', 'utf8');
 
     expect(shouldShowAnnouncement(announcement({ repeatPolicy: AnnouncementRepeatPolicy.ONCE }), { filePath })).toBe(true);
+  });
+
+  // Without a budget, "only record it as shown once it's confirmed rendered" turns any
+  // persistent rendering fault into an announcement re-dispatched every 60s forever.
+  describe('display attempt budget', () => {
+    it('stops offering an announcement after MAX_DISPLAY_ATTEMPTS failures', () => {
+      const failedAttempts = new Map<string, number>();
+      const ann = announcement({ repeatPolicy: AnnouncementRepeatPolicy.ONCE });
+
+      for (let i = 0; i < MAX_DISPLAY_ATTEMPTS - 1; i += 1) {
+        recordDisplayAttemptFailed(ann, { failedAttempts });
+        expect(hasExhaustedDisplayAttempts(ann, { failedAttempts })).toBe(false);
+        expect(shouldShowAnnouncement(ann, { filePath, failedAttempts })).toBe(true);
+      }
+
+      recordDisplayAttemptFailed(ann, { failedAttempts });
+      expect(hasExhaustedDisplayAttempts(ann, { failedAttempts })).toBe(true);
+      expect(shouldShowAnnouncement(ann, { filePath, failedAttempts })).toBe(false);
+    });
+
+    it('applies to EVERY_LOGIN announcements too, which never consult the state file', () => {
+      const failedAttempts = new Map<string, number>();
+      const sessionShownIds = new Set<string>();
+      const ann = announcement({ repeatPolicy: AnnouncementRepeatPolicy.EVERY_LOGIN });
+
+      for (let i = 0; i < MAX_DISPLAY_ATTEMPTS; i += 1) {
+        recordDisplayAttemptFailed(ann, { failedAttempts });
+      }
+
+      expect(shouldShowAnnouncement(ann, { sessionShownIds, failedAttempts })).toBe(false);
+    });
+
+    it('budgets each announcement separately', () => {
+      const failedAttempts = new Map<string, number>();
+      const failing = announcement({ id: 'failing', repeatPolicy: AnnouncementRepeatPolicy.ONCE });
+      const healthy = announcement({ id: 'healthy', repeatPolicy: AnnouncementRepeatPolicy.ONCE });
+
+      for (let i = 0; i < MAX_DISPLAY_ATTEMPTS; i += 1) {
+        recordDisplayAttemptFailed(failing, { failedAttempts });
+      }
+
+      expect(shouldShowAnnouncement(failing, { filePath, failedAttempts })).toBe(false);
+      expect(shouldShowAnnouncement(healthy, { filePath, failedAttempts })).toBe(true);
+    });
+
+    // Failures are in-memory only: a missing runtime gets fixed by an install or a reboot, and
+    // the announcement should get a fresh chance afterwards rather than being written off on disk.
+    it('does not persist failures to the state file', () => {
+      const failedAttempts = new Map<string, number>();
+      const ann = announcement({ repeatPolicy: AnnouncementRepeatPolicy.ONCE });
+
+      recordDisplayAttemptFailed(ann, { failedAttempts });
+
+      expect(fs.existsSync(filePath)).toBe(false);
+      expect(shouldShowAnnouncement(ann, { filePath })).toBe(true);
+    });
   });
 });

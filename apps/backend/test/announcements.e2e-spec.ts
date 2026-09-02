@@ -61,6 +61,120 @@ describe('Announcements (e2e)', () => {
     expect(res.body.locationIds).toEqual([]);
   });
 
+  describe('canvas layout', () => {
+    const window = () => ({
+      startAt: new Date().toISOString(),
+      endAt: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+
+    it('stores the sanitized layout, not the JSON the client sent', async () => {
+      const { token } = await ownerCtx();
+
+      const res = await request(app.getHttpServer())
+        .post('/announcements')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          title: 'Designed',
+          body: 'Has a layout',
+          ...window(),
+          layout: {
+            version: 1,
+            background: '#ffffff',
+            elements: [
+              // Every field here is hostile or out of range, and none of it may survive to the
+              // kiosk — the agent turns these values straight into an HTML document.
+              {
+                type: 'text',
+                text: 'hi',
+                color: 'red; background:url(javascript:alert(1))',
+                fontFamily: 'Comic Sans MS',
+                fontSize: 99999,
+                x: 10,
+                y: 10,
+                width: 100,
+                height: 40,
+              },
+              { type: 'image', url: 'javascript:alert(1)', x: 0, y: 0, width: 50, height: 50 },
+            ],
+          },
+        })
+        .expect(201);
+
+      const [text, ...rest] = res.body.layout.elements;
+      // The bad image element is dropped entirely rather than stored as an unrenderable hole.
+      expect(rest).toHaveLength(0);
+      expect(text.color).toBe('#111111');
+      expect(text.fontFamily).toBe('Segoe UI');
+      expect(text.fontSize).toBe(200);
+    });
+
+    it('rejects a layout that is not an object at all', async () => {
+      const { token } = await ownerCtx();
+
+      await request(app.getHttpServer())
+        .post('/announcements')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Bad', body: 'Bad', ...window(), layout: 'not-a-layout' })
+        .expect(400);
+    });
+
+    it('defaults to no layout, and round-trips a good one through PATCH', async () => {
+      const { token } = await ownerCtx();
+
+      const created = await request(app.getHttpServer())
+        .post('/announcements')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Plain', body: 'No design', ...window() })
+        .expect(201);
+      expect(created.body.layout).toBeNull();
+
+      const patched = await request(app.getHttpServer())
+        .patch(`/announcements/${created.body.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          layout: {
+            version: 1,
+            background: '#0b0b0b',
+            elements: [
+              {
+                type: 'button',
+                label: 'Close',
+                x: 10,
+                y: 10,
+                width: 120,
+                height: 40,
+                backgroundColor: '#0f766e',
+              },
+            ],
+          },
+        })
+        .expect(200);
+
+      expect(patched.body.layout.background).toBe('#0b0b0b');
+      expect(patched.body.layout.elements[0].label).toBe('Close');
+    });
+  });
+
+  it('accepts a localhost mediaUrl, as returned by its own upload endpoint', async () => {
+    // Same require_tld regression as CreatePromotionDto — a just-uploaded image's URL must be
+    // usable in the very next create call on a dev machine.
+    const { token } = await ownerCtx();
+    const startAt = new Date().toISOString();
+    const endAt = new Date(Date.now() + 3_600_000).toISOString();
+
+    await request(app.getHttpServer())
+      .post('/announcements')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'With image',
+        body: 'Body',
+        startAt,
+        endAt,
+        mediaUrl: 'http://localhost:3000/uploads/announcements/a.png',
+      })
+      .expect(201);
+  });
+
   it('rejects endAt <= startAt', async () => {
     const { token } = await ownerCtx();
     const startAt = new Date().toISOString();
@@ -277,13 +391,19 @@ describe('Announcements (e2e)', () => {
       .expect(401);
   });
 
+  // Announcements became portal-only when Promotions replaced the admin side of this feature —
+  // ADMIN is no longer in @Roles on any announcement route. Platform-wide broadcasts are
+  // consequently no longer creatable through the API; existing broadcast rows (seeded directly
+  // here, as only a pre-migration row could be) still have to stay viewable on the portal and on
+  // devices, which is what the remaining tests in this block cover.
   describe('broadcasts', () => {
-    it('lets an admin create a platform-wide broadcast with no kioskId', async () => {
+    it('403s an admin on every announcement route — announcements are a portal feature now', async () => {
       const { token } = await adminCtx();
+      const broadcast = await seedAnnouncement(null);
       const startAt = new Date().toISOString();
       const endAt = new Date(Date.now() + 3_600_000).toISOString();
 
-      const res = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post('/announcements')
         .set('Authorization', `Bearer ${token}`)
         .send({
@@ -293,38 +413,31 @@ describe('Announcements (e2e)', () => {
           endAt,
           broadcast: true,
         })
-        .expect(201);
+        .expect(403);
 
-      expect(res.body.kioskId).toBeNull();
-      expect(res.body.locationIds).toEqual([]);
-    });
-
-    it('ignores a client-supplied kioskId/locationIds when broadcast is true', async () => {
-      const { kiosk } = await ownerCtx();
-      const location = await seedLocation(kiosk.id);
-      const { token } = await adminCtx();
-      const startAt = new Date().toISOString();
-      const endAt = new Date(Date.now() + 3_600_000).toISOString();
-
-      const res = await request(app.getHttpServer())
-        .post('/announcements')
+      await request(app.getHttpServer())
+        .get('/announcements')
         .set('Authorization', `Bearer ${token}`)
-        .send({
-          title: 'Broadcast',
-          body: 'Everyone sees this',
-          startAt,
-          endAt,
-          broadcast: true,
-          kioskId: kiosk.id,
-          locationIds: [location.id],
-        })
-        .expect(201);
+        .expect(403);
 
-      expect(res.body.kioskId).toBeNull();
-      expect(res.body.locationIds).toEqual([]);
+      await request(app.getHttpServer())
+        .get(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .patch(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Hijacked' })
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .delete(`/announcements/${broadcast.id}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
     });
 
-    it('rejects broadcast:true from a non-admin', async () => {
+    it('rejects broadcast:true from a kiosk-owner', async () => {
       const { token } = await ownerCtx();
       const startAt = new Date().toISOString();
       const endAt = new Date(Date.now() + 3_600_000).toISOString();
@@ -340,17 +453,6 @@ describe('Announcements (e2e)', () => {
           broadcast: true,
         })
         .expect(403);
-    });
-
-    it('rejects PATCHing a broadcast to have locationIds', async () => {
-      const { token } = await adminCtx();
-      const broadcast = await seedAnnouncement(null);
-
-      await request(app.getHttpServer())
-        .patch(`/announcements/${broadcast.id}`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({ locationIds: ['00000000-0000-0000-0000-000000000000'] })
-        .expect(400);
     });
 
     it('lets a kiosk-owner view (but not edit or delete) a platform-wide broadcast', async () => {
@@ -432,7 +534,7 @@ describe('Announcements (e2e)', () => {
         .expect(200);
     });
 
-    it("403s a location-manager viewing an announcement outside their assigned locations", async () => {
+    it('403s a location-manager viewing an announcement outside their assigned locations', async () => {
       const kiosk = await seedKiosk();
       const otherLocation = await seedLocation(kiosk.id);
       const { token } = await locationManagerCtx([]);

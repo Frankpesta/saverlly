@@ -52,7 +52,7 @@ jest.mock('../lib/attribution');
 jest.mock('../lib/storage');
 jest.mock('../lib/native-messaging');
 
-import { fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
+import { fetchActivePromotions, fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
 import { runAttribution } from '../lib/attribution';
 import { getCachedMerchant, isDormant, setCachedMerchant } from '../lib/storage';
 
@@ -66,6 +66,7 @@ const mockGetCachedMerchant = getCachedMerchant as jest.MockedFunction<typeof ge
 const mockSetCachedMerchant = setCachedMerchant as jest.MockedFunction<typeof setCachedMerchant>;
 const mockIsDormant = isDormant as jest.MockedFunction<typeof isDormant>;
 const mockReportCouponTestEvent = reportCouponTestEvent as jest.MockedFunction<typeof reportCouponTestEvent>;
+const mockFetchActivePromotions = fetchActivePromotions as jest.MockedFunction<typeof fetchActivePromotions>;
 
 const merchant: PublicMerchant = {
   id: 'm1',
@@ -257,5 +258,40 @@ describe('CHECKOUT_CONFIRMED manual-trigger', () => {
     expect(state?.suppressedStepdown).toBe(false);
     expect(state?.applyProgress).toBeNull();
     expect(state?.applyResult).toBeNull();
+  });
+});
+
+describe('GET_ACTIVE_PROMOTIONS', () => {
+  const promo = {
+    id: 'p1',
+    imageSmallUrl: 'https://cdn.example.com/small.png',
+    imageLargeUrl: 'https://cdn.example.com/large.png',
+    clickUrl: 'https://example.com/offer',
+  };
+
+  beforeEach(() => {
+    mockIsDormant.mockReset();
+    mockFetchActivePromotions.mockReset();
+  });
+
+  it('returns the promotions the backend served', async () => {
+    mockIsDormant.mockResolvedValue(false);
+    mockFetchActivePromotions.mockResolvedValue([promo]);
+
+    await expect(sendMessage({ type: 'GET_ACTIVE_PROMOTIONS' })).resolves.toEqual([promo]);
+  });
+
+  it('returns nothing and never calls the API while dormant', async () => {
+    mockIsDormant.mockResolvedValue(true);
+
+    await expect(sendMessage({ type: 'GET_ACTIVE_PROMOTIONS' })).resolves.toEqual([]);
+    expect(mockFetchActivePromotions).not.toHaveBeenCalled();
+  });
+
+  it('degrades to no promotions when the lookup fails, rather than rejecting into the popup', async () => {
+    mockIsDormant.mockResolvedValue(false);
+    mockFetchActivePromotions.mockRejectedValue(new Error('network down'));
+
+    await expect(sendMessage({ type: 'GET_ACTIVE_PROMOTIONS' })).resolves.toEqual([]);
   });
 });

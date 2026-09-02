@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { MegaphoneIcon, CircleCheckIcon, ClockIcon, PencilIcon } from "lucide-react"
+import { MegaphoneIcon, CircleCheckIcon, ClockIcon, PencilIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -25,7 +25,6 @@ import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { ANNOUNCEMENT_STATUS_BADGE_VARIANT, type AnnouncementStatus } from "@/lib/dashboard/status-labels"
 import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
 import { cn } from "@/lib/utils"
-import { NewAnnouncementDialog } from "./new-announcement-dialog"
 
 const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
   ONCE: "Once",
@@ -73,7 +72,10 @@ export default function AnnouncementsPage() {
             Ads and messages shown to customers on the kiosk screen.
           </p>
         </div>
-        <NewAnnouncementDialog />
+        <Link href="/portal/announcements/new" className={cn(buttonVariants(), "gap-1.5")}>
+          <PlusIcon className="size-4" />
+          New Announcement
+        </Link>
       </div>
 
       <BentoGrid>
@@ -114,7 +116,11 @@ export default function AnnouncementsPage() {
             {!isLoading && announcements?.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  No announcements yet.
+                  No announcements yet.{" "}
+                  <Link href="/portal/announcements/new" className="underline hover:text-foreground">
+                    Create your first one
+                  </Link>
+                  .
                 </TableCell>
               </TableRow>
             )}

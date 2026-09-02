@@ -18,23 +18,18 @@ export class SearchService {
     }
 
     if (currentUser.role === UserRole.ADMIN) {
-      const [locations, devices, announcements, kiosks, merchants, coupons] =
+      // Announcements are deliberately absent here: they are a kiosk-owner portal feature now,
+      // and admin has no /admin/announcements page to land on, so returning one would only ever
+      // produce a dead search result.
+      const [locations, devices, kiosks, merchants, coupons] =
         await Promise.all([
           this.searchLocations(currentUser, term),
           this.searchDevices(currentUser, term),
-          this.searchAnnouncements(currentUser, term),
           this.searchKiosks(term),
           this.searchMerchants(term),
           this.searchCoupons(term),
         ]);
-      return [
-        ...locations,
-        ...devices,
-        ...announcements,
-        ...kiosks,
-        ...merchants,
-        ...coupons,
-      ];
+      return [...locations, ...devices, ...kiosks, ...merchants, ...coupons];
     }
 
     // KIOSK_OWNER / LOCATION_MANAGER: Kiosk list, Merchant, and Coupon are admin-only

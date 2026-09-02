@@ -42,7 +42,7 @@ export function LocationTargetPicker({
       </div>
 
       {!allLocations && (
-        <div className="flex flex-col gap-2 rounded-lg border border-black/8 p-3">
+        <div className="flex flex-col gap-2 rounded-lg border border-black/8 p-3 dark:border-white/10">
           {locations.length === 0 && (
             <p className="text-sm text-muted-foreground">No locations to choose from yet.</p>
           )}

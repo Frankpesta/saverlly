@@ -74,11 +74,15 @@ function zipBundle() {
     archive.pipe(output);
     archive.file(outputExe, { name: path.basename(outputExe) });
     archive.file(hostOutputExe, { name: path.basename(hostOutputExe) });
+    // Mirrors the installer's layout: overlay.ts looks for these in a `webview2` folder beside
+    // the exe, so a manual zip extraction has to reproduce that or the overlay quietly falls
+    // back to the legacy dialog.
+    archive.directory(path.join(root, 'vendor', 'webview2'), 'webview2');
     archive.finalize();
   });
 }
 
-function pkgBuild(outputPath, nodeBinaryPath) {
+function pkgBuild(outputPath, nodeBinaryPath, extraArgs = []) {
   const pkgBin = require.resolve('@yao-pkg/pkg/lib-es5/bin.js');
   execFileSync(
     process.execPath,
@@ -98,9 +102,9 @@ function pkgBuild(outputPath, nodeBinaryPath) {
       // own pre-flight check ("--no-bytecode and no source breaks final executable").
       // `--fallback-to-source` is pkg's own suggested fix for exactly this failure mode — ship
       // dist/main.js as plain JS only for the file(s) where bytecode generation actually
-      // failed, not disabling bytecode globally. Applied to both builds for consistency, even
-      // though the unprivileged host build's unpatched base binary doesn't actually hit EACCES.
+      // failed, not disabling bytecode globally.
       '--fallback-to-source',
+      ...extraArgs,
     ],
     // PKG_NODE_PATH points pkg-fetch straight at the given binary instead of its own cache —
     // it also skips pkg-fetch's own hash check against the stock binary, which would otherwise
@@ -117,6 +121,10 @@ async function run() {
 
   fs.mkdirSync(release, { recursive: true });
 
+  // The installer's [Files] section reads apps/agent/vendor/, which isn't committed — fetch it
+  // before ISCC runs, or the compile fails on a missing Source.
+  execFileSync(process.execPath, [path.join(__dirname, 'fetch-webview2.js')], { stdio: 'inherit' });
+
   const baseBinaryPath = await need({ nodeRange: 'node22', platform: 'win32', arch: 'x64' });
   const patchedBasePath = path.join(os.tmpdir(), 'saverlly-agent-base-patched.exe');
   fs.copyFileSync(baseBinaryPath, patchedBasePath);
@@ -130,7 +138,20 @@ async function run() {
     },
   });
 
-  pkgBuild(outputExe, patchedBasePath);
+  // `--no-bytecode` (with `--public` to satisfy pkg's "no bytecode and no source" pre-flight)
+  // because bytecode generation for THIS exe has never actually succeeded: pkg would have to
+  // spawn the patched base binary to produce it, and that binary is unlaunchable by design —
+  // it carries the requireAdministrator manifest, and rcedit's edit also invalidates the base
+  // binary's signature, which leaves it a brand-new unknown hash.
+  //
+  // `--fallback-to-source` alone was enough while that spawn failed with EACCES, which pkg
+  // catches and falls back on. It is NOT enough on a machine running Windows Smart App Control
+  // (`HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy\VerifiedAndReputablePolicyState = 1`):
+  // SAC blocks the freshly-rcedited copy on reputation grounds, the spawn fails with an
+  // uncaught `UNKNOWN` (errno -4094) instead, and the whole package aborts. Not attempting the
+  // doomed step is both faster and deterministic, and it changes nothing about the artifact —
+  // this exe already shipped as plain source via the fallback.
+  pkgBuild(outputExe, patchedBasePath, ['--no-bytecode', '--public']);
   fs.rmSync(patchedBasePath, { force: true });
   console.log(`Packaged -> ${outputExe} (requireAdministrator manifest embedded pre-payload)`);
 
