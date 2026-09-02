@@ -239,7 +239,7 @@ export function AnnouncementForm({
         <div className="flex flex-col gap-8">
           <FormSection
             label="Design"
-            description="Drag to move, use the corner handles to resize, and arrow keys to nudge. This is exactly what appears on the kiosk screen."
+            description="Drag to move, use the corner handles to resize, and arrow keys to nudge. This is the notification card that slides into the bottom-right corner of the kiosk screen, at the size it appears there."
           >
             <AnnouncementCanvas
               layout={layout}
@@ -258,10 +258,10 @@ export function AnnouncementForm({
                   const element: AnnouncementLayoutElement = {
                     id: createElementId("image"),
                     type: "image",
-                    x: 240,
-                    y: 150,
-                    width: 480,
-                    height: 300,
+                    x: 40,
+                    y: 120,
+                    width: 320,
+                    height: 220,
                     url,
                     fit: "cover",
                     radius: 12,

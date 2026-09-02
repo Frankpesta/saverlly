@@ -40,9 +40,13 @@ function snap(value: number, enabled: boolean): number {
 }
 
 /**
- * The design surface. Elements are positioned in a fixed 960×600 canvas space and the whole stage
- * is CSS-scaled to whatever width the page gives it, so a layout drawn here lands identically on
- * a 1366×768 kiosk and a 4K screen.
+ * The design surface. Elements are positioned in the fixed toast-card canvas space and the whole
+ * stage is CSS-scaled down when the column is too narrow for it, so a layout drawn here lands
+ * identically on a 1366×768 kiosk and a 4K screen.
+ *
+ * Scale is capped at 1: the card is a corner toast, not a screen, and the kiosk shows it at its
+ * authored size. Editing it larger than it will ever be displayed would invite designs whose type
+ * is unreadable at the size that actually matters.
  *
  * Every element is drawn with `layoutElementStyle` from @saverlly/shared-types — the exact
  * function the kiosk's HTML renderer uses — so the editor cannot drift from what the kiosk
@@ -74,7 +78,7 @@ export function AnnouncementCanvas({
     if (!frame) return
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 0
-      if (width > 0) setScale(width / ANNOUNCEMENT_CANVAS_WIDTH)
+      if (width > 0) setScale(Math.min(1, width / ANNOUNCEMENT_CANVAS_WIDTH))
     })
     observer.observe(frame)
     return () => observer.disconnect()
@@ -180,7 +184,7 @@ export function AnnouncementCanvas({
   return (
     <div
       ref={frameRef}
-      className="w-full overflow-hidden rounded-xl border border-black/10 bg-[repeating-conic-gradient(#f4f4f5_0%_25%,#ffffff_0%_50%)] bg-[length:16px_16px] dark:border-white/10 dark:bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)]"
+      className="flex w-full justify-center overflow-hidden rounded-xl border border-black/10 bg-[repeating-conic-gradient(#f4f4f5_0%_25%,#ffffff_0%_50%)] bg-[length:16px_16px] dark:border-white/10 dark:bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)]"
       style={{ height: ANNOUNCEMENT_CANVAS_HEIGHT * scale }}
       onPointerDown={() => onSelect(null)}
     >
@@ -191,6 +195,10 @@ export function AnnouncementCanvas({
           width: ANNOUNCEMENT_CANVAS_WIDTH,
           height: ANNOUNCEMENT_CANVAS_HEIGHT,
           transform: `scale(${scale})`,
+          // A transform doesn't shrink the layout box, so a scaled-down stage would still occupy
+          // its full unscaled width and defeat the centering. Pulling the right edge in by the
+          // difference makes the box measure what the eye sees.
+          marginRight: ANNOUNCEMENT_CANVAS_WIDTH * (scale - 1),
           backgroundColor: layout.background,
         }}
       >

@@ -1,6 +1,12 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
-import { AnnouncementRepeatPolicy, type ActiveAnnouncement } from '@saverlly/shared-types';
+import {
+  ANNOUNCEMENT_CANVAS_HEIGHT,
+  ANNOUNCEMENT_CANVAS_WIDTH,
+  ANNOUNCEMENT_TOAST_MARGIN,
+  AnnouncementRepeatPolicy,
+  type ActiveAnnouncement,
+} from '@saverlly/shared-types';
 import {
   announcementOverlayHtmlPath,
   announcementOverlayResultPath,
@@ -473,6 +479,69 @@ describe('showAnnouncementOverlay', () => {
       expect(html).toContain('&lt;script&gt;');
     });
 
+    // The complaint this replaced: the overlay took the whole screen, and looked soft doing it.
+    describe('the toast window', () => {
+      it('anchors a canvas-sized card to the working area, not the whole screen', async () => {
+        await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
+        const script = writtenScript();
+
+        // WorkingArea, not Bounds — that's what keeps the card clear of the taskbar.
+        expect(script).toContain('[System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea');
+        expect(script).toContain('$area.Right - $cardWidth - $margin');
+        expect(script).toContain('$area.Bottom - $cardHeight - $margin');
+        expect(script).toContain("$form.StartPosition = 'Manual'");
+        // The old full-screen sizing must be gone, not merely overridden further down.
+        expect(script).not.toContain('$form.Width = $area.Width');
+      });
+
+      it('sizes the window from the canvas in device pixels so the design renders 1:1', async () => {
+        await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
+        const script = writtenScript();
+
+        expect(script).toContain(`${ANNOUNCEMENT_CANVAS_WIDTH} * $dpiScale`);
+        expect(script).toContain(`${ANNOUNCEMENT_CANVAS_HEIGHT} * $dpiScale`);
+        expect(script).toContain(`${ANNOUNCEMENT_TOAST_MARGIN} * $dpiScale`);
+        // WinForms would otherwise apply the DPI scale a second time on top of ours.
+        expect(script).toContain("$form.AutoScaleMode = 'None'");
+      });
+
+      // The root cause of the blur: a DPI-unaware process is rendered at 96 DPI and then
+      // bitmap-stretched to a 125%/150% screen, so every glyph edge is resampled.
+      it('makes the process per-monitor DPI aware before any window exists', async () => {
+        await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
+        const script = writtenScript();
+
+        expect(script).toContain('SetProcessDpiAwarenessContext');
+        // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        expect(script).toContain('new IntPtr(-4)');
+        // Windows 10 pre-1703 has no such entry point; the older call still beats being unaware.
+        expect(script).toContain('SetProcessDPIAware');
+        expect(script.indexOf('MakeDpiAware()')).toBeLessThan(script.indexOf('New-Object System.Drawing.Size'));
+      });
+
+      it('shows without taking focus from whatever the kiosk user is doing', async () => {
+        await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
+        const script = writtenScript();
+
+        expect(script).toContain('WS_EX_NOACTIVATE = 0x08000000');
+        expect(script).toContain('protected override bool ShowWithoutActivation');
+        // ShowDialog activates unconditionally, which would defeat all of the above.
+        expect(script).toContain('[System.Windows.Forms.Application]::Run($form)');
+        expect(script).not.toContain('$form.ShowDialog()');
+        expect(script).not.toContain('$form.Activate()');
+      });
+
+      // Runtime C# compilation can fail on a locked-down machine. A blurry toast that takes focus
+      // still delivers the announcement; a script that dies here delivers nothing.
+      it('falls back to a plain form when the toast type cannot be compiled', async () => {
+        await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
+        const script = writtenScript();
+
+        expect(script).toContain('$useToastForm = $false');
+        expect(script).toContain('else { $form = New-Object System.Windows.Forms.Form }');
+      });
+    });
+
     it('closes the window on the dismiss message and on Escape, but not on a failed init', async () => {
       await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
       const script = writtenScript();
@@ -516,6 +585,12 @@ describe('showAnnouncementOverlay', () => {
       expect(script).toContain("$form.Text = 'Big Sale'");
       expect(script).toContain("$label.Text = 'Save now'");
       expect(script).not.toContain('WebView2');
+      // Degraded in looks, but it lands in the same corner rather than in the middle of the
+      // screen — the placement is the part the kiosk user notices.
+      expect(script).toContain("$form.StartPosition = 'Manual'");
+      expect(script).toContain(
+        `$area.Right - $form.Width - ${ANNOUNCEMENT_TOAST_MARGIN}`,
+      );
       // No layout document is written when nothing can render it.
       expect(
         mockWriteFileSync.mock.calls.some(([t]) => t === announcementOverlayHtmlPath()),

@@ -2,6 +2,9 @@ import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+  ANNOUNCEMENT_CANVAS_HEIGHT,
+  ANNOUNCEMENT_CANVAS_WIDTH,
+  ANNOUNCEMENT_TOAST_MARGIN,
   createDefaultLayout,
   parseAnnouncementLayout,
   renderAnnouncementLayoutHtml,
@@ -118,13 +121,76 @@ ${body}
 `;
 }
 
+/** Corner radius of the toast card, in canvas-space pixels. Applied as a window region so the
+ *  card's corners are genuinely round rather than round-looking against a square window. */
+const TOAST_CORNER_RADIUS = 12;
+
 /**
- * The WebView2-hosted overlay: a borderless, always-on-top window that renders the announcement's
- * saved canvas layout as real HTML.
+ * The host type the toast form is built from: per-monitor DPI awareness, and a window that shows
+ * itself without stealing focus.
+ *
+ * Both halves need real C#. `SetProcessDpiAwarenessContext` has to run before any window exists,
+ * and — more importantly — `ShowWithoutActivation` and `CreateParams` are protected members, so
+ * WS_EX_NOACTIVATE can only be set by subclassing Form. That is the whole difference between a
+ * notification and an interruption: without it, a toast appearing while a kiosk user is typing
+ * takes their keystrokes.
+ *
+ * Compiled at runtime by Add-Type, and the caller treats a compilation failure as non-fatal —
+ * see the try/catch at the use site.
+ */
+const TOAST_FORM_SOURCE = `
+using System;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
+public class SaverllyToastForm : Form {
+  const int WS_EX_NOACTIVATE = 0x08000000;
+  const int WS_EX_TOOLWINDOW = 0x00000080;
+  // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+  static readonly IntPtr PER_MONITOR_V2 = new IntPtr(-4);
+
+  [DllImport("user32.dll")] private static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
+
+  /// Without this the process is DPI-unaware, so Windows renders the window at 96 DPI and then
+  /// bitmap-stretches it to the screen's scale factor — which is why the overlay looked soft on
+  /// every kiosk running at 125% or 150%. Aware, WebView2 gets the real device pixels and paints
+  /// text at native resolution.
+  public static void MakeDpiAware() {
+    // Per-monitor v2 needs Windows 10 1703+; the entry point simply does not exist before that,
+    // so fall back to the system-wide call that has been there since Vista.
+    try { if (SetProcessDpiAwarenessContext(PER_MONITOR_V2)) return; } catch (EntryPointNotFoundException) { }
+    try { SetProcessDPIAware(); } catch (EntryPointNotFoundException) { }
+  }
+
+  protected override bool ShowWithoutActivation { get { return true; } }
+
+  protected override CreateParams CreateParams {
+    get {
+      CreateParams cp = base.CreateParams;
+      // NOACTIVATE: clicks still reach the page, but the window never takes foreground.
+      // TOOLWINDOW: keeps a transient toast out of the alt-tab list.
+      cp.ExStyle |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+      return cp;
+    }
+  }
+}
+`;
+
+/**
+ * The WebView2-hosted overlay: a borderless, always-on-top card in the bottom-right corner of the
+ * kiosk screen that renders the announcement's saved canvas layout as real HTML.
  *
  * The document itself comes from @saverlly/shared-types' renderAnnouncementLayoutHtml — the exact
  * function the dashboard's editor previews with — so what a kiosk owner designed is what appears
- * here. This script's only job is to put a browser on screen and close when told to.
+ * here. This script's only job is to put a browser on screen at the right size and place, and
+ * close when told to.
+ *
+ * Sizing is the crispness-critical part. The window is made exactly ANNOUNCEMENT_CANVAS_WIDTH ×
+ * HEIGHT *device-independent* pixels, i.e. multiplied by the screen's DPI scale in physical ones.
+ * WebView2 then reports a viewport of exactly the canvas size, the layout renders at 1:1 with no
+ * scaling at all, and the extra device pixels on a high-DPI screen go into sharper glyphs rather
+ * than into stretching the design.
  */
 function webView2OverlayScript(htmlPath: string, dllDir: string, context: ScriptContext): string {
   return wrapOverlayScript(
@@ -141,21 +207,73 @@ Add-Type -AssemblyName System.Drawing
 Add-Type -Path '${psQuote(path.join(dllDir, 'Microsoft.Web.WebView2.Core.dll'))}'
 Add-Type -Path '${psQuote(path.join(dllDir, 'Microsoft.Web.WebView2.WinForms.dll'))}'
 
-$form = New-Object System.Windows.Forms.Form
+# Runtime C# compilation can fail on a locked-down machine (no writable %TEMP%, stripped compiler).
+# That costs the toast its DPI awareness and its no-focus-steal behaviour, but a blurry toast that
+# takes focus is still an announcement the kiosk user sees — failing the whole showing over it
+# would not be.
+$useToastForm = $false
+try {
+  Add-Type -TypeDefinition @'
+${TOAST_FORM_SOURCE}
+'@ -ReferencedAssemblies System.Windows.Forms,System.Drawing
+  [SaverllyToastForm]::MakeDpiAware()
+  $useToastForm = $true
+} catch { }
+
+if ($useToastForm) { $form = New-Object SaverllyToastForm }
+else { $form = New-Object System.Windows.Forms.Form }
 $form.FormBorderStyle = 'None'
-$form.StartPosition = 'CenterScreen'
+# Everything below is sized in explicit device pixels; WinForms' own DPI autoscaling would apply
+# the scale factor a second time on top.
+$form.AutoScaleMode = 'None'
+$form.StartPosition = 'Manual'
 $form.TopMost = $true
 $form.ShowInTaskbar = $false
-$form.BackColor = [System.Drawing.Color]::Black
-# Sized to the working area rather than the full screen so the taskbar stays reachable — a kiosk
-# user who somehow can't dismiss the overlay must not be locked out of the machine entirely.
+$form.BackColor = [System.Drawing.Color]::White
+
+# Physical pixels per canvas pixel. Read from the desktop DC rather than the form, so it is known
+# before the window is sized — and it is only meaningful at all because MakeDpiAware ran first.
+$dpiScale = 1.0
+try {
+  $desktop = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero)
+  $dpiScale = $desktop.DpiX / 96.0
+  $desktop.Dispose()
+} catch { }
+
+# WorkingArea excludes the taskbar, so anchoring to its bottom-right corner puts the card above
+# the taskbar and clear of the notification tray without having to know where either one is.
 $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-$form.Width = $area.Width
-$form.Height = $area.Height
+$margin = [int][Math]::Round(${ANNOUNCEMENT_TOAST_MARGIN} * $dpiScale)
+$cardWidth = [int][Math]::Round(${ANNOUNCEMENT_CANVAS_WIDTH} * $dpiScale)
+$cardHeight = [int][Math]::Round(${ANNOUNCEMENT_CANVAS_HEIGHT} * $dpiScale)
+# A card taller than the screen it sits on is not a toast. On a small or heavily scaled display
+# the window shrinks and the document's own fit scale takes the design down with it.
+$maxWidth = $area.Width - (2 * $margin)
+$maxHeight = $area.Height - (2 * $margin)
+if ($cardWidth -gt $maxWidth) { $cardWidth = $maxWidth }
+if ($cardHeight -gt $maxHeight) { $cardHeight = $maxHeight }
+$form.ClientSize = New-Object System.Drawing.Size($cardWidth, $cardHeight)
+$form.Location = New-Object System.Drawing.Point(($area.Right - $cardWidth - $margin), ($area.Bottom - $cardHeight - $margin))
+
+# Rounded corners via a window region, so the card reads as a card rather than as a rectangle of
+# browser. Best-effort: a square window is a cosmetic loss, not a failure to announce anything.
+try {
+  $radius = [int][Math]::Round(${TOAST_CORNER_RADIUS} * $dpiScale)
+  $diameter = $radius * 2
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $path.AddArc(0, 0, $diameter, $diameter, 180, 90)
+  $path.AddArc(($cardWidth - $diameter), 0, $diameter, $diameter, 270, 90)
+  $path.AddArc(($cardWidth - $diameter), ($cardHeight - $diameter), $diameter, $diameter, 0, 90)
+  $path.AddArc(0, ($cardHeight - $diameter), $diameter, $diameter, 90, 90)
+  $path.CloseFigure()
+  $form.Region = New-Object System.Drawing.Region($path)
+} catch { }
 
 $web = New-Object Microsoft.Web.WebView2.WinForms.WebView2
 $web.Dock = 'Fill'
-$web.DefaultBackgroundColor = [System.Drawing.Color]::Black
+# Matches the document's own background, so there is no dark flash between the window appearing
+# and the page painting.
+$web.DefaultBackgroundColor = [System.Drawing.Color]::White
 
 $web.add_CoreWebView2InitializationCompleted({
   param($sender, $e)
@@ -179,8 +297,10 @@ $web.add_CoreWebView2InitializationCompleted({
   })
 })
 
-# Escape hatch for a layout whose dismiss button ended up unclickable (dragged off-canvas, or
-# covered by another element). Without this the kiosk would need a reboot.
+# Escape hatch for a layout whose dismiss button ended up unclickable. Only reachable on the
+# fallback plain Form — a WS_EX_NOACTIVATE window never holds keyboard focus, which is the point
+# of it. The renderer's own chrome close button and auto-dismiss timer are what actually
+# guarantee a way out now, on every layout, designed or not.
 $form.KeyPreview = $true
 $form.add_KeyDown({ param($keySender, $keyArgs) if ($keyArgs.KeyCode -eq 'Escape') { $form.Close() } })
 
@@ -193,8 +313,9 @@ $web.add_NavigationCompleted({
   if ($navArgs.IsSuccess) { Write-OverlayResult 'rendered' '' }
   else { Write-OverlayResult 'failed' ('navigation failed: ' + $navArgs.WebErrorStatus) }
 })
-$form.Add_Shown({ $form.Activate() })
-[void]$form.ShowDialog()
+# Application.Run rather than ShowDialog: ShowDialog activates the window unconditionally, so it
+# would defeat ShowWithoutActivation and pull focus off whatever the kiosk user was doing.
+[System.Windows.Forms.Application]::Run($form)
 `,
   );
 }
@@ -225,7 +346,10 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $form = New-Object System.Windows.Forms.Form
 $form.Text = '${psQuote(title)}'
-$form.StartPosition = 'CenterScreen'
+# Manual, then anchored to the working area's bottom-right corner once the final height is known
+# (the image block below grows it) — the fallback should land in the same place as the real
+# toast, not in the middle of whatever the kiosk user is looking at.
+$form.StartPosition = 'Manual'
 $form.TopMost = $true
 $form.FormBorderStyle = 'FixedDialog'
 $form.MinimizeBox = $false
@@ -264,6 +388,8 @@ $label.Padding = New-Object System.Windows.Forms.Padding(16)
 $label.TextAlign = 'MiddleCenter'
 $label.Font = New-Object System.Drawing.Font('Segoe UI', 12)
 $form.Controls.Add($label)
+$area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$form.Location = New-Object System.Drawing.Point(($area.Right - $form.Width - ${ANNOUNCEMENT_TOAST_MARGIN}), ($area.Bottom - $form.Height - ${ANNOUNCEMENT_TOAST_MARGIN}))
 $form.AcceptButton = $okButton
 $form.Add_Shown({ $form.Activate(); Write-OverlayResult 'rendered' '' })
 $form.Add_FormClosed({ if ($tempImagePath -and (Test-Path $tempImagePath)) { Remove-Item $tempImagePath -Force -ErrorAction SilentlyContinue } })

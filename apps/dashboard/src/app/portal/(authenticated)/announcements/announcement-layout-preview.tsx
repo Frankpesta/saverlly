@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  ANNOUNCEMENT_AUTO_DISMISS_MS,
   ANNOUNCEMENT_CANVAS_HEIGHT,
   ANNOUNCEMENT_CANVAS_WIDTH,
   renderAnnouncementLayoutHtml,
@@ -14,8 +15,14 @@ import {
  * Anything that renders wrong here renders wrong on the kiosk, which is the point.
  *
  * `sandbox="allow-scripts"` without `allow-same-origin` gives the frame an opaque origin: the
- * scaling script in the document can run (without it the fixed 960×600 stage would just be
- * clipped), but it can't reach back into the dashboard.
+ * scaling script in the document can run (without it the fixed-size stage would just be clipped),
+ * but it can't reach back into the dashboard.
+ *
+ * The frame is the toast card itself at its authored size, because that is exactly what the kiosk
+ * shows — a card in the bottom-right corner of the screen, not a full-screen takeover. What it
+ * can't show is the two behaviours that only exist with a host attached: the slide-in and the
+ * auto-dismiss, both of which the document skips in non-interactive mode so the preview holds
+ * still.
  */
 export function AnnouncementLayoutPreview({
   layout,
@@ -42,8 +49,11 @@ export function AnnouncementLayoutPreview({
       </div>
 
       <div
-        className="overflow-hidden rounded-xl border border-black/10 bg-black/80 dark:border-white/10"
-        style={{ aspectRatio: `${ANNOUNCEMENT_CANVAS_WIDTH} / ${ANNOUNCEMENT_CANVAS_HEIGHT}` }}
+        className="mx-auto w-full overflow-hidden rounded-xl border border-black/10 bg-black/80 dark:border-white/10"
+        style={{
+          aspectRatio: `${ANNOUNCEMENT_CANVAS_WIDTH} / ${ANNOUNCEMENT_CANVAS_HEIGHT}`,
+          maxWidth: ANNOUNCEMENT_CANVAS_WIDTH,
+        }}
       >
         <iframe
           title={label}
@@ -54,7 +64,9 @@ export function AnnouncementLayoutPreview({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        This is the real overlay document, rendered exactly as the kiosk will show it.
+        This is the real overlay document, rendered exactly as the kiosk will show it — as a card
+        in the bottom-right corner of the screen, which slides in and closes itself after{" "}
+        {Math.round(ANNOUNCEMENT_AUTO_DISMISS_MS / 1000)} seconds.
       </p>
     </div>
   )

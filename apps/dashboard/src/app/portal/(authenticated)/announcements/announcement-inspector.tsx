@@ -68,10 +68,10 @@ export function createElement(type: LayoutElementType): AnnouncementLayoutElemen
       return {
         id,
         type: "text",
-        ...centered(480, 72),
+        ...centered(320, 56),
         text: "New text",
         fontFamily: "Segoe UI",
-        fontSize: 32,
+        fontSize: 22,
         fontWeight: 600,
         color: "#111111",
         align: "center",
@@ -81,12 +81,12 @@ export function createElement(type: LayoutElementType): AnnouncementLayoutElemen
       return {
         id,
         type: "button",
-        ...centered(200, 56),
+        ...centered(176, 44),
         label: "Dismiss",
         backgroundColor: "#0f766e",
         color: "#ffffff",
         fontFamily: "Segoe UI",
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 600,
         radius: 8,
       }
@@ -94,7 +94,7 @@ export function createElement(type: LayoutElementType): AnnouncementLayoutElemen
       return {
         id,
         type: "shape",
-        ...centered(320, 200),
+        ...centered(240, 160),
         fill: "#e2e8f0",
         radius: 12,
       }

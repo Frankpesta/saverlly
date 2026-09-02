@@ -14,11 +14,34 @@
 
 export const ANNOUNCEMENT_LAYOUT_VERSION = 1;
 
-/** The design surface is a fixed pixel grid; the renderer scales it to whatever window it lands
- *  in. A fixed grid is what makes a saved layout reproducible across kiosk screens of different
- *  resolutions — positions are stored in canvas space, never in screen pixels or percentages. */
-export const ANNOUNCEMENT_CANVAS_WIDTH = 960;
-export const ANNOUNCEMENT_CANVAS_HEIGHT = 600;
+/**
+ * The design surface is a fixed pixel grid; the renderer scales it to whatever window it lands
+ * in. A fixed grid is what makes a saved layout reproducible across kiosk screens of different
+ * resolutions — positions are stored in canvas space, never in screen pixels or percentages.
+ *
+ * These are toast dimensions, not screen dimensions. The overlay is a card in the bottom-right
+ * corner of the kiosk screen (the CorelDRAW/Windows-notification shape), so the canvas is a
+ * portrait card and the agent sizes its window to exactly this many device-independent pixels —
+ * which means the design renders at 1:1 and never gets blown up to fill a display.
+ */
+export const ANNOUNCEMENT_CANVAS_WIDTH = 400;
+export const ANNOUNCEMENT_CANVAS_HEIGHT = 520;
+
+/** Gap between the toast and the working area's right/bottom edges, in the same canvas-space
+ *  pixels. Keeps the card clear of the taskbar and the notification tray. */
+export const ANNOUNCEMENT_TOAST_MARGIN = 16;
+
+/**
+ * How long the toast stays up before sliding away on its own. A corner toast that waits forever
+ * for a click is just a smaller version of the takeover it replaced — but this is long enough to
+ * read a headline, an image and a line of body copy without hurrying.
+ */
+export const ANNOUNCEMENT_AUTO_DISMISS_MS = 20_000;
+
+/** Slide-in and slide-out durations. The exit is deliberately shorter: an entrance wants to be
+ *  noticed, a dismissal wants to be out of the way. */
+const TOAST_ENTER_MS = 320;
+const TOAST_EXIT_MS = 200;
 
 /** Fonts that ship with a stock Windows install. The kiosk overlay renders offline with no
  *  webfont loading, so anything outside this list would silently fall back to a default and make
@@ -268,10 +291,13 @@ export function isAnnouncementLayout(value: unknown): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * The layout an announcement gets when it has none: title, body and (optionally) image arranged
- * the way the old fixed WinForms overlay stacked them. This is what makes every pre-canvas
- * announcement still render on the new pipeline, and it's the starting point the editor opens
- * with so a kiosk owner never faces an empty canvas.
+ * The layout an announcement gets when it has none: image (optional), title, body and a dismiss
+ * button stacked down the toast card. This is what makes every pre-canvas announcement still
+ * render on the new pipeline, and it's the starting point the editor opens with so a kiosk owner
+ * never faces an empty canvas.
+ *
+ * The image starts below the chrome close button's corner rather than at the very top edge, so
+ * the × never lands on a face or a logo in the default arrangement.
  */
 export function createDefaultLayout(source: {
   title?: string;
@@ -285,26 +311,26 @@ export function createDefaultLayout(source: {
     elements.push({
       id: createElementId('image'),
       type: 'image',
-      x: 80,
+      x: 24,
       y: 48,
-      width: 800,
-      height: 240,
+      width: 352,
+      height: 176,
       url: source.mediaUrl as string,
       fit: 'cover',
-      radius: 12,
+      radius: 10,
     });
   }
 
   elements.push({
     id: createElementId('text'),
     type: 'text',
-    x: 80,
-    y: hasImage ? 316 : 120,
-    width: 800,
-    height: 64,
+    x: 24,
+    y: hasImage ? 248 : 152,
+    width: 352,
+    height: 56,
     text: source.title ?? '',
     fontFamily: 'Segoe UI',
-    fontSize: 40,
+    fontSize: 26,
     fontWeight: 700,
     color: '#111111',
     align: 'center',
@@ -314,13 +340,13 @@ export function createDefaultLayout(source: {
   elements.push({
     id: createElementId('text'),
     type: 'text',
-    x: 80,
-    y: hasImage ? 392 : 200,
-    width: 800,
-    height: 120,
+    x: 24,
+    y: hasImage ? 312 : 216,
+    width: 352,
+    height: 128,
     text: source.body ?? '',
     fontFamily: 'Segoe UI',
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: 400,
     color: '#444444',
     align: 'center',
@@ -330,15 +356,15 @@ export function createDefaultLayout(source: {
   elements.push({
     id: createElementId('button'),
     type: 'button',
-    x: 400,
-    y: hasImage ? 520 : 360,
+    x: 120,
+    y: 452,
     width: 160,
-    height: 52,
+    height: 44,
     label: 'Dismiss',
     backgroundColor: '#0f766e',
     color: '#ffffff',
     fontFamily: 'Segoe UI',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 600,
     radius: 8,
   });
@@ -347,9 +373,13 @@ export function createDefaultLayout(source: {
 }
 
 /**
- * Guarantees the layout contains at least one button. Without one, the kiosk user has no way to
- * close the overlay and the machine is effectively bricked until the agent restarts — so this is
- * enforced at render time, not just in the editor's UI.
+ * Guarantees the layout contains at least one button.
+ *
+ * Less load-bearing than it was: the toast now always draws its own chrome close button and
+ * dismisses itself on a timer, so a buttonless design is no longer a kiosk that can't be
+ * reclaimed. It stays because a designed, labelled call to action is a better dismiss affordance
+ * than a 28px ×, and a layout that lost its only button to an editing mistake should still get
+ * one back.
  */
 export function ensureDismissable(layout: AnnouncementLayout): AnnouncementLayout {
   if (layout.elements.some((element) => element.type === 'button')) return layout;
@@ -361,9 +391,9 @@ export function ensureDismissable(layout: AnnouncementLayout): AnnouncementLayou
         id: createElementId('button'),
         type: 'button',
         x: ANNOUNCEMENT_CANVAS_WIDTH / 2 - 80,
-        y: ANNOUNCEMENT_CANVAS_HEIGHT - 80,
+        y: ANNOUNCEMENT_CANVAS_HEIGHT - 68,
         width: 160,
-        height: 52,
+        height: 44,
         label: 'Dismiss',
         backgroundColor: '#0f766e',
         color: '#ffffff',
@@ -488,8 +518,14 @@ function renderElementHtml(element: AnnouncementLayoutElement): string {
  * points its WebView2 overlay at it; the dashboard drops the identical string into an iframe so
  * the preview is the real renderer rather than a lookalike.
  *
- * The stage is scaled to fit whatever viewport it lands in, so one saved layout renders correctly
- * on a 1366×768 kiosk and a 4K screen alike.
+ * The document is the toast card itself, not a screen containing one: the agent sizes its window
+ * to exactly the canvas dimensions, so the design renders 1:1 and the `fit` scale below only ever
+ * shrinks — never enlarges — the card. Enlarging is what made the old full-screen overlay look
+ * soft, since a 960px-wide design blown up to a 1920px screen is a 2× upscale of every glyph
+ * boundary the layout was authored against.
+ *
+ * Two dismiss affordances are always present regardless of what the owner designed: the chrome
+ * close button in the card's corner, and the auto-dismiss timer.
  */
 export function renderAnnouncementLayoutHtml(
   layout: AnnouncementLayout,
@@ -498,19 +534,37 @@ export function renderAnnouncementLayoutHtml(
   const safe = ensureDismissable(parseAnnouncementLayout(layout) ?? createDefaultLayout({}));
   const interactive = options.interactive !== false;
 
-  const dismissScript = interactive
+  // The preview is a still life: it must not slide itself off the page 20 seconds after a kiosk
+  // owner opens the editor, and it has no host to post a dismissal to.
+  const behaviourScript = interactive
     ? `<script>
-document.addEventListener('click', function (event) {
-  var target = event.target.closest('[data-saverlly-dismiss]');
-  if (!target) return;
-  // The WinForms host listens for this and closes the window. window.close() is the fallback
-  // for a plain browser context (the dashboard preview), where it is simply a no-op.
-  if (window.chrome && window.chrome.webview) {
-    window.chrome.webview.postMessage('saverlly:dismiss');
-  } else {
-    window.close();
+(function () {
+  var shell = document.getElementById('shell');
+  var dismissed = false;
+
+  function dismiss() {
+    if (dismissed) return;
+    dismissed = true;
+    shell.className = 'leaving';
+    // Let the exit animation finish before the window disappears — closing on the click itself
+    // makes the toast vanish rather than leave.
+    window.setTimeout(function () {
+      // The WinForms host listens for this and closes the window. window.close() is the fallback
+      // for a plain browser context, where it is simply a no-op.
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage('saverlly:dismiss');
+      } else {
+        window.close();
+      }
+    }, ${TOAST_EXIT_MS});
   }
-});
+
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-saverlly-dismiss]')) dismiss();
+  });
+
+  window.setTimeout(dismiss, ${ANNOUNCEMENT_AUTO_DISMISS_MS});
+})();
 </script>`
     : '';
 
@@ -529,37 +583,85 @@ document.addEventListener('click', function (event) {
     ${interactive ? '' : 'pointer-events: none;'}
   }
   body { display: flex; align-items: center; justify-content: center; }
-  #stage {
+  /* The card. Animated with the standalone \`translate\`/\`scale\` properties rather than
+     \`transform\`, so the entrance animation and the fit scale compose instead of overwriting
+     each other. */
+  #shell {
     position: relative;
     width: ${ANNOUNCEMENT_CANVAS_WIDTH}px;
     height: ${ANNOUNCEMENT_CANVAS_HEIGHT}px;
-    background: ${escapeHtml(safe.background)};
     flex: none;
+    scale: var(--fit, 1);
+    animation: saverlly-rise ${TOAST_ENTER_MS}ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+  #shell.leaving { animation: saverlly-sink ${TOAST_EXIT_MS}ms ease-in both; }
+  @keyframes saverlly-rise {
+    from { translate: 0 ${Math.round(ANNOUNCEMENT_CANVAS_HEIGHT / 12)}px; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+  }
+  @keyframes saverlly-sink {
+    from { translate: 0 0; opacity: 1; }
+    to { translate: 0 24px; opacity: 0; }
+  }
+  /* Motion is decoration here; the announcement itself must still arrive. */
+  @media (prefers-reduced-motion: reduce) {
+    #shell, #shell.leaving { animation-duration: 1ms; }
+  }
+  #stage {
+    position: absolute;
+    inset: 0;
+    background: ${escapeHtml(safe.background)};
+    /* Clips anything dragged past the card's edge, including designs authored against the older,
+       larger canvas — a partial element at the boundary looks intentional, one bleeding into the
+       window edge does not. */
+    overflow: hidden;
+  }
+  /* Renderer-owned, not part of the design: every toast closes the same way no matter what the
+     kiosk owner drew, and it sits above the stage so it is never buried under an element. */
+  #chrome-close {
+    position: absolute;
+    top: 10px; right: 10px;
+    z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border: none; border-radius: 50%;
+    background: rgba(15, 23, 42, 0.55);
+    color: #ffffff;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+  #chrome-close:hover { background: rgba(15, 23, 42, 0.78); }
 </style>
 </head>
 <body>
+<div id="shell">
 <div id="stage">
 ${safe.elements.map(renderElementHtml).join('\n')}
 </div>
+<button id="chrome-close" type="button" data-saverlly-dismiss aria-label="Close announcement">
+<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" fill="none"/></svg>
+</button>
+</div>
 <script>
-// Scale the fixed design grid to the actual window instead of laying out responsively — the
-// layout was authored against exact coordinates, so uniform scaling is the only transform that
-// preserves it faithfully.
+// Scale the fixed design grid down to the window when it can't fit, instead of laying out
+// responsively — the layout was authored against exact coordinates, so uniform scaling is the
+// only transform that preserves it faithfully. Capped at 1: the agent sizes the window to the
+// card, and upscaling a design past its authored size is exactly the softness this replaced.
 (function () {
-  var stage = document.getElementById('stage');
+  var shell = document.getElementById('shell');
   function fit() {
     var scale = Math.min(
+      1,
       window.innerWidth / ${ANNOUNCEMENT_CANVAS_WIDTH},
       window.innerHeight / ${ANNOUNCEMENT_CANVAS_HEIGHT}
     );
-    stage.style.transform = 'scale(' + scale + ')';
+    shell.style.setProperty('--fit', scale);
   }
   fit();
   window.addEventListener('resize', fit);
 })();
 </script>
-${dismissScript}
+${behaviourScript}
 </body>
 </html>`;
 }

@@ -1,4 +1,7 @@
 import {
+  ANNOUNCEMENT_AUTO_DISMISS_MS,
+  ANNOUNCEMENT_CANVAS_HEIGHT,
+  ANNOUNCEMENT_CANVAS_WIDTH,
   createDefaultLayout,
   ensureDismissable,
   isAnnouncementLayout,
@@ -129,6 +132,71 @@ describe("renderAnnouncementLayoutHtml", () => {
       const escaped = css.replace(/"/g, "&quot;").replace(/'/g, "&#39;")
       expect(html).toContain(escaped)
     }
+  })
+})
+
+// The toast is a corner card, not a screen: the agent sizes its window to these dimensions, so a
+// design that assumes screen proportions would be a design nobody can read.
+describe("the toast card", () => {
+  it("is a portrait card small enough to sit in the corner of a modest kiosk display", () => {
+    expect(ANNOUNCEMENT_CANVAS_WIDTH).toBeLessThan(ANNOUNCEMENT_CANVAS_HEIGHT)
+    // Comfortably inside the working area of the smallest display we support (1366×768), with
+    // room left for the margin the agent adds on both edges.
+    expect(ANNOUNCEMENT_CANVAS_WIDTH).toBeLessThanOrEqual(480)
+    expect(ANNOUNCEMENT_CANVAS_HEIGHT).toBeLessThanOrEqual(640)
+  })
+
+  // Elements are clipped to the stage, so anything the default arrangement puts outside the card
+  // simply would not be there on the kiosk.
+  it("fits the whole default arrangement inside the card, image or not", () => {
+    for (const mediaUrl of [null, "https://cdn.test/a.png"]) {
+      for (const element of createDefaultLayout({ title: "Title", body: "Body", mediaUrl })
+        .elements) {
+        expect(element.x).toBeGreaterThanOrEqual(0)
+        expect(element.y).toBeGreaterThanOrEqual(0)
+        expect(element.x + element.width).toBeLessThanOrEqual(ANNOUNCEMENT_CANVAS_WIDTH)
+        expect(element.y + element.height).toBeLessThanOrEqual(ANNOUNCEMENT_CANVAS_HEIGHT)
+      }
+    }
+  })
+
+  // The chrome × and the timer are the renderer's, not the design's — they are what make a
+  // buttonless or misdesigned layout still closeable, so they can't depend on the layout at all.
+  it("always draws its own close button, whatever the design contains", () => {
+    const html = renderAnnouncementLayoutHtml({
+      version: 1,
+      background: "#fff",
+      elements: [],
+    })
+    expect(html).toContain('id="chrome-close"')
+    expect(html).toContain("Close announcement")
+  })
+
+  it("dismisses itself on a timer when hosted, and never in the editor preview", () => {
+    const layout = createDefaultLayout({ title: "t", body: "b" })
+    expect(renderAnnouncementLayoutHtml(layout)).toContain(
+      `setTimeout(dismiss, ${ANNOUNCEMENT_AUTO_DISMISS_MS})`,
+    )
+    // A preview that slid itself away 20 seconds into an editing session would look like a bug.
+    expect(renderAnnouncementLayoutHtml(layout, { interactive: false })).not.toContain(
+      "setTimeout(dismiss",
+    )
+  })
+
+  it("slides in rather than appearing, and animates without clobbering the fit scale", () => {
+    const html = renderAnnouncementLayoutHtml(createDefaultLayout({ title: "t", body: "b" }))
+    expect(html).toContain("@keyframes saverlly-rise")
+    // The animation drives `translate` and the fit drives `scale`; if either used `transform`
+    // they would overwrite one another and the card would jump or vanish.
+    expect(html).toContain("scale: var(--fit, 1)")
+    expect(html).toMatch(/@keyframes saverlly-rise\s*\{[^}]*translate:/)
+  })
+
+  // Upscaling a 400px design to a 1920px screen is exactly what made the old overlay look soft.
+  it("never scales the design above its authored size", () => {
+    expect(renderAnnouncementLayoutHtml(createDefaultLayout({}))).toMatch(
+      /var scale = Math\.min\(\s*1,/,
+    )
   })
 })
 
