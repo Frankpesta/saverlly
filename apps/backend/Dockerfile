@@ -31,6 +31,13 @@ RUN npm ci
 # gitignored, so without compiling it here the backend's own `npm run build` fails to resolve
 # the import. Built before the backend is copied so an edit to backend source doesn't
 # invalidate this layer.
+#
+# packages/config comes along because shared-types' tsconfig.json does `"extends":
+# "../config/base.tsconfig.json"` — copying only the package.json of that workspace (as the
+# npm ci layer above does) gets `tsc` far enough to start and then fail with TS5083. The
+# extends chain ends there: base.tsconfig.json extends nothing, and the backend's own
+# tsconfig.build.json only references its sibling tsconfig.json.
+COPY packages/config packages/config
 COPY packages/shared-types packages/shared-types
 RUN npm run build --workspace @saverlly/shared-types
 
