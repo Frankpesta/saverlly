@@ -133,20 +133,27 @@ describe("NewAnnouncementPage", () => {
     )
 
     const uploadedUrl = "http://localhost:3000/uploads/announcements/uploaded.png"
+    // Browser-facing surfaces render the image through the dashboard's own proxy: the backend
+    // serves uploads over plain HTTP, and a raw http:// URL on the HTTPS dashboard is mixed
+    // content, which the browser drops without a word. The raw URL is still what gets *saved*
+    // and what the kiosk agent renders — only these two views rewrite it.
+    const encoded = encodeURIComponent(uploadedUrl)
 
     // The upload becomes a real image element on the canvas, painted via background-image by the
     // shared `layoutElementStyle` — the same style function the kiosk renderer uses.
     await waitFor(() => {
       const stage = screen.getByTestId("announcement-stage")
       const painted = Array.from(stage.querySelectorAll<HTMLElement>("div")).some((node) =>
-        node.style.backgroundImage.includes(uploadedUrl),
+        node.style.backgroundImage.includes(`/api/image-proxy?url=${encoded}`),
       )
       expect(painted).toBe(true)
     })
 
     // And it reaches the actual document the kiosk will load, not just the editor's own view.
     const frame = screen.getByTitle("Kiosk preview") as HTMLIFrameElement
-    expect(frame.getAttribute("srcdoc")).toContain(uploadedUrl)
+    expect(frame.getAttribute("srcdoc")).toContain(encoded)
+    // The bug guard: an un-rewritten http:// URL here is one the browser silently refuses.
+    expect(frame.getAttribute("srcdoc")).not.toContain(`url("${uploadedUrl}")`)
   })
 
   it("leaves the page via Cancel rather than a modal close", async () => {

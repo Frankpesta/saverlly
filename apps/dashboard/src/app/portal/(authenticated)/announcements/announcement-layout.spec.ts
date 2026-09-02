@@ -200,6 +200,64 @@ describe("the toast card", () => {
   })
 })
 
+// The dashboard is served over HTTPS; the backend serves uploads over plain HTTP. A raw
+// url("http://…") is mixed content, which the browser drops silently — no console error, no
+// broken-image icon, the image just isn't there. That is the exact bug this resolver fixes.
+describe("resolveImageUrl", () => {
+  const withImage = {
+    version: 1,
+    background: "#fff",
+    elements: [
+      {
+        id: "i1",
+        type: "image" as const,
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        url: "http://56.228.62.8:3000/uploads/announcements/pic.png",
+        fit: "cover" as const,
+        radius: 0,
+      },
+    ],
+  }
+
+  it("rewrites image URLs when a resolver is given", () => {
+    const style = layoutElementStyle(withImage.elements[0], {
+      resolveImageUrl: (url) => `/api/image-proxy?url=${encodeURIComponent(url)}`,
+    })
+    expect(style.backgroundImage).toContain("/api/image-proxy?url=")
+    expect(style.backgroundImage).not.toContain('url("http://56.228.62.8')
+  })
+
+  // The kiosk agent has no proxy — it loads images straight from the backend, so it must render
+  // the URL exactly as saved. A resolver leaking in as a default would break every kiosk.
+  it("leaves the URL exactly as saved when no resolver is given", () => {
+    expect(layoutElementStyle(withImage.elements[0]).backgroundImage).toBe(
+      'url("http://56.228.62.8:3000/uploads/announcements/pic.png")',
+    )
+    expect(renderAnnouncementLayoutHtml(withImage)).toContain(
+      "http://56.228.62.8:3000/uploads/announcements/pic.png",
+    )
+  })
+
+  it("threads the resolver through the HTML renderer the preview uses", () => {
+    const html = renderAnnouncementLayoutHtml(withImage, {
+      interactive: false,
+      resolveImageUrl: () => "https://dash.test/api/image-proxy?url=x",
+    })
+    expect(html).toContain("https://dash.test/api/image-proxy?url=x")
+    expect(html).not.toContain("56.228.62.8")
+  })
+
+  it("only touches images, never a text or button element", () => {
+    const shout = jest.fn((url: string) => `proxied:${url}`)
+    const layout = createDefaultLayout({ title: "t", body: "b" })
+    renderAnnouncementLayoutHtml(layout, { resolveImageUrl: shout })
+    expect(shout).not.toHaveBeenCalled()
+  })
+})
+
 describe("createDefaultLayout", () => {
   it("includes the image only when there is a usable one", () => {
     expect(createDefaultLayout({ title: "t", body: "b" }).elements.some((e) => e.type === "image")).toBe(

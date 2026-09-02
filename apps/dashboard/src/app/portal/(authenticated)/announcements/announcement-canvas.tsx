@@ -9,6 +9,13 @@ import {
   type AnnouncementLayoutElement,
 } from "@saverlly/shared-types"
 import { cn } from "@/lib/utils"
+import { proxiedImageUrl } from "@/lib/image-proxy"
+
+/** Image elements are drawn from the backend's own upload storage, which is served over plain
+ *  HTTP while the dashboard is on HTTPS — a raw `url("http://…")` is mixed content and the
+ *  browser drops it silently, so an uploaded image would simply never appear on the canvas.
+ *  Only the URL is rewritten; every other style still comes from the shared definition. */
+const CANVAS_STYLE_OPTIONS = { resolveImageUrl: proxiedImageUrl }
 
 /** Movement smaller than this is a click, not a drag — without it, selecting an element with a
  *  slightly unsteady hand nudges it a pixel or two. */
@@ -204,7 +211,10 @@ export function AnnouncementCanvas({
       >
         {layout.elements.map((element) => {
           const selected = element.id === selectedId
-          const style = layoutElementStyle(element) as React.CSSProperties
+          const style = layoutElementStyle(
+            element,
+            CANVAS_STYLE_OPTIONS,
+          ) as React.CSSProperties
           return (
             <div
               key={element.id}

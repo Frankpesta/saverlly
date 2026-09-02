@@ -8,6 +8,7 @@ import {
   renderAnnouncementLayoutHtml,
   type AnnouncementLayout,
 } from "@saverlly/shared-types"
+import { absoluteProxiedImageUrl } from "@/lib/image-proxy"
 
 /**
  * The kiosk preview — not a lookalike built from the same data, but the *actual* document the
@@ -31,8 +32,16 @@ export function AnnouncementLayoutPreview({
   layout: AnnouncementLayout
   label?: string
 }) {
+  // Same mixed-content rewrite the canvas does: the kiosk fetches upload URLs directly over
+  // HTTP, but this document runs inside the HTTPS dashboard, where the browser would drop them
+  // silently. The kiosk agent renders the identical function without a resolver, so it still
+  // gets the URLs exactly as saved.
   const html = React.useMemo(
-    () => renderAnnouncementLayoutHtml(layout, { interactive: false }),
+    () =>
+      renderAnnouncementLayoutHtml(layout, {
+        interactive: false,
+        resolveImageUrl: absoluteProxiedImageUrl,
+      }),
     [layout],
   )
 

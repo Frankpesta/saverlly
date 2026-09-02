@@ -412,12 +412,34 @@ export function ensureDismissable(layout: AnnouncementLayout): AnnouncementLayou
 
 export type StyleMap = Record<string, string>;
 
+export interface LayoutStyleOptions {
+  /**
+   * Last-moment rewrite of an image element's URL, applied only when the styles are built —
+   * never to the stored layout.
+   *
+   * This exists because the two renderers reach images over different transports. The kiosk
+   * agent loads them directly from the backend and must use the URL exactly as saved. The
+   * dashboard runs on HTTPS while the backend serves uploads over plain HTTP (no TLS yet — see
+   * DEPLOYMENT.md's known limitations), so a raw `url("http://…")` is mixed content: the
+   * browser blocks it silently, with no console error and no broken-image icon, and the design
+   * simply appears to have no image in it. The dashboard therefore passes a resolver that
+   * routes through its own same-origin image proxy.
+   *
+   * Only the URL changes — position, size, fit and radius all still come from the one shared
+   * definition below, so the editor still cannot drift from what the kiosk draws.
+   */
+  resolveImageUrl?: (url: string) => string;
+}
+
 /**
  * The visual definition of an element, in camelCase so it can be handed straight to React's
  * `style` prop. `styleMapToCssText` converts the same map for the HTML renderer, which is what
  * keeps the editor and the kiosk pixel-identical.
  */
-export function layoutElementStyle(element: AnnouncementLayoutElement): StyleMap {
+export function layoutElementStyle(
+  element: AnnouncementLayoutElement,
+  options: LayoutStyleOptions = {},
+): StyleMap {
   const base: StyleMap = {
     position: 'absolute',
     left: `${element.x}px`,
@@ -449,7 +471,7 @@ export function layoutElementStyle(element: AnnouncementLayoutElement): StyleMap
     case 'image':
       return {
         ...base,
-        backgroundImage: `url("${element.url}")`,
+        backgroundImage: `url("${options.resolveImageUrl ? options.resolveImageUrl(element.url) : element.url}")`,
         backgroundSize: element.fit,
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
@@ -495,8 +517,11 @@ export function styleMapToCssText(style: StyleMap): string {
 // HTML renderer — what the kiosk's WebView2 overlay loads
 // ---------------------------------------------------------------------------
 
-function renderElementHtml(element: AnnouncementLayoutElement): string {
-  const style = escapeHtml(styleMapToCssText(layoutElementStyle(element)));
+function renderElementHtml(
+  element: AnnouncementLayoutElement,
+  options: LayoutStyleOptions = {},
+): string {
+  const style = escapeHtml(styleMapToCssText(layoutElementStyle(element, options)));
 
   switch (element.type) {
     case 'text':
@@ -529,7 +554,7 @@ function renderElementHtml(element: AnnouncementLayoutElement): string {
  */
 export function renderAnnouncementLayoutHtml(
   layout: AnnouncementLayout,
-  options: { interactive?: boolean } = {},
+  options: { interactive?: boolean } & LayoutStyleOptions = {},
 ): string {
   const safe = ensureDismissable(parseAnnouncementLayout(layout) ?? createDefaultLayout({}));
   const interactive = options.interactive !== false;
@@ -636,7 +661,7 @@ export function renderAnnouncementLayoutHtml(
 <body>
 <div id="shell">
 <div id="stage">
-${safe.elements.map(renderElementHtml).join('\n')}
+${safe.elements.map((element) => renderElementHtml(element, options)).join('\n')}
 </div>
 <button id="chrome-close" type="button" data-saverlly-dismiss aria-label="Close announcement">
 <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" fill="none"/></svg>

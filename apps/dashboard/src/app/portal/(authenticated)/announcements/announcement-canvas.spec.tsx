@@ -95,6 +95,37 @@ describe("AnnouncementCanvas", () => {
     expect(JSON.parse(screen.getByTestId("state").textContent!)[0][0]).toBe(element.x + 9)
   })
 
+  // The reported bug: an uploaded image never appeared on the canvas. Its URL is served over
+  // plain HTTP by the backend while the dashboard is HTTPS, so the browser blocked it as mixed
+  // content — silently, which is why it looked like the insert had simply done nothing.
+  it("routes image URLs through the proxy so they aren't mixed-content blocked", () => {
+    const withImage: AnnouncementLayout = {
+      version: 1,
+      background: "#fff",
+      elements: [
+        {
+          id: "img-1",
+          type: "image",
+          x: 10,
+          y: 10,
+          width: 120,
+          height: 80,
+          url: "http://56.228.62.8:3000/uploads/announcements/pic.png",
+          fit: "cover",
+          radius: 0,
+        },
+      ],
+    }
+    render(<Harness initial={withImage} />)
+
+    const image = screen.getByRole("button", { name: /Image/ })
+    expect(image).toHaveStyle({
+      backgroundImage: `url("/api/image-proxy?url=${encodeURIComponent(
+        "http://56.228.62.8:3000/uploads/announcements/pic.png",
+      )}")`,
+    })
+  })
+
   it("deselects when the surrounding frame is clicked", () => {
     render(<Harness initial={base} />)
     const target = screen.getByRole("button", { name: /Text: Headline/ })

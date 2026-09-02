@@ -253,10 +253,25 @@ compiler in addition to the two raw exes.
 
 ```bash
 cd apps/agent
-SAVERLLY_API_BASE_URL="http://<elastic-ip>:3000" \
-SAVERLLY_EXTENSION_ID="<real-extension-id-from-part-d>" \
+SAVERLLY_API_BASE_URL="http://56.228.62.8:3000" \
+SAVERLLY_EXTENSION_ID="ggfgbgfobpiafnnaldbpjnbdadnldbkb" \
 npm run package
 ```
+
+> **Both variables are mandatory — a build without them is silently broken.** They are baked
+> into the bundle at build time (`scripts/build.js`); a packaged exe has no runtime env var a
+> kiosk owner could set. Omitting them yields an installer that fails at the very end with
+> *"Saverlly setup could not complete… Error code: 1"* — `getExtensionId()` throws before the
+> device ever registers — and, had it got that far, `SAVERLLY_API_BASE_URL` would have
+> defaulted to `http://localhost:3000` (`src/lib/config.ts`), pointing every kiosk at itself.
+> The same two values are what make *uninstall* deregister the device and pull the extension,
+> so a bare build breaks that end of the lifecycle too, silently (both calls are wrapped in
+> try/catch so they never block the uninstall). `npm run build` only prints a warning when
+> they're missing, which is easy to miss in scrolling output — **verify after packaging**:
+> ```bash
+> grep -c "ggfgbgfobpiafnnaldbpjnbdadnldbkb" release/saverlly-agent.exe  # expect 1
+> grep -c "http://localhost:3000" dist/main.js                          # expect 0
+> ```
 Produces `release/saverlly-agent.exe` + `release/saverlly-agent-host.exe` (the two exes — the
 second is Chrome's native-messaging target, never run directly, see
 `apps/agent/src/lib/native-messaging-host.ts`), and `release/SaverllyAgentSetup.exe` — **this is
