@@ -12,9 +12,9 @@ FROM mcr.microsoft.com/playwright:v1.62.1-noble
 
 WORKDIR /app
 
-# Copy every workspace's package.json first (npm needs them all present to satisfy the
-# root package-lock.json, even though @saverlly/backend itself has no workspace: deps) so
-# this layer only invalidates when a dependency actually changes, not on every source edit.
+# Copy every workspace's package.json first (npm needs them all present to satisfy the root
+# package-lock.json) so this layer only invalidates when a dependency actually changes, not on
+# every source edit.
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json apps/backend/package.json
 COPY apps/dashboard/package.json apps/dashboard/package.json
@@ -24,6 +24,15 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 
 RUN npm ci
+
+# The backend imports @saverlly/shared-types (announcement-layout sanitizing), and npm ci only
+# symlinks that workspace — it does not build it. Its package.json `main`/`types` point at
+# `dist/`, which is both absent from the build context (`**/dist` is in .dockerignore) and
+# gitignored, so without compiling it here the backend's own `npm run build` fails to resolve
+# the import. Built before the backend is copied so an edit to backend source doesn't
+# invalidate this layer.
+COPY packages/shared-types packages/shared-types
+RUN npm run build --workspace @saverlly/shared-types
 
 COPY apps/backend apps/backend
 
