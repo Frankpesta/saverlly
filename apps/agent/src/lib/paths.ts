@@ -42,6 +42,32 @@ export function announcementOverlayHtmlPath(): string {
 }
 
 /**
+ * Where the overlay (running as the logged-in user) reports back to the agent (running as
+ * SYSTEM). A dedicated subfolder rather than agentDir() itself because it needs a widened ACL:
+ * a folder created by SYSTEM under %PROGRAMDATA% gives plain Users read-only by default, so
+ * without granting write here the overlay could never deliver its receipt and every announcement
+ * would look like it failed.
+ */
+export function overlayExchangeDirPath(): string {
+  return path.join(agentDir(), 'overlay');
+}
+
+/** Receipt written by the overlay: which attempt it was, and whether it actually rendered. */
+export function announcementOverlayResultPath(): string {
+  return path.join(overlayExchangeDirPath(), 'result.txt');
+}
+
+/**
+ * Present while an overlay is on screen; removed when its window closes. Lets the agent avoid
+ * dispatching a second announcement on top of one the kiosk user hasn't dismissed yet — a
+ * localization-proof alternative to parsing `schtasks /query` output, whose Status field and
+ * values are both translated.
+ */
+export function announcementOverlayLockPath(): string {
+  return path.join(overlayExchangeDirPath(), 'overlay-active.lock');
+}
+
+/**
  * Where the vendored WebView2 host assemblies live at runtime: a `webview2` folder beside the
  * running exe, put there by the installer (see saverlly-agent.iss). Resolved from the exe's own
  * path — the same approach nativeMessagingHostExePath uses — so it follows the install location
