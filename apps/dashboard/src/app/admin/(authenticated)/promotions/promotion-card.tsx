@@ -18,8 +18,7 @@ import {
   type PromotionStatus,
 } from "./promotion-status"
 
-/** Dot + text colour per state. Live is the only one that gets the brand teal — everything else
- *  stays quiet so a scan of the gallery immediately shows what is actually running. */
+
 const STATUS_STYLE: Record<PromotionStatus, { dot: string; text: string }> = {
   Live: {
     dot: "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]",
