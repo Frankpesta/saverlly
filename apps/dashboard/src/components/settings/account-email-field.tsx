@@ -20,7 +20,7 @@ const accountFieldSchema = z.object({
 
 type AccountFieldFormValues = z.infer<typeof accountFieldSchema>
 
-/** The Account section's name/email row — read-only display that switches to an inline
+/** The Account section's name/email row. Read-only display that switches to an inline
  * editable form on demand (`PATCH /users/me`; role/kiosk/managedLocationIds are deliberately
  * not self-service). */
 export function AccountEmailField({

@@ -61,12 +61,12 @@ export function PromotionCard({ promotion, now }: { promotion: Promotion; now: n
       className={cn(
         "group relative flex flex-col overflow-hidden rounded-2xl border border-black/8 bg-card transition-all duration-200 dark:border-white/10",
         "hover:-translate-y-0.5 hover:border-black/12 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.18)] dark:hover:border-white/20",
-        // An ended or paused promotion is visibly inert — desaturated until hovered, so the
+        // An ended or paused promotion is visibly inert. Desaturated until hovered, so the
         // gallery reads at a glance without having to parse any text.
         status === "Ended" || status === "Paused" ? "opacity-70 hover:opacity-100" : "",
       )}
     >
-      {/* The creative bleeds edge to edge — it's the point of the card, not an illustration in it. */}
+      {/* The creative bleeds edge to edge because it is the point of the card, not an illustration in it. */}
       <Link
         href={`/admin/promotions/${promotion.id}`}
         className="relative block bg-muted"
@@ -82,7 +82,7 @@ export function PromotionCard({ promotion, now }: { promotion: Promotion; now: n
             e.currentTarget.style.visibility = "hidden"
           }}
         />
-        {/* bg-card/90, not a literal white — the pill sits over arbitrary artwork in both themes. */}
+        {/* bg-card/90, not a literal white, because the pill sits over arbitrary artwork in both themes. */}
         <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-card/90 px-2.5 py-1 text-[11px] font-medium shadow-sm backdrop-blur-sm">
           <span className={cn("size-1.5 rounded-full", style.dot)} />
           <span className={style.text}>{status}</span>
@@ -145,7 +145,7 @@ export function PromotionCard({ promotion, now }: { promotion: Promotion; now: n
           </Button>
           <DeleteRowButton
             itemLabel={promotion.name}
-            description="This removes the promotion immediately — devices stop showing it on their next popup open."
+            description="This removes the promotion immediately. Devices stop showing it on their next popup open."
             onConfirm={handleDelete}
             isPending={deletePromotion.isPending}
             ariaLabel={`Delete ${promotion.name}`}

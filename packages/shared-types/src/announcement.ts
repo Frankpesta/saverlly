@@ -9,7 +9,7 @@ export interface ActiveAnnouncement {
   repeatPolicy: AnnouncementRepeatPolicy;
   maxDisplayCount?: number | null;
   /** The freeform canvas design. Null for announcements created before the canvas editor (and
-   *  for any whose stored layout failed validation) — the agent falls back to `createDefaultLayout`
+   *  for any whose stored layout failed validation). The agent falls back to `createDefaultLayout`
    *  from title/body/mediaUrl in that case, so every announcement still renders. */
   layout?: AnnouncementLayout | null;
 }

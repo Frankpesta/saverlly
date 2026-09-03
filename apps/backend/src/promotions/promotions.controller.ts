@@ -78,7 +78,7 @@ export class PromotionsController {
     name: 'size',
     enum: ['small', 'large'],
     description:
-      'Which creative slot this upload is for — determines the dimensions enforced ' +
+      'Which creative slot this upload is for. Determines the dimensions enforced ' +
       `(small = ${PROMOTION_CREATIVE_SIZES.small.width}x${PROMOTION_CREATIVE_SIZES.small.height}, ` +
       `large = ${PROMOTION_CREATIVE_SIZES.large.width}x${PROMOTION_CREATIVE_SIZES.large.height}).`,
   })
@@ -116,7 +116,7 @@ export class PromotionsController {
   ): UploadPromotionImageResponseDto {
     if (!file) {
       throw new BadRequestException(
-        'No file uploaded, or it was rejected — only PNG/JPEG/WebP/GIF up to 5MB are accepted',
+        'No file uploaded, or it was rejected. Only PNG/JPEG/WebP/GIF up to 5MB are accepted',
       );
     }
     // Multer has already written the file to disk by the time this runs, so every rejection below
@@ -135,7 +135,7 @@ export class PromotionsController {
     } catch {
       this.discard(file.path);
       throw new BadRequestException(
-        'Could not read the image dimensions — the file may be corrupt or not a real image',
+        'Could not read the image dimensions. The file may be corrupt or not a real image',
       );
     }
 

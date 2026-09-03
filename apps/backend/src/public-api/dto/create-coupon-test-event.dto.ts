@@ -14,7 +14,7 @@ export class CreateCouponTestEventDto {
   merchantId: string;
 
   @ApiPropertyOptional({
-    description: 'Nullable — a step-down suppression or a manual trigger with no matching coupon has no couponId',
+    description: 'Nullable, a step-down suppression or a manual trigger with no matching coupon has no couponId',
   })
   @IsOptional()
   @IsUUID()
@@ -25,7 +25,7 @@ export class CreateCouponTestEventDto {
   result: (typeof COUPON_TEST_RESULTS)[number];
 
   @ApiPropertyOptional({
-    description: 'Confirmed cart-total delta for an "applied" result — ignored for any other result',
+    description: 'Confirmed cart-total delta for an "applied" result. Ignored for any other result',
   })
   @IsOptional()
   @IsNumber()

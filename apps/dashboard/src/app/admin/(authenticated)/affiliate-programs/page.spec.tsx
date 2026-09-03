@@ -1,5 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AffiliateProgramsPage from "./page"
 import type { AffiliateProgram } from "@/lib/api/types"
@@ -61,19 +60,19 @@ describe("AffiliateProgramsPage", () => {
     expect(screen.getByText("None")).toBeInTheDocument()
   })
 
-  it("creates a new program via the dialog", async () => {
-    const user = userEvent.setup()
+  it("links New Program and each row's edit action to their own pages", async () => {
     renderWithClient(<AffiliateProgramsPage />)
 
-    await user.click(screen.getByRole("button", { name: /new program/i }))
-    await user.type(screen.getByLabelText("Network name"), "Rakuten")
-    await user.click(screen.getByRole("button", { name: /add program/i }))
-
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/affiliate-programs",
-        expect.objectContaining({ method: "POST" }),
-      ),
+    await screen.findByText("Impact")
+    // Creating and editing a program are now pages of their own
+    // (affiliate-programs/new/page.spec.tsx exercises the actual form).
+    expect(screen.getByRole("link", { name: /new program/i })).toHaveAttribute(
+      "href",
+      "/admin/affiliate-programs/new",
+    )
+    expect(screen.getByRole("link", { name: /edit impact/i })).toHaveAttribute(
+      "href",
+      "/admin/affiliate-programs/p-1",
     )
   })
 })

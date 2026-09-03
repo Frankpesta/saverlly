@@ -18,7 +18,7 @@ export function StripeOnboardingChangedEmail({
 }): React.ReactElement {
   const bodyText = enabled
     ? `Your Stripe account for "${kioskName}" has finished onboarding and can now receive payouts.`
-    : `Your Stripe account for "${kioskName}" needs attention before payouts can resume — Stripe reported your onboarding status changed.`;
+    : `Your Stripe account for "${kioskName}" needs attention before payouts can resume. Stripe reported that your onboarding status changed.`;
 
   return e(
     EmailLayout,

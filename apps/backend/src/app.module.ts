@@ -35,7 +35,7 @@ import { EmailModule } from './email/email.module';
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
     }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 10 }]),
-    // Serves uploaded files (e.g. announcement images) back out at /uploads/... — the backend
+    // Serves uploaded files (e.g. announcement images) back out at /uploads/.... The backend
     // isn't containerized (see docker-compose.yml, only postgres/redis are), so a local
     // ./uploads directory persists fine across restarts in dev without a volume mount.
     ServeStaticModule.forRoot(
@@ -43,7 +43,7 @@ import { EmailModule } from './email/email.module';
         rootPath: path.join(process.cwd(), 'uploads'),
         serveRoot: '/uploads',
       },
-      // Committed (not gitignored, unlike /uploads) static brand assets — e.g. the logo
+      // Committed (not gitignored, unlike /uploads) static brand assets. E.g. the logo
       // referenced by an absolute URL inside transactional emails, which must resolve
       // in every environment, not just wherever a user happened to upload a file.
       {

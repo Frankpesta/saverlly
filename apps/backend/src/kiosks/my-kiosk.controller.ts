@@ -19,7 +19,7 @@ export class MyKioskController {
   @Get('kiosk-contact')
   @ApiOperation({
     summary:
-      "The caller's own kiosk owner's name and email — there's no separate kiosk contact field, the owner's own account is the contact",
+      "The caller's own kiosk owner's name and email. There's no separate kiosk contact field, the owner's own account is the contact",
   })
   @ApiResponse({ status: 200, description: 'Owner contact' })
   findContact(@CurrentUser() currentUser: JwtPayload) {

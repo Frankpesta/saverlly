@@ -13,7 +13,7 @@ export class CreateAffiliateProgramDto {
   programId?: string;
 
   @ApiPropertyOptional({
-    description: 'Raw credentials (e.g. { apiKey, apiSecret }) — encrypted before storage, never returned by any read endpoint',
+    description: 'Raw credentials (e.g. { apiKey, apiSecret }). Encrypted before storage, never returned by any read endpoint',
     type: 'object',
     additionalProperties: { type: 'string' },
   })

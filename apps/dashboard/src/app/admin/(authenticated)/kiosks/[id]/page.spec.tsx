@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import KioskDetailPage from "./page"
@@ -102,7 +102,9 @@ describe("KioskDetailPage", () => {
     expect(await screen.findByDisplayValue("Kiosk One")).toBeInTheDocument()
     expect(screen.getByDisplayValue("30")).toBeInTheDocument()
     expect(await screen.findByText("owner1@example.com")).toBeInTheDocument()
-    expect(screen.getByText("Kiosk owner")).toBeInTheDocument()
+    // Owner vs manager is now a group heading + distinct avatar treatment, not a per-row role
+    // badge, so the assertion is on the group rather than badge text that no longer renders.
+    expect(screen.getByText("Owner")).toBeInTheDocument()
   })
 
   it("disables a kiosk user via the access switch", async () => {
@@ -126,33 +128,24 @@ describe("KioskDetailPage", () => {
     )
   })
 
-  it("adds a new user via the Add user dialog and reveals the generated password", async () => {
+  it("links Add user to the dedicated create page rather than opening a modal", async () => {
     renderWithClient(<KioskDetailPage />)
 
     await screen.findByText("owner1@example.com")
-    await userEvent.click(screen.getByRole("button", { name: /add user/i }))
-
-    const dialog = await screen.findByRole("dialog")
-    await userEvent.type(within(dialog).getByLabelText("Name"), "New Manager")
-    await userEvent.type(within(dialog).getByLabelText("Email"), "manager@example.com")
-    await userEvent.click(within(dialog).getByRole("combobox"))
-    await userEvent.click(await screen.findByRole("option", { name: "Location manager" }))
-    await userEvent.click(within(dialog).getByRole("button", { name: /^add user$/i }))
-
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/kiosks/kiosk-1/users",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            name: "New Manager",
-            email: "manager@example.com",
-            role: "LOCATION_MANAGER",
-          }),
-        }),
-      ),
+    // Adding a kiosk user is now a page of its own
+    // (kiosks/[id]/users/new/page.spec.tsx exercises the actual form).
+    expect(screen.getByRole("link", { name: /add user/i })).toHaveAttribute(
+      "href",
+      "/admin/kiosks/kiosk-1/users/new",
     )
+  })
 
-    expect(await within(dialog).findByText("Gen3ratedPassw0rd!")).toBeInTheDocument()
+  it("links each user's edit action to their own edit page", async () => {
+    renderWithClient(<KioskDetailPage />)
+
+    expect(await screen.findByRole("link", { name: /edit owner1@example.com/i })).toHaveAttribute(
+      "href",
+      "/admin/kiosks/kiosk-1/users/user-1",
+    )
   })
 })

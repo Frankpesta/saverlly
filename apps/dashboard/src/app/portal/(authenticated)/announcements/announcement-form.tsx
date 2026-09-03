@@ -52,7 +52,7 @@ const announcementSchema = z
     maxDisplayCount: z.string().trim(),
     locationIds: z.array(z.string()),
     // The canvas design. Shape validation is the sanitizer's job (server-side too), so this only
-    // asserts it's an object — duplicating the element schema in zod would give two definitions
+    // asserts it's an object. Duplicating the element schema in zod would give two definitions
     // of a layout that could disagree.
     layout: z.custom<AnnouncementLayout>(
       (value) => typeof value === "object" && value !== null,
@@ -109,7 +109,7 @@ export function toAnnouncementPayload(values: AnnouncementFormValues): Announcem
 }
 
 /**
- * The whole announcement on one page — content, schedule and targeting all visible at once with
+ * The whole announcement on one page. Content, schedule and targeting all visible at once with
  * the kiosk-screen preview pinned alongside, rather than the stepped dialog this replaced. What
  * the announcement *looks like* is the point of the exercise, so a preview that stays on screen
  * while the schedule and targeting are filled in is worth more than the wizard's hand-holding.
@@ -153,7 +153,7 @@ export function AnnouncementForm({
   })
 
   // Only the values that actually drive rendering are watched. Title/body/mediaUrl are plain
-  // registered inputs read on demand via getValues() — watching them would re-render the canvas,
+  // registered inputs read on demand via getValues(). Watching them would re-render the canvas,
   // inspector and preview iframe on every single keystroke, which is both wasteful and, because
   // react-hook-form's `watch` makes React Compiler bail out of memoizing this component
   // entirely, genuinely slow to type into.
@@ -166,7 +166,7 @@ export function AnnouncementForm({
     setValue("layout", next, { shouldDirty: true })
   }
 
-  /** Uploading from the canvas toolbar drops the image straight onto the canvas — the upload
+  /** Uploading from the canvas toolbar drops the image straight onto the canvas. The upload
    *  field is an "add an image" affordance there, not a value to hold on to, so it's cleared
    *  again immediately. `mediaUrl` is still tracked separately as the fallback thumbnail for
    *  pre-canvas rendering. */
@@ -221,7 +221,7 @@ export function AnnouncementForm({
             <ArrowLeftIcon className="size-3.5" />
             Announcements
           </Link>
-          <h2 className="text-2xl font-semibold tracking-tight">{heading}</h2>
+          <h2 className="text-title">{heading}</h2>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -282,7 +282,7 @@ export function AnnouncementForm({
 
           <FormSection
             label="Details"
-            description="Not drawn on the kiosk screen — this is how the announcement is listed and searched in your dashboard."
+            description="Not drawn on the kiosk screen. This is how the announcement is listed and searched in your dashboard."
           >
             <FormField label="Title" htmlFor="ann-title" error={errors.title?.message}>
               <Input id="ann-title" {...register("title")} />

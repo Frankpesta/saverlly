@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { TagIcon, PercentIcon, Trash2Icon } from "lucide-react"
+import { TagIcon, PencilIcon, PercentIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Combobox,
@@ -38,10 +38,10 @@ import { TableSelectionToolbar } from "@/components/dashboard/table-selection-to
 import { useCoupons, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
 import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
+import { cn } from "@/lib/utils"
 import { usePagination } from "@/hooks/use-pagination"
 import { useTableSelection } from "@/hooks/use-table-selection"
 import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
-import { CouponDialog } from "./coupon-dialog"
 
 const ALL_MERCHANTS = "all"
 
@@ -108,12 +108,15 @@ export default function CouponsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Coupons</h2>
+          <h2 className="text-title">Coupons</h2>
           <p className="text-sm text-muted-foreground">
             Every coupon code across every merchant, and how well it&apos;s converting.
           </p>
         </div>
-        <CouponDialog merchants={merchants} />
+        <Link href="/admin/coupons/new" className={cn(buttonVariants(), "gap-1.5")}>
+          <PlusIcon className="size-4" />
+          New Coupon
+        </Link>
       </div>
 
       <BentoGrid>
@@ -213,7 +216,13 @@ export default function CouponsPage() {
                 </TableCell>
                 <TableCell>
                   <TableRowActions>
-                    <CouponDialog merchantId={coupon.merchantId} coupon={coupon} />
+                    <Link
+                      href={`/admin/coupons/${coupon.id}`}
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${coupon.code}`}
+                    >
+                      <PencilIcon className="size-3.5" />
+                    </Link>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button

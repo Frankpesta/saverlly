@@ -13,7 +13,7 @@ export function passwordStrength(password: string): 0 | 1 | 2 | 3 {
   return hasSymbol && password.length >= 12 ? 3 : 2
 }
 
-const LABEL = ["Too short", "Weak — needs a letter and a number", "Good", "Strong"] as const
+const LABEL = ["Too short", "Weak, needs a letter and a number", "Good", "Strong"] as const
 const COLOR = [
   "bg-destructive",
   "bg-destructive",

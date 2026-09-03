@@ -33,7 +33,7 @@ export function formatDatetimeLocalValue(date: Date): string {
 }
 
 /** Convenience wrapper over `formatDatetimeLocalValue` accepting either a `Date` or an ISO
- * string — matches the call shape used across the announcement create/edit forms. */
+ * string. Matches the call shape used across the announcement create/edit forms. */
 export function toDatetimeLocal(input: Date | string): string {
   return formatDatetimeLocalValue(typeof input === "string" ? new Date(input) : input)
 }

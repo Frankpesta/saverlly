@@ -45,7 +45,7 @@ export class CreateKioskDto {
   @ApiProperty({
     type: CreateKioskOwnerDto,
     description:
-      'The kiosk-owner account created in the same transaction — a password is generated ' +
+      'The kiosk-owner account created in the same transaction, a password is generated ' +
       'server-side, emailed to them, and returned once in the response for the admin to share.',
   })
   @IsDefined()

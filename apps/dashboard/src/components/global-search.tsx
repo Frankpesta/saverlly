@@ -40,8 +40,8 @@ const GROUP_LABEL: Record<SearchResultType, string> = {
 
 // Kiosk/Merchant results only ever come back for an ADMIN caller (the backend gates those
 // branches to ADMIN), so they always live under /admin regardless of the caller's basePath.
-// Device/Coupon have no [id] detail route today — device kill-switch lives inline on the list
-// row, coupons are edited via a row-level Dialog, not a route — so both link to their list page.
+// Device/Coupon have no [id] detail route today. Device kill-switch lives inline on the list
+// row, coupons are edited via a row-level Dialog, not a route. So both link to their list page.
 function hrefFor(result: SearchResult, basePath: string): string {
   switch (result.type) {
     case "kiosk":

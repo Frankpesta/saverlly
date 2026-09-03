@@ -32,7 +32,7 @@ export default function AnnouncementDetailPage() {
   const isLoading = announcementLoading || userLoading
 
   // A location manager never has edit rights on announcements, and a kiosk owner can't edit a
-  // platform-wide admin broadcast (kioskId null) — TenantScopeGuard denies mutating those for
+  // platform-wide admin broadcast (kioskId null). TenantScopeGuard denies mutating those for
   // anyone but ADMIN, even though everyone in scope can view/preview them.
   const canEdit = currentUser?.role !== "LOCATION_MANAGER" && announcement?.kioskId !== null
 
@@ -84,10 +84,10 @@ export default function AnnouncementDetailPage() {
             <ArrowLeftIcon className="size-3.5" />
             Announcements
           </Link>
-          <h2 className="text-2xl font-semibold tracking-tight">{announcement.title}</h2>
+          <h2 className="text-title">{announcement.title}</h2>
           <p className="text-sm text-muted-foreground">
             {announcement.kioskId === null
-              ? "A platform-wide broadcast — only Saverlly staff can change it."
+              ? "A platform-wide broadcast. Only Saverlly staff can change it."
               : "Your role can view announcements but not change them."}
           </p>
         </div>
@@ -100,7 +100,7 @@ export default function AnnouncementDetailPage() {
 
   return (
     <AnnouncementForm
-      // Remounts when a different announcement loads — react-hook-form only reads defaultValues
+      // Remounts when a different announcement loads. React-hook-form only reads defaultValues
       // on mount, so without this the form would keep showing the previously-viewed one.
       key={announcement.id}
       defaultValues={{

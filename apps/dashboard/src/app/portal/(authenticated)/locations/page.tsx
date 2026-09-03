@@ -47,9 +47,7 @@ export default function LocationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        eyebrow="Operations"
         title="Locations"
-        description="Every physical location your kiosk business operates from."
         actions={currentUser?.role === "KIOSK_OWNER" ? <NewLocationDialog /> : undefined}
       />
 
@@ -61,7 +59,7 @@ export default function LocationsPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load locations.</p>}
 
-      <CollectionArea title="Your locations" description="Review locations, addresses, tags, and connected devices." count={totalItems}>
+      <CollectionArea title="Your locations" titleHidden count={totalItems}>
         <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
@@ -107,7 +105,7 @@ export default function LocationsPage() {
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {location.tags.length === 0 && (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground">No tags</span>
                     )}
                     {location.tags.map((tag) => (
                       <Badge key={tag} variant="secondary">

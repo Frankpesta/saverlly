@@ -1,6 +1,6 @@
 /**
  * An admin-authored promotion as served to a device by GET /public/promotions/active. Only the
- * fields the extension needs to render and click through — targeting and scheduling stay
+ * fields the extension needs to render and click through. Targeting and scheduling stay
  * server-side, already resolved by the time the extension sees this.
  */
 export interface ActivePromotion {

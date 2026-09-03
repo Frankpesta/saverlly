@@ -43,6 +43,7 @@ const locations: Location[] = [
     latitude: null,
     longitude: null,
     tags: ["mall"],
+    locationSetupCode: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -90,6 +91,19 @@ describe("AdminLocationsPage", () => {
           json: async () => ({ ...locations[0], id: "loc-2", name: "Uptown" }),
         } as Response
       }
+      if (url.endsWith("/setup-code") && method === "POST") {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({
+            id: "code-1",
+            locationId: "loc-1",
+            code: "NEWCODE1",
+            active: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          }),
+        } as Response
+      }
       throw new Error(`Unhandled fetch in test: ${method} ${url}`)
     }) as jest.Mock
   })
@@ -103,61 +117,72 @@ describe("AdminLocationsPage", () => {
     await waitFor(() => expect(screen.getAllByText("1").length).toBeGreaterThan(0))
   })
 
-  it("requires a kiosk to be picked before continuing the New Location wizard", async () => {
+  it("links New Location to the dedicated create page rather than opening a modal", async () => {
     renderWithClient(<AdminLocationsPage />)
 
-    await userEvent.click(await screen.findByRole("button", { name: /new location/i }))
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
-
-    // "Select a kiosk" also appears as the (unselected) Combobox trigger's own placeholder text,
-    // so this specifically targets the rendered zod error message, not the placeholder.
-    expect(await screen.findByText("Select a kiosk", { selector: "p" })).toBeInTheDocument()
-    expect(screen.queryByLabelText("Tags")).not.toBeInTheDocument()
+    await screen.findByText("Downtown")
+    // Creating a location is now a page of its own
+    // (locations/new/page.spec.tsx exercises the actual form).
+    expect(screen.getByRole("link", { name: /new location/i })).toHaveAttribute(
+      "href",
+      "/admin/locations/new",
+    )
   })
 
-  // More interaction steps than the default 5000ms budget comfortably covers now that
-  // Kiosk/City/State are each their own combobox popover (open, search, pick), not plain
-  // text inputs — genuinely slower, not a hang (confirmed passing well within 20s solo).
-  it("walks the wizard with a kiosk selection and submits the create request", async () => {
+  // The client asked for the setup code to be easier to find; it previously existed only
+  // inside a card on a location's own detail page.
+  it("shows an existing setup code inline, with a copy button", async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? "GET"
+      if (url === "/api/proxy/locations" && method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              ...locations[0],
+              locationSetupCode: {
+                id: "code-1",
+                code: "ABCD1234",
+                active: true,
+                createdAt: "2026-01-01T00:00:00.000Z",
+              },
+            },
+          ],
+        } as Response
+      }
+      if (url === "/api/proxy/devices" && method === "GET") {
+        return { ok: true, status: 200, json: async () => devices } as Response
+      }
+      if (url === "/api/proxy/kiosks" && method === "GET") {
+        return { ok: true, status: 200, json: async () => kiosks } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${method} ${url}`)
+    }) as jest.Mock
+
     renderWithClient(<AdminLocationsPage />)
 
-    await userEvent.click(await screen.findByRole("button", { name: /new location/i }))
+    expect(await screen.findByText("ABCD1234")).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /copy setup code for downtown/i }),
+    ).toBeInTheDocument()
+  })
 
-    await userEvent.click(screen.getByRole("combobox", { name: "Kiosk" }))
-    await userEvent.click(await screen.findByRole("option", { name: "Kiosk One" }))
+  it("generates a setup code straight from the row when there isn't one", async () => {
+    const user = userEvent.setup()
+    renderWithClient(<AdminLocationsPage />)
 
-    await userEvent.type(screen.getByLabelText("Name"), "Uptown")
-    await userEvent.type(screen.getByLabelText("Address"), "2 Elm St")
-
-    await userEvent.click(screen.getByRole("combobox", { name: "City" }))
-    await userEvent.type(screen.getByPlaceholderText("Type a city..."), "Springfield")
-    await userEvent.click(await screen.findByRole("option", { name: "Springfield" }))
-
-    await userEvent.click(screen.getByRole("combobox", { name: "State" }))
-    await userEvent.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
-
-    await userEvent.type(screen.getByLabelText("Zip"), "00000")
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
-
-    await userEvent.click(await screen.findByRole("button", { name: /create location/i }))
+    // The fixture location has no code, so the cell offers to make one.
+    await user.click(await screen.findByRole("button", { name: /^generate$/i }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/locations",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            kioskId: "kiosk-1",
-            name: "Uptown",
-            address: "2 Elm St",
-            city: "Springfield",
-            state: "IL",
-            zip: "00000",
-          }),
-        }),
+        "/api/proxy/locations/loc-1/setup-code",
+        expect.objectContaining({ method: "POST" }),
       ),
     )
-  }, 20000)
+  })
 
   it("paginates at 25 rows per page and navigates to the next page", async () => {
     const manyLocations: Location[] = Array.from({ length: 30 }, (_, i) => ({
@@ -185,13 +210,13 @@ describe("AdminLocationsPage", () => {
     expect(await screen.findByText("Location 1")).toBeInTheDocument()
     expect(screen.getByText("Location 25")).toBeInTheDocument()
     expect(screen.queryByText("Location 26")).not.toBeInTheDocument()
-    expect(screen.getByText("Showing 1–25 of 30")).toBeInTheDocument()
+    expect(screen.getByText("Showing 1-25 of 30")).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole("button", { name: /next/i }))
 
     expect(await screen.findByText("Location 26")).toBeInTheDocument()
     expect(screen.getByText("Location 30")).toBeInTheDocument()
     expect(screen.queryByText("Location 1")).not.toBeInTheDocument()
-    expect(screen.getByText("Showing 26–30 of 30")).toBeInTheDocument()
+    expect(screen.getByText("Showing 26-30 of 30")).toBeInTheDocument()
   })
 })

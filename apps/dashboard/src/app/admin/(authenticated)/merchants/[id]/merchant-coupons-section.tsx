@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { Trash2Icon } from "lucide-react"
+import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -35,8 +36,8 @@ import {
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useCoupons, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
+import { cn } from "@/lib/utils"
 import { usePagination } from "@/hooks/use-pagination"
-import { CouponDialog } from "../../coupons/coupon-dialog"
 
 export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
   const { data: allCoupons, isLoading, isError } = useCoupons()
@@ -61,7 +62,13 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Coupons</CardTitle>
-        <CouponDialog merchantId={merchantId} />
+        <Link
+          href={`/admin/coupons/new?merchantId=${merchantId}`}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+        >
+          <PlusIcon className="size-4" />
+          New Coupon
+        </Link>
       </CardHeader>
       <CardContent>
         {isError && <p className="text-sm text-destructive">Could not load coupons.</p>}
@@ -104,7 +111,13 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
                 </TableCell>
                 <TableCell>
                   <TableRowActions>
-                    <CouponDialog merchantId={merchantId} coupon={coupon} />
+                    <Link
+                      href={`/admin/coupons/${coupon.id}?merchantId=${merchantId}`}
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${coupon.code}`}
+                    >
+                      <PencilIcon className="size-3.5" />
+                    </Link>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button

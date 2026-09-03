@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { FormField } from "@/components/dashboard/form-section"
+import { AutofillDecoy, useAutofillReadOnly } from "@/components/dashboard/autofill-guard"
 import { PasswordStrengthBar } from "@/components/dashboard/password-strength"
 import { passwordMismatchIssue, passwordSchema, passwordsMatch } from "@/lib/validation/schemas"
 
@@ -26,6 +27,7 @@ const changePasswordSchema = z
 type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>
 
 export function ChangePasswordCard() {
+  const autofillGuard = useAutofillReadOnly()
   const {
     register,
     handleSubmit,
@@ -67,7 +69,11 @@ export function ChangePasswordCard() {
         <CardDescription>Update the password you use to sign in.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form className="relative flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+          {/* Absorbs Chrome's saved-password autofill so it lands here instead of on the real
+              field below. See autofill-guard.tsx for why this and the readOnly-until-focus
+              trick are both needed. */}
+          <AutofillDecoy />
           <FormField
             label="Current password"
             htmlFor="settings-current-password"
@@ -75,8 +81,9 @@ export function ChangePasswordCard() {
           >
             <PasswordInput
               id="settings-current-password"
-              autoComplete="current-password"
+              autoComplete="off"
               {...register("currentPassword")}
+              {...autofillGuard}
             />
           </FormField>
           <FormField

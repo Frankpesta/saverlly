@@ -94,7 +94,7 @@ describe("AdminPromotionsPage", () => {
     expect(screen.getByText("Fall Promo")).toBeInTheDocument()
     expect(screen.getByText("Paused Promo")).toBeInTheDocument()
 
-    // Each status label appears twice — once as a filter tab, once as a card badge. The filter
+    // Each status label appears twice. Once as a filter tab, once as a card badge. The filter
     // tabs are buttons, so anything outside a button is the card's own status badge.
     for (const status of ["Live", "Scheduled", "Paused"]) {
       const badges = screen.getAllByText(status).filter((el) => el.closest("button") === null)
@@ -123,7 +123,7 @@ describe("AdminPromotionsPage", () => {
     renderWithClient(<AdminPromotionsPage />)
 
     expect(await screen.findByText("No promotions yet")).toBeInTheDocument()
-    // The popup mock is the point of this empty state — it must actually render, not just copy.
+    // The popup mock is the point of this empty state. It must actually render, not just copy.
     expect(screen.getByText(/320 × 100 creative/)).toBeInTheDocument()
     expect(screen.getByText("Sponsored")).toBeInTheDocument()
     expect(

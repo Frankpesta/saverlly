@@ -99,7 +99,10 @@ export default function KioskDetailPage() {
                   disabled={updateStatus.isPending}
                   aria-label="Toggle kiosk status"
                 />
-                <span className="text-sm text-muted-foreground">{kiosk.status === "ACTIVE" ? "Enabled" : "Disabled"}</span>
+                {/* Same word the header badge uses for this exact state. This card used to say
+                    "Enabled"/"Disabled" next to a badge two inches away reading "Active"/
+                    "Inactive" for the identical value. */}
+                <span className="text-sm text-muted-foreground">{KIOSK_STATUS_LABEL[kiosk.status]}</span>
               </div>
             </CardHeader>
             <KioskEditForm key={kiosk.id} kiosk={kiosk} />

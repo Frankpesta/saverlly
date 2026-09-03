@@ -10,10 +10,10 @@ export const NATIVE_HOST_REGISTRY_KEY = `HKLM\\SOFTWARE\\Google\\Chrome\\NativeM
 // The packaged main exe (saverlly-agent.exe) embeds a requireAdministrator manifest, needed
 // for its own HKLM/scheduled-task writes when running as the background agent or the
 // interactive first-run bootstrap. Chrome, however, launches a native messaging host via a
-// plain CreateProcess call (not ShellExecute) — against an exe whose manifest requests
+// plain CreateProcess call (not ShellExecute), against an exe whose manifest requests
 // elevation, that fails outright with ERROR_ELEVATION_REQUIRED, no UAC prompt, no message
 // ever written. So the manifest must point at a *sibling*, non-elevated exe built from the
-// same dist/main.js instead (see scripts/package.js) — same argv-dispatch logic, just packaged
+// same dist/main.js instead (see scripts/package.js). Same argv-dispatch logic, just packaged
 // without the requireAdministrator manifest.
 export const NATIVE_MESSAGING_HOST_EXE_NAME = 'saverlly-agent-host.exe';
 
@@ -23,9 +23,9 @@ export function nativeMessagingHostExePath(mainExePath: string): string {
 }
 
 export interface NativeMessagingRegistrationOptions {
-  /** Defaults to the real per-machine Chrome native-messaging-hosts registry key — override only for isolated testing. */
+  /** Defaults to the real per-machine Chrome native-messaging-hosts registry key. Override only for isolated testing. */
   registryKey?: string;
-  /** Defaults to %PROGRAMDATA%/KioskAgent/native-messaging-host.json — override only for isolated testing. */
+  /** Defaults to %PROGRAMDATA%/KioskAgent/native-messaging-host.json. Override only for isolated testing. */
   manifestPath?: string;
 }
 
@@ -33,7 +33,7 @@ export interface NativeMessagingRegistrationOptions {
  * Writes the native messaging host manifest + its per-machine registry pointer, so the
  * extension's chrome.runtime.connectNative(...) call can find and launch this exe. Call
  * unconditionally on every agent startup (self-healing against a registry/profile reset),
- * same as the Chrome force-install policy — see 04-PHASE-4-desktop-agent.md §3.
+ * same as the Chrome force-install policy. See 04-PHASE-4-desktop-agent.md §3.
  */
 export function ensureNativeMessagingHostRegistered(
   extensionId: string,

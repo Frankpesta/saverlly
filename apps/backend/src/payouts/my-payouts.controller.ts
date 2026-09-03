@@ -19,7 +19,7 @@ export class MyPayoutsController {
   constructor(private readonly payoutsService: PayoutsService) {}
 
   @Get('payouts')
-  @ApiOperation({ summary: "The caller's own kiosk's payout history — never another kiosk's" })
+  @ApiOperation({ summary: "The caller's own kiosk's payout history. Never another kiosk's" })
   @ApiResponse({ status: 200, description: "The caller's kiosk's payouts", type: [PayoutDto] })
   findMine(@CurrentUser() currentUser: JwtPayload): Promise<PayoutDto[]> {
     return this.payoutsService.findAllForKiosk(requireKioskId(currentUser));

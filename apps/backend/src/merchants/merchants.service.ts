@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { AttributionMethod, Prisma } from '@prisma/client';
+import { deleteMerchantCascade } from '../common/prisma/cascade-delete.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
@@ -83,7 +84,7 @@ export class MerchantsService {
 
   async remove(id: string) {
     await this.findOneOrThrow(id);
-    await this.prisma.merchant.delete({ where: { id } });
+    await this.prisma.$transaction((tx) => deleteMerchantCascade(tx, id));
   }
 
   private mapDomainConflict(err: unknown): unknown {

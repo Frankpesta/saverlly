@@ -98,7 +98,7 @@ export default function MerchantDetailPage() {
           <DeleteRowButton
             variant="button"
             itemLabel={merchant.name}
-            description="Its coupons and scrape sources will also stop being usable. This can't be undone."
+            description="Its coupons, coupon test history, and commission events will be deleted too. Scrape sources are kept but stop pointing at any merchant. This can't be undone."
             onConfirm={handleDelete}
             isPending={deleteMerchant.isPending}
           />

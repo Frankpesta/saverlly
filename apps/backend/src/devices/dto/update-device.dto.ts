@@ -8,8 +8,8 @@ export class UpdateDeviceDto {
   @MinLength(1)
   label?: string;
 
-  // The kill-switch — kiosk-owner can disable their own devices, admin can disable any.
-  @ApiPropertyOptional({ description: 'Kill-switch — false immediately blocks this device\'s token' })
+  // The kill-switch. Kiosk-owner can disable their own devices, admin can disable any.
+  @ApiPropertyOptional({ description: 'Kill-switch. False immediately blocks this device\'s token' })
   @IsOptional()
   @IsBoolean()
   active?: boolean;

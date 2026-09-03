@@ -178,12 +178,12 @@ function renderSuccess(): void {
     <p class="popup__heading">You're saving</p>
     <p class="popup__heading popup__heading--lg popup__accent">${formatCurrency(discountAmount)}!</p>
     <div class="popup__savings-box">
-      <div class="popup__savings-total">${newTotal !== undefined ? formatCurrency(newTotal) : '—'}</div>
+      <div class="popup__savings-total">${newTotal !== undefined ? formatCurrency(newTotal) : ' '}</div>
       <div class="popup__savings-label">Est. Cart Total</div>
     </div>
     <div class="popup__row">
       <span>Original Total</span>
-      <span>${originalTotal !== undefined ? formatCurrency(originalTotal) : '—'}</span>
+      <span>${originalTotal !== undefined ? formatCurrency(originalTotal) : ' '}</span>
     </div>
     <div class="popup__row">
       <span class="popup__chip">${TAG_ICON}${escapeHtml(code ?? '')}</span>
@@ -262,11 +262,11 @@ function onApplyClicked(): void {
 
 async function refreshLifetimeSaved(): Promise<void> {
   const value = (await send({ type: 'GET_LIFETIME_SAVED' })) as number | null;
-  lifetimeValueEl.textContent = value === null ? '—' : formatCurrency(value);
+  lifetimeValueEl.textContent = value === null ? ' ' : formatCurrency(value);
 }
 
 /**
- * Only ever http(s) — a promo's clickUrl comes from the admin dashboard, but the popup opening a
+ * Only ever http(s), a promo's clickUrl comes from the admin dashboard, but the popup opening a
  * `javascript:` or `data:` URL on the strength of a server response is not a risk worth carrying
  * for a field a human types into a form.
  */
@@ -299,7 +299,7 @@ async function renderPromo(): Promise<void> {
 
   document.getElementById('promo-link')?.addEventListener('click', (event) => {
     // A plain anchor inside an extension popup just closes the popup on some Chrome versions
-    // without ever opening the tab — going through chrome.tabs makes the click-through reliable.
+    // without ever opening the tab. Going through chrome.tabs makes the click-through reliable.
     event.preventDefault();
     void chrome.tabs.create({ url: promo.clickUrl });
     window.close();
@@ -336,7 +336,7 @@ async function init(): Promise<void> {
     render('suppressed');
     return;
   }
-  // Applying only starts on a popup click (APPLY_BEST_COUPON) — if a run is already in
+  // Applying only starts on a popup click (APPLY_BEST_COUPON). If a run is already in
   // progress or finished (e.g. the popup was closed and reopened mid-run), restore that
   // state instead of showing a stale "idle" prompt; otherwise show the manual prompt.
   progress = tabState.applyProgress;

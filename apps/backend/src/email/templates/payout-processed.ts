@@ -7,7 +7,7 @@ const e = React.createElement;
 
 export function formatDate(iso: string): string {
   // Explicit UTC so the rendered date doesn't drift with the email worker host's local
-  // timezone — otherwise a payout near midnight UTC could show the wrong calendar day.
+  // timezone. Otherwise a payout near midnight UTC could show the wrong calendar day.
   return new Date(iso).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -60,7 +60,7 @@ export function PayoutProcessedEmail({
             marginBottom: 0,
           },
         },
-        `${formatDate(periodStart)} – ${formatDate(periodEnd)}`,
+        `${formatDate(periodStart)} to ${formatDate(periodEnd)}`,
       ),
     ),
     e(EmailButton, { href: earningsUrl }, 'View earnings'),

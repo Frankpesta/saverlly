@@ -65,7 +65,7 @@ function written(index = 0): string {
   return mockWriteFileSync.mock.calls[index][1] as string;
 }
 
-/** The file written to announcementOverlayScriptPath(), whichever call that was — the WebView2
+/** The file written to announcementOverlayScriptPath(), whichever call that was. The WebView2
  *  path writes the HTML first, the legacy path writes only the script. */
 function writtenScript(): string {
   const call = mockWriteFileSync.mock.calls.find(
@@ -76,7 +76,7 @@ function writtenScript(): string {
 
 /**
  * Makes the overlay's receipt appear immediately, echoing back whatever attempt id the script
- * under test embedded — that id is generated inside showAnnouncementOverlay, so it's recovered
+ * under test embedded. That id is generated inside showAnnouncementOverlay, so it's recovered
  * from the written script rather than guessed. Pass status 'missing' for "no receipt ever
  * arrives", which is what a hung or killed overlay looks like.
  */
@@ -97,7 +97,7 @@ ${reason}`;
   }) as never);
 }
 
-/** No lock file by default — statSync throwing is how "nothing is on screen" looks. */
+/** No lock file by default. StatSync throwing is how "nothing is on screen" looks. */
 function mockNoOverlayShowing() {
   mockStatSync.mockImplementation((() => {
     throw new Error('ENOENT: no such file or directory');
@@ -146,7 +146,7 @@ describe('getInteractiveUsername', () => {
 describe('hasWebView2Assemblies', () => {
   beforeEach(() => mockExistsSync.mockReset());
 
-  it('requires every assembly, not just some — a partial copy is a broken install', () => {
+  it('requires every assembly, not just some, a partial copy is a broken install', () => {
     mockExistsSync.mockImplementation(
       (target) => !String(target).endsWith('WebView2Loader.dll'),
     );
@@ -171,7 +171,7 @@ describe('isWebView2RuntimeInstalled', () => {
     expect(isWebView2RuntimeInstalled()).toBe(false);
   });
 
-  // Microsoft writes 0.0.0.0 for "known but not actually installed" — the exact case a naive
+  // Microsoft writes 0.0.0.0 for "known but not actually installed". The exact case a naive
   // "does the key exist" check would get wrong.
   it('treats a pv of 0.0.0.0 as not installed', () => {
     mockEnvironment({ runtimeVersion: '0.0.0.0' });
@@ -386,7 +386,7 @@ describe('showAnnouncementOverlay', () => {
       expect(script).toContain("'overlay exited without rendering'");
       // Written to a temp file and moved, so the agent can't read a half-written receipt.
       expect(script).toContain('Move-Item -LiteralPath $tmp');
-      // First writer wins — a later shutdown path must not overwrite the real cause.
+      // First writer wins, a later shutdown path must not overwrite the real cause.
       expect(script).toContain('if ($script:reported) { return }');
       // Lock taken on start, released in finally.
       expect(script).toContain('Set-Content -LiteralPath $lockPath');
@@ -485,7 +485,7 @@ describe('showAnnouncementOverlay', () => {
         await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
         const script = writtenScript();
 
-        // WorkingArea, not Bounds — that's what keeps the card clear of the taskbar.
+        // WorkingArea, not Bounds. That's what keeps the card clear of the taskbar.
         expect(script).toContain('[System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea');
         expect(script).toContain('$area.Right - $cardWidth - $margin');
         expect(script).toContain('$area.Bottom - $cardHeight - $margin');
@@ -586,7 +586,7 @@ describe('showAnnouncementOverlay', () => {
       expect(script).toContain("$label.Text = 'Save now'");
       expect(script).not.toContain('WebView2');
       // Degraded in looks, but it lands in the same corner rather than in the middle of the
-      // screen — the placement is the part the kiosk user notices.
+      // screen. The placement is the part the kiosk user notices.
       expect(script).toContain("$form.StartPosition = 'Manual'");
       expect(script).toContain(
         `$area.Right - $form.Width - ${ANNOUNCEMENT_TOAST_MARGIN}`,

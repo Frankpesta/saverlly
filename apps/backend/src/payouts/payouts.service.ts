@@ -22,7 +22,7 @@ export class PayoutsService {
   /**
    * Aggregates every kiosk's not-yet-swept CONFIRMED CommissionEvents into a new
    * Payout(status: "pending") and marks those events as belonging to it, so a later
-   * run never double-counts them. Kiosks with nothing payable are skipped entirely —
+   * run never double-counts them. Kiosks with nothing payable are skipped entirely
    * no empty $0 Payout records. PENDING/REVERSED events are never touched here.
    */
   async generatePayouts(): Promise<{ payoutsCreated: number }> {
@@ -90,7 +90,7 @@ export class PayoutsService {
     }
 
     // Persisted immediately after creation, before the (more failure-prone, external)
-    // account-link step — otherwise a link-creation failure on a brand-new account
+    // account-link step. Otherwise a link-creation failure on a brand-new account
     // leaves stripeAccountId unset, and every retry creates yet another orphaned
     // Stripe Express account for this kiosk instead of reusing the one just made.
     let accountId = kiosk.stripeAccountId;
@@ -126,7 +126,7 @@ export class PayoutsService {
 
     // Atomically claim the payout before calling Stripe. Two concurrent requests could
     // otherwise both pass the status==='pending' check above and both create a real
-    // Stripe transfer for the same payout — the affected-row count here tells us which
+    // Stripe transfer for the same payout. The affected-row count here tells us which
     // request actually won the race.
     const claim = await this.prisma.payout.updateMany({
       where: { id: payoutId, status: 'pending' },
@@ -163,17 +163,17 @@ export class PayoutsService {
   /**
    * Keeps Payout.status and the kiosk's Stripe connection state in sync with Stripe's own
    * view. Real Stripe never emits literal "transfer.paid"/"transfer.failed" events (the
-   * spec's naming) — for a platform-balance-to-connected-account Transfer, "created" is the
+   * spec's naming). For a platform-balance-to-connected-account Transfer, "created" is the
    * closest real equivalent to "paid" (there's no separate later confirmation step for that
    * leg), and "reversed" is the closest real equivalent to "failed". Only reacts to the
-   * event types this platform actually needs — everything else is a deliberate no-op, since
+   * event types this platform actually needs. Everything else is a deliberate no-op, since
    * Stripe expects a 200 regardless.
    */
   async handleStripeWebhookEvent(event: Stripe.Event): Promise<void> {
     switch (event.type) {
       case 'transfer.created': {
         const transfer = event.data.object;
-        // findFirst only to fetch the kiosk/owner to notify — the actual state transition
+        // findFirst only to fetch the kiosk/owner to notify. The actual state transition
         // below is a conditional updateMany re-matching status:'processing', so two
         // concurrent deliveries for the same transfer (Stripe's at-least-once retry can
         // arrive overlapping, not just sequentially) can't both win the claim: Postgres
@@ -233,13 +233,13 @@ export class PayoutsService {
             users: { where: { role: UserRole.KIOSK_OWNER }, take: 1 },
           },
         });
-        // Not ours, or no actual flip — Stripe fires account.updated for lots of unrelated
+        // Not ours, or no actual flip. Stripe fires account.updated for lots of unrelated
         // account field changes, not just payouts_enabled, so without this comparison every
         // incidental webhook delivery would spam an email/notification.
         if (!kiosk || kiosk.stripePayoutsEnabled === newValue) break;
 
         // Conditional updateMany (re-matching the previous value) instead of an
-        // unconditional update — closes the same concurrent-duplicate-delivery race as
+        // unconditional update. Closes the same concurrent-duplicate-delivery race as
         // transfer.created above: only the delivery that still sees the pre-flip value wins
         // the claim and notifies.
         const claimed = await this.prisma.kiosk.updateMany({
@@ -266,7 +266,7 @@ export class PayoutsService {
     }
   }
 
-  /** Admin view — every kiosk's payouts, with kiosk name + Stripe connection status inlined. */
+  /** Admin view. Every kiosk's payouts, with kiosk name + Stripe connection status inlined. */
   async findAllForAdmin(): Promise<PayoutDto[]> {
     const payouts = await this.prisma.payout.findMany({
       include: {
@@ -292,7 +292,7 @@ export class PayoutsService {
     }));
   }
 
-  /** Kiosk-owner view — only their own kiosk's payout history, never another's. */
+  /** Kiosk-owner view. Only their own kiosk's payout history, never another's. */
   async findAllForKiosk(kioskId: string): Promise<PayoutDto[]> {
     const payouts = await this.prisma.payout.findMany({
       where: { kioskId },

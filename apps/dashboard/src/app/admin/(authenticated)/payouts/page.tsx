@@ -68,7 +68,7 @@ export default function AdminPayoutsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Payouts</h2>
+        <h2 className="text-title">Payouts</h2>
         <p className="text-sm text-muted-foreground">
           Review pending payouts and trigger the real Stripe transfer when ready.
         </p>
@@ -162,9 +162,9 @@ function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
 
   return (
     <TableRow index={index}>
-      <TableCell className="font-medium">{payout.kiosk?.name ?? "—"}</TableCell>
+      <TableCell className="font-medium">{payout.kiosk?.name ?? "Unassigned"}</TableCell>
       <TableCell>
-        {new Date(payout.periodStart).toLocaleDateString()} –{" "}
+        {new Date(payout.periodStart).toLocaleDateString()} -{" "}
         {new Date(payout.periodEnd).toLocaleDateString()}
       </TableCell>
       <TableCell>{formatCurrency(payout.totalAmount)}</TableCell>

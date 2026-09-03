@@ -8,7 +8,7 @@ interface PersistedDisplayState {
 }
 
 // EVERY_LOGIN resets naturally each agent run (one run == one login session, per the
-// spec's chosen "background app launched at every Windows login" architecture) — an
+// spec's chosen "background app launched at every Windows login" architecture), an
 // in-memory Set is all that's needed, no disk persistence.
 const defaultSessionShownIds = new Set<string>();
 
@@ -17,7 +17,7 @@ const defaultSessionShownIds = new Set<string>();
  * session.
  *
  * Without a budget, "only record it as shown once we've confirmed it rendered" turns any
- * persistent rendering problem into an infinite loop — the agent would re-dispatch the same
+ * persistent rendering problem into an infinite loop. The agent would re-dispatch the same
  * announcement every poll cycle, forever. Bounded retries keep the honest accounting (a failed
  * showing is never counted as shown) without that failure mode.
  */
@@ -31,11 +31,11 @@ export const MAX_DISPLAY_ATTEMPTS = 3;
 const defaultFailedAttempts = new Map<string, number>();
 
 export interface AnnouncementStateOptions {
-  /** Defaults to %PROGRAMDATA%/KioskAgent/announcement-state.json — override only for isolated testing. */
+  /** Defaults to %PROGRAMDATA%/KioskAgent/announcement-state.json. Override only for isolated testing. */
   filePath?: string;
-  /** Defaults to a module-level singleton — override only for isolated testing. */
+  /** Defaults to a module-level singleton. Override only for isolated testing. */
   sessionShownIds?: Set<string>;
-  /** Defaults to a module-level singleton — override only for isolated testing. */
+  /** Defaults to a module-level singleton. Override only for isolated testing. */
   failedAttempts?: Map<string, number>;
 }
 

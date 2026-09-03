@@ -5,7 +5,7 @@ import type { Request } from 'express';
 import { StripeService } from '../stripe/stripe.service';
 import { PayoutsService } from './payouts.service';
 
-// Excluded from Swagger — this is a machine-to-machine webhook authenticated by Stripe's
+// Excluded from Swagger. This is a machine-to-machine webhook authenticated by Stripe's
 // own signature scheme (see StripeService.constructWebhookEvent), not JWT/device auth.
 @ApiExcludeController()
 @Controller('webhooks')

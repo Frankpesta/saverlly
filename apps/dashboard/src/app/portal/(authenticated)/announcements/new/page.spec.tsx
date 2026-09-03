@@ -35,6 +35,7 @@ const locations: Location[] = [
     latitude: null,
     longitude: null,
     tags: [],
+    locationSetupCode: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -136,11 +137,11 @@ describe("NewAnnouncementPage", () => {
     // Browser-facing surfaces render the image through the dashboard's own proxy: the backend
     // serves uploads over plain HTTP, and a raw http:// URL on the HTTPS dashboard is mixed
     // content, which the browser drops without a word. The raw URL is still what gets *saved*
-    // and what the kiosk agent renders — only these two views rewrite it.
+    // and what the kiosk agent renders. Only these two views rewrite it.
     const encoded = encodeURIComponent(uploadedUrl)
 
     // The upload becomes a real image element on the canvas, painted via background-image by the
-    // shared `layoutElementStyle` — the same style function the kiosk renderer uses.
+    // shared `layoutElementStyle`. The same style function the kiosk renderer uses.
     await waitFor(() => {
       const stage = screen.getByTestId("announcement-stage")
       const painted = Array.from(stage.querySelectorAll<HTMLElement>("div")).some((node) =>

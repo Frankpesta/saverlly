@@ -29,7 +29,7 @@ export class SearchController {
       'Search across kiosks, locations, devices, merchants, coupons, and announcements',
     description:
       "Results are scoped by the caller's role and tenant, identically to each entity's own list " +
-      'endpoint — kiosks/merchants/coupons are admin-only, locations/devices/announcements are scoped ' +
+      'endpoint. Kiosks/merchants/coupons are admin-only, locations/devices/announcements are scoped ' +
       "to the caller's own kiosk or assigned locations.",
   })
   @ApiResponse({

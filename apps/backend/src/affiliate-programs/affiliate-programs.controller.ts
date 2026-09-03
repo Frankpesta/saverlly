@@ -18,7 +18,7 @@ export class AffiliateProgramsController {
 
   @Post()
   @ApiOperation({ summary: 'Register an affiliate network/program (admin only)' })
-  @ApiResponse({ status: 201, description: 'Program created — apiCredentials never returned, only hasCredentials' })
+  @ApiResponse({ status: 201, description: 'Program created, apiCredentials never returned, only hasCredentials' })
   create(@Body() dto: CreateAffiliateProgramDto) {
     return this.affiliateProgramsService.create(dto);
   }

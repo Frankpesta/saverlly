@@ -27,10 +27,10 @@ export class UpdateLocationDto {
   @MinLength(1)
   state?: string;
 
-  @ApiPropertyOptional({ example: '78701', description: 'US 5-digit ZIP' })
+  @ApiPropertyOptional({ example: '78701', description: 'US ZIP, ZIP+4, or a letter/dash postal code (e.g. Canadian)' })
   @IsOptional()
   @IsString()
-  @Matches(ZIP_PATTERN, { message: 'zip must be exactly 5 digits' })
+  @Matches(ZIP_PATTERN, { message: 'zip must be 3-10 characters: letters, numbers, spaces, and dashes' })
   zip?: string;
 
   @ApiPropertyOptional()

@@ -38,7 +38,7 @@ export async function apiUpload<T>(path: string, file: File): Promise<T> {
   const formData = new FormData()
   formData.append("file", file)
 
-  // No explicit Content-Type — the browser sets multipart/form-data with the right boundary itself.
+  // No explicit Content-Type. The browser sets multipart/form-data with the right boundary itself.
   const res = await fetch(`/api/proxy${path}`, {
     method: "POST",
     body: formData,

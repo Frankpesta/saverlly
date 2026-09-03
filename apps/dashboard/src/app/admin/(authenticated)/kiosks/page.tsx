@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { PencilIcon } from "lucide-react"
+import { PencilIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -24,7 +24,6 @@ import { ApiError } from "@/lib/api/client"
 import { usePagination } from "@/hooks/use-pagination"
 import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
 import { cn } from "@/lib/utils"
-import { NewKioskDialog } from "./new-kiosk-dialog"
 
 export default function KiosksPage() {
   const { data: kiosks, isLoading, isError } = useKiosks()
@@ -57,10 +56,13 @@ export default function KiosksPage() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        eyebrow="Platform network"
         title="Kiosks"
-        description="Every kiosk business on the platform, their status, and revenue share."
-        actions={<NewKioskDialog />}
+        actions={
+          <Link href="/admin/kiosks/new" className={cn(buttonVariants(), "gap-1.5")}>
+            <PlusIcon className="size-4" />
+            New Kiosk
+          </Link>
+        }
       />
 
       <CollectionSummary items={[
@@ -71,7 +73,7 @@ export default function KiosksPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load kiosks.</p>}
 
-      <CollectionArea title="Kiosk directory" description="Manage status and revenue sharing for each kiosk business." count={totalItems}>
+      <CollectionArea title="Kiosk directory" titleHidden count={totalItems}>
         <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>

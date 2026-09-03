@@ -77,7 +77,7 @@ export class AuthController {
   @ApiBearerAuth('jwt')
   @ApiOperation({
     summary:
-      "Change the current user's own password — required before continuing if mustChangePassword is true",
+      "Change the current user's own password. Required before continuing if mustChangePassword is true",
   })
   @ApiResponse({
     status: 200,

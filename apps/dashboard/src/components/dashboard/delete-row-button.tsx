@@ -25,7 +25,7 @@ export function DeleteRowButton({
   ariaLabel,
   variant = "icon",
 }: {
-  /** The specific thing being deleted, e.g. "SAVE10" or "Downtown Location" — used in the title. */
+  /** The specific thing being deleted, e.g. "SAVE10" or "Downtown Location". Used in the title. */
   itemLabel: string
   /** Extra detail about what deleting this cascades to, if anything. */
   description?: string

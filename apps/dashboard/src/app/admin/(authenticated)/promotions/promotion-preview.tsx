@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 /**
  * A scaled mock of the real Chrome extension popup, so an admin can see where a creative actually
  * lands rather than judging it as a bare rectangle. The 360px body width and the 16px gutters
- * mirror apps/extension/src/popup/popup.css — which is exactly why the small creative is 320px
+ * mirror apps/extension/src/popup/popup.css. Which is exactly why the small creative is 320px
  * wide, and why it renders here at its true 1:1 size.
  *
  * Everything inside the device frame is a literal colour, never a theme token: the extension popup

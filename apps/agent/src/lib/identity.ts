@@ -20,7 +20,7 @@ function isDeviceIdentity(value: unknown): value is DeviceIdentity {
 /**
  * Returns this machine's stable local device identifier, creating it on first run.
  * Deliberately not derived from the Windows machine GUID, since that can be reset by
- * imaging tools — this UUID is the agent's own durable identity, persisted only in
+ * imaging tools. This UUID is the agent's own durable identity, persisted only in
  * %PROGRAMDATA%/KioskAgent/device.json (wiped only by a full machine reimage).
  */
 export function getOrCreateDeviceIdentifier(filePath: string = deviceIdentityFilePath()): string {
@@ -32,7 +32,7 @@ export function getOrCreateDeviceIdentifier(filePath: string = deviceIdentityFil
         return parsed.deviceIdentifier;
       }
     } catch {
-      // Corrupt/unrecognized file — fall through and regenerate rather than crash-looping
+      // Corrupt/unrecognized file. Fall through and regenerate rather than crash-looping
       // forever on an unattended kiosk machine. Worst case this creates one extra Device
       // record on next registration, which is recoverable; a permanent startup crash isn't.
     }

@@ -29,7 +29,7 @@ import { UpdateDeviceDto } from './dto/update-device.dto';
 export class DevicesController {
   constructor(private readonly devicesService: DevicesService) {}
 
-  // Machine-initiated, no human auth — gated by setup code validity instead, and rate-limited
+  // Machine-initiated, no human auth. Gated by setup code validity instead, and rate-limited
   // to blunt brute-force guessing of setup codes.
   @Post('register')
   @UseGuards(ThrottlerGuard)
@@ -37,10 +37,10 @@ export class DevicesController {
   @ApiOperation({
     summary: 'Machine-initiated device registration',
     description:
-      'No human auth — gated by a valid, active LocationSetupCode whose parent kiosk is ACTIVE. ' +
+      'No human auth. Gated by a valid, active LocationSetupCode whose parent kiosk is ACTIVE. ' +
       'Returns a device token immediately, no approval step. Rate-limited (5/min) to blunt setup-code guessing.',
   })
-  @ApiResponse({ status: 201, description: 'Device registered; token returned once, store it — it is not retrievable again' })
+  @ApiResponse({ status: 201, description: 'Device registered; token returned once, store it. It is not retrievable again' })
   @ApiResponse({ status: 400, description: 'Setup code invalid/inactive, or parent kiosk not ACTIVE' })
   @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   register(@Body() dto: RegisterDeviceDto) {
@@ -81,7 +81,7 @@ export class DevicesController {
   @TenantResource(TenantResourceType.DEVICE)
   @ApiBearerAuth('jwt')
   @ApiOperation({ summary: 'Update a device, including the active kill-switch' })
-  @ApiResponse({ status: 200, description: 'Device updated — active:false blocks its token on next use' })
+  @ApiResponse({ status: 200, description: 'Device updated, active:false blocks its token on next use' })
   @ApiResponse({ status: 403, description: 'Not in the caller\'s tenant scope' })
   update(@Param('id') id: string, @Body() dto: UpdateDeviceDto) {
     return this.devicesService.update(id, dto);

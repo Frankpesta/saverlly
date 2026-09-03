@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { PencilIcon } from "lucide-react"
+import { PencilIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,15 +17,15 @@ import {
   TableRow,
   TableRowActions,
 } from "@/components/ui/table"
+import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
-import { useMerchants, useUpdateMerchant } from "@/lib/api/hooks/use-merchants"
+import { useDeleteMerchant, useMerchants, useUpdateMerchant } from "@/lib/api/hooks/use-merchants"
 import { useCoupons } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
 import type { AttributionMethod } from "@/lib/api/types"
 import { usePagination } from "@/hooks/use-pagination"
 import { cn } from "@/lib/utils"
-import { NewMerchantDialog } from "./new-merchant-dialog"
 
 const METHOD_LABEL: Record<AttributionMethod, string> = {
   COOKIE: "Cookie",
@@ -58,10 +58,13 @@ export default function MerchantsPage() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        eyebrow="Commerce directory"
         title="Merchants"
-        description="Every store tracked for commission, and how coupon codes get sourced for it."
-        actions={<NewMerchantDialog />}
+        actions={
+          <Link href="/admin/merchants/new" className={cn(buttonVariants(), "gap-1.5")}>
+            <PlusIcon className="size-4" />
+            Add Store
+          </Link>
+        }
       />
 
       <CollectionSummary items={[
@@ -72,7 +75,7 @@ export default function MerchantsPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load merchants.</p>}
 
-      <CollectionArea title="Merchant directory" description="Manage tracking configuration and coupon sourcing." count={totalItems}>
+      <CollectionArea title="Merchant directory" titleHidden count={totalItems}>
       <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
@@ -136,6 +139,15 @@ function MerchantRow({
   couponCount: number
 }) {
   const updateMerchant = useUpdateMerchant(merchant.id)
+  const deleteMerchant = useDeleteMerchant()
+
+  function handleDelete() {
+    deleteMerchant.mutate(merchant.id, {
+      onSuccess: () => toast.success(`${merchant.name} was deleted.`),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Could not delete merchant."),
+    })
+  }
 
   function toggleActive() {
     updateMerchant.mutate(
@@ -176,6 +188,12 @@ function MerchantRow({
           >
             <PencilIcon className="size-3.5" />
           </Link>
+          <DeleteRowButton
+            itemLabel={merchant.name}
+            description="Its coupons, coupon test history, and commission events will be deleted too. Scrape sources are kept but stop pointing at any merchant. This can't be undone."
+            onConfirm={handleDelete}
+            isPending={deleteMerchant.isPending}
+          />
         </TableRowActions>
       </TableCell>
     </TableRow>

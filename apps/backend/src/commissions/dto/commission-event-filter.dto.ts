@@ -23,12 +23,12 @@ export class CommissionEventFilterDto {
   @IsEnum(CommissionStatus)
   status?: CommissionStatus;
 
-  @ApiPropertyOptional({ description: 'ISO date-time — only events reported at or after this' })
+  @ApiPropertyOptional({ description: 'ISO date-time. Only events reported at or after this' })
   @IsOptional()
   @IsDateString()
   dateFrom?: string;
 
-  @ApiPropertyOptional({ description: 'ISO date-time — only events reported at or before this' })
+  @ApiPropertyOptional({ description: 'ISO date-time. Only events reported at or before this' })
   @IsOptional()
   @IsDateString()
   dateTo?: string;

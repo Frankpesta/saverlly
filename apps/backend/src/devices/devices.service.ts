@@ -11,7 +11,7 @@ import { UpdateDeviceDto } from './dto/update-device.dto';
 const DEVICE_TOKEN_BYTES = 32;
 
 // Device.lastSeenAt only gets written going forward (DeviceAuthGuard, on every authenticated
-// device request) — it's null for every device that was active before that guard change shipped.
+// device request). It's null for every device that was active before that guard change shipped.
 // Falling back to the most recent CouponTestEvent/AttributionAttempt per device means a device
 // with real historical activity doesn't show "Never" just because it predates the heartbeat write.
 const latestActivityInclude = {

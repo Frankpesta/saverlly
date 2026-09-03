@@ -106,7 +106,7 @@ export default function PortalEarningsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Earnings</h2>
+        <h2 className="text-title">Earnings</h2>
         <p className="text-sm text-muted-foreground">
           Your balance, payout history, and account connection.
         </p>
@@ -271,7 +271,7 @@ export default function PortalEarningsPage() {
               {payoutsPagination.pageItems.map((payout, index) => (
                 <TableRow key={payout.id} index={index}>
                   <TableCell>
-                    {new Date(payout.periodStart).toLocaleDateString()} –{" "}
+                    {new Date(payout.periodStart).toLocaleDateString()} -{" "}
                     {new Date(payout.periodEnd).toLocaleDateString()}
                   </TableCell>
                   <TableCell className="font-medium">{formatCurrency(payout.totalAmount)}</TableCell>
@@ -280,7 +280,7 @@ export default function PortalEarningsPage() {
                       {PAYOUT_STATUS_LABEL[payout.status]}
                     </Badge>
                   </TableCell>
-                  <TableCell>{payout.paidAt ? new Date(payout.paidAt).toLocaleDateString() : "—"}</TableCell>
+                  <TableCell>{payout.paidAt ? new Date(payout.paidAt).toLocaleDateString() : "Not paid yet"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

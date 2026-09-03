@@ -166,7 +166,7 @@ export default function PortalOverviewPage() {
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">
+          <h2 className="text-title">
             {greeting()}, {displayName}
           </h2>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -174,7 +174,7 @@ export default function PortalOverviewPage() {
               <Skeleton className="h-5 w-16" />
             ) : (
               <Badge variant={kiosk ? KIOSK_STATUS_BADGE_VARIANT[kiosk.status] : "secondary"}>
-                {kiosk ? KIOSK_STATUS_LABEL[kiosk.status] : "—"}
+                {kiosk ? KIOSK_STATUS_LABEL[kiosk.status] : "Unknown"}
               </Badge>
             )}
             {kiosk?.name && <span>{kiosk.name}</span>}
@@ -189,8 +189,7 @@ export default function PortalOverviewPage() {
 
       <section className="flex flex-col gap-4">
         <div>
-          <h3 className="text-base font-semibold tracking-tight">At a glance</h3>
-          <p className="text-sm text-muted-foreground">A clear view of what is ready, pending, and paid out.</p>
+          <h3 className="text-heading">Earnings</h3>
         </div>
         <BentoGrid>
         <StatTile
@@ -226,8 +225,7 @@ export default function PortalOverviewPage() {
 
       <section className="flex flex-col gap-4">
         <div>
-          <h3 className="text-base font-semibold tracking-tight">Operations</h3>
-          <p className="text-sm text-muted-foreground">Keep tabs on your footprint and device health.</p>
+          <h3 className="text-heading">Operations</h3>
         </div>
         <BentoGrid>
         <StatTile label="Locations" value={locations?.length ?? 0} icon={<MapPinIcon />} />
@@ -255,8 +253,7 @@ export default function PortalOverviewPage() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <BentoCard span={2}>
           <div className="mb-2 flex flex-col gap-0.5">
-            <h3 className="text-sm font-semibold">Earnings overview</h3>
-            <p className="text-sm text-muted-foreground">Confirmed earnings over time.</p>
+            <h3 className="text-heading">Earnings overview</h3>
           </div>
           {eventsLoading ? (
             <Skeleton className="h-[260px] w-full" />
@@ -267,7 +264,7 @@ export default function PortalOverviewPage() {
 
         <BentoCard>
           <div className="flex h-full flex-col gap-3">
-            <h3 className="text-sm font-semibold">Commission breakdown</h3>
+            <h3 className="text-heading">Commission breakdown</h3>
             <div className="flex flex-1 flex-col justify-center gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Confirmed</span>
@@ -292,7 +289,7 @@ export default function PortalOverviewPage() {
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Devices by location</h3>
+            <h3 className="text-heading">Devices by location</h3>
             <Link href="/portal/devices" className="text-sm text-muted-foreground hover:underline">
               View all →
             </Link>
@@ -321,7 +318,7 @@ export default function PortalOverviewPage() {
 
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Your locations</h3>
+            <h3 className="text-heading">Your locations</h3>
             <Link href="/portal/locations" className="text-sm text-muted-foreground hover:underline">
               View all →
             </Link>
@@ -348,7 +345,7 @@ export default function PortalOverviewPage() {
 
       <BentoCard>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Recent commission activity</h3>
+          <h3 className="text-heading">Recent commission activity</h3>
           <Link href="/portal/earnings" className="text-sm text-muted-foreground hover:underline">
             View all →
           </Link>
@@ -397,7 +394,7 @@ export default function PortalOverviewPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Recent payouts</h3>
+            <h3 className="text-heading">Recent payouts</h3>
             <Link href="/portal/earnings" className="text-sm text-muted-foreground hover:underline">
               View all →
             </Link>
@@ -427,7 +424,7 @@ export default function PortalOverviewPage() {
 
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Announcements</h3>
+            <h3 className="text-heading">Announcements</h3>
             <Link href="/portal/announcements" className="text-sm text-muted-foreground hover:underline">
               View announcements →
             </Link>

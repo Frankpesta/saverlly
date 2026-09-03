@@ -52,7 +52,7 @@ export function ResetPasswordForm({
     setError(null)
 
     if (!token) {
-      setError("This reset link is missing its token — request a new one.")
+      setError("This reset link is missing its token. Request a new one.")
       return
     }
 

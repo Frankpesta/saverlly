@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 /** Trims + lowercases before validating, mirroring the backend's `NormalizeEmail` transform
- * (`apps/backend/src/common/transformers/normalize-email.decorator.ts`) — so a casing mismatch
+ * (`apps/backend/src/common/transformers/normalize-email.decorator.ts`). So a casing mismatch
  * between what's typed here and what the server ends up storing/comparing can never happen. */
 export const emailSchema = z
   .string()
@@ -19,7 +19,7 @@ export const passwordSchema = z
   .string()
   .regex(STRONG_PASSWORD_PATTERN, "Password must be at least 8 characters and include a letter and a number")
 
-/** Cross-field "confirm password matches" check — apply with `.refine()` on a schema that
+/** Cross-field "confirm password matches" check, apply with `.refine()` on a schema that
  * already has both a password field and a confirm field, e.g.:
  * `z.object({ newPassword: passwordSchema, confirmPassword: z.string() }).refine(passwordsMatch("newPassword", "confirmPassword"), passwordMismatchIssue("confirmPassword"))` */
 export function passwordsMatch<T extends Record<string, unknown>>(passwordKey: keyof T, confirmKey: keyof T) {
@@ -31,15 +31,20 @@ export function passwordMismatchIssue(confirmKey: string, message = "Passwords d
 }
 
 /** Mirrors the backend's `ZIP_PATTERN` (`apps/backend/src/locations/dto/create-location.dto.ts`)
- * — 5-digit US ZIP only. The `Location.zip` schema field is nullable/string-optional server-side
- * for a future non-numeric-postal-code allowance, but every form in this app currently requires
- * one, so the schema does too. */
+ * byte-for-byte. Was 5-digit-US-only; widened per the client's request to also accept ZIP+4
+ * ("12345-6789") and letter-and-dash postal codes like Canada's ("A1A 1A1"): letters, digits,
+ * spaces, and dashes, 3 to 10 characters, first and last character alphanumeric. The
+ * `Location.zip` DB column was already a nullable string for exactly this reason, so this is a
+ * validation-only change, no migration involved. */
+export const ZIP_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 -]{1,8}[A-Za-z0-9]$/
+
 export const zipSchema = z
   .string()
-  .regex(/^\d{5}$/, "Enter a 5-digit US ZIP code")
+  .trim()
+  .regex(ZIP_PATTERN, "Enter a valid postal code (letters, numbers, spaces, and dashes, 3-10 characters)")
 
 /** Mirrors the backend's `IsMultipleOf(5)` validator applied to `Kiosk.revenueSharePct`
- * (`apps/backend/src/common/validators/is-multiple-of.decorator.ts`) — 0-100 in steps of 5. */
+ * (`apps/backend/src/common/validators/is-multiple-of.decorator.ts`), 0-100 in steps of 5. */
 export const revenueShareSchema = z
   .number({ error: "Enter a revenue share percentage" })
   .min(0, "Must be at least 0%")
@@ -48,7 +53,7 @@ export const revenueShareSchema = z
 
 export const nameSchema = z.string().trim().min(1, "Name is required")
 
-/** A kiosk/location/merchant "type the exact name to confirm" destructive-action field —
+/** A kiosk/location/merchant "type the exact name to confirm" destructive-action field
  * `expectedName` is bound at schema-construction time (per dialog instance), not per-submission,
  * since the target being deleted doesn't change while the confirm dialog is open. */
 export function exactMatchSchema(expectedName: string) {

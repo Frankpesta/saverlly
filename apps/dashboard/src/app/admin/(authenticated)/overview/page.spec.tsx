@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AdminOverviewPage from "./page"
 import type { Coupon, CommissionEvent, Device, Kiosk, Location, Merchant, Payout } from "@/lib/api/types"
@@ -52,6 +53,7 @@ const locations: Location[] = [
     latitude: null,
     longitude: null,
     tags: [],
+    locationSetupCode: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -215,10 +217,14 @@ function renderWithClient(ui: React.ReactElement) {
 }
 
 describe("AdminOverviewPage", () => {
+  let dismissedAlertKeys: string[]
+
   beforeEach(() => {
-    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    dismissedAlertKeys = []
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      const respond = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
+      const respond = (body: unknown, status = 200) =>
+        ({ ok: true, status, json: async () => body }) as Response
       if (url === "/api/proxy/kiosks") return respond(kiosks)
       if (url === "/api/proxy/locations") return respond(locations)
       if (url === "/api/proxy/devices") return respond(devices)
@@ -226,6 +232,19 @@ describe("AdminOverviewPage", () => {
       if (url === "/api/proxy/payouts") return respond(payouts)
       if (url === "/api/proxy/merchants") return respond(merchants)
       if (url.startsWith("/api/proxy/coupons")) return respond(coupons)
+      if (url === "/api/proxy/users/me/dismissed-alerts") {
+        if (init?.method === "POST") {
+          const { alertKey } = JSON.parse(String(init.body))
+          if (!dismissedAlertKeys.includes(alertKey)) dismissedAlertKeys.push(alertKey)
+          return respond(undefined, 204)
+        }
+        return respond(dismissedAlertKeys)
+      }
+      if (url.startsWith("/api/proxy/users/me/dismissed-alerts/") && init?.method === "DELETE") {
+        const key = decodeURIComponent(url.split("/").pop()!)
+        dismissedAlertKeys = dismissedAlertKeys.filter((k) => k !== key)
+        return respond(undefined, 204)
+      }
       throw new Error(`Unhandled fetch in test: ${url}`)
     }) as jest.Mock
   })
@@ -243,8 +262,17 @@ describe("AdminOverviewPage", () => {
   it("shows the kiosk and device active meters", async () => {
     renderWithClient(<AdminOverviewPage />)
 
-    await waitFor(() => expect(screen.getByText("1 of 2 kiosks active")).toBeInTheDocument())
-    expect(screen.getByText("1 of 2 devices active")).toBeInTheDocument()
+    // Gauge now states the split as a colour-coded inline legend and keeps the prose form
+    // ("1 of 2 kiosks active") as the region's accessible name, rather than rendering it as a
+    // third line of visible text under the percentage.
+    await waitFor(() => expect(screen.getByLabelText("1 of 2 kiosks active")).toBeInTheDocument())
+    expect(screen.getByLabelText("1 of 2 devices active")).toBeInTheDocument()
+
+    const kiosks = screen
+      .getByLabelText("1 of 2 kiosks active")
+      .closest<HTMLElement>("div[data-slot='dashboard-surface']")!
+    expect(within(kiosks).getByText("1 active")).toBeInTheDocument()
+    expect(within(kiosks).getByText("1 inactive")).toBeInTheDocument()
   })
 
   it("aggregates coupon success rate across paged coupons", async () => {
@@ -263,7 +291,7 @@ describe("AdminOverviewPage", () => {
     const kioskRow = (await within(topKiosksPanel).findByText("Kiosk One")).closest("tr")!
     expect(within(kioskRow).getByText("1")).toBeInTheDocument()
 
-    // Scope to the Top merchants panel — "Jumia" also legitimately appears in the Recent
+    // Scope to the Top merchants panel, "Jumia" also legitimately appears in the Recent
     // Commission Events table below (which shows all statuses, not just confirmed).
     const topMerchantsPanel = screen.getByText("Top merchants").closest(
       '[data-slot="dashboard-surface"]',
@@ -277,8 +305,34 @@ describe("AdminOverviewPage", () => {
 
     expect(await screen.findByText("1 merchant has low coupon success rates")).toBeInTheDocument()
     expect(screen.getByText("1 kiosk is inactive")).toBeInTheDocument()
-    expect(screen.getByText("1 devices are disabled")).toBeInTheDocument()
+    // Was "1 devices are disabled" before this rewrite, an ungrammatical singular case that
+    // never pluralized correctly. Fixed alongside adding dismissal.
+    expect(screen.getByText("1 device is disabled")).toBeInTheDocument()
   })
+
+  it("dismisses a Needs Attention item and can restore it", async () => {
+    const user = userEvent.setup()
+    renderWithClient(<AdminOverviewPage />)
+
+    const title = await screen.findByText("1 kiosk is inactive")
+    // title's immediate parent is the <a> from Link (mocked to a plain anchor above), which is
+    // not a div, so .closest("div") skips it and lands on the row container that also holds
+    // the dismiss button.
+    const row = title.closest("div") as HTMLElement
+    await user.hover(row)
+    await user.click(within(row).getByRole("button", { name: /Dismiss: 1 kiosk is inactive/ }))
+
+    await waitFor(() => expect(screen.queryByText("1 kiosk is inactive")).not.toBeInTheDocument())
+    expect(await screen.findByText("Show dismissed (1)")).toBeInTheDocument()
+
+    await user.click(screen.getByText("Show dismissed (1)"))
+    expect(await screen.findByText("Restore")).toBeInTheDocument()
+    await user.click(screen.getByText("Restore"))
+
+    expect(await screen.findByText("1 kiosk is inactive")).toBeInTheDocument()
+  }, 15000) // hover + click + two network round-trips on a page with a lot of DOM already
+  // mounted can outrun Jest's 5000ms default under load, matching this project's documented
+  // CPU-contention flake pattern in other suites.
 
   it("computes payout overview totals", async () => {
     renderWithClient(<AdminOverviewPage />)

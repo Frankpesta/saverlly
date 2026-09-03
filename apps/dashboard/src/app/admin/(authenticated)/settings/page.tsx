@@ -13,8 +13,7 @@ export default function AdminSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Settings</h2>
-        <p className="text-sm text-muted-foreground">Your account.</p>
+        <h2 className="text-title">Settings</h2>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2">

@@ -44,9 +44,19 @@ export class LocationsService {
     });
   }
 
+  // Included on every list/detail read so the locations table can show and generate a setup
+  // code inline. Fetching it per row instead would be one request per location, and the code
+  // being buried on the detail page is exactly what the client asked to fix.
+  private static readonly WITH_SETUP_CODE = {
+    locationSetupCode: { select: { id: true, code: true, active: true, createdAt: true } },
+  } as const;
+
   async findAll(currentUser: JwtPayload) {
     if (currentUser.role === UserRole.ADMIN) {
-      return this.prisma.location.findMany({ orderBy: { createdAt: 'desc' } });
+      return this.prisma.location.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: LocationsService.WITH_SETUP_CODE,
+      });
     }
 
     if (currentUser.role === UserRole.LOCATION_MANAGER) {
@@ -57,6 +67,7 @@ export class LocationsService {
       return this.prisma.location.findMany({
         where: { id: { in: manager?.managedLocationIds ?? [] } },
         orderBy: { createdAt: 'desc' },
+        include: LocationsService.WITH_SETUP_CODE,
       });
     }
 
@@ -64,6 +75,7 @@ export class LocationsService {
     return this.prisma.location.findMany({
       where: { kioskId: currentUser.kioskId! },
       orderBy: { createdAt: 'desc' },
+      include: LocationsService.WITH_SETUP_CODE,
     });
   }
 
@@ -80,8 +92,8 @@ export class LocationsService {
     return this.prisma.location.update({ where: { id }, data: dto });
   }
 
-  /** Deleting a location cascades to everything under it — setup codes, devices, and each
-   * device's own history (tokens, coupon test events, attribution attempts, commission events) —
+  /** Deleting a location cascades to everything under it. Setup codes, devices, and each
+   * device's own history (tokens, coupon test events, attribution attempts, commission events)
    * none of which cascade at the schema level, so this has to be done explicitly. */
   async remove(id: string) {
     await this.findOne(id);
@@ -90,7 +102,7 @@ export class LocationsService {
 
   /** A location only ever has one setup code. The first call creates it; every call after that
    * regenerates the existing row in place (new code string, reactivated) rather than adding a
-   * second row — `locationId` is `@unique` on `LocationSetupCode`, so this is the only shape
+   * second row, `locationId` is `@unique` on `LocationSetupCode`, so this is the only shape
    * that's actually possible now. */
   async createSetupCode(locationId: string) {
     await this.findOne(locationId);

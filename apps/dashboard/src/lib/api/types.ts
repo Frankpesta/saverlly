@@ -36,7 +36,7 @@ export type Kiosk = {
   updatedAt: string
 }
 
-/** A kiosk's own users are always KIOSK_OWNER or LOCATION_MANAGER — ADMIN is never kiosk-scoped. */
+/** A kiosk's own users are always KIOSK_OWNER or LOCATION_MANAGER, ADMIN is never kiosk-scoped. */
 export type KioskAssignableRole = Extract<UserRole, "KIOSK_OWNER" | "LOCATION_MANAGER">
 
 export type KioskUser = {
@@ -64,7 +64,7 @@ export type AdminUser = {
   updatedAt: string
 }
 
-/** The kiosk owner's own email doubles as the kiosk's contact — there's no separate stored
+/** The kiosk owner's own email doubles as the kiosk's contact. There's no separate stored
  * contact field. Returned by `/my/kiosk-contact` for a location manager who needs to reach
  * their kiosk owner. */
 export type KioskContact = {
@@ -83,6 +83,10 @@ export type Location = {
   latitude: number | null
   longitude: number | null
   tags: string[]
+  /** Included on list and detail reads so the locations table can show and generate a code
+   * inline, rather than it only being reachable from the location's own page. Null when the
+   * location has no code yet. */
+  locationSetupCode: Pick<LocationSetupCode, "id" | "code" | "active" | "createdAt"> | null
   createdAt: string
   updatedAt: string
 }
@@ -215,7 +219,7 @@ export type AffiliateProgram = {
   networkName: string
   programId: string | null
   hasCouponApi: boolean
-  /** apiCredentials is write-only — never returned by the API, only this derived flag. */
+  /** apiCredentials is write-only. Never returned by the API, only this derived flag. */
   hasCredentials: boolean
   createdAt: string
 }
@@ -226,12 +230,12 @@ export type Announcement = {
   id: string
   /** null = platform-wide broadcast (ADMIN-only), shown on every device across every kiosk. */
   kioskId: string | null
-  /** Location ids this announcement is scoped to — empty array = all locations for the kiosk. */
+  /** Location ids this announcement is scoped to. Empty array = all locations for the kiosk. */
   locationIds: string[]
   title: string
   body: string
   mediaUrl: string | null
-  /** Freeform canvas design. Null for announcements created before the canvas editor — the
+  /** Freeform canvas design. Null for announcements created before the canvas editor. The
    *  editor and the kiosk agent both fall back to a default layout built from title/body/mediaUrl. */
   layout: AnnouncementLayout | null
   startAt: string
@@ -244,12 +248,12 @@ export type Announcement = {
 
 /**
  * An admin-authored promotion rendered inside the Chrome extension's popup. Deliberately separate
- * from Announcement (which targets the kiosk desktop overlay) — different author, audience,
+ * from Announcement (which targets the kiosk desktop overlay). Different author, audience,
  * surface and data shape.
  */
 export type Promotion = {
   id: string
-  /** Internal label for the admin list — never shown to shoppers. */
+  /** Internal label for the admin list. Never shown to shoppers. */
   name: string
   /** 320x100 creative, rendered in the extension popup. */
   imageSmallUrl: string

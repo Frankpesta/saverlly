@@ -11,7 +11,7 @@ export function LocationTargetPicker({
   onChange,
 }: {
   locations: Location[]
-  /** Empty array means "all locations" — the same convention the backend uses. */
+  /** Empty array means "all locations". The same convention the backend uses. */
   value: string[]
   onChange: (locationIds: string[]) => void
 }) {

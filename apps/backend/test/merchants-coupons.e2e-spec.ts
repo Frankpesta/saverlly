@@ -1,7 +1,16 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { resetDatabase, testPrisma } from './utils/db';
-import { loginAs, seedCoupon, seedMerchant, seedUser } from './utils/fixtures';
+import {
+  loginAs,
+  seedCommissionEvent,
+  seedCoupon,
+  seedDevice,
+  seedKiosk,
+  seedLocation,
+  seedMerchant,
+  seedUser,
+} from './utils/fixtures';
 import { createTestApp } from './utils/test-app';
 
 describe('Merchants & Coupons (e2e)', () => {
@@ -118,5 +127,51 @@ describe('Merchants & Coupons (e2e)', () => {
 
     expect(res.body).toHaveLength(1);
     expect(res.body[0].merchantId).toBe(merchantA.id);
+  });
+
+  // Coupon/CouponTestEvent/AttributionAttempt/CommissionEvent all reference merchantId with
+  // ON DELETE RESTRICT, so this used to throw an unmapped P2003 and surface as a 500 for any
+  // merchant that had ever had a coupon or a conversion, which is most real ones.
+  it('deletes a merchant that has coupons and commission events, cascading both', async () => {
+    const kiosk = await seedKiosk();
+    const location = await seedLocation(kiosk.id);
+    const device = await seedDevice(location.id);
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+    const event = await seedCommissionEvent(device.id, merchant.id);
+
+    await request(app.getHttpServer())
+      .delete(`/merchants/${merchant.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(204);
+
+    expect(await testPrisma.merchant.findUnique({ where: { id: merchant.id } })).toBeNull();
+    expect(await testPrisma.coupon.findUnique({ where: { id: coupon.id } })).toBeNull();
+    expect(
+      await testPrisma.commissionEvent.findUnique({ where: { id: event.id } }),
+    ).toBeNull();
+  });
+
+  it('keeps scrape sources when their merchant is deleted, unlinking them instead', async () => {
+    const merchant = await seedMerchant();
+    const scrapeSource = await testPrisma.scrapeSource.create({
+      data: {
+        merchantId: merchant.id,
+        url: 'https://scrape.test/deals',
+        selectorConfig: { couponCodeSelector: '.coupon-code' },
+      },
+    });
+
+    await request(app.getHttpServer())
+      .delete(`/merchants/${merchant.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(204);
+
+    // ScrapeSource.merchantId is ON DELETE SET NULL, deliberately unlike the others.
+    const after = await testPrisma.scrapeSource.findUnique({
+      where: { id: scrapeSource.id },
+    });
+    expect(after).not.toBeNull();
+    expect(after!.merchantId).toBeNull();
   });
 });

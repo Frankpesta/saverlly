@@ -1,6 +1,6 @@
 // scripts/build.js bakes SAVERLLY_API_BASE_URL (and SAVERLLY_EXTENSION_ID/
 // SAVERLLY_EXTENSION_UPDATE_URL) into the bundle at build time if set in that build's
-// environment — a real packaged exe has no runtime env var a kiosk owner could set. This
+// environment, a real packaged exe has no runtime env var a kiosk owner could set. This
 // process.env read below still matters for local dev (ts-node, unbaked builds).
 export const DEFAULT_API_BASE_URL = 'http://localhost:3000';
 

@@ -47,7 +47,7 @@ describe('pollAndDisplayAnnouncements', () => {
   });
 
   // The whole announcement is handed to the overlay now, not a flattened title/body/mediaUrl
-  // triple — the overlay needs `layout` to render the kiosk owner's actual design.
+  // triple. The overlay needs `layout` to render the kiosk owner's actual design.
   it("passes the announcement's media and layout through to the overlay", async () => {
     const layout = { version: 1, background: '#ffffff', elements: [] };
     mockFetchActiveAnnouncements.mockResolvedValue([
@@ -91,7 +91,7 @@ describe('pollAndDisplayAnnouncements', () => {
         expect(mockRecordFailed).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }));
       } else {
         // Nobody logged in / an overlay already up are transient conditions that resolve on
-        // their own — burning retries on them would strand announcements on an idle kiosk.
+        // their own. Burning retries on them would strand announcements on an idle kiosk.
         expect(mockRecordFailed).not.toHaveBeenCalled();
       }
     },

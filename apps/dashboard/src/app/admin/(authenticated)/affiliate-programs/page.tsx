@@ -1,9 +1,11 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { LinkIcon, ZapIcon } from "lucide-react"
+import { LinkIcon, PencilIcon, PlusIcon, ZapIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -21,7 +23,7 @@ import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useAffiliatePrograms, useDeleteAffiliateProgram } from "@/lib/api/hooks/use-affiliate-programs"
 import { ApiError } from "@/lib/api/client"
 import { usePagination } from "@/hooks/use-pagination"
-import { AffiliateProgramDialog } from "./affiliate-program-dialog"
+import { cn } from "@/lib/utils"
 
 export default function AffiliateProgramsPage() {
   const { data: programs, isLoading, isError } = useAffiliatePrograms()
@@ -45,12 +47,15 @@ export default function AffiliateProgramsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Affiliate Programs</h2>
+          <h2 className="text-title">Affiliate Programs</h2>
           <p className="text-sm text-muted-foreground">
             Networks merchants can connect to for automatic coupon sourcing.
           </p>
         </div>
-        <AffiliateProgramDialog />
+        <Link href="/admin/affiliate-programs/new" className={cn(buttonVariants(), "gap-1.5")}>
+          <PlusIcon className="size-4" />
+          New Program
+        </Link>
       </div>
 
       <BentoGrid>
@@ -92,7 +97,7 @@ export default function AffiliateProgramsPage() {
             {pageItems.map((program, index) => (
               <TableRow key={program.id} index={index}>
                 <TableCell className="font-medium">{program.networkName}</TableCell>
-                <TableCell>{program.programId ?? "—"}</TableCell>
+                <TableCell>{program.programId ?? "Not set"}</TableCell>
                 <TableCell>
                   <Badge variant={program.hasCouponApi ? "success" : "secondary"}>
                     {program.hasCouponApi ? "Yes" : "No"}
@@ -105,7 +110,13 @@ export default function AffiliateProgramsPage() {
                 </TableCell>
                 <TableCell>
                   <TableRowActions>
-                    <AffiliateProgramDialog program={program} />
+                    <Link
+                      href={`/admin/affiliate-programs/${program.id}`}
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${program.networkName}`}
+                    >
+                      <PencilIcon className="size-3.5" />
+                    </Link>
                     <DeleteRowButton
                       itemLabel={program.networkName}
                       description="Merchants still linked to this program will need a new one before you can delete it."

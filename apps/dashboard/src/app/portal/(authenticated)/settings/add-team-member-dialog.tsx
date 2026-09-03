@@ -30,7 +30,7 @@ type AddTeamMemberFormValues = z.infer<typeof addTeamMemberSchema>
 
 /**
  * A kiosk-owner may only create LOCATION_MANAGER accounts under their own kiosk (never a peer
- * owner — kiosk-users.service.ts's assertRoleAssignable enforces this server-side), so unlike
+ * owner. Kiosk-users.service.ts's assertRoleAssignable enforces this server-side), so unlike
  * the admin equivalent this dialog has no role picker at all.
  */
 export function AddTeamMemberDialog({ kioskId }: { kioskId: string }) {

@@ -29,6 +29,14 @@ const defaultFormat = (n: number) =>
     Math.round(n),
   )
 
+/** A sparkline needs enough real movement to mean anything. Two points is a straight line and
+ * a series of identical values is a flat one; both were previously drawn anyway, which on the
+ * current data produced a single meaningless spike on an otherwise empty chart. */
+function isPlottable(trend: number[] | undefined): trend is number[] {
+  if (!trend || trend.length < 4) return false
+  return new Set(trend).size > 1
+}
+
 export function StatTile({
   label,
   value,
@@ -43,78 +51,100 @@ export function StatTile({
   value: number
   icon?: React.ReactNode
   format?: (value: number) => string
-  /** Month-over-month growth percentage (e.g. from `monthOverMonthGrowth`) — rendered as a
-   *  colored delta pill (green ▲ / red ▼) next to the value. Omit or pass null/undefined when
-   *  growth isn't computable (e.g. no prior-month data) rather than showing a misleading 0%. */
+  /** Month-over-month growth percentage, rendered as a small coloured delta. Pass null or
+   *  undefined when growth is not computable rather than showing a misleading 0%. */
   delta?: number | null
-  /** A real, chronological data series. A sparkline is deliberately omitted when the API
-   * cannot support it, rather than inventing a decorative trend. */
+  /** A real, chronological data series. The sparkline is omitted when the API cannot support
+   *  one, rather than inventing a decorative trend. */
   trend?: number[]
-  /** Small muted line under the value/pill, e.g. "this month" or "12 payouts". */
+  /** Small muted line under the value, e.g. "this month" or "12 payouts". */
   subtext?: React.ReactNode
   className?: string
 }) {
   const animated = useAnimatedNumber(value)
   const hasDelta = delta !== undefined && delta !== null
   const gradientId = React.useId()
+  const plottable = isPlottable(trend)
+
   const trendPoints = React.useMemo(() => {
-    if (!trend || trend.length < 2) return null
+    if (!plottable) return null
     const min = Math.min(...trend)
     const max = Math.max(...trend)
     const range = max - min || 1
     return trend
-      .map((point, index) => `${(index / (trend.length - 1)) * 84},${28 - ((point - min) / range) * 24}`)
+      .map((point, index) => `${(index / (trend.length - 1)) * 100},${28 - ((point - min) / range) * 26}`)
       .join(" ")
-  }, [trend])
-
-  const chartColor = hasDelta && delta < 0 ? "var(--destructive)" : "var(--brand-teal)"
-  const areaPoints = trendPoints ? `0,30 ${trendPoints} 84,30` : undefined
-  // A sparkline earns the split panel (chart needs room, icon rides along in its corner). With
-  // no trend to show, that panel was just empty tinted space around one small icon — so the
-  // icon moves inline next to the label instead and the card collapses to a single column.
-  const hasTrend = Boolean(trendPoints)
+  }, [trend, plottable])
 
   return (
     <BentoCard
       variant="metric"
-      span={2}
-      className={cn(
-        "dashboard-metric-card group relative overflow-hidden p-0",
-        hasTrend ? "grid min-h-40 grid-cols-[minmax(0,1fr)_minmax(9rem,34%)]" : "flex min-h-40 flex-col",
-        className,
-      )}
+      className={cn("dashboard-metric-card group relative flex min-h-[9.5rem] flex-col", className)}
     >
-      <div className="flex min-w-0 flex-col justify-between px-5 py-5 sm:px-6">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">{label}</span>
-          {icon && !hasTrend && (
-            <span className="flex shrink-0 items-center justify-center text-primary [&_svg]:size-5">
+      <div className="flex flex-1 flex-col gap-3 px-5 pt-5 pb-4">
+        {/* The icon sits inline with the label on every tile, with or without a sparkline.
+            It used to move into a tinted side panel whenever a trend was present, so two
+            tiles in the same row had visibly different silhouettes. */}
+        <div className="flex items-start justify-between gap-3">
+          <span className="text-eyebrow text-muted-foreground uppercase">{label}</span>
+          {icon && (
+            <span className="flex shrink-0 items-center justify-center text-primary [&_svg]:size-[1.125rem]">
               {icon}
             </span>
           )}
         </div>
-        <div className="mt-4">
-          <span className="block text-[2.25rem] leading-none font-semibold tracking-[-0.065em] tabular-nums sm:text-[2.55rem]">{format(animated)}</span>
-          {(hasDelta || subtext) && (
-            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-              {hasDelta && <span className={cn("inline-flex items-center gap-1 font-semibold", delta >= 0 ? "text-[var(--success)]" : "text-destructive")}>{delta >= 0 ? <ArrowUpRightIcon className="size-3.5" /> : <ArrowDownRightIcon className="size-3.5" />}{Math.abs(delta).toFixed(1)}%</span>}
-              {subtext && <span className="text-muted-foreground">{subtext}</span>}
-            </div>
-          )}
-        </div>
-      </div>
-      {trendPoints && (
-        <div className="relative min-h-full border-l border-black/[0.055] bg-[#f8faf9] dark:border-white/[0.06] dark:bg-white/[0.03]">
-          {icon && <span className="absolute right-4 top-4 flex items-center justify-center text-primary [&_svg]:size-5">{icon}</span>}
-          <div className="absolute inset-x-3 bottom-4 h-[54%]">
-            <svg viewBox="0 0 84 30" preserveAspectRatio="none" aria-label={`${label} trend`} role="img" className="size-full overflow-visible">
-              <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={chartColor} stopOpacity="0.25" /><stop offset="100%" stopColor={chartColor} stopOpacity="0" /></linearGradient></defs>
-              <polygon points={areaPoints} fill={`url(#${gradientId})`} />
-              <polyline fill="none" points={trendPoints} stroke={chartColor} strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
-            </svg>
+
+        <div className="mt-auto flex flex-col gap-1.5">
+          <span className="text-display tabular-nums">{format(animated)}</span>
+          {/* Reserved whether or not there is anything to show, so tiles with a subtext and
+              tiles without still line their numbers up across a row. */}
+          <div className="flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1 text-meta">
+            {hasDelta && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 font-semibold",
+                  delta >= 0 ? "text-[var(--success)]" : "text-destructive",
+                )}
+              >
+                {delta >= 0 ? (
+                  <ArrowUpRightIcon className="size-3.5" />
+                ) : (
+                  <ArrowDownRightIcon className="size-3.5" />
+                )}
+                {Math.abs(delta).toFixed(1)}%
+              </span>
+            )}
+            {subtext && <span className="text-muted-foreground">{subtext}</span>}
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Full-bleed footer rather than a side panel, so the tile keeps one silhouette and the
+          chart gets the card's full width instead of 34% of it. Always brand teal: colouring
+          it off the delta sign painted a red chart across a teal dashboard. The band is
+          reserved even with no series to draw, otherwise a tile without a sparkline is 40px
+          shorter internally and its number sits lower than its neighbours' in the same row. */}
+      <div className="h-10 shrink-0" aria-hidden>
+        {trendPoints && (
+          <svg viewBox="0 0 100 30" preserveAspectRatio="none" className="size-full">
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--brand-teal)" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="var(--brand-teal)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <polygon points={`0,30 ${trendPoints} 100,30`} fill={`url(#${gradientId})`} />
+            <polyline
+              fill="none"
+              points={trendPoints}
+              stroke="var(--brand-teal)"
+              strokeWidth="1.25"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        )}
+      </div>
     </BentoCard>
   )
 }

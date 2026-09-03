@@ -20,7 +20,7 @@ const DIGEST_PERIOD_LABEL = '24 hours';
 
 const DEFAULT_PENDING_WINDOW_DAYS = 90;
 // Bounds each reconciliation pass so a large PENDING backlog can't load unbounded rows
-// into memory in one query — subsequent scheduled runs pick up whatever's left.
+// into memory in one query. Subsequent scheduled runs pick up whatever's left.
 const RECONCILIATION_PAGE_SIZE = 500;
 
 type CandidateAttempt = Prisma.AttributionAttemptGetPayload<{
@@ -104,7 +104,7 @@ export class CommissionsService {
       for (const conversion of conversions) {
         const attempt = attemptsBySubId.get(conversion.subId);
         if (!attempt) {
-          continue; // adapter echoed back a sub-ID we didn't ask about — ignore rather than guess
+          continue; // adapter echoed back a sub-ID we didn't ask about. Ignore rather than guess
         }
 
         await this.createCommissionEvent(attempt, conversion);
@@ -135,7 +135,7 @@ export class CommissionsService {
 
     await this.prisma.commissionEvent.upsert({
       where: { subId: attempt.subId },
-      update: {}, // already ingested — reconciliation handles status changes, not this pass
+      update: {}, // already ingested. Reconciliation handles status changes, not this pass
       create: {
         deviceId: attempt.deviceId,
         merchantId: attempt.merchantId,
@@ -202,12 +202,12 @@ export class CommissionsService {
         } else if (newStatus === 'reversed') {
           toReverseIds.push(event.id);
         }
-        // missing or still 'pending' — nothing to do this pass
+        // missing or still 'pending'. Nothing to do this pass
       }
 
       if (toConfirm.length > 0) {
         // kioskShareAmount differs per event (own commissionAmount * its kiosk's
-        // revenueSharePct), so a single updateMany can't cover this batch — a pipelined
+        // revenueSharePct), so a single updateMany can't cover this batch, a pipelined
         // transaction still replaces N serial round-trips with one, atomically.
         await this.prisma.$transaction(
           toConfirm.map((event) =>
@@ -244,7 +244,7 @@ export class CommissionsService {
 
   /**
    * Sends each kiosk-owner a summary of commission events confirmed/reversed in the last
-   * 24h. Only queries confirmedAt/reversedAt (not reportedAt — findAllForAdmin's date
+   * 24h. Only queries confirmedAt/reversedAt (not reportedAt. FindAllForAdmin's date
    * filter is on the wrong field for this) and skips kiosks with nothing to report, so no
    * empty digest email goes out on a quiet day.
    */
@@ -283,7 +283,7 @@ export class CommissionsService {
         (sum, e) => sum.add(e.kioskShareAmount),
         new Prisma.Decimal(0),
       );
-      // kioskShareAmount is zeroed on reversal by design (never payable — see
+      // kioskShareAmount is zeroed on reversal by design (never payable. See
       // reconcilePendingConversions), so the digest recomputes what the share would have been
       // from the still-intact commissionAmount, purely for reporting.
       const reversedTotal = reversed.reduce(
@@ -302,7 +302,7 @@ export class CommissionsService {
     }
   }
 
-  /** Admin view — every kiosk's commission events, filterable. */
+  /** Admin view. Every kiosk's commission events, filterable. */
   async findAllForAdmin(
     filter: CommissionEventFilterDto,
   ): Promise<CommissionEventDto[]> {
@@ -324,7 +324,7 @@ export class CommissionsService {
     return events.map(toCommissionEventDto);
   }
 
-  /** Kiosk-owner view — only their own kiosk's commission events, never another's. */
+  /** Kiosk-owner view. Only their own kiosk's commission events, never another's. */
   async findAllForKiosk(kioskId: string): Promise<CommissionEventDto[]> {
     const events = await this.prisma.commissionEvent.findMany({
       where: { device: { location: { kioskId } } },
@@ -351,7 +351,7 @@ export class CommissionsService {
         _sum: { commissionAmount: true },
       }),
       this.prisma.commissionEvent.aggregate({
-        // payoutId: null — CONFIRMED events already swept into a Payout are no longer "available".
+        // payoutId: null. CONFIRMED events already swept into a Payout are no longer "available".
         where: {
           status: CommissionStatus.CONFIRMED,
           device: { location: { kioskId } },

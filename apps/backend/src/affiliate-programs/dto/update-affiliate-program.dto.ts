@@ -14,7 +14,7 @@ export class UpdateAffiliateProgramDto {
   programId?: string;
 
   @ApiPropertyOptional({
-    description: 'Replaces any existing stored credentials entirely — re-encrypted before storage',
+    description: 'Replaces any existing stored credentials entirely. Re-encrypted before storage',
     type: 'object',
     additionalProperties: { type: 'string' },
   })

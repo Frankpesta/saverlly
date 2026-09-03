@@ -33,7 +33,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
 
     if (!source.merchantId) {
       // Multi-merchant scrape pages need a per-extracted-item merchant resolution strategy
-      // that isn't specified — skip cleanly rather than guess which merchant a code belongs to.
+      // that isn't specified. Skip cleanly rather than guess which merchant a code belongs to.
       this.logger.warn(`Skipping scrape source ${source.id}: no merchantId set`);
       return;
     }

@@ -63,7 +63,7 @@ export default function EditPromotionPage() {
 
   return (
     <PromotionForm
-      // Remounts when a different promotion loads — react-hook-form only reads defaultValues on
+      // Remounts when a different promotion loads. React-hook-form only reads defaultValues on
       // mount, so without this the form would keep showing the previously-viewed promotion.
       key={promotion.id}
       defaultValues={{
@@ -74,6 +74,9 @@ export default function EditPromotionPage() {
         startAt: toDatetimeLocal(promotion.startAt),
         endAt: toDatetimeLocal(promotion.endAt),
         active: promotion.active,
+        // The API has no explicit flag: no tags and no locations is what "every device" means
+        // on the wire, so the form's own everywhere field is reconstructed from that here.
+        everywhere: promotion.targetTags.length === 0 && promotion.locationIds.length === 0,
         targetTags: promotion.targetTags,
         locationIds: promotion.locationIds,
       }}
@@ -86,7 +89,7 @@ export default function EditPromotionPage() {
       headerActions={
         <DeleteRowButton
           itemLabel={promotion.name}
-          description="This removes the promotion immediately — devices stop showing it on their next popup open."
+          description="This removes the promotion immediately. Devices stop showing it on their next popup open."
           onConfirm={handleDelete}
           isPending={deletePromotion.isPending}
           ariaLabel={`Delete ${promotion.name}`}

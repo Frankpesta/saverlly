@@ -44,7 +44,7 @@ export function sumByStatus<T, S extends string>(
 
 /**
  * Percent change of this-calendar-month's sum vs last-calendar-month's sum.
- * Returns null when the prior month has no data — a "growth" number against a zero base is
+ * Returns null when the prior month has no data, a "growth" number against a zero base is
  * meaningless (and would render as Infinity/NaN), so callers should omit the subtext in that case.
  */
 export function monthOverMonthGrowth<T>(
@@ -70,7 +70,7 @@ export function monthOverMonthGrowth<T>(
   return ((thisMonth - lastMonth) / lastMonth) * 100
 }
 
-/** Active/disabled counts from the kill-switch `active` boolean — the only real device status signal. */
+/** Active/disabled counts from the kill-switch `active` boolean. The only real device status signal. */
 export function deviceCounts(devices: Pick<Device, "active">[]): {
   total: number
   active: number

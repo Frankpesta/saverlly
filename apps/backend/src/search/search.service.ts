@@ -34,7 +34,7 @@ export class SearchService {
 
     // KIOSK_OWNER / LOCATION_MANAGER: Kiosk list, Merchant, and Coupon are admin-only
     // resources today (KiosksController/MerchantsController/CouponsController all gate their
-    // list endpoints to ADMIN) — search must not open a side-channel into data these roles
+    // list endpoints to ADMIN). Search must not open a side-channel into data these roles
     // can't otherwise list, so those branches are never even called here.
     const [locations, devices, announcements] = await Promise.all([
       this.searchLocations(currentUser, term),

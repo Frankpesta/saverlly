@@ -12,7 +12,7 @@ import { runStatusSync } from './lib/status-sync';
 import { loadDeviceToken } from './lib/token-storage';
 
 // In a real packaged exe these two process.env reads are almost always already resolved to
-// literal strings by scripts/build.js's esbuild `define` — see that file for why a runtime
+// literal strings by scripts/build.js's esbuild `define`. See that file for why a runtime
 // env var isn't a workable config story for something a kiosk owner downloads and runs.
 function getExtensionId(): string {
   const id = process.env.SAVERLLY_EXTENSION_ID;
@@ -44,7 +44,7 @@ interface AgentStartupState {
 }
 
 // The registration/scheduled-task/policy setup shared by both the always-on background agent
-// (runBackgroundAgent) and the installer's one-shot setup run (runSetupOnce) — factored out so
+// (runBackgroundAgent) and the installer's one-shot setup run (runSetupOnce). Factored out so
 // the two only differ in whether they loop afterward, not in what setup actually does.
 async function performInitialSetup(): Promise<AgentStartupState> {
   const extensionId = getExtensionId();
@@ -56,7 +56,7 @@ async function performInitialSetup(): Promise<AgentStartupState> {
   const token = await ensureRegistered();
   console.log('[saverlly-agent] device registered/token ready');
 
-  // Best-effort — a failure here (e.g. not currently elevated) must not stop the rest of
+  // Best-effort, a failure here (e.g. not currently elevated) must not stop the rest of
   // startup: status-sync/announcements/native-messaging can all still work this run, and
   // ensureRunAtLoginTask is idempotent so it'll simply retry on the next actual restart.
   try {
@@ -66,7 +66,7 @@ async function performInitialSetup(): Promise<AgentStartupState> {
   }
 
   // The native-messaging manifest must point at the sibling non-elevated host exe, not this
-  // (requireAdministrator) one — see native-messaging-host.ts's nativeMessagingHostExePath doc.
+  // (requireAdministrator) one. See native-messaging-host.ts's nativeMessagingHostExePath doc.
   const policyOptions = { extensionId, updateUrl, exePath: nativeMessagingHostExePath(exePath) };
   await runSyncCycle(token, policyOptions);
 
@@ -76,7 +76,7 @@ async function performInitialSetup(): Promise<AgentStartupState> {
 async function runBackgroundAgent(): Promise<void> {
   const { token, policyOptions } = await performInitialSetup();
 
-  // Cadences happen to match today, but are configured independently (config.ts) — running
+  // Cadences happen to match today, but are configured independently (config.ts). Running
   // one combined interval at their minimum keeps both promises without double-scheduling.
   const intervalMs = Math.min(STATUS_SYNC_INTERVAL_MS, ANNOUNCEMENT_POLL_INTERVAL_MS);
   setInterval(() => {
@@ -87,8 +87,8 @@ async function runBackgroundAgent(): Promise<void> {
 }
 
 // Invoked by the GUI installer (apps/agent/installer/) via `--setup-once`: runs the exact same
-// setup as runBackgroundAgent's first pass, then actually returns — deliberately no
-// setInterval — so the installer's Exec call gets a real exit code (0 = success, nonzero via
+// setup as runBackgroundAgent's first pass, then actually returns. Deliberately no
+// setInterval. So the installer's Exec call gets a real exit code (0 = success, nonzero via
 // the top-level catch below on failure) instead of hanging on a loop meant for the persistent
 // background agent, which the scheduled task this same setup registers will handle from here.
 async function runSetupOnce(): Promise<void> {
@@ -97,7 +97,7 @@ async function runSetupOnce(): Promise<void> {
 }
 
 // Invoked by the GUI installer's [UninstallRun] step via `--uninstall-once`, while the agent's
-// files and DPAPI-encrypted device token are still on disk. Best-effort and never throws — a
+// files and DPAPI-encrypted device token are still on disk. Best-effort and never throws, a
 // kiosk machine can be decommissioned offline, and either step failing must not block the rest
 // of the uninstaller (scheduled task / native-messaging-host / ProgramData cleanup) from running.
 async function runUninstallOnce(): Promise<void> {
@@ -128,7 +128,7 @@ async function main(): Promise<void> {
   const installerArgs = parseInstallerSetupArgs(process.argv);
   if (installerArgs) {
     // The installer collects the setup code via its own GUI page, not the interactive console
-    // prompt promptForSetupCode() falls back to — bridge it into the env var that already
+    // prompt promptForSetupCode() falls back to. Bridge it into the env var that already
     // expects, so registration.ts needs zero changes for this new invocation mode.
     if (installerArgs.setupCode) process.env.SAVERLLY_SETUP_CODE = installerArgs.setupCode;
     await runSetupOnce();
@@ -136,7 +136,7 @@ async function main(): Promise<void> {
   }
 
   // Chrome spawns this same exe fresh (with a chrome-extension:// origin arg) whenever the
-  // extension calls connectNative — that invocation must respond and exit, not fall through
+  // extension calls connectNative. That invocation must respond and exit, not fall through
   // into the long-running background-agent startup below.
   if (isNativeMessagingInvocation(process.argv)) {
     respondWithDeviceToken();

@@ -20,7 +20,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
         signOptions: {
-          // Kept in sync with AuthService.issueTokens' own default — see the comment there.
+          // Kept in sync with AuthService.issueTokens' own default. See the comment there.
           expiresIn: configService.get<string>(
             'JWT_ACCESS_EXPIRES_IN',
             '7d',

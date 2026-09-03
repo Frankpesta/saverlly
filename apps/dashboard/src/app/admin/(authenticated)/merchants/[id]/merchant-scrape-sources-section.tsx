@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { PlayIcon } from "lucide-react"
+import { PencilIcon, PlayIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -26,7 +27,7 @@ import { useRunScrapeSourceNow, useScrapeSources } from "@/lib/api/hooks/use-scr
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
 import { usePagination } from "@/hooks/use-pagination"
-import { ScrapeSourceDialog } from "../../scrape-sources/scrape-source-dialog"
+import { cn } from "@/lib/utils"
 
 export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: string }) {
   const { data: allSources, isLoading, isError } = useScrapeSources()
@@ -50,7 +51,13 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Scrape sources</CardTitle>
-        <ScrapeSourceDialog merchantId={merchantId} />
+        <Link
+          href={`/admin/scrape-sources/new?merchantId=${merchantId}`}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+        >
+          <PlusIcon className="size-4" />
+          New Scrape Source
+        </Link>
       </CardHeader>
       <CardContent>
         {isError && <p className="text-sm text-destructive">Could not load scrape sources.</p>}
@@ -92,7 +99,13 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
                 </TableCell>
                 <TableCell>
                   <TableRowActions>
-                    <ScrapeSourceDialog merchantId={merchantId} source={source} />
+                    <Link
+                      href={`/admin/scrape-sources/${source.id}`}
+                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      aria-label={`Edit ${source.url}`}
+                    >
+                      <PencilIcon className="size-3.5" />
+                    </Link>
                     <Button
                       type="button"
                       variant="ghost"

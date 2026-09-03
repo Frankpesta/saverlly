@@ -29,6 +29,11 @@ const promotionSchema = z
     startAt: z.string().min(1, "Start date is required"),
     endAt: z.string().min(1, "End date is required"),
     active: z.boolean(),
+    // A real field, not derived from the two arrays below being empty. As derived state the
+    // switch could never be turned off on a new promotion: flipping it off wrote back two
+    // empty arrays, which recomputed straight back to "everywhere", so it snapped on again
+    // and the tag/location pickers could never be revealed.
+    everywhere: z.boolean(),
     targetTags: z.array(z.string()),
     locationIds: z.array(z.string()),
   })
@@ -37,6 +42,15 @@ const promotionSchema = z
     // as a toast after a round-trip.
     if (data.startAt && data.endAt && new Date(data.endAt) <= new Date(data.startAt)) {
       ctx.addIssue({ code: "custom", message: "End must be after the start", path: ["endAt"] })
+    }
+    // Empty targeting is how the API spells "everywhere", so submitting it with the switch off
+    // would silently do the opposite of what the form appears to say.
+    if (!data.everywhere && data.targetTags.length === 0 && data.locationIds.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Pick at least one tag or location, or turn Show everywhere back on",
+        path: ["targetTags"],
+      })
     }
   })
 
@@ -51,6 +65,7 @@ export function emptyPromotionForm(): PromotionFormValues {
     startAt: toDatetimeLocal(new Date()),
     endAt: toDatetimeLocal(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
     active: true,
+    everywhere: true,
     targetTags: [],
     locationIds: [],
   }
@@ -62,8 +77,10 @@ export function toPromotionPayload(values: PromotionFormValues): PromotionPayloa
     imageSmallUrl: values.imageSmallUrl,
     imageLargeUrl: values.imageLargeUrl,
     clickUrl: values.clickUrl,
-    targetTags: values.targetTags,
-    locationIds: values.locationIds,
+    // Empty arrays are how the API spells "every device", so `everywhere` collapses to that
+    // rather than being sent as its own flag.
+    targetTags: values.everywhere ? [] : values.targetTags,
+    locationIds: values.everywhere ? [] : values.locationIds,
     startAt: new Date(values.startAt).toISOString(),
     endAt: new Date(values.endAt).toISOString(),
     active: values.active,
@@ -71,7 +88,7 @@ export function toPromotionPayload(values: PromotionFormValues): PromotionPayloa
 }
 
 /**
- * The whole promotion on one page — every field visible at once with the extension preview pinned
+ * The whole promotion on one page. Every field visible at once with the extension preview pinned
  * alongside, rather than a stepped wizard. There are only four things to fill in and the creative
  * is the point of the exercise, so hiding two thirds of it behind Continue buttons would cost more
  * than it guides.
@@ -114,6 +131,9 @@ export function PromotionForm({
   const imageSmallUrl = watch("imageSmallUrl")
   const imageLargeUrl = watch("imageLargeUrl")
   const clickUrl = watch("clickUrl")
+  const everywhere = watch("everywhere")
+  const targetTags = watch("targetTags")
+  const locationIds = watch("locationIds")
 
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -126,7 +146,7 @@ export function PromotionForm({
             <ArrowLeftIcon className="size-3.5" />
             Promotions
           </Link>
-          <h2 className="text-2xl font-semibold tracking-tight">{heading}</h2>
+          <h2 className="text-title">{heading}</h2>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -149,7 +169,7 @@ export function PromotionForm({
             <FormField
               label="Name"
               htmlFor="promo-name"
-              hint="Internal only — shoppers never see this."
+              hint="Internal only. Shoppers never see this."
               error={errors.name?.message}
             >
               <Input id="promo-name" {...register("name")} />
@@ -240,24 +260,25 @@ export function PromotionForm({
             label="Targeting"
             description="A device sees this promotion if its location matches a tag or is picked directly."
           >
-            <Controller
-              name="targetTags"
-              control={control}
-              render={({ field: tagsField }) => (
-                <Controller
-                  name="locationIds"
-                  control={control}
-                  render={({ field: locationsField }) => (
-                    <PromotionTargetPicker
-                      locations={locations ?? []}
-                      tags={tagsField.value}
-                      locationIds={locationsField.value}
-                      onTagsChange={tagsField.onChange}
-                      onLocationIdsChange={locationsField.onChange}
-                    />
-                  )}
-                />
-              )}
+            {/* One watch + setValue rather than a Controller nested inside another Controller.
+                The nested version remounted the inner field whenever the outer one changed, so
+                writing both in the same handler could apply one of the two against a stale
+                field instance. */}
+            <PromotionTargetPicker
+              locations={locations ?? []}
+              everywhere={everywhere}
+              tags={targetTags}
+              locationIds={locationIds}
+              error={errors.targetTags?.message}
+              onEverywhereChange={(next) =>
+                setValue("everywhere", next, { shouldValidate: true, shouldDirty: true })
+              }
+              onTagsChange={(next) =>
+                setValue("targetTags", next, { shouldValidate: true, shouldDirty: true })
+              }
+              onLocationIdsChange={(next) =>
+                setValue("locationIds", next, { shouldValidate: true, shouldDirty: true })
+              }
             />
           </FormSection>
         </div>

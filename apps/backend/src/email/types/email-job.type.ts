@@ -1,4 +1,4 @@
-// Discriminated union of every email job payload — one BullMQ queue (send-email)
+// Discriminated union of every email job payload. One BullMQ queue (send-email)
 // handles all of them, dispatched by type. Kept here (not in the notifications
 // module) so the email module's render/send layer can import it without a
 // circular dependency back onto notifications.

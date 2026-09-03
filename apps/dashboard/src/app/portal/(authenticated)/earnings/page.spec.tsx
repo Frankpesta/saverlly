@@ -109,19 +109,19 @@ describe("PortalEarningsPage", () => {
     expect(await screen.findByText("$1,200")).toBeInTheDocument()
     expect(screen.getByText("KSK-001")).toBeInTheDocument()
     expect(screen.getByText("Confirmed")).toBeInTheDocument()
-    // "Paid" also appears as the payout-history table's column header — badge is one of two matches.
+    // "Paid" also appears as the payout-history table's column header. Badge is one of two matches.
     expect(screen.getAllByText("Paid").length).toBeGreaterThan(1)
   })
 
   it("shows a Connect Account CTA when not connected, and requests an onboarding link on click", async () => {
     // jsdom refuses real cross-origin navigation, so `window.location.href = url` is a no-op
-    // there — this test verifies the mutation that drives the redirect fires correctly instead
+    // there. This test verifies the mutation that drives the redirect fires correctly instead
     // of the actual browser navigation, which isn't observable in this environment.
     const user = userEvent.setup()
     renderWithClient(<PortalEarningsPage />)
 
     // The button reads "Connect Account" with no Stripe account yet, and "Continue onboarding"
-    // once one exists — this fixture has none, so match the former.
+    // once one exists. This fixture has none, so match the former.
     const connectButton = await screen.findByRole("button", { name: /connect account/i })
     await user.click(connectButton)
 

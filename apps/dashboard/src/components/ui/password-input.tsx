@@ -5,7 +5,7 @@ import { EyeIcon, EyeOffIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
-/** A password `Input` with a show/hide toggle — hidden by default. Drop-in replacement for
+/** A password `Input` with a show/hide toggle. Hidden by default. Drop-in replacement for
  * `<Input type="password">` in any `FormField`-based (non-auth-page) form. */
 export const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   function PasswordInput({ className, ...props }, ref) {

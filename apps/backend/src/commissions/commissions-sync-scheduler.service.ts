@@ -13,7 +13,7 @@ export class CommissionsSyncSchedulerService implements OnModuleInit {
 
   /**
    * upsertJobScheduler (not queue.add + repeat) so a changed interval actually takes
-   * effect on the next boot — BullMQ's legacy repeatable-job dedup keys off a hash of
+   * effect on the next boot. BullMQ's legacy repeatable-job dedup keys off a hash of
    * the repeat options themselves, so re-adding with different options can leave the
    * old schedule running alongside the new one instead of replacing it.
    */

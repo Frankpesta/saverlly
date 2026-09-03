@@ -4,7 +4,7 @@ import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { roundToNearest5 } from "@/lib/dashboard/round-to-5"
 
-/** A revenue-share percentage input — snaps to the nearest multiple of 5 on blur (the real
+/** A revenue-share percentage input. Snaps to the nearest multiple of 5 on blur (the real
  * enforcement is the `revenueShareSchema` zod rule, this is just a typing convenience so a
  * user doesn't have to land on a multiple of 5 by hand). Kept as a real numeric field for
  * react-hook-form (not a string) while still letting the input sit empty mid-edit. */

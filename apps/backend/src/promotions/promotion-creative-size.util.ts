@@ -16,7 +16,7 @@ export function isPromotionCreativeSize(
   return value === 'small' || value === 'large';
 }
 
-// Aspect ratios rarely come out of a design tool perfectly exact — 320x100 exported at 2x can land
+// Aspect ratios rarely come out of a design tool perfectly exact, 320x100 exported at 2x can land
 // on 640x201. A 1% tolerance absorbs that rounding without letting a genuinely wrong shape through.
 const ASPECT_RATIO_TOLERANCE = 0.01;
 
@@ -43,7 +43,7 @@ export function validateCreativeDimensions(
 
   if (actual.width < target.width || actual.height < target.height) {
     return (
-      `The ${size} creative (${target.label}) must be at least ${target.width}x${target.height}px — ` +
+      `The ${size} creative (${target.label}) must be at least ${target.width}x${target.height}px, ` +
       `this image is ${actual.width}x${actual.height}px.`
     );
   }
@@ -55,7 +55,7 @@ export function validateCreativeDimensions(
     ASPECT_RATIO_TOLERANCE
   ) {
     return (
-      `The ${size} creative (${target.label}) must match the ${target.width}x${target.height}px aspect ratio — ` +
+      `The ${size} creative (${target.label}) must match the ${target.width}x${target.height}px aspect ratio, ` +
       `this image is ${actual.width}x${actual.height}px. A larger image is fine as long as it has the same shape.`
     );
   }

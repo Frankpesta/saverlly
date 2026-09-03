@@ -1,9 +1,10 @@
 "use client"
 
-import { motion } from "motion/react"
 import { BentoCard } from "@/components/dashboard/bento-grid"
 import { cn } from "@/lib/utils"
 
+/** A single ratio against a limit. Same shell as StatTile and Gauge so a mixed row reads as
+ * one family; the difference from Gauge is only that there is no active/inactive legend. */
 export function Meter({
   label,
   value,
@@ -21,21 +22,31 @@ export function Meter({
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
 
   return (
-    <BentoCard variant="metric" className={cn("dashboard-metric-card grid min-h-40 grid-cols-[minmax(0,1fr)_minmax(10rem,38%)] overflow-hidden p-0", className)} span={2}>
-      <div className="flex flex-col justify-between px-5 py-5 sm:px-6">
-        <span className="text-[11px] font-bold tracking-[0.1em] text-muted-foreground uppercase">{label}</span>
-        <span className="text-[2.4rem] leading-none font-semibold tracking-[-0.065em]">{pct}%</span>
-        <span className="text-sm text-muted-foreground">{caption ?? `${value} of ${max}`}</span>
+    <BentoCard
+      variant="metric"
+      className={cn("dashboard-metric-card flex min-h-[9.5rem] flex-col", className)}
+    >
+      <div className="flex flex-1 flex-col gap-3 px-5 pt-5 pb-4">
+        <span className="text-eyebrow text-muted-foreground uppercase">{label}</span>
+        <div className="mt-auto flex flex-col gap-1.5">
+          <span className="text-display tabular-nums">{pct}%</span>
+          <span className="min-h-5 text-meta text-muted-foreground">
+            {caption ?? `${value} of ${max}`}
+          </span>
+        </div>
       </div>
-      <div className="flex items-center border-l border-black/[0.055] bg-[#f8faf9] px-5 dark:border-white/[0.06] dark:bg-white/[0.03]">
-      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--brand-teal-tint)] dark:bg-white/10">
-        <motion.div
-          className="h-full bg-[var(--brand-teal)]"
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-        />
-      </div>
+      {/* Same 40px footer band as StatTile's sparkline, so numbers line up across a row that
+          mixes tiles and meters. */}
+      <div className="flex h-10 shrink-0 items-center px-5 pb-2">
+        {/* CSS transition on scaleX rather than a motion animation on width, for the same two
+            reasons as gauge.tsx: percentage widths get frozen into stale pixels, and a bar
+            that mounts at 0% before its data arrives never re-animates. */}
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--brand-teal-tint)] dark:bg-white/10">
+          <div
+            className="h-full w-full origin-left bg-[var(--brand-teal)] transition-transform duration-700 ease-out"
+            style={{ transform: `scaleX(${pct / 100})` }}
+          />
+        </div>
       </div>
     </BentoCard>
   )

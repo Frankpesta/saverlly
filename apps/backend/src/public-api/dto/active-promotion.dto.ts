@@ -11,7 +11,7 @@ export class ActivePromotionDto {
 
   @ApiProperty({
     description:
-      '728x90 leaderboard creative — returned so the future on-page banner surface needs no API change',
+      '728x90 leaderboard creative. Returned so the future on-page banner surface needs no API change',
   })
   imageLargeUrl: string;
 

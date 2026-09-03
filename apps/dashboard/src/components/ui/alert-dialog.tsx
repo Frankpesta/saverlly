@@ -156,7 +156,7 @@ function AlertDialogAction({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
   Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
   // asChild on the Radix primitive (not on Button) so the variant/size/className merge happens
-  // in Button's own single cn() call — Radix's Slot only concatenates classNames across a
+  // in Button's own single cn() call. Radix's Slot only concatenates classNames across a
   // composition boundary, it doesn't dedupe conflicting Tailwind utilities the way cn() does,
   // so a caller's className (e.g. the destructive-red override on a delete confirm button)
   // would silently lose to the default variant's classes if Button were the asChild wrapper.

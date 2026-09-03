@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 
-/** Shared active/inactive styling for a sidebar nav item — used by both NavMain and
+/** Shared active/inactive styling for a sidebar nav item. Used by both NavMain and
  * NavSecondary so the two never drift out of sync. The dark rail uses teal exclusively to
  * mark the current view. */
 export function navItemClassName(active: boolean): string {

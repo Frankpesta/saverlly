@@ -2,46 +2,47 @@
 
 import * as React from "react"
 import { CalendarIcon } from "lucide-react"
-import { parse, isValid } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Input } from "@/components/ui/input"
+import { Calendar, DEFAULT_RANGE_PRESETS, type DateRange } from "@/components/ui/calendar"
+import { DateField, digitsFromDate, digitsOf, parseDigits } from "@/components/ui/date-field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { formatDateValue, parseDateValue } from "@/lib/format-date"
 
-const DISPLAY_FORMAT = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-
-// Typed input accepts any of these — first one that produces a valid date wins.
-const TYPE_FORMATS = ["M/d/yyyy", "MM/dd/yyyy", "yyyy-MM-dd", "MMM d, yyyy", "MMMM d, yyyy"]
-
-/** Parses free-typed text (several common shapes) into a Date, or undefined if none match. */
-function parseTypedDate(text: string): Date | undefined {
-  const trimmed = text.trim()
-  if (!trimmed) return undefined
-  for (const fmt of TYPE_FORMATS) {
-    const parsed = parse(trimmed, fmt, new Date())
-    if (isValid(parsed)) return parsed
-  }
-  return undefined
+/** The calendar toggle, rendered inside the field rather than as a separate button beside it.
+ * A date and its picker used to read as two unrelated controls, which on the promotion form
+ * meant Starts and Ends together were eight boxes in a row. */
+function CalendarToggle({ disabled, label }: { disabled?: boolean; label: string }) {
+  return (
+    <PopoverTrigger asChild>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={disabled}
+        aria-label={label}
+        className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+      >
+        <CalendarIcon className="size-4" />
+      </Button>
+    </PopoverTrigger>
+  )
 }
 
-/** A date picker that supports both typing a date directly and selecting one from a popover
- * calendar. `value`/`onChange` use the same "yyyy-MM-dd" string shape as a native
- * `<input type="date">`, so it drops in as a direct replacement. */
+/** A single date. `value`/`onChange` keep the "yyyy-MM-dd" string shape a native
+ * `<input type="date">` uses, so this stays a drop-in for every existing call site. */
 export function DatePicker({
   id,
   value,
   onChange,
-  placeholder = "Pick a date",
+  placeholder = "MM/DD/YYYY",
   className,
   disabled,
   required,
+  minDate,
+  maxDate,
   "aria-invalid": ariaInvalid,
+  "aria-label": ariaLabel,
 }: {
   id?: string
   value: string
@@ -50,83 +51,141 @@ export function DatePicker({
   className?: string
   disabled?: boolean
   required?: boolean
+  minDate?: Date
+  maxDate?: Date
   "aria-invalid"?: boolean
+  "aria-label"?: string
 }) {
   const [open, setOpen] = React.useState(false)
   const selected = parseDateValue(value)
-  const [text, setText] = React.useState(selected ? DISPLAY_FORMAT.format(selected) : "")
+  const [digits, setDigits] = React.useState(() => (selected ? digitsFromDate(selected) : ""))
 
-  // Keep the typed text in sync when `value` changes from outside (e.g. a calendar select
-  // elsewhere, or the parent resetting the form) without clobbering what's being typed —
-  // adjusted during render rather than in an effect, per React's documented pattern for
-  // deriving state from a changed prop.
+  // Keep the typed buffer in sync when `value` changes from outside (a parent reset, or the
+  // other half of a date range) without clobbering a partially typed date. Adjusted during
+  // render per React's documented derived-state pattern rather than in an effect.
   const [prevValue, setPrevValue] = React.useState(value)
   if (value !== prevValue) {
     setPrevValue(value)
-    setText(selected ? DISPLAY_FORMAT.format(selected) : "")
+    setDigits(selected ? digitsFromDate(selected) : "")
   }
 
-  function commitTyped(raw: string) {
-    const parsed = parseTypedDate(raw)
-    if (parsed) {
-      onChange(formatDateValue(parsed))
-      setText(DISPLAY_FORMAT.format(parsed))
-    } else if (!raw.trim()) {
-      onChange("")
-    } else {
-      // Invalid text — revert to the last known-good value rather than keeping garbage.
-      setText(selected ? DISPLAY_FORMAT.format(selected) : "")
-    }
+  function commit(date: Date | undefined) {
+    onChange(date ? formatDateValue(date) : "")
   }
 
   return (
-    <div className={cn("flex items-center gap-1.5", className)}>
-      <Input
+    <Popover open={open} onOpenChange={setOpen}>
+      <DateField
         id={id}
-        type="text"
-        inputMode="numeric"
+        value={digits}
+        onChange={setDigits}
+        onCommit={commit}
         placeholder={placeholder}
-        value={text}
         disabled={disabled}
         required={required}
         aria-invalid={ariaInvalid}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={(e) => commitTyped(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            commitTyped(e.currentTarget.value)
-          }
-        }}
-        className="w-40"
+        aria-label={ariaLabel}
+        className={cn("w-44", className)}
+        trailing={<CalendarToggle disabled={disabled} label="Open calendar" />}
       />
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            disabled={disabled}
-            aria-label="Open calendar"
-            className="shrink-0"
-          >
-            <CalendarIcon className="size-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={selected}
-            defaultMonth={selected}
-            onSelect={(date) => {
-              onChange(date ? formatDateValue(date) : "")
-              setText(date ? DISPLAY_FORMAT.format(date) : "")
-              setOpen(false)
-            }}
-            autoFocus
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          minDate={minDate}
+          maxDate={maxDate}
+          autoFocus
+          onSelect={(date) => {
+            commit(date)
+            setDigits(date ? digitsFromDate(date) : "")
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
+
+/** A start and end date in one control. Replaces the two independent single pickers that the
+ * commissions filter and the chart's Custom range were using, which could not express "these
+ * two dates are one range" and made drag-selecting impossible. */
+export function DateRangePicker({
+  id,
+  value,
+  onChange,
+  className,
+  disabled,
+  minDate,
+  maxDate,
+}: {
+  id?: string
+  /** `{ from, to }` as "yyyy-MM-dd" strings. Either may be empty. */
+  value: { from: string; to: string }
+  onChange: (value: { from: string; to: string }) => void
+  className?: string
+  disabled?: boolean
+  minDate?: Date
+  maxDate?: Date
+}) {
+  const [open, setOpen] = React.useState(false)
+  const from = parseDateValue(value.from)
+  const to = parseDateValue(value.to)
+  const range: DateRange = from && to ? { from, to } : null
+
+  const [fromDigits, setFromDigits] = React.useState(() => (from ? digitsFromDate(from) : ""))
+  const [toDigits, setToDigits] = React.useState(() => (to ? digitsFromDate(to) : ""))
+
+  const key = `${value.from}|${value.to}`
+  const [prevKey, setPrevKey] = React.useState(key)
+  if (key !== prevKey) {
+    setPrevKey(key)
+    setFromDigits(from ? digitsFromDate(from) : "")
+    setToDigits(to ? digitsFromDate(to) : "")
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className={cn("flex items-center gap-1.5", className)}>
+        <DateField
+          id={id}
+          value={fromDigits}
+          onChange={setFromDigits}
+          onCommit={(date) => onChange({ ...value, from: date ? formatDateValue(date) : "" })}
+          aria-label="From"
+          disabled={disabled}
+          className="w-40"
+        />
+        <span className="text-meta text-muted-foreground">to</span>
+        <DateField
+          value={toDigits}
+          onChange={setToDigits}
+          onCommit={(date) => onChange({ ...value, to: date ? formatDateValue(date) : "" })}
+          aria-label="To"
+          disabled={disabled}
+          className="w-40"
+          trailing={<CalendarToggle disabled={disabled} label="Open calendar" />}
+        />
+      </div>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="range"
+          selected={range}
+          defaultMonth={from}
+          minDate={minDate}
+          maxDate={maxDate}
+          presets={DEFAULT_RANGE_PRESETS}
+          autoFocus
+          onSelect={(next) =>
+            onChange({
+              from: next ? formatDateValue(next.from) : "",
+              to: next ? formatDateValue(next.to) : "",
+            })
+          }
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export { digitsOf, parseDigits }

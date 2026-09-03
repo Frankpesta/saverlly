@@ -59,7 +59,7 @@ export function announcementOverlayResultPath(): string {
 
 /**
  * Present while an overlay is on screen; removed when its window closes. Lets the agent avoid
- * dispatching a second announcement on top of one the kiosk user hasn't dismissed yet — a
+ * dispatching a second announcement on top of one the kiosk user hasn't dismissed yet, a
  * localization-proof alternative to parsing `schtasks /query` output, whose Status field and
  * values are both translated.
  */
@@ -70,7 +70,7 @@ export function announcementOverlayLockPath(): string {
 /**
  * Where the vendored WebView2 host assemblies live at runtime: a `webview2` folder beside the
  * running exe, put there by the installer (see saverlly-agent.iss). Resolved from the exe's own
- * path — the same approach nativeMessagingHostExePath uses — so it follows the install location
+ * path. The same approach nativeMessagingHostExePath uses. So it follows the install location
  * instead of assuming one.
  */
 export function webview2DirPath(mainExePath: string = process.execPath): string {

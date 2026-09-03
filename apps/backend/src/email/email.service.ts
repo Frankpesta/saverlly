@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import * as React from 'react';
 
-// Placeholder — lets the app boot and every non-email route keep working in an environment
+// Placeholder. Lets the app boot and every non-email route keep working in an environment
 // with no real Resend account configured yet, mirroring StripeService's PLACEHOLDER_SECRET_KEY.
 const PLACEHOLDER_API_KEY = 're_placeholder_not_configured';
 
@@ -30,7 +30,7 @@ export class EmailService {
     // without a real key, log instead of attempting a call that would just retry-and-fail.
     if (!this.configService.get<string>('RESEND_API_KEY')) {
       this.logger.warn(
-        `RESEND_API_KEY not set — logging email instead of sending (idempotencyKey=${idempotencyKey ?? 'none'})`,
+        `RESEND_API_KEY not set, logging email instead of sending (idempotencyKey=${idempotencyKey ?? 'none'})`,
       );
       return;
     }

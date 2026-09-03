@@ -18,43 +18,33 @@ import type { Location } from "@/lib/api/types"
  */
 export function PromotionTargetPicker({
   locations,
+  everywhere,
   tags,
   locationIds,
+  error,
+  onEverywhereChange,
   onTagsChange,
   onLocationIdsChange,
 }: {
   locations: Location[]
+  /** A real form field, not `tags.length === 0 && locationIds.length === 0`. Deriving it meant
+   * turning the switch off wrote empty arrays, which recomputed back to "everywhere" and
+   * snapped the switch on again, so the pickers below could never be reached. */
+  everywhere: boolean
   tags: string[]
   locationIds: string[]
+  error?: string
+  onEverywhereChange: (everywhere: boolean) => void
   onTagsChange: (tags: string[]) => void
   onLocationIdsChange: (locationIds: string[]) => void
 }) {
-  const isEverywhere = tags.length === 0 && locationIds.length === 0
-  // Remembers what was targeted before the "everywhere" switch was flipped on, so toggling it
-  // back off restores the previous selection instead of silently discarding it.
-  const lastTargeting = React.useRef<{ tags: string[]; locationIds: string[] }>({
-    tags: [],
-    locationIds: [],
-  })
-
-  function toggleEverywhere(everywhere: boolean) {
-    if (everywhere) {
-      lastTargeting.current = { tags, locationIds }
-      onTagsChange([])
-      onLocationIdsChange([])
-      return
-    }
-    onTagsChange(lastTargeting.current.tags)
-    onLocationIdsChange(lastTargeting.current.locationIds)
-  }
-
   function toggleLocation(locationId: string, checked: boolean) {
     onLocationIdsChange(
       checked ? [...locationIds, locationId] : locationIds.filter((id) => id !== locationId),
     )
   }
 
-  // Tags actually in use across real locations — shown as one-click suggestions so an admin
+  // Tags actually in use across real locations. Shown as one-click suggestions so an admin
   // doesn't have to guess at spelling and silently target nothing.
   const knownTags = React.useMemo(() => {
     const seen = new Map<string, string>()
@@ -82,12 +72,12 @@ export function PromotionTargetPicker({
         </div>
         <Switch
           id="promo-everywhere"
-          checked={isEverywhere}
-          onCheckedChange={toggleEverywhere}
+          checked={everywhere}
+          onCheckedChange={onEverywhereChange}
         />
       </div>
 
-      {isEverywhere ? (
+      {everywhere ? (
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-black/12 p-4 text-sm text-muted-foreground dark:border-white/15">
           <GlobeIcon className="size-4 shrink-0" />
           This promotion will show on every device across every kiosk.
@@ -98,6 +88,7 @@ export function PromotionTargetPicker({
             label="Location tags"
             htmlFor="promo-tags"
             hint="Matches any location carrying one of these tags. Case doesn't matter."
+            error={error}
           >
             <TagInput
               id="promo-tags"

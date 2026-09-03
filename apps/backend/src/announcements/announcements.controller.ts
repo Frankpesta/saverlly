@@ -56,7 +56,7 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
  * deliberately absent from every route here: the admin side of announcements was replaced by
  * Promotions (extension-facing, see PromotionsController), so announcements are now a portal-only
  * feature. Platform-wide broadcasts (Announcement.kioskId = null) are consequently no longer
- * creatable — existing broadcast rows still display on devices, but nothing can author a new one.
+ * creatable. Existing broadcast rows still display on devices, but nothing can author a new one.
  */
 @ApiTags('Announcements')
 @ApiBearerAuth('jwt')
@@ -117,7 +117,7 @@ export class AnnouncementsController {
   ): UploadAnnouncementImageResponseDto {
     if (!file) {
       throw new BadRequestException(
-        'No file uploaded, or it was rejected — only PNG/JPEG/WebP/GIF up to 5MB are accepted',
+        'No file uploaded, or it was rejected. Only PNG/JPEG/WebP/GIF up to 5MB are accepted',
       );
     }
     const baseUrl =
@@ -151,7 +151,7 @@ export class AnnouncementsController {
     description:
       'Kiosk-owner and location-manager get read-only visibility into platform-wide ' +
       "broadcasts and their own kiosk's announcements (location-manager further scoped to " +
-      'their assigned locations) — only ADMIN or the owning KIOSK_OWNER can PATCH/DELETE one.',
+      'their assigned locations). Only ADMIN or the owning KIOSK_OWNER can PATCH/DELETE one.',
   })
   @ApiResponse({ status: 200, description: 'The announcement' })
   @ApiResponse({ status: 403, description: "Not in the caller's tenant scope" })

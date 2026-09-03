@@ -4,7 +4,7 @@ import type { CheckoutConfirmedMessage } from '../lib/messages';
 // How long to keep watching for the checkout DOM to render before giving up. Real checkout
 // SPAs (e.g. Shopify's client-rendered checkout, confirmed by hand against a live Allbirds
 // checkout) mount the coupon field and cart summary asynchronously, well after this script
-// runs — it's injected on webNavigation.onCommitted, which fires at navigation-commit time,
+// runs. It's injected on webNavigation.onCommitted, which fires at navigation-commit time,
 // long before hydration completes. 10s comfortably covers real-world hydration time without
 // leaving a dangling observer indefinitely on pages that never turn out to be a real checkout.
 const DETECTION_TIMEOUT_MS = 10_000;
@@ -38,7 +38,7 @@ const DETECTION_TIMEOUT_MS = 10_000;
     return;
   }
 
-  // Not there yet — a single synchronous check misses any checkout page that renders its
+  // Not there yet, a single synchronous check misses any checkout page that renders its
   // form client-side after initial navigation, so watch for it instead of assuming presence.
   const observer = new MutationObserver(() => {
     if (checkoutElementsPresent()) {

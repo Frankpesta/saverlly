@@ -26,7 +26,7 @@ export async function logoutRequest(accessToken: string): Promise<void> {
 }
 
 export async function forgotPasswordRequest(email: string): Promise<void> {
-  // Always resolves — the backend responds the same way whether or not the email is
+  // Always resolves. The backend responds the same way whether or not the email is
   // registered, so there's nothing meaningful to branch on here either.
   await backendFetch("/auth/forgot-password", {
     method: "POST",

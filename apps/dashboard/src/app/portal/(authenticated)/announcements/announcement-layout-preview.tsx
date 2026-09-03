@@ -11,7 +11,7 @@ import {
 import { absoluteProxiedImageUrl } from "@/lib/image-proxy"
 
 /**
- * The kiosk preview — not a lookalike built from the same data, but the *actual* document the
+ * The kiosk preview. Not a lookalike built from the same data, but the *actual* document the
  * kiosk agent writes to disk and loads into its WebView2 overlay, dropped into an iframe.
  * Anything that renders wrong here renders wrong on the kiosk, which is the point.
  *
@@ -20,7 +20,7 @@ import { absoluteProxiedImageUrl } from "@/lib/image-proxy"
  * but it can't reach back into the dashboard.
  *
  * The frame is the toast card itself at its authored size, because that is exactly what the kiosk
- * shows — a card in the bottom-right corner of the screen, not a full-screen takeover. What it
+ * shows, a card in the bottom-right corner of the screen, not a full-screen takeover. What it
  * can't show is the two behaviours that only exist with a host attached: the slide-in and the
  * auto-dismiss, both of which the document skips in non-interactive mode so the preview holds
  * still.
@@ -73,7 +73,7 @@ export function AnnouncementLayoutPreview({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        This is the real overlay document, rendered exactly as the kiosk will show it — as a card
+        This is the real overlay document, rendered exactly as the kiosk will show it, as a card
         in the bottom-right corner of the screen, which slides in and closes itself after{" "}
         {Math.round(ANNOUNCEMENT_AUTO_DISMISS_MS / 1000)} seconds.
       </p>

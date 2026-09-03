@@ -1,6 +1,6 @@
 import { registerDecorator, ValidationOptions } from 'class-validator';
 
-/** Validates that a numeric field is an exact multiple of `factor` — e.g. revenue-share
+/** Validates that a numeric field is an exact multiple of `factor`. E.g. revenue-share
  * percentages, which the product only accepts in 5% increments. */
 export function IsMultipleOf(
   factor: number,

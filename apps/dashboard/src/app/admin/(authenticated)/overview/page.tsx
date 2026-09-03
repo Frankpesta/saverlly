@@ -12,6 +12,7 @@ import {
   CircleCheckIcon,
   TriangleAlertIcon,
   ArrowUpRightIcon,
+  XIcon,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
@@ -36,6 +37,11 @@ import { useCommissionEvents } from "@/lib/api/hooks/use-commissions"
 import { usePayouts } from "@/lib/api/hooks/use-payouts"
 import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { useCoupons } from "@/lib/api/hooks/use-coupons"
+import {
+  useDismissAlert,
+  useDismissedAlerts,
+  useUndismissAlert,
+} from "@/lib/api/hooks/use-dismissed-alerts"
 import { formatCurrency } from "@/lib/format-currency"
 import { relativeTime } from "@/lib/relative-time"
 import { cn } from "@/lib/utils"
@@ -51,7 +57,7 @@ import { COMMISSION_STATUS_BADGE_VARIANT, COMMISSION_STATUS_LABEL } from "@/lib/
 
 const COMMISSION_STATUSES = ["CONFIRMED", "PENDING", "REVERSED"] as const
 
-// Same hues as the badge variants for these statuses (status-labels.ts) — a status reads as
+// Same hues as the badge variants for these statuses (status-labels.ts), a status reads as
 // the same color everywhere in the app, not just in a Badge.
 const SEGMENT_BG: Record<(typeof COMMISSION_STATUSES)[number], string> = {
   CONFIRMED: "bg-[var(--success)]",
@@ -64,7 +70,7 @@ const SEGMENT_DOT: Record<(typeof COMMISSION_STATUSES)[number], string> = {
   REVERSED: "bg-destructive",
 }
 
-// A merchant needs a meaningful sample before its success rate means anything —
+// A merchant needs a meaningful sample before its success rate means anything
 // flagging a merchant with 1 test event and a 0% rate would just be noise.
 const MIN_ATTEMPTS_FOR_RATE = 5
 const LOW_SUCCESS_RATE_THRESHOLD = 0.5
@@ -77,6 +83,10 @@ export default function AdminOverviewPage() {
   const { data: payouts } = usePayouts()
   const { data: merchants } = useMerchants()
   const { data: coupons } = useCoupons()
+  const { data: dismissedAlertKeys } = useDismissedAlerts()
+  const dismissAlert = useDismissAlert()
+  const undismissAlert = useUndismissAlert()
+  const [showDismissed, setShowDismissed] = React.useState(false)
 
   const kioskStats = React.useMemo(() => {
     const list = kiosks ?? []
@@ -202,6 +212,59 @@ export default function AdminOverviewPage() {
     }
   }, [payouts, events])
 
+  // "Needs attention" has no table of its own; every item here is derived from a resource
+  // that already has its own list view. alertKey is stable across renders (built from the
+  // condition it represents, not an array index), which is what dismissal is keyed against.
+  const needsAttentionItems = React.useMemo(() => {
+    const items: { key: string; href: string; title: string; subtitle: string }[] = []
+    if (kioskStats.inactive > 0) {
+      items.push({
+        key: "kiosks-inactive",
+        href: "/admin/kiosks",
+        title: `${kioskStats.inactive} kiosk${kioskStats.inactive === 1 ? "" : "s"} ${kioskStats.inactive === 1 ? "is" : "are"} inactive`,
+        subtitle: "Review kiosk status",
+      })
+    }
+    if (deviceStats.disabled > 0) {
+      items.push({
+        key: "devices-disabled",
+        href: "/admin/devices",
+        title: `${deviceStats.disabled} device${deviceStats.disabled === 1 ? "" : "s"} ${deviceStats.disabled === 1 ? "is" : "are"} disabled`,
+        subtitle: "View devices",
+      })
+    }
+    if (lowSuccessMerchants > 0) {
+      items.push({
+        key: "merchants-low-success",
+        href: "/admin/merchants",
+        title: `${lowSuccessMerchants} merchant${lowSuccessMerchants === 1 ? " has" : "s have"} low coupon success rates`,
+        subtitle: "Review merchants",
+      })
+    }
+    if (payoutTotals.pendingCount > 0) {
+      items.push({
+        key: "payouts-pending",
+        href: "/admin/payouts",
+        title: `${formatCurrency(payoutTotals.pending)} in payouts awaiting processing`,
+        subtitle: "Review payouts",
+      })
+    }
+    return items
+  }, [kioskStats.inactive, deviceStats.disabled, lowSuccessMerchants, payoutTotals.pendingCount, payoutTotals.pending])
+
+  // Not memoized on purpose: constructing a Set from a handful of strings is trivial, and a
+  // useMemo here reproducibly failed to recompute when dismissedAlertKeys changed (confirmed
+  // by direct render-cycle logging: the query's data updated correctly to the new array, but
+  // the memoized Set kept the prior render's empty value), so the dismissed item stayed
+  // visible forever after being dismissed. Plain computation has no such failure mode.
+  const dismissedKeySet = new Set(dismissedAlertKeys ?? [])
+  const visibleAttentionItems = needsAttentionItems.filter((item) => !dismissedKeySet.has(item.key))
+  // A condition can be dismissed and then resolve on its own (the kiosk gets re-activated), at
+  // which point its key stops being generated at all, so it would never show up under "Show
+  // dismissed" even though the dismissal row still exists server-side. Only offer to reveal
+  // dismissed items that are still actually happening.
+  const dismissedAttentionItems = needsAttentionItems.filter((item) => dismissedKeySet.has(item.key))
+
   const recentEvents = React.useMemo(
     () =>
       [...(events ?? [])]
@@ -265,8 +328,7 @@ export default function AdminOverviewPage() {
         <div className="flex flex-col gap-4 lg:col-span-2">
           <BentoCard>
             <div className="mb-2 flex flex-col gap-0.5">
-              <h3 className="text-sm font-semibold">Commission performance</h3>
-              <p className="text-sm text-muted-foreground">Confirmed commission trend, platform-wide.</p>
+              <h3 className="text-heading">Commission performance</h3>
             </div>
             {eventsLoading ? (
               <Skeleton className="h-[260px] w-full" />
@@ -277,7 +339,7 @@ export default function AdminOverviewPage() {
 
           <BentoCard>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Commission breakdown</h3>
+              <h3 className="text-heading">Commission breakdown</h3>
               <Link href="/admin/commissions" className="text-sm text-muted-foreground hover:underline">
                 View all →
               </Link>
@@ -324,7 +386,7 @@ export default function AdminOverviewPage() {
           />
           <BentoCard>
             <div className="flex h-full flex-col gap-3">
-              <h3 className="text-sm font-semibold">Coupon performance</h3>
+              <h3 className="text-heading">Coupon performance</h3>
               <div className="flex flex-1 flex-col justify-center gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Total attempts</span>
@@ -340,10 +402,10 @@ export default function AdminOverviewPage() {
                 </div>
                 <div className="mt-1 flex items-center justify-between border-t border-black/6 pt-2">
                   <span className="text-sm text-muted-foreground">Success rate</span>
-                  <span className="text-sm font-semibold">
+                  <span className="text-heading">
                     {couponTotals.attempts > 0
                       ? `${((couponTotals.success / couponTotals.attempts) * 100).toFixed(1)}%`
-                      : "—"}
+                      : "No data"}
                   </span>
                 </div>
               </div>
@@ -358,7 +420,7 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Top performing kiosks</h3>
+            <h3 className="text-heading">Top performing kiosks</h3>
             <Link href="/admin/kiosks/top-performers" className="text-sm text-muted-foreground hover:underline">
               View all →
             </Link>
@@ -408,7 +470,7 @@ export default function AdminOverviewPage() {
 
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Top merchants</h3>
+            <h3 className="text-heading">Top merchants</h3>
             <Link href="/admin/merchants/top-performers" className="text-sm text-muted-foreground hover:underline">
               View all →
             </Link>
@@ -439,7 +501,7 @@ export default function AdminOverviewPage() {
                         {row.successRate.toFixed(0)}% coupons
                       </Badge>
                     ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
+                      <span className="text-sm text-muted-foreground">No data</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(row.total)}</TableCell>
@@ -464,7 +526,7 @@ export default function AdminOverviewPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BentoCard>
           <div className="flex h-full flex-col gap-3">
-            <h3 className="text-sm font-semibold">Payout overview</h3>
+            <h3 className="text-heading">Payout overview</h3>
             <div className="flex flex-1 flex-col justify-center gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Available for payout</span>
@@ -486,53 +548,78 @@ export default function AdminOverviewPage() {
         </BentoCard>
 
         <BentoCard>
-          <div className="mb-3 flex items-center gap-2">
-            <TriangleAlertIcon className="size-4 text-[var(--warning)]" />
-            <h3 className="text-sm font-semibold">Needs attention</h3>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <TriangleAlertIcon className="size-4 text-[var(--warning)]" />
+              <h3 className="text-heading">Needs attention</h3>
+            </div>
+            {dismissedAttentionItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowDismissed((prev) => !prev)}
+                className="text-meta text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {showDismissed ? "Hide dismissed" : `Show dismissed (${dismissedAttentionItems.length})`}
+              </button>
+            )}
           </div>
-          <div className="flex flex-col gap-3">
-            {kioskStats.inactive > 0 && (
-              <Link href="/admin/kiosks" className="flex flex-col gap-0.5 hover:underline">
-                <span className="text-sm">
-                  {kioskStats.inactive} kiosk{kioskStats.inactive === 1 ? "" : "s"} {kioskStats.inactive === 1 ? "is" : "are"} inactive
-                </span>
-                <span className="text-xs text-muted-foreground">Review kiosk status</span>
-              </Link>
+          <div className="flex flex-col gap-1">
+            {visibleAttentionItems.length === 0 && dismissedAttentionItems.length === 0 && (
+              <p className="text-body text-muted-foreground">Nothing needs attention right now.</p>
             )}
-            {deviceStats.disabled > 0 && (
-              <Link href="/admin/devices" className="flex flex-col gap-0.5 hover:underline">
-                <span className="text-sm">{deviceStats.disabled} devices are disabled</span>
-                <span className="text-xs text-muted-foreground">View devices</span>
-              </Link>
+            {visibleAttentionItems.length === 0 && dismissedAttentionItems.length > 0 && (
+              <p className="text-body text-muted-foreground">
+                Everything&apos;s dismissed. {dismissedAttentionItems.length} item
+                {dismissedAttentionItems.length === 1 ? "" : "s"} still open behind &ldquo;Show dismissed&rdquo;.
+              </p>
             )}
-            {lowSuccessMerchants > 0 && (
-              <Link href="/admin/merchants" className="flex flex-col gap-0.5 hover:underline">
-                <span className="text-sm">
-                  {lowSuccessMerchants} merchant{lowSuccessMerchants === 1 ? " has" : "s have"} low coupon
-                  success rates
-                </span>
-                <span className="text-xs text-muted-foreground">Review merchants</span>
-              </Link>
-            )}
-            {payoutTotals.pendingCount > 0 && (
-              <Link href="/admin/payouts" className="flex flex-col gap-0.5 hover:underline">
-                <span className="text-sm">{formatCurrency(payoutTotals.pending)} in payouts awaiting processing</span>
-                <span className="text-xs text-muted-foreground">Review payouts</span>
-              </Link>
-            )}
-            {kioskStats.inactive === 0 &&
-              deviceStats.disabled === 0 &&
-              lowSuccessMerchants === 0 &&
-              payoutTotals.pendingCount === 0 && (
-                <p className="text-sm text-muted-foreground">Nothing needs attention right now.</p>
-              )}
+            {visibleAttentionItems.map((item) => (
+              <div
+                key={item.key}
+                className="group flex items-center justify-between gap-2 rounded-lg py-1.5 hover:bg-muted/60"
+              >
+                <Link href={item.href} className="flex min-w-0 flex-1 flex-col gap-0.5 px-1.5 hover:underline">
+                  <span className="text-body">{item.title}</span>
+                  <span className="text-meta text-muted-foreground">{item.subtitle}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => dismissAlert.mutate(item.key)}
+                  disabled={dismissAlert.isPending}
+                  aria-label={`Dismiss: ${item.title}`}
+                  className="shrink-0 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                >
+                  <XIcon className="size-3.5" />
+                </button>
+              </div>
+            ))}
+            {showDismissed &&
+              dismissedAttentionItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-2 rounded-lg py-1.5 opacity-60"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 px-1.5">
+                    <span className="text-body">{item.title}</span>
+                    <span className="text-meta text-muted-foreground">Dismissed</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => undismissAlert.mutate(item.key)}
+                    disabled={undismissAlert.isPending}
+                    className="shrink-0 text-meta text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
           </div>
         </BentoCard>
       </div>
 
       <BentoCard>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Recent commission events</h3>
+          <h3 className="text-heading">Recent commission events</h3>
         </div>
         <Table>
           <TableHeader>

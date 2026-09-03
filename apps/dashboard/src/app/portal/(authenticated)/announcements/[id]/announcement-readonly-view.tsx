@@ -4,8 +4,8 @@ import type { Announcement } from "@/lib/api/types"
 
 /** Read-only view of an announcement for viewers who can't edit it: a location manager
  * (never has PATCH/DELETE rights), or a kiosk owner looking at a platform-wide admin
- * broadcast (kioskId null — TenantScopeGuard denies mutating those for anyone but ADMIN).
- * Shows the real kiosk rendering — no editable fields, no schedule/targeting details.
+ * broadcast (kioskId null. TenantScopeGuard denies mutating those for anyone but ADMIN).
+ * Shows the real kiosk rendering. No editable fields, no schedule/targeting details.
  *
  * Falls back to a default layout for announcements authored before the canvas editor, which is
  * the same thing the kiosk agent does, so this view never disagrees with the actual screen. */

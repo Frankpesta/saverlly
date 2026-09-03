@@ -30,6 +30,7 @@ const locations: Location[] = [
     latitude: null,
     longitude: null,
     tags: [],
+    locationSetupCode: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -164,13 +165,13 @@ describe("AdminCommissionsPage", () => {
     expect(await screen.findByText(firstAmount)).toBeInTheDocument()
     expect(screen.getByText(lastOnPage1)).toBeInTheDocument()
     expect(screen.queryByText(firstOnPage2)).not.toBeInTheDocument()
-    expect(screen.getByText("Showing 1–25 of 30")).toBeInTheDocument()
+    expect(screen.getByText("Showing 1-25 of 30")).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole("button", { name: /next/i }))
 
     expect(await screen.findByText(firstOnPage2)).toBeInTheDocument()
     expect(screen.queryByText(firstAmount)).not.toBeInTheDocument()
-    expect(screen.getByText("Showing 26–30 of 30")).toBeInTheDocument()
+    expect(screen.getByText("Showing 26-30 of 30")).toBeInTheDocument()
   })
 
   it("syncs commissions and shows the result", async () => {

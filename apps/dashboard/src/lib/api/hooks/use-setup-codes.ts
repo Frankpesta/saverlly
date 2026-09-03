@@ -5,6 +5,10 @@ import { apiFetch } from "@/lib/api/client"
 import type { LocationSetupCode } from "@/lib/api/types"
 
 const setupCodeKey = (locationId: string) => ["locations", locationId, "setup-code"] as const
+// The locations list payload now carries each location's setup code so the table can show and
+// generate one inline, so any mutation here has to refresh that list too, not just the
+// per-location query the detail page reads.
+const locationsKey = ["locations"] as const
 
 export function useSetupCode(locationId: string) {
   return useQuery({
@@ -28,6 +32,7 @@ export function useCreateSetupCode(locationId: string) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: setupCodeKey(locationId) })
+      queryClient.invalidateQueries({ queryKey: locationsKey })
     },
   })
 }
@@ -42,6 +47,7 @@ export function useUpdateSetupCode(locationId: string) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: setupCodeKey(locationId) })
+      queryClient.invalidateQueries({ queryKey: locationsKey })
     },
   })
 }

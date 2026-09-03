@@ -7,7 +7,7 @@ import {
 import { showAnnouncementOverlay } from './overlay';
 
 /**
- * Reasons an overlay didn't appear that say nothing about the announcement itself — nobody is
+ * Reasons an overlay didn't appear that say nothing about the announcement itself. Nobody is
  * logged in yet, or the kiosk user hasn't dismissed the previous one. Both resolve on their own,
  * so they must not consume the retry budget; a kiosk parked at the login screen would otherwise
  * exhaust every announcement's attempts before anyone sat down at it.
@@ -22,7 +22,7 @@ export async function pollAndDisplayAnnouncements(token: string): Promise<void> 
       continue;
     }
 
-    // One announcement failing must not strand the ones behind it — showAnnouncementOverlay
+    // One announcement failing must not strand the ones behind it. ShowAnnouncementOverlay
     // already resolves its own failures, so this only catches genuinely unexpected throws.
     try {
       const result = await showAnnouncementOverlay(announcement);

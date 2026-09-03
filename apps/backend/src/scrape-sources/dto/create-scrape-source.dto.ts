@@ -20,7 +20,7 @@ export class CreateScrapeSourceDto {
   @Type(() => SelectorConfigDto)
   selectorConfig: SelectorConfigDto;
 
-  @ApiPropertyOptional({ default: 1440, description: 'Scrape cadence in minutes — defaults to daily (1440)' })
+  @ApiPropertyOptional({ default: 1440, description: 'Scrape cadence in minutes. Defaults to daily (1440)' })
   @IsOptional()
   @IsInt()
   @Min(1)

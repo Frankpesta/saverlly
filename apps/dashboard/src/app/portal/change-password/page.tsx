@@ -7,7 +7,7 @@ export default function PortalChangePasswordPage() {
   return (
     <ChangePasswordForm
       homeUrl="/portal/overview"
-      tagline="Almost there — set a password only you know before you continue."
+      tagline="Set a password only you know before you continue."
     />
   )
 }

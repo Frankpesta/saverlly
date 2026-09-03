@@ -19,14 +19,14 @@ export class MyCommissionsController {
   constructor(private readonly commissionsService: CommissionsService) {}
 
   @Get('commission-events')
-  @ApiOperation({ summary: "The caller's own kiosk's commission events, with status clearly shown — never another kiosk's" })
+  @ApiOperation({ summary: "The caller's own kiosk's commission events, with status clearly shown. Never another kiosk's" })
   @ApiResponse({ status: 200, description: "The caller's kiosk's commission events", type: [CommissionEventDto] })
   findMine(@CurrentUser() currentUser: JwtPayload): Promise<CommissionEventDto[]> {
     return this.commissionsService.findAllForKiosk(requireKioskId(currentUser));
   }
 
   @Get('balance')
-  @ApiOperation({ summary: "The caller's own kiosk's balance split — pending (informational) vs. confirmed-available (withdrawable)" })
+  @ApiOperation({ summary: "The caller's own kiosk's balance split. Pending (informational) vs. confirmed-available (withdrawable)" })
   @ApiResponse({ status: 200, description: 'Balance split', type: BalanceDto })
   getBalance(@CurrentUser() currentUser: JwtPayload): Promise<BalanceDto> {
     return this.commissionsService.getBalance(requireKioskId(currentUser));

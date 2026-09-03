@@ -28,7 +28,6 @@ export function AppSidebar({
   navMain,
   navSecondary,
   user,
-  settingsUrl,
   onLogout,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
@@ -36,7 +35,6 @@ export function AppSidebar({
   navMain: NavItem[]
   navSecondary?: NavItem[]
   user: { name: string; email: string; avatar?: string }
-  settingsUrl?: string
   onLogout: () => void
 }) {
   return (
@@ -62,7 +60,7 @@ export function AppSidebar({
         )}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/70 p-3">
-        <NavUser user={user} settingsUrl={settingsUrl} onLogout={onLogout} />
+        <NavUser user={user} onLogout={onLogout} />
       </SidebarFooter>
     </Sidebar>
   )

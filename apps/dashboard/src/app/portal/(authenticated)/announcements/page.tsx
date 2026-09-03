@@ -67,7 +67,7 @@ export default function AnnouncementsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Announcements</h2>
+          <h2 className="text-title">Announcements</h2>
           <p className="text-sm text-muted-foreground">
             Ads and messages shown to customers on the kiosk screen.
           </p>

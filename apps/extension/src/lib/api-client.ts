@@ -15,7 +15,7 @@ export class AuthError extends Error {
   }
 }
 
-// Well under STATUS_GRACE_PERIOD_MS — a stalled request must fail fast enough for the
+// Well under STATUS_GRACE_PERIOD_MS, a stalled request must fail fast enough for the
 // grace-period fallback in status-check.ts to actually kick in rather than hanging.
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -42,7 +42,7 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
   });
 
   if (res.status === 401 || res.status === 403) {
-    // Any auth rejection means the extension must go dormant immediately —
+    // Any auth rejection means the extension must go dormant immediately
     // covers revoked tokens, disabled devices, and inactive kiosks alike.
     await setDormant(true);
     throw new AuthError(res.status);

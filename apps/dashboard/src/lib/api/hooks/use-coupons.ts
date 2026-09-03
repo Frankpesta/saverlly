@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
 import type { Coupon, CouponDiscountType } from "@/lib/api/types"
 
-// No server-side aggregate exists for platform-wide coupon success rate — /coupons is the only
+// No server-side aggregate exists for platform-wide coupon success rate, /coupons is the only
 // source, and it's cursor-paginated. We page through it ourselves, capped at 10 pages (1000
 // coupons) as a sane ceiling so one dashboard load can't page forever on a huge catalog.
 const PAGE_LIMIT = 100
@@ -25,7 +25,7 @@ async function fetchAllCoupons(): Promise<Coupon[]> {
   return all
 }
 
-/** Admin-only — KIOSK_OWNER gets a 403 here, so this hook must never be called from a portal page. */
+/** Admin-only. KIOSK_OWNER gets a 403 here, so this hook must never be called from a portal page. */
 export function useCoupons() {
   return useQuery({
     queryKey: ["coupons"],
