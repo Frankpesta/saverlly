@@ -13,7 +13,7 @@ export class AffiliateSyncSchedulerService implements OnModuleInit {
     @InjectQueue(QUEUE_NAMES.SYNC_AFFILIATE_FEED) private readonly syncQueue: Queue,
   ) {}
 
-  /** Idempotent — BullMQ dedupes repeat registration by jobId, safe to call on every boot. */
+  /** Idempotent. BullMQ dedupes repeat registration by jobId, safe to call on every boot. */
   async onModuleInit() {
     await this.syncQueue.add(SYNC_JOB_NAME, {}, { jobId: SYNC_JOB_ID, repeat: { every: DAILY_MS } });
   }

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 /** A colored icon badge matching the app's dialog icon-header convention (size-9 rounded-lg on
  *  a semantic tint), scaled down for a toast. Sonner only lets you swap the icon element itself
- *  (`icons` prop) — wrapping it here is how each toast type gets its own tint instead of a bare
+ *  (`icons` prop). Wrapping it here is how each toast type gets its own tint instead of a bare
  *  monochrome glyph. */
 function ToastIcon({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
@@ -70,13 +70,13 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           // sonner hardcodes padding/gap/box-shadow/font-size on the toast's own [data-styled]
           // rule (higher specificity than a bare Tailwind class, and injected after the app's
-          // stylesheet) — the `!` important-prefixed utilities are what actually override them.
+          // stylesheet). The `!` important-prefixed utilities are what actually override them.
           toast:
-            "group !items-start !gap-3 !px-4 !py-3.5 !text-sm !shadow-[0_20px_48px_rgba(15,23,20,0.16)] backdrop-blur-sm",
+            "group !items-start !gap-3 !px-4 !py-3.5 !text-sm !shadow-[var(--elevation-lg)] backdrop-blur-sm",
           icon: "!m-0 mt-0.5",
           content: "!gap-1",
           title: "!text-sm !font-semibold",
-          // sonner hardcodes the description color per-theme (not one of our CSS vars) —
+          // sonner hardcodes the description color per-theme (not one of our CSS vars)
           // !text-muted-foreground is what makes it follow the app's token instead.
           description: "!text-muted-foreground",
           closeButton: "hover:!bg-muted hover:!text-foreground hover:!border-border",

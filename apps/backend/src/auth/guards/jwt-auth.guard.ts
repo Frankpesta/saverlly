@@ -8,7 +8,7 @@ import { Request } from 'express';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 // The only two JwtAuthGuard-protected routes a mustChangePassword:true user must still be
-// able to reach — otherwise they could never change their password or log out. Every other
+// able to reach. Otherwise they could never change their password or log out. Every other
 // role-protected endpoint is blocked, not just the dashboard's own proxy redirect (which is
 // UX-only and easily bypassed by calling the API directly).
 const MUST_CHANGE_PASSWORD_EXEMPT_PATHS = new Set([

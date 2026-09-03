@@ -12,12 +12,12 @@ import { cn } from "@/lib/utils"
 import { proxiedImageUrl } from "@/lib/image-proxy"
 
 /** Image elements are drawn from the backend's own upload storage, which is served over plain
- *  HTTP while the dashboard is on HTTPS — a raw `url("http://…")` is mixed content and the
+ *  HTTP while the dashboard is on HTTPS, a raw `url("http://…")` is mixed content and the
  *  browser drops it silently, so an uploaded image would simply never appear on the canvas.
  *  Only the URL is rewritten; every other style still comes from the shared definition. */
 const CANVAS_STYLE_OPTIONS = { resolveImageUrl: proxiedImageUrl }
 
-/** Movement smaller than this is a click, not a drag — without it, selecting an element with a
+/** Movement smaller than this is a click, not a drag. Without it, selecting an element with a
  *  slightly unsteady hand nudges it a pixel or two. */
 const DRAG_THRESHOLD_PX = 3
 const GRID_PX = 8
@@ -55,8 +55,8 @@ function snap(value: number, enabled: boolean): number {
  * authored size. Editing it larger than it will ever be displayed would invite designs whose type
  * is unreadable at the size that actually matters.
  *
- * Every element is drawn with `layoutElementStyle` from @saverlly/shared-types — the exact
- * function the kiosk's HTML renderer uses — so the editor cannot drift from what the kiosk
+ * Every element is drawn with `layoutElementStyle` from @saverlly/shared-types. The exact
+ * function the kiosk's HTML renderer uses. So the editor cannot drift from what the kiosk
  * displays. Only the selection chrome (outline, handles) is editor-specific, and it's drawn on
  * top rather than by altering the element's own styles.
  */
@@ -78,7 +78,7 @@ export function AnnouncementCanvas({
   const [scale, setScale] = React.useState(1)
 
   // The stage keeps its exact pixel geometry and is scaled to the available width, rather than
-  // laying out responsively — responsive reflow would move elements relative to each other and
+  // laying out responsively. Responsive reflow would move elements relative to each other and
   // break the "what you see is what the kiosk shows" guarantee.
   React.useEffect(() => {
     const frame = frameRef.current
@@ -294,7 +294,7 @@ export function describeElement(element: AnnouncementLayoutElement): string {
   }
 }
 
-/** A compact z-order list of everything on the canvas — the reliable way to reach an element
+/** A compact z-order list of everything on the canvas. The reliable way to reach an element
  *  that's been dragged underneath another one, where clicking would only ever hit the top. */
 export function LayerList({
   layout,

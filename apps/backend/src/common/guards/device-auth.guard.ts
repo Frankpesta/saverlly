@@ -5,7 +5,7 @@ import { hashToken } from '../crypto/token-hash.util';
 
 /**
  * Auth guard for machine clients (Chrome extension, desktop agent) using opaque
- * device tokens — entirely separate from human JWT auth. Re-checks kiosk status
+ * device tokens. Entirely separate from human JWT auth. Re-checks kiosk status
  * and the device's kill-switch on every request, not just at token issuance, so
  * a deactivated kiosk/device is locked out immediately rather than on next login.
  */
@@ -37,7 +37,7 @@ export class DeviceAuthGuard implements CanActivate {
     }
 
     // Every device-facing call (status poll, coupon-test report, attribution mint, ...) proves
-    // the device is alive right now — this guard runs on all of them, so it's the one place that
+    // the device is alive right now. This guard runs on all of them, so it's the one place that
     // needs to touch lastSeenAt rather than duplicating a write in every handler. Debounced to
     // once a minute so a device polling every few seconds doesn't turn into a write per request.
     const { lastSeenAt } = deviceToken.device;

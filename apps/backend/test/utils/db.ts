@@ -48,6 +48,9 @@ export async function resetRedisTestDb(): Promise<void> {
 async function deleteAllInOrder(): Promise<void> {
   // Delete order respects FK constraints (children before parents).
   await testPrisma.notification.deleteMany();
+  // Like Notification, references User with ON DELETE RESTRICT, so it has to go before the
+  // user.deleteMany() at the bottom of this function.
+  await testPrisma.dismissedAlert.deleteMany();
   await testPrisma.commissionEvent.deleteMany();
   await testPrisma.payout.deleteMany();
   await testPrisma.attributionAttempt.deleteMany();

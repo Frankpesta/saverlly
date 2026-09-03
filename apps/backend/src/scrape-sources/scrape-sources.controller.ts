@@ -31,7 +31,7 @@ export class ScrapeSourcesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a scrape source — reschedules automatically if interval or active state changes' })
+  @ApiOperation({ summary: 'Update a scrape source. Reschedules automatically if interval or active state changes' })
   @ApiResponse({ status: 200, description: 'Scrape source updated' })
   @ApiResponse({ status: 404, description: 'Scrape source not found' })
   update(@Param('id') id: string, @Body() dto: UpdateScrapeSourceDto) {
@@ -40,7 +40,7 @@ export class ScrapeSourcesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a scrape source — unschedules its repeat job' })
+  @ApiOperation({ summary: 'Delete a scrape source. Unschedules its repeat job' })
   @ApiResponse({ status: 204, description: 'Scrape source deleted' })
   @ApiResponse({ status: 404, description: 'Scrape source not found' })
   remove(@Param('id') id: string) {

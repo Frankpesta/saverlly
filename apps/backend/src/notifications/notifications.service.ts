@@ -25,7 +25,7 @@ export class NotificationsService {
     private readonly emailQueue: Queue<EmailJob>,
   ) {}
 
-  /** Writes the in-app Notification row and enqueues the matching email — the single call site every trigger uses. */
+  /** Writes the in-app Notification row and enqueues the matching email. The single call site every trigger uses. */
   async notify(params: NotifyParams): Promise<void> {
     await this.prisma.notification.create({
       data: {
@@ -37,7 +37,7 @@ export class NotificationsService {
       },
     });
 
-    // The in-app notification is already committed above — a transient queue/Redis failure
+    // The in-app notification is already committed above, a transient queue/Redis failure
     // here must not throw back through every caller (several of which run this post-commit,
     // after their own DB write already succeeded). The in-app notification still exists even
     // if the email doesn't go out.

@@ -56,7 +56,7 @@ import { fetchActivePromotions, fetchMerchantByDomain, reportCouponTestEvent } f
 import { runAttribution } from '../lib/attribution';
 import { getCachedMerchant, isDormant, setCachedMerchant } from '../lib/storage';
 
-// Imported after the chrome/module mocks above are in place — the service worker
+// Imported after the chrome/module mocks above are in place. The service worker
 // registers its listeners as a side effect of module load.
 import './service-worker';
 
@@ -104,7 +104,7 @@ const merchant: PublicMerchant = {
   ],
 };
 
-// Captured immediately after module load — the listeners are registered once, as a
+// Captured immediately after module load. The listeners are registered once, as a
 // side effect of importing service-worker.ts, so this must run before any per-test
 // jest.clearAllMocks() would wipe that call record.
 const registeredOnCommitted = addListenerMocks.onCommitted.mock.calls[0]?.[0];

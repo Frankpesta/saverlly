@@ -60,7 +60,7 @@ export class PromotionsService {
         imageSmallUrl: dto.imageSmallUrl,
         imageLargeUrl: dto.imageLargeUrl,
         clickUrl: dto.clickUrl,
-        // Only rewrite the tag list when the caller actually sent one — a PATCH that omits
+        // Only rewrite the tag list when the caller actually sent one, a PATCH that omits
         // targetTags must leave the existing tags alone, not blank them.
         targetTags: dto.targetTags ? normalizeTags(dto.targetTags) : undefined,
         locationIds: dto.locationIds,
@@ -77,7 +77,7 @@ export class PromotionsService {
   }
 
   /**
-   * Promotions are platform-wide (ADMIN-authored), so locations are validated only for existence —
+   * Promotions are platform-wide (ADMIN-authored), so locations are validated only for existence
    * unlike Announcement's locationIds, which additionally have to belong to one specific kiosk.
    */
   private async assertLocationsExist(
@@ -99,7 +99,7 @@ export class PromotionsService {
 /**
  * Tags are matched against Location.tags, which the dashboard's TagInput writes verbatim. Trimming
  * and lowercasing both sides of that comparison is what makes "Mall" typed here match a location
- * tagged "mall" — without it, targeting silently matches nothing and looks like a backend bug.
+ * tagged "mall". Without it, targeting silently matches nothing and looks like a backend bug.
  */
 function normalizeTags(tags: string[] | undefined): string[] {
   if (!tags) {

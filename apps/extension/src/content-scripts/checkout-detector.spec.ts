@@ -4,7 +4,7 @@
 import type { CheckoutRecipe } from '@saverlly/shared-types';
 
 // ts-jest compiles this file to CommonJS regardless of the extension's browser-only tsconfig
-// (which has no Node types), so `require` is genuinely available at runtime here — just not
+// (which has no Node types), so `require` is genuinely available at runtime here. Just not
 // typed. Declared locally rather than pulling @types/node into the whole extension build.
 declare function require(id: string): unknown;
 
@@ -28,7 +28,7 @@ function renderCheckoutElements(): void {
   document.body.innerHTML = '<input name="reductions" /><div id="cart-total"></div>';
 }
 
-// checkout-detector.ts is a self-executing content script — re-importing it after
+// checkout-detector.ts is a self-executing content script. Re-importing it after
 // jest.resetModules() re-runs its top-level IIFE against whatever DOM/window state the
 // test has set up beforehand.
 function loadContentScript(): void {
@@ -83,7 +83,7 @@ describe('checkout-detector content script', () => {
 
   // The real bug this regression-tests: a client-rendered checkout SPA (confirmed against a
   // live Allbirds checkout) mounts the coupon field/cart total *after* this script runs, since
-  // it's injected on webNavigation.onCommitted — well before hydration completes. A single
+  // it's injected on webNavigation.onCommitted. Well before hydration completes. A single
   // synchronous check misses this; the detector must keep watching until the elements appear.
   it('waits for the checkout elements to render asynchronously, then confirms exactly once', async () => {
     window.__SAVERLLY__ = { merchantId: 'merchant-1', recipe: RECIPE };
@@ -98,7 +98,7 @@ describe('checkout-detector content script', () => {
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
-    // The observer must disconnect after confirming — a further mutation must not re-fire it.
+    // The observer must disconnect after confirming, a further mutation must not re-fire it.
     document.body.innerHTML += '<span>irrelevant later mutation</span>';
     await Promise.resolve();
     await Promise.resolve();

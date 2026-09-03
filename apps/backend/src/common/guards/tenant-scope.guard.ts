@@ -10,7 +10,7 @@ import {
 } from '../decorators/tenant-resource.decorator';
 
 interface ResourceScope {
-  // null only ever occurs for a platform-wide broadcast Announcement — the strict !== comparison
+  // null only ever occurs for a platform-wide broadcast Announcement. The strict !== comparison
   // below correctly denies every non-admin caller for those (null never equals a real kiosk id),
   // which is the intended behavior: only ADMIN (who bypasses this guard entirely) can reach one.
   kioskId: string | null;
@@ -23,7 +23,7 @@ interface ResourceScope {
  * locations). ADMIN bypasses this check. Must run after JwtAuthGuard + RolesGuard,
  * since it relies on request.user already being populated.
  *
- * Only applies to single-resource routes with an :id-style param — list endpoints
+ * Only applies to single-resource routes with an :id-style param. List endpoints
  * must filter by tenant at the query level in their service instead, since there's
  * no resource id to resolve here.
  */
@@ -50,7 +50,7 @@ export class TenantScopeGuard implements CanActivate {
     }
 
     if (!options) {
-      // No resource declared — for non-admin roles, fail closed rather than assume unscoped access.
+      // No resource declared. For non-admin roles, fail closed rather than assume unscoped access.
       return false;
     }
 
@@ -85,7 +85,7 @@ export class TenantScopeGuard implements CanActivate {
   }
 
   /**
-   * View-only visibility check for a single announcement — mirrors
+   * View-only visibility check for a single announcement. Mirrors
    * AnnouncementsService.findAll exactly: platform-wide broadcasts (kioskId: null) are visible
    * read-only to every KIOSK_OWNER/LOCATION_MANAGER, and a LOCATION_MANAGER additionally needs
    * the announcement to target all locations or overlap their managedLocationIds. Kept separate
@@ -166,12 +166,12 @@ export class TenantScopeGuard implements CanActivate {
           where: { id },
           select: { kioskId: true },
         });
-        // No single locationId — announcements can span multiple/all locations.
+        // No single locationId, announcements can span multiple/all locations.
         // Routes using this type must not be reachable by LOCATION_MANAGER.
         return announcement ? { kioskId: announcement.kioskId } : null;
       }
       case TenantResourceType.ANNOUNCEMENT_VIEW:
-        // Never reached — canActivate() intercepts this type before calling resolveScope,
+        // Never reached. CanActivate() intercepts this type before calling resolveScope,
         // since "viewable" needs the broadcast/overlap rules in canViewAnnouncement instead
         // of this method's generic kioskId-equality check.
         throw new Error(

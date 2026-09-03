@@ -15,7 +15,7 @@ function readTotal(selector: string): number | null {
 }
 
 // Merchant checkout pages commonly pre-render both indicators hidden (display:none) and
-// only reveal one after the apply request resolves — matching on DOM presence alone would
+// only reveal one after the apply request resolves. Matching on DOM presence alone would
 // report success/failure immediately regardless of which one the page actually surfaces.
 function isVisible(el: Element): boolean {
   return (el as HTMLElement).offsetParent !== null;

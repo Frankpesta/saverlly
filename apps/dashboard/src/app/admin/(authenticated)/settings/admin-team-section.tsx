@@ -1,6 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { toast } from "sonner"
+import { UserPlusIcon } from "lucide-react"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
@@ -11,7 +14,7 @@ import {
 } from "@/lib/api/hooks/use-admin-users"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { ApiError } from "@/lib/api/client"
-import { AddAdminUserDialog } from "./add-admin-user-dialog"
+import { cn } from "@/lib/utils"
 
 export function AdminTeamSection() {
   const { data: currentUser } = useCurrentUser()
@@ -79,7 +82,13 @@ export function AdminTeamSection() {
             </div>
           )
         })}
-      <AddAdminUserDialog />
+      <Link
+        href="/admin/settings/employees/new"
+        className={cn(buttonVariants({ variant: "outline" }), "w-full gap-1.5")}
+      >
+        <UserPlusIcon className="size-4" />
+        Add employee
+      </Link>
     </div>
   )
 }

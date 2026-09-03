@@ -13,7 +13,7 @@ export interface CouponApplyResultMessage {
   code: string | null;
   result: CouponTestResult;
   /** True when this is the last attempt in the sequence (a success, or the final failure after
-   *  exhausting every coupon) — only these should flip the popup out of the "applying" view.
+   *  exhausting every coupon). Only these should flip the popup out of the "applying" view.
    *  Every attempt is still reported to the backend regardless of this flag. */
   isFinal: boolean;
   /** Only set when result === 'applied'. */
@@ -66,7 +66,7 @@ export interface TabCheckoutState {
   merchantName: string;
   coupons: PublicCoupon[];
   suppressedStepdown: boolean;
-  /** Latest progress tick from an apply run started automatically or manually — lets a
+  /** Latest progress tick from an apply run started automatically or manually. Lets a
    *  popup opened mid-run (or reopened after one finishes) restore the right view instead
    *  of always starting from a blank "idle" screen. */
   applyProgress: CouponApplyProgressMessage | null;
@@ -75,7 +75,7 @@ export interface TabCheckoutState {
 }
 
 // Data handed from the background service worker into an injected content script via
-// a preliminary chrome.scripting.executeScript `func` call (see background/service-worker.ts) —
+// a preliminary chrome.scripting.executeScript `func` call (see background/service-worker.ts)
 // the content script reads it off `window.__SAVERLLY__` once injected.
 export interface InjectedCheckoutContext {
   merchantId: string;

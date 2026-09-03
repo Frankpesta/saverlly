@@ -2,174 +2,115 @@
 
 import * as React from "react"
 import { ClockIcon } from "lucide-react"
-import { parse, isValid, format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { ClockDial } from "@/components/ui/clock-dial"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  TimeField,
+  timeDigitsToValue,
+  valueToTimeDigits,
+  type Period,
+} from "@/components/ui/time-field"
 
-const TYPE_FORMATS = ["h:mm a", "h:mma", "H:mm", "HH:mm", "h a", "ha"]
-
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 1)
-const MINUTES = [0, 15, 30, 45]
-
-/** Parses a 24h "HH:mm" value into hour/minute/period parts for the picker list, or nulls if empty. */
-function partsFromValue(value: string): { hour12: number; minute: number; period: "AM" | "PM" } | null {
-  if (!/^\d{2}:\d{2}$/.test(value)) return null
-  const [h, m] = value.split(":").map(Number)
-  const period: "AM" | "PM" = h >= 12 ? "PM" : "AM"
-  const hour12 = h % 12 === 0 ? 12 : h % 12
-  return { hour12, minute: m, period }
-}
-
-function toValue(hour12: number, minute: number, period: "AM" | "PM"): string {
-  const hour24 = period === "AM" ? (hour12 % 12) : (hour12 % 12) + 12
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${pad(hour24)}:${pad(minute)}`
-}
-
-function displayText(value: string): string {
-  const parts = partsFromValue(value)
-  if (!parts) return ""
-  return `${parts.hour12}:${String(parts.minute).padStart(2, "0")} ${parts.period}`
-}
-
-function parseTypedTime(text: string): string | undefined {
-  const trimmed = text.trim()
-  if (!trimmed) return undefined
-  for (const fmt of TYPE_FORMATS) {
-    const parsed = parse(trimmed, fmt, new Date())
-    if (isValid(parsed)) return format(parsed, "HH:mm")
-  }
-  return undefined
-}
-
-/** A time picker supporting both typing a time directly ("3:30 PM", "15:30", …) and picking one
- * from a popover list. `value`/`onChange` use the same 24h "HH:mm" string shape as a native
- * `<input type="time">`, so it drops in as a direct replacement. */
+/** A time you can type or dial.
+ *
+ * `value`/`onChange` keep the 24-hour "HH:mm" shape a native `<input type="time">` uses, so
+ * this remains a drop-in for `DateTimePicker` and, through it, the promotion and announcement
+ * forms. The clock toggle sits inside the field rather than beside it, matching DatePicker. */
 export function TimePicker({
+  id,
   value,
   onChange,
   disabled,
   required,
   className,
+  minuteStep = 1,
   "aria-label": ariaLabel = "Time",
   "aria-invalid": ariaInvalid,
 }: {
+  id?: string
   value: string
   onChange: (value: string) => void
   disabled?: boolean
   required?: boolean
   className?: string
+  /** Snap interval for the dial's minute hand. Typing is always free-form. */
+  minuteStep?: number
   "aria-label"?: string
   "aria-invalid"?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
-  const [text, setText] = React.useState(displayText(value))
+  const [draft, setDraft] = React.useState(() => valueToTimeDigits(value))
 
-  // Adjusted during render rather than in an effect, per React's documented pattern for
-  // deriving state from a changed prop (avoids the cascading-render lint error an effect trips).
+  // Keep the typed buffer in sync when `value` changes from outside without clobbering a
+  // partially typed time. Adjusted during render per React's derived-state pattern.
   const [prevValue, setPrevValue] = React.useState(value)
   if (value !== prevValue) {
     setPrevValue(value)
-    setText(displayText(value))
+    setDraft(valueToTimeDigits(value))
   }
 
-  function commitTyped(raw: string) {
-    const parsed = parseTypedTime(raw)
-    if (parsed) {
-      onChange(parsed)
-      setText(displayText(parsed))
-    } else if (!raw.trim()) {
-      onChange("")
-      setText("")
-    } else {
-      setText(displayText(value))
-    }
+  function handleFieldChange(next: { digits: string; period: Period | null }) {
+    setDraft(next)
+    const parsed = timeDigitsToValue(next.digits, next.period)
+    if (parsed) onChange(parsed)
+    else if (next.digits.length === 0) onChange("")
   }
 
-  const parts = partsFromValue(value)
+  // The dial always needs concrete hands, so it falls back to 12:00 AM when nothing is set.
+  const parsed = valueToTimeDigits(value)
+  const hour12 = parsed.digits ? Number(parsed.digits.slice(0, 2)) : 12
+  const minute = parsed.digits ? Number(parsed.digits.slice(2, 4)) : 0
+  const period: Period = parsed.period ?? "AM"
 
   return (
-    <div className={cn("flex items-center gap-1.5", className)}>
-      <Input
-        type="text"
-        aria-label={ariaLabel}
-        placeholder="h:mm AM/PM"
-        value={text}
+    <Popover open={open} onOpenChange={setOpen}>
+      <TimeField
+        id={id}
+        digits={draft.digits}
+        period={draft.period}
+        onChange={handleFieldChange}
         disabled={disabled}
         required={required}
+        aria-label={ariaLabel}
         aria-invalid={ariaInvalid}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={(e) => commitTyped(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            commitTyped(e.currentTarget.value)
-          }
-        }}
-        className="w-full"
+        className={className}
+        trailing={
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={disabled}
+              aria-label="Open clock"
+              className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <ClockIcon className="size-4" />
+            </Button>
+          </PopoverTrigger>
+        }
       />
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            disabled={disabled}
-            aria-label="Open time picker"
-            className="shrink-0"
-          >
-            <ClockIcon className="size-4" />
+      <PopoverContent className={cn("w-auto p-4")} align="start">
+        <ClockDial
+          hour12={hour12}
+          minute={minute}
+          period={period}
+          minuteStep={minuteStep}
+          onChange={(next) => {
+            const hour24 =
+              next.period === "AM" ? next.hour12 % 12 : (next.hour12 % 12) + 12
+            onChange(
+              `${String(hour24).padStart(2, "0")}:${String(next.minute).padStart(2, "0")}`,
+            )
+          }}
+        />
+        <div className="mt-3 flex justify-end">
+          <Button type="button" size="sm" onClick={() => setOpen(false)}>
+            Done
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-2" align="start">
-          <div className="flex gap-1">
-            <div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto pr-1">
-              {HOURS.map((h) => (
-                <Button
-                  key={h}
-                  type="button"
-                  size="sm"
-                  variant={parts?.hour12 === h ? "default" : "ghost"}
-                  className="justify-center px-3"
-                  onClick={() => onChange(toValue(h, parts?.minute ?? 0, parts?.period ?? "AM"))}
-                >
-                  {h}
-                </Button>
-              ))}
-            </div>
-            <div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto pr-1">
-              {MINUTES.map((m) => (
-                <Button
-                  key={m}
-                  type="button"
-                  size="sm"
-                  variant={parts?.minute === m ? "default" : "ghost"}
-                  className="justify-center px-3"
-                  onClick={() => onChange(toValue(parts?.hour12 ?? 12, m, parts?.period ?? "AM"))}
-                >
-                  {String(m).padStart(2, "0")}
-                </Button>
-              ))}
-            </div>
-            <div className="flex flex-col gap-0.5">
-              {(["AM", "PM"] as const).map((p) => (
-                <Button
-                  key={p}
-                  type="button"
-                  size="sm"
-                  variant={parts?.period === p ? "default" : "ghost"}
-                  className="justify-center px-3"
-                  onClick={() => onChange(toValue(parts?.hour12 ?? 12, parts?.minute ?? 0, p))}
-                >
-                  {p}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

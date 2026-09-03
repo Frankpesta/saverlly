@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { FormField } from "@/components/dashboard/form-section"
+import { AutofillDecoy, useAutofillReadOnly } from "@/components/dashboard/autofill-guard"
 import { AuthShell } from "@/components/auth/auth-shell"
 import { PasswordStrengthBar } from "@/components/dashboard/password-strength"
 import { passwordMismatchIssue, passwordSchema, passwordsMatch } from "@/lib/validation/schemas"
@@ -31,6 +32,7 @@ type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>
 export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagline: string }) {
   const router = useRouter()
   const [error, setError] = React.useState<string | null>(null)
+  const autofillGuard = useAutofillReadOnly()
   const {
     register,
     handleSubmit,
@@ -78,7 +80,8 @@ export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagl
           <h1 className="text-3xl font-semibold tracking-[-0.045em]">Set a new password</h1>
           <p className="text-sm leading-6 text-muted-foreground">You&apos;re using a temporary password. Create one only you know before continuing.</p>
         </div>
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form className="relative flex flex-col gap-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <AutofillDecoy />
           {error && (
             <Alert variant="destructive">
               <AlertCircleIcon />
@@ -86,7 +89,12 @@ export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagl
             </Alert>
           )}
           <FormField label="Current password" htmlFor="current-password" error={errors.currentPassword?.message}>
-            <PasswordInput id="current-password" autoComplete="current-password" {...register("currentPassword")} />
+            <PasswordInput
+              id="current-password"
+              autoComplete="off"
+              {...register("currentPassword")}
+              {...autofillGuard}
+            />
           </FormField>
           <div className="flex flex-col gap-2">
             <FormField label="New password" htmlFor="new-password" error={errors.newPassword?.message}>

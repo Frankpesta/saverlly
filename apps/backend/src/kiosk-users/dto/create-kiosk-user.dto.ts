@@ -3,7 +3,7 @@ import { IsArray, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-v
 import { UserRole } from '@prisma/client';
 import { NormalizeEmail } from '../../common/transformers/normalize-email.decorator';
 
-// A kiosk's own users are always KIOSK_OWNER or LOCATION_MANAGER — ADMIN is never kiosk-scoped.
+// A kiosk's own users are always KIOSK_OWNER or LOCATION_MANAGER, ADMIN is never kiosk-scoped.
 export const KIOSK_ASSIGNABLE_ROLES = [
   UserRole.KIOSK_OWNER,
   UserRole.LOCATION_MANAGER,
@@ -27,7 +27,7 @@ export class CreateKioskUserDto {
   @ApiPropertyOptional({
     type: [String],
     description:
-      'Location ids this user manages — only meaningful for LOCATION_MANAGER',
+      'Location ids this user manages. Only meaningful for LOCATION_MANAGER',
   })
   @IsOptional()
   @IsArray()

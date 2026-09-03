@@ -29,6 +29,7 @@ const locations: Location[] = [
     latitude: null,
     longitude: null,
     tags: [],
+    locationSetupCode: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -101,7 +102,7 @@ describe("AnnouncementsPage", () => {
     expect(within(futureRow).getByText("1 of 1")).toBeInTheDocument()
   })
 
-  // Creation moved off this page onto /portal/announcements/new — the list only has to point at
+  // Creation moved off this page onto /portal/announcements/new. The list only has to point at
   // it now. The form itself is covered by new/page.spec.tsx.
   it("sends both the header action and the empty state to the dedicated create page", async () => {
     renderWithClient(<AnnouncementsPage />)

@@ -1,6 +1,6 @@
 // Chrome's Native Messaging stdio protocol: each message is a 4-byte little-endian length
 // prefix followed by that many bytes of UTF-8 JSON. This only needs implementing on the
-// native-host (agent) side — the extension side is already handled internally by Chrome's
+// native-host (agent) side. The extension side is already handled internally by Chrome's
 // own chrome.runtime.connectNative()/port API, which never exposes this framing to JS.
 const LENGTH_PREFIX_BYTES = 4;
 

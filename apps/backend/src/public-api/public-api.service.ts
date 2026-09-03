@@ -110,7 +110,7 @@ export class PublicApiService {
         if (p.targetTags.length === 0 && p.locationIds.length === 0) {
           return true;
         }
-        // Union, not intersection — either targeting dimension matching is enough.
+        // Union, not intersection. Either targeting dimension matching is enough.
         return (
           p.locationIds.includes(device.locationId) ||
           p.targetTags.some((tag) => locationTags.has(tag))

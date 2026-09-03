@@ -14,7 +14,7 @@ import {
 } from "@/lib/api/hooks/use-setup-codes"
 import { ApiError } from "@/lib/api/client"
 
-/** Every location has at most one setup code — regenerating replaces it in place rather than
+/** Every location has at most one setup code. Regenerating replaces it in place rather than
  * adding another, so there's never a list of old/stale codes to manage. */
 export function SetupCodesSection({ locationId }: { locationId: string }) {
   const { data: code, isLoading, isError } = useSetupCode(locationId)

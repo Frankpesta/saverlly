@@ -49,7 +49,7 @@ export class KiosksService {
       return { kiosk, owner };
     });
 
-    // Deliberately outside the transaction — enqueuing a BullMQ job (or writing the
+    // Deliberately outside the transaction. Enqueuing a BullMQ job (or writing the
     // Notification row) before the transaction commits risks a worker picking up the job
     // before Postgres has actually made the kiosk/owner visible. Caught rather than awaited
     // straight through: the kiosk and owner are already committed at this point, so a
@@ -82,7 +82,7 @@ export class KiosksService {
     return kiosk;
   }
 
-  /** The kiosk owner's own email doubles as the kiosk's contact address — there's no separate
+  /** The kiosk owner's own email doubles as the kiosk's contact address. There's no separate
    * stored contact field. Lets a location manager reach their kiosk owner without exposing
    * revenue share, status, or other owner-only kiosk fields. */
   async findOwnerContact(kioskId: string) {
@@ -103,7 +103,7 @@ export class KiosksService {
     return this.prisma.kiosk.update({ where: { id }, data: { status } });
   }
 
-  /** Deletes the kiosk and everything under it — users, locations, devices, device history,
+  /** Deletes the kiosk and everything under it. Users, locations, devices, device history,
    * kiosk-scoped announcements, payouts. See `deleteKioskCascade` for the full breakdown. */
   async remove(id: string) {
     await this.findOne(id);

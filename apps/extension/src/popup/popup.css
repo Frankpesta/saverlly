@@ -1,4 +1,4 @@
-/* Colors sampled directly from the exported Figma screens (extension_figma_files/) —
+/* Colors sampled directly from the exported Figma screens (extension_figma_files/)
    #58C3B7 (buttons/accents) and #FF4649 (alert ring) were confirmed by pixel-sampling
    the PNG exports, not guessed. */
 
@@ -31,7 +31,7 @@
 body {
   margin: 0;
   width: 360px;
-  /* Chrome's own popup window frame is square by default — rounding + clipping here is
+  /* Chrome's own popup window frame is square by default. Rounding + clipping here is
      what actually gives the popup itself softened corners, not just its inner content. */
   border-radius: 10px;
   overflow: hidden;
@@ -105,7 +105,7 @@ button {
   text-align: center;
 }
 
-/* celeb.svg is a self-contained illustration — teal circle, gift/balloon/confetti graphic,
+/* celeb.svg is a self-contained illustration. Teal circle, gift/balloon/confetti graphic,
    AND the "card" mockup (avatar + two line bars) are all baked into the one asset. The only
    thing added in CSS is the second card peeking out behind/below it. */
 .popup__hero {
@@ -122,7 +122,7 @@ button {
 }
 
 /* celeb.svg's own baked-in card occupies roughly the 41%-68% band of the image's height
-   (y 167-277 of its 406-tall viewBox) — this sits just behind it, peeking out below. */
+   (y 167-277 of its 406-tall viewBox). This sits just behind it, peeking out below. */
 .popup__hero-card-back {
   position: absolute;
   left: 18%;
@@ -242,7 +242,7 @@ button {
 
 /* ---------- Paused / step-down state ----------
    paused.svg is the same self-contained-illustration pattern as celeb.svg (circle + full
-   card stack baked in) — only the alert icon inside the circle is a separate layer. */
+   card stack baked in). Only the alert icon inside the circle is a separate layer. */
 
 .popup__hero-icon {
   position: absolute;
@@ -284,7 +284,7 @@ button {
 }
 
 /* --active (RING_SPINNER_ICON) and --pending (PENDING_ICON) draw their own full ring/tick
-   graphic filling the 24px box, so they get no container border — only --done needs one,
+   graphic filling the 24px box, so they get no container border. Only --done needs one,
    framing the smaller checkmark glyph. */
 .popup__progress-icon--active svg {
   animation: popup-spin 0.9s linear infinite;

@@ -1,6 +1,6 @@
 // Known third-party affiliate tracking signals, used to detect a *competing* affiliate
 // relationship already active on a merchant site (the step-down rule). This list grows
-// as networks are integrated/observed — it is not exhaustive.
+// as networks are integrated/observed. It is not exhaustive.
 export const KNOWN_AFFILIATE_COOKIE_NAME_PATTERNS: RegExp[] = [
   /^irclickid$/i, // Impact
   /^cj[_-]?event$/i, // CJ Affiliate

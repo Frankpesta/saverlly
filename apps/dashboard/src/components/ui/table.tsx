@@ -52,13 +52,13 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
 }
 
 // motion.tr's own richer event types (drag/animation lifecycle) conflict with the plain DOM
-// handler types of the same name on React.ComponentProps<"tr"> — omit them since no caller
+// handler types of the same name on React.ComponentProps<"tr">. Omit them since no caller
 // actually passes them (rows only ever get key/className/data-* + the standard cell children).
 type TableRowProps = Omit<
   React.ComponentProps<"tr">,
   "onDrag" | "onDragStart" | "onDragEnd" | "onAnimationStart" | "onAnimationEnd" | "onAnimationIteration"
 > & {
-  /** Row position in a freshly-loaded list — when set, the row fades/slides in with a
+  /** Row position in a freshly-loaded list. When set, the row fades/slides in with a
    *  per-index stagger delay instead of rendering statically. Omit for tables that don't
    *  want entrance animation (e.g. rows added one at a time, not from a bulk fetch). */
   index?: number
@@ -86,7 +86,7 @@ function TableRow({ className, index, ...props }: TableRowProps) {
   )
 }
 
-/** A trailing action cell's inner wrapper — icon buttons (Edit, delete, etc), always visible
+/** A trailing action cell's inner wrapper. Icon buttons (Edit, delete, etc), always visible
  *  rather than hover-revealed, so the actions are discoverable without a mouse. */
 function TableRowActions({ className, ...props }: React.ComponentProps<"div">) {
   return (

@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { BentoGrid } from "@/components/dashboard/bento-grid"
-import { DatePicker } from "@/components/dashboard/date-picker"
+import { DateRangePicker } from "@/components/dashboard/date-picker"
 import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import {
@@ -125,7 +125,7 @@ export default function AdminCommissionsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Commissions</h2>
+          <h2 className="text-title">Commissions</h2>
           <p className="text-sm text-muted-foreground">
             Every commission event platform-wide, pending vs. confirmed clearly distinguished.
           </p>
@@ -202,13 +202,18 @@ export default function AdminCommissionsPage() {
             ]}
           />
         </div>
+        {/* One range control rather than two independent single pickers, so the two dates read
+            as one filter and can be drag-selected or picked from a preset in the calendar. */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="filter-from">From</Label>
-          <DatePicker id="filter-from" value={dateFrom} onChange={setDateFrom} />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="filter-to">To</Label>
-          <DatePicker id="filter-to" value={dateTo} onChange={setDateTo} />
+          <Label htmlFor="filter-range">Date range</Label>
+          <DateRangePicker
+            id="filter-range"
+            value={{ from: dateFrom, to: dateTo }}
+            onChange={(next) => {
+              setDateFrom(next.from)
+              setDateTo(next.to)
+            }}
+          />
         </div>
       </div>
 

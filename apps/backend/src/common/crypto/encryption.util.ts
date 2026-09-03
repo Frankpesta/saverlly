@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
-// AES-256-GCM for encrypting secrets at rest (e.g. AffiliateProgram.apiCredentials) —
+// AES-256-GCM for encrypting secrets at rest (e.g. AffiliateProgram.apiCredentials)
 // distinct from token-hash.util's one-way hashing, since credentials must be
 // recovered later to actually call the affiliate network's API.
 const ALGORITHM = 'aes-256-gcm';

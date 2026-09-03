@@ -38,6 +38,7 @@ const locations: Location[] = [
     latitude: null,
     longitude: null,
     tags: ["mall"],
+    locationSetupCode: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
@@ -119,7 +120,7 @@ describe("LocationsPage", () => {
 
   // More interaction steps than the default 5000ms budget comfortably covers now that
   // City/State are each their own combobox popover (open, search, pick), not plain text
-  // inputs — genuinely slower, not a hang (confirmed passing well within 20s solo).
+  // inputs. Genuinely slower, not a hang (confirmed passing well within 20s solo).
   it("walks the New Location wizard and submits the create request", async () => {
     mockFetchWith("KIOSK_OWNER")
     renderWithClient(<LocationsPage />)

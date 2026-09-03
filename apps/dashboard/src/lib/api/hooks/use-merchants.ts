@@ -7,7 +7,7 @@ import type { AttributionMethod, CheckoutRecipe, Merchant } from "@/lib/api/type
 const merchantsKey = ["merchants"] as const
 const merchantKey = (id: string) => ["merchants", id] as const
 
-/** Admin-only — KIOSK_OWNER gets a 403 here, so this hook must never be called from a portal page. */
+/** Admin-only. KIOSK_OWNER gets a 403 here, so this hook must never be called from a portal page. */
 export function useMerchants() {
   return useQuery({
     queryKey: merchantsKey,

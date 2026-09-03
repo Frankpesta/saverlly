@@ -16,7 +16,7 @@ const e = React.createElement;
 const TEAL = '#58C3B7';
 const BLACK = '#1C1C1C';
 const MUTED = '#6B6B6B';
-// Web-safe fallback stack — the dashboard's Plus Jakarta Sans isn't reliably rendered by
+// Web-safe fallback stack. The dashboard's Plus Jakarta Sans isn't reliably rendered by
 // most email clients (no self-hosted @font-face support), so brand colors carry the
 // identity here instead of the display font.
 const FONT_STACK = 'Helvetica, Arial, sans-serif';
@@ -81,7 +81,7 @@ export function EmailLayout({
                 margin: 0,
               },
             },
-            'Saverlly — kiosk affiliate savings platform. This is a transactional email related to your account.',
+            'Saverlly, the kiosk affiliate savings platform. This is a transactional email related to your account.',
           ),
         ),
       ),

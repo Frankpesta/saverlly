@@ -23,14 +23,14 @@ export const ANNOUNCEMENT_OVERLAY_TASK_NAME = 'SaverllyAnnouncementOverlay';
 
 /**
  * How long to wait for the overlay to report that it actually rendered. This waits for the
- * *render*, not for the kiosk user to dismiss it — the window stays up long after this.
+ * *render*, not for the kiosk user to dismiss it. The window stays up long after this.
  *
  * Generous on purpose: WebView2's first initialization against a fresh user-data folder (i.e. the
  * first announcement ever shown to a given Windows account) measured well over 20s on a warm dev
  * box, while every subsequent one was near-instant. Timing out early there would report a failure
- * for an overlay that does appear a moment later. A late receipt is not harmful even so — the
+ * for an overlay that does appear a moment later. A late receipt is not harmful even so. The
  * lock file makes the next cycle return `already-showing`, which is transient and doesn't consume
- * the retry budget — but the cheap fix is simply not to be impatient.
+ * the retry budget. But the cheap fix is simply not to be impatient.
  */
 export const OVERLAY_RENDER_TIMEOUT_MS = 60_000;
 const OVERLAY_RECEIPT_POLL_MS = 250;
@@ -40,7 +40,7 @@ const OVERLAY_RECEIPT_POLL_MS = 250;
 export const OVERLAY_LOCK_STALE_MS = 30 * 60_000;
 
 /** Why an announcement didn't make it onto the screen. Only `shown: true` may be recorded as
- *  displayed — everything else means the kiosk user saw nothing. */
+ *  displayed. Everything else means the kiosk user saw nothing. */
 export type OverlayResult =
   | { shown: true; renderer: 'webview2' | 'legacy' }
   | {
@@ -78,8 +78,8 @@ interface ScriptContext {
  * Wraps a renderer's PowerShell in the reporting harness both renderers share: take the
  * on-screen lock, run the body, and report back exactly one receipt.
  *
- * Everything is inside try/catch/finally so that *no* failure mode is silent — a missing
- * assembly, a broken runtime, a malformed layout — because the agent treats "no receipt" as
+ * Everything is inside try/catch/finally so that *no* failure mode is silent, a missing
+ * assembly, a broken runtime, a malformed layout. Because the agent treats "no receipt" as
  * "the kiosk user saw nothing", and a script that dies without reporting would otherwise be
  * indistinguishable from one that never ran.
  */
@@ -114,7 +114,7 @@ ${body}
   Write-OverlayResult 'failed' $_.Exception.Message
 } finally {
   # If the body somehow returned without reporting, say so rather than leaving the agent to
-  # time out — a wrong-but-explicit answer arrives 20s sooner than silence.
+  # time out, a wrong-but-explicit answer arrives 20s sooner than silence.
   Write-OverlayResult 'failed' 'overlay exited without rendering'
   try { Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue } catch { }
 }
@@ -130,12 +130,12 @@ const TOAST_CORNER_RADIUS = 12;
  * itself without stealing focus.
  *
  * Both halves need real C#. `SetProcessDpiAwarenessContext` has to run before any window exists,
- * and — more importantly — `ShowWithoutActivation` and `CreateParams` are protected members, so
+ * and. More importantly, `ShowWithoutActivation` and `CreateParams` are protected members, so
  * WS_EX_NOACTIVATE can only be set by subclassing Form. That is the whole difference between a
  * notification and an interruption: without it, a toast appearing while a kiosk user is typing
  * takes their keystrokes.
  *
- * Compiled at runtime by Add-Type, and the caller treats a compilation failure as non-fatal —
+ * Compiled at runtime by Add-Type, and the caller treats a compilation failure as non-fatal
  * see the try/catch at the use site.
  */
 const TOAST_FORM_SOURCE = `
@@ -153,7 +153,7 @@ public class SaverllyToastForm : Form {
   [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
 
   /// Without this the process is DPI-unaware, so Windows renders the window at 96 DPI and then
-  /// bitmap-stretches it to the screen's scale factor — which is why the overlay looked soft on
+  /// bitmap-stretches it to the screen's scale factor. Which is why the overlay looked soft on
   /// every kiosk running at 125% or 150%. Aware, WebView2 gets the real device pixels and paints
   /// text at native resolution.
   public static void MakeDpiAware() {
@@ -181,8 +181,8 @@ public class SaverllyToastForm : Form {
  * The WebView2-hosted overlay: a borderless, always-on-top card in the bottom-right corner of the
  * kiosk screen that renders the announcement's saved canvas layout as real HTML.
  *
- * The document itself comes from @saverlly/shared-types' renderAnnouncementLayoutHtml — the exact
- * function the dashboard's editor previews with — so what a kiosk owner designed is what appears
+ * The document itself comes from @saverlly/shared-types' renderAnnouncementLayoutHtml. The exact
+ * function the dashboard's editor previews with. So what a kiosk owner designed is what appears
  * here. This script's only job is to put a browser on screen at the right size and place, and
  * close when told to.
  *
@@ -197,7 +197,7 @@ function webView2OverlayScript(htmlPath: string, dllDir: string, context: Script
     context,
     `
 # WebView2 needs a writable user-data folder. The install dir is under Program Files, which the
-# kiosk user can't write to, so this points it at their own profile instead — the relay task runs
+# kiosk user can't write to, so this points it at their own profile instead. The relay task runs
 # as them, so %LOCALAPPDATA% is theirs.
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:LOCALAPPDATA 'SaverllyAgent\\WebView2'
 New-Item -ItemType Directory -Force -Path $env:WEBVIEW2_USER_DATA_FOLDER | Out-Null
@@ -209,7 +209,7 @@ Add-Type -Path '${psQuote(path.join(dllDir, 'Microsoft.Web.WebView2.WinForms.dll
 
 # Runtime C# compilation can fail on a locked-down machine (no writable %TEMP%, stripped compiler).
 # That costs the toast its DPI awareness and its no-focus-steal behaviour, but a blurry toast that
-# takes focus is still an announcement the kiosk user sees — failing the whole showing over it
+# takes focus is still an announcement the kiosk user sees. Failing the whole showing over it
 # would not be.
 $useToastForm = $false
 try {
@@ -232,7 +232,7 @@ $form.ShowInTaskbar = $false
 $form.BackColor = [System.Drawing.Color]::White
 
 # Physical pixels per canvas pixel. Read from the desktop DC rather than the form, so it is known
-# before the window is sized — and it is only meaningful at all because MakeDpiAware ran first.
+# before the window is sized, and it is only meaningful at all because MakeDpiAware ran first.
 $dpiScale = 1.0
 try {
   $desktop = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero)
@@ -278,7 +278,7 @@ $web.DefaultBackgroundColor = [System.Drawing.Color]::White
 $web.add_CoreWebView2InitializationCompleted({
   param($sender, $e)
   # A failed init leaves a blank black window with no way out, which is worse than showing
-  # nothing at all — report it and close, so the agent knows not to count this as shown.
+  # nothing at all. Report it and close, so the agent knows not to count this as shown.
   if (-not $e.IsSuccess) {
     Write-OverlayResult 'failed' ('CoreWebView2 initialization failed: ' + $e.InitializationException.Message)
     $form.Close()
@@ -298,7 +298,7 @@ $web.add_CoreWebView2InitializationCompleted({
 })
 
 # Escape hatch for a layout whose dismiss button ended up unclickable. Only reachable on the
-# fallback plain Form — a WS_EX_NOACTIVATE window never holds keyboard focus, which is the point
+# fallback plain Form, a WS_EX_NOACTIVATE window never holds keyboard focus, which is the point
 # of it. The renderer's own chrome close button and auto-dismiss timer are what actually
 # guarantee a way out now, on every layout, designed or not.
 $form.KeyPreview = $true
@@ -306,7 +306,7 @@ $form.add_KeyDown({ param($keySender, $keyArgs) if ($keyArgs.KeyCode -eq 'Escape
 
 $form.Controls.Add($web)
 $web.Source = [Uri]'${psQuote(fileUrl(htmlPath))}'
-# Reported once the document has actually painted, not merely when the control initialized —
+# Reported once the document has actually painted, not merely when the control initialized
 # NavigationCompleted is the closest signal to "the kiosk user is looking at it".
 $web.add_NavigationCompleted({
   param($navSender, $navArgs)
@@ -320,14 +320,14 @@ $web.add_NavigationCompleted({
   );
 }
 
-/** file:/// URL for a Windows path — WebView2's Source only accepts an absolute URI. */
+/** file:/// URL for a Windows path. WebView2's Source only accepts an absolute URI. */
 function fileUrl(filePath: string): string {
   return `file:///${filePath.replace(/\\/g, '/')}`;
 }
 
 /**
  * The pre-canvas WinForms dialog, kept as a fallback for machines where the WebView2 overlay
- * can't run — an agent updated before the installer delivered the assemblies, a kiosk that was
+ * can't run, an agent updated before the installer delivered the assemblies, a kiosk that was
  * offline when the runtime bootstrapper would have run, or the gap between file extraction and
  * that bootstrapper during a fresh install. Showing the old fixed layout is a real degradation
  * (custom positioning, fonts and colors are lost) but it still puts the announcement in front of
@@ -347,7 +347,7 @@ Add-Type -AssemblyName System.Drawing
 $form = New-Object System.Windows.Forms.Form
 $form.Text = '${psQuote(title)}'
 # Manual, then anchored to the working area's bottom-right corner once the final height is known
-# (the image block below grows it) — the fallback should land in the same place as the real
+# (the image block below grows it). The fallback should land in the same place as the real
 # toast, not in the middle of whatever the kiosk user is looking at.
 $form.StartPosition = 'Manual'
 $form.TopMost = $true
@@ -407,7 +407,7 @@ export function hasWebView2Assemblies(dllDir: string): boolean {
  * Where the Evergreen runtime records itself. Same three keys the installer's
  * `WebView2RuntimeMissing` checks: a per-machine install writes to HKLM (under WOW6432Node on
  * 64-bit), a per-user one to HKCU. In practice the agent runs as SYSTEM, so HKLM is the one that
- * will match — HKCU is checked for parity with the installer rather than because it's likely.
+ * will match. HKCU is checked for parity with the installer rather than because it's likely.
  */
 export const WEBVIEW2_RUNTIME_KEYS = [
   'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
@@ -418,7 +418,7 @@ export const WEBVIEW2_RUNTIME_KEYS = [
 /**
  * Whether the WebView2 *runtime* (the browser itself) is installed, as opposed to the host
  * assemblies that talk to it. A `pv` of '0.0.0.0' means "known but not actually installed" and
- * counts as missing — Microsoft's own documented check.
+ * counts as missing. Microsoft's own documented check.
  */
 export function isWebView2RuntimeInstalled(): boolean {
   for (const key of WEBVIEW2_RUNTIME_KEYS) {
@@ -426,7 +426,7 @@ export function isWebView2RuntimeInstalled(): boolean {
     try {
       output = execFileSync('reg', ['query', key, '/v', 'pv'], { encoding: 'utf8' });
     } catch {
-      continue; // key absent — reg exits nonzero
+      continue; // key absent. Reg exits nonzero
     }
     const match = /\bpv\s+REG_SZ\s+(\S+)/i.exec(output);
     if (match && match[1] !== '0.0.0.0') {
@@ -442,10 +442,10 @@ export function isWebView2RuntimeInstalled(): boolean {
  *
  * Checking only for the assemblies was a real bug. The installer copies them during file
  * extraction but installs the runtime afterwards (and skips it entirely when offline), so there
- * is a window — including the `--setup-once` run's very first announcement poll — where the DLLs
+ * is a window. Including the `--setup-once` run's very first announcement poll. Where the DLLs
  * exist but the runtime doesn't. The overlay would then take the WebView2 path, fail to
  * initialize, close itself, and show the kiosk user nothing at all. Worse, because dispatching
- * the overlay is fire-and-forget, the announcement was still recorded as shown — burning a
+ * the overlay is fire-and-forget, the announcement was still recorded as shown. Burning a
  * ONCE announcement's single appearance on a blank screen.
  */
 export function canRenderWebView2Overlay(dllDir: string): boolean {
@@ -456,7 +456,7 @@ export function canRenderWebView2Overlay(dllDir: string): boolean {
  * Creates the exchange folder and grants Users modify access on it.
  *
  * The agent runs as SYSTEM, so a folder it creates under %PROGRAMDATA% leaves plain Users with
- * read-only access — and the overlay runs as the *logged-in user*. Without this grant the
+ * read-only access, and the overlay runs as the *logged-in user*. Without this grant the
  * overlay could never write its receipt, so every announcement would look like it failed to
  * render and none would ever be recorded as shown.
  *
@@ -482,7 +482,7 @@ function ensureOverlayExchangeDir(dir: string): void {
  * either way the second announcement would be recorded as shown without anyone seeing it.
  *
  * A lock file rather than `schtasks /query` parsing because that command's Status field *and*
- * its values are localized. A lock older than OVERLAY_LOCK_STALE_MS is treated as abandoned —
+ * its values are localized. A lock older than OVERLAY_LOCK_STALE_MS is treated as abandoned
  * a killed process or a logoff mid-show would otherwise block announcements forever.
  */
 export function isOverlayShowing(lockPath: string = announcementOverlayLockPath()): boolean {
@@ -504,7 +504,7 @@ interface OverlayReceipt {
 }
 
 /**
- * Reads the overlay's receipt, but only if it belongs to `attemptId` — a receipt left behind by
+ * Reads the overlay's receipt, but only if it belongs to `attemptId`, a receipt left behind by
  * an earlier announcement must never be mistaken for this one's, which is exactly what would
  * happen if the file's mere existence were treated as success.
  */
@@ -523,7 +523,7 @@ function readOverlayReceipt(resultPath: string, attemptId: string): OverlayRecei
 
 /** Whoever is logged into the local console right now, or null if no one is (e.g. sitting at
  * the lock/login screen). The always-on background agent runs as SYSTEM in Windows Session 0
- * (see run-at-login.ts's `/ru SYSTEM`), which has no desktop of its own to render a popup on —
+ * (see run-at-login.ts's `/ru SYSTEM`), which has no desktop of its own to render a popup on
  * this is how it finds out whose session to hand the popup off to instead. Works from a
  * SYSTEM/no-admin-token context via WMI; no token duplication or native addon needed. */
 export function getInteractiveUsername(): string | null {
@@ -544,8 +544,8 @@ export function getInteractiveUsername(): string | null {
 /** (Re)registers the scheduled task that actually renders the popup, targeting whichever user
  * is currently logged in. `/it` (interactive token) is what lets Task Scheduler launch it in
  * that user's real session without needing their password on file. Unconditionally overwritten
- * on every call — same self-healing-over-diffing approach as chrome-policy.ts's
- * writeListPolicy — so a kiosk where a different user ends up logged in next time just works,
+ * on every call. Same self-healing-over-diffing approach as chrome-policy.ts's
+ * writeListPolicy. So a kiosk where a different user ends up logged in next time just works,
  * with no stale-task-targeting-the-wrong-user state to go stale. The far-future one-time
  * trigger (`/sc once /sd 01/01/2199`) means the task itself never fires on its own; it only ever
  * runs when explicitly triggered via `schtasks /run`, right below.
@@ -599,14 +599,14 @@ function newAttemptId(): string {
  *
  * The background agent runs as SYSTEM in Session 0 (no visible desktop), so a direct
  * `spawn('powershell.exe', ...)` here would report success while being physically invisible to
- * whoever's using the kiosk — confirmed the real cause of "created an announcement, never saw
+ * whoever's using the kiosk. Confirmed the real cause of "created an announcement, never saw
  * it" reports. Instead, this writes the popup script to disk and relays it through a per-user
  * scheduled task, which Task Scheduler correctly launches inside the logged-in user's own
  * session (see ensureOverlayRelayTask/getInteractiveUsername above).
  *
  * Because that relay is asynchronous and cross-session, dispatching it successfully says nothing
  * about whether anything rendered. The overlay therefore writes back a receipt, and this waits
- * for it — the caller must only record an announcement as shown on `shown: true`. The wait is for
+ * for it. The caller must only record an announcement as shown on `shown: true`. The wait is for
  * the *render*, not the dismissal: the window stays up long after this returns, so the poll loop
  * is never blocked on a kiosk user's attention.
  *

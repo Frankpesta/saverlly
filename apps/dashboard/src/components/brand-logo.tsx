@@ -1,6 +1,6 @@
 import Image from "next/image"
 
-// Pre-downsampled (box-filter, not runtime-scaled) small wordmark assets — the full-res
+// Pre-downsampled (box-filter, not runtime-scaled) small wordmark assets. The full-res
 // source is ~230px tall; scaling that down to ~22px at render time produces moiré/wave
 // artifacts on the thin letterforms, so a properly resampled small version ships instead.
 // See apps/dashboard/design/ for the full-res originals if a larger logo is ever needed.
@@ -22,7 +22,7 @@ export function BrandLogo({
       alt="Saverlly"
       width={LOGO_SM.width}
       height={LOGO_SM.height}
-      // Explicit numeric width, not "auto" — this renders inside flex-column containers
+      // Explicit numeric width, not "auto". This renders inside flex-column containers
       // (e.g. the auth split panel) where default align-items: stretch would otherwise
       // stretch an "auto" width to fill the container while height stays pinned, badly
       // distorting the wordmark.

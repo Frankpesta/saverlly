@@ -109,29 +109,15 @@ describe("AdminSettingsPage", () => {
     expect(await screen.findByText("Updated Admin")).toBeInTheDocument()
   })
 
-  it("lists existing employees and adds a new one, revealing the generated password", async () => {
-    const user = userEvent.setup()
+  it("lists existing employees and links Add employee to its own page", async () => {
     renderWithClient(<AdminSettingsPage />)
 
     expect(await screen.findByText(/\(you\)/)).toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: /add employee/i }))
-
-    const dialog = await screen.findByRole("dialog")
-    await user.type(within(dialog).getByLabelText("Name"), "New Teammate")
-    await user.type(within(dialog).getByLabelText("Email"), "teammate@example.com")
-    await user.click(within(dialog).getByRole("button", { name: /^add employee$/i }))
-
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/users/admins",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ name: "New Teammate", email: "teammate@example.com" }),
-        }),
-      ),
+    // Adding an employee is now a page of its own
+    // (settings/employees/new/page.spec.tsx exercises the actual form).
+    expect(screen.getByRole("link", { name: /add employee/i })).toHaveAttribute(
+      "href",
+      "/admin/settings/employees/new",
     )
-
-    expect(await within(dialog).findByText("Generated-Password-1")).toBeInTheDocument()
   })
 })

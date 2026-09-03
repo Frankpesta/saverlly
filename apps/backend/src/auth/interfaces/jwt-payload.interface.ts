@@ -9,7 +9,7 @@ export interface JwtPayload {
 
 export interface RefreshTokenPayload {
   sub: string;
-  // Random nonce so two refreshes issued within the same iat-second never collide —
+  // Random nonce so two refreshes issued within the same iat-second never collide
   // JWT signing is otherwise deterministic for an identical header+payload+secret.
   jti: string;
 }

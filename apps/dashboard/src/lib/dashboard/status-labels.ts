@@ -41,7 +41,7 @@ export const KIOSK_STATUS_BADGE_VARIANT: Record<KioskStatus, BadgeVariant> = {
 }
 
 /** Client-computed from an announcement's startAt/endAt window (see each announcements list
- *  page's own `statusFor`) — not a persisted backend field, but still a real status worth the
+ *  page's own `statusFor`). Not a persisted backend field, but still a real status worth the
  *  same centralized color treatment as the persisted ones above. */
 export type AnnouncementStatus = "Scheduled" | "Active" | "Expired"
 

@@ -4,6 +4,8 @@ import * as React from "react"
 import { PlusIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
+import { AutofillDecoy, useAutofillReadOnly } from "@/components/dashboard/autofill-guard"
 
 type Row = { id: string; key: string; value: string }
 
@@ -20,7 +22,14 @@ function rowsFromRecord(record: Record<string, string>): Row[] {
     : [{ id: newRowId(), key: "", value: "" }]
 }
 
-/** A minimal repeatable key/value row editor, for freeform Record<string,string> fields like credentials. */
+/** A minimal repeatable key/value row editor, for freeform Record<string,string> fields like
+ * credentials.
+ *
+ * The value input needs active protection from Chrome's autofill. It is a masked field sitting
+ * next to a plain text field inside a form, which Chrome's heuristics read as a login form, so
+ * it was being pre-filled with the user's own saved Saverlly password. The client reported this
+ * as "why is the Value field filled out by default?" on the affiliate program form. There is no
+ * code-level default; the browser was putting it there. */
 export function KeyValueEditor({
   value,
   onChange,
@@ -29,6 +38,8 @@ export function KeyValueEditor({
   onChange: (next: Record<string, string>) => void
 }) {
   const [rows, setRows] = React.useState<Row[]>(() => rowsFromRecord(value))
+  // Per-instance suffix so the field names are not the generic "value" that autofill matches on.
+  const nameSuffix = React.useId().replace(/:/g, "")
 
   function emit(nextRows: Row[]) {
     setRows(nextRows)
@@ -53,34 +64,67 @@ export function KeyValueEditor({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="relative flex flex-col gap-2">
+      {/* Absorbs the saved-credential autofill so it never reaches the rows below. */}
+      <AutofillDecoy />
       {rows.map((row) => (
-        <div key={row.id} className="flex items-center gap-2">
-          <Input
-            placeholder="Key"
-            value={row.key}
-            onChange={(e) => updateRow(row.id, "key", e.target.value)}
-          />
-          <Input
-            placeholder="Value"
-            type="password"
-            value={row.value}
-            onChange={(e) => updateRow(row.id, "value", e.target.value)}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => removeRow(row.id)}
-            aria-label="Remove row"
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </div>
+        <CredentialRow
+          key={row.id}
+          row={row}
+          nameSuffix={nameSuffix}
+          onUpdate={updateRow}
+          onRemove={removeRow}
+        />
       ))}
       <Button type="button" variant="outline" size="sm" className="w-fit gap-1.5" onClick={addRow}>
         <PlusIcon className="size-4" />
         Add credential
+      </Button>
+    </div>
+  )
+}
+
+function CredentialRow({
+  row,
+  nameSuffix,
+  onUpdate,
+  onRemove,
+}: {
+  row: Row
+  nameSuffix: string
+  onUpdate: (id: string, field: "key" | "value", next: string) => void
+  onRemove: (id: string) => void
+}) {
+  const autofillGuard = useAutofillReadOnly()
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        placeholder="Key"
+        autoComplete="off"
+        name={`credential-key-${nameSuffix}-${row.id}`}
+        data-1p-ignore
+        value={row.key}
+        onChange={(e) => onUpdate(row.id, "key", e.target.value)}
+      />
+      <PasswordInput
+        placeholder="Value"
+        autoComplete="off"
+        name={`credential-value-${nameSuffix}-${row.id}`}
+        data-1p-ignore
+        data-lpignore="true"
+        value={row.value}
+        onChange={(e) => onUpdate(row.id, "value", e.target.value)}
+        {...autofillGuard}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => onRemove(row.id)}
+        aria-label="Remove row"
+      >
+        <XIcon className="size-4" />
       </Button>
     </div>
   )

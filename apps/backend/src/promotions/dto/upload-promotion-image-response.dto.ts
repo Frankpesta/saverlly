@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class UploadPromotionImageResponseDto {
   @ApiProperty({
     description:
-      'Absolute URL of the uploaded image — use it as imageSmallUrl or imageLargeUrl.',
+      'Absolute URL of the uploaded image. Use it as imageSmallUrl or imageLargeUrl.',
   })
   url: string;
 

@@ -23,7 +23,7 @@ const RESET_TOKEN_TTL_MINUTES = 30;
 interface ResetTokenPayload {
   sub: string;
   purpose: 'password-reset';
-  /** Fingerprint of the passwordHash at the moment this token was issued — redemption
+  /** Fingerprint of the passwordHash at the moment this token was issued. Redemption
    * re-checks it matches the user's *current* passwordHash, giving single-use semantics
    * with no extra storage: the first successful reset changes the hash, invalidating any
    * other still-unexpired token for the same user. */
@@ -125,13 +125,13 @@ export class AuthService {
       passwordHash,
     );
 
-    // Issue a fresh token pair immediately, same shape as login — the caller's current
+    // Issue a fresh token pair immediately, same shape as login. The caller's current
     // access token still carries mustChangePassword: true and would otherwise keep
     // redirecting them for up to its remaining TTL until the next natural refresh.
     return this.issueTokens(updated.id, updated.role, updated.kioskId, false);
   }
 
-  /** Always resolves the same way regardless of whether the email matches an account — the
+  /** Always resolves the same way regardless of whether the email matches an account. The
    * caller (controller) returns one generic response either way, so this never reveals
    * whether an email is registered. */
   async forgotPassword(email: string): Promise<void> {
@@ -202,7 +202,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired reset link');
     }
     if (this.passwordFingerprint(user.passwordHash) !== payload.fp) {
-      // Password already changed since this token was issued — either already used, or a
+      // Password already changed since this token was issued. Either already used, or a
       // change-password/another reset happened in the meantime. Either way, not valid anymore.
       throw new UnauthorizedException('This reset link has already been used');
     }
@@ -212,7 +212,7 @@ export class AuthService {
       PASSWORD_BCRYPT_ROUNDS,
     );
     await this.usersService.updatePassword(user.id, passwordHash);
-    // Also revoke any existing session — a reset should sign out anywhere already logged in.
+    // Also revoke any existing session, a reset should sign out anywhere already logged in.
     await this.usersService.setRefreshTokenHash(user.id, null);
   }
 
@@ -236,7 +236,7 @@ export class AuthService {
       { ...accessPayload },
       {
         secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        // Kept long relative to a typical session — proxy.ts's silent-refresh-on-expiry
+        // Kept long relative to a typical session. Proxy.ts's silent-refresh-on-expiry
         // path covers a still-expired case anyway, but a short TTL here just means every
         // dashboard tab open for a while pays a refresh round-trip on its next navigation
         // for no real security benefit (the refresh token is the actual revocation point).

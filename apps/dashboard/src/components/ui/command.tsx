@@ -44,7 +44,7 @@ function CommandDialog({
       <DialogContent
         className={cn(
           // DialogContent's close button defaults to top-5/right-5, tuned for a normal padded
-          // header — this dialog's header is sr-only and its real "header" is the compact h-9
+          // header. This dialog's header is sr-only and its real "header" is the compact h-9
           // search bar, so the button needs to sit higher to stay centered against it.
           "overflow-hidden p-0 ring-[var(--brand-teal-soft)] [&_[data-slot=dialog-close]]:top-1.5 [&_[data-slot=dialog-close]]:right-3",
           className,
@@ -56,7 +56,7 @@ function CommandDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {/* shouldFilter=false: results already come pre-scoped/filtered from the backend
-            search endpoint — cmdk's own fuzzy client-side filter would re-filter against
+            search endpoint, because cmdk's own fuzzy client-side filter would re-filter against
             each item's `value` and could hide a backend-approved match (e.g. one that only
             matches on a subtitle field cmdk never sees). */}
         <Command
@@ -126,7 +126,7 @@ function CommandItem({ className, ...props }: React.ComponentProps<typeof Comman
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group relative flex cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}

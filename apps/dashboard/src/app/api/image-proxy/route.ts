@@ -5,10 +5,10 @@ import type { NextRequest } from "next/server"
  * Streams an arbitrary image URL back through the dashboard's own (HTTPS) origin.
  *
  * Announcement images can point at the backend's own upload storage, which today is served
- * over plain HTTP (`PUBLIC_BACKEND_URL`, no TLS yet — see DEPLOYMENT.md's known limitations).
+ * over plain HTTP (`PUBLIC_BACKEND_URL`, no TLS yet. See DEPLOYMENT.md's known limitations).
  * A bare `<img src="http://...">` on the HTTPS-served dashboard gets silently mixed-content
  * blocked by the browser (Chrome auto-upgrades it to https, which then fails against a server
- * that doesn't speak TLS) — the request never even shows up as a visible error, it just never
+ * that doesn't speak TLS). The request never even shows up as a visible error, it just never
  * renders. Fetching it server-side here and re-serving the bytes over this same-origin HTTPS
  * route sidesteps that entirely, and also works for any arbitrary external image URL a user
  * pastes directly (the wizard still allows that as an alternative to uploading).

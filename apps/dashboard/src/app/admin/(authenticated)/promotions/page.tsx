@@ -19,7 +19,7 @@ export default function AdminPromotionsPage() {
   const [filter, setFilter] = React.useState<Filter>("All")
 
   // Status is time-derived, so it has to be recomputed as the clock crosses a start/end
-  // boundary — not just when the query refetches.
+  // boundary. Not just when the query refetches.
   const [now, setNow] = React.useState(() => Date.now())
   React.useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60_000)
@@ -50,7 +50,7 @@ export default function AdminPromotionsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Promotions</h2>
+          <h2 className="text-title">Promotions</h2>
           <p className="text-sm text-muted-foreground">
             Sponsored creatives shown inside the Saverlly Chrome extension.
           </p>
@@ -61,7 +61,7 @@ export default function AdminPromotionsPage() {
         </Link>
       </div>
 
-      {/* A single quiet filter rail instead of a row of stat tiles — the counts and the filtering
+      {/* A single quiet filter rail instead of a row of stat tiles. The counts and the filtering
           are the same information, so they're the same control rather than two stacked bands. */}
       <div className="flex flex-wrap items-center gap-1 border-b border-black/8 pb-px dark:border-white/10">
         {FILTERS.map((f) => {

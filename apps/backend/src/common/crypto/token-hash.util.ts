@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'crypto';
 
 /**
- * For hashing high-entropy opaque tokens (JWTs, device tokens) — not passwords.
+ * For hashing high-entropy opaque tokens (JWTs, device tokens). Not passwords.
  * bcrypt truncates input past 72 bytes, which is unsafe for full-length tokens;
  * SHA-256 has no such limit and tokens already carry enough entropy on their own.
  */

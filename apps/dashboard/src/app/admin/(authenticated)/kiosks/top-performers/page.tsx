@@ -74,9 +74,8 @@ export default function TopPerformingKiosksPage() {
       </Link>
 
       <WorkspaceHeader
-        eyebrow="Leaderboard"
         title="Top performing kiosks"
-        description="Every kiosk ranked by confirmed commission share, highest first."
+        description="Ranked by confirmed commission share, highest first."
       />
 
       <CollectionSummary
@@ -86,7 +85,7 @@ export default function TopPerformingKiosksPage() {
         ]}
       />
 
-      <CollectionArea title="Kiosks" description="Ranked by confirmed kiosk commission share." count={totalItems}>
+      <CollectionArea title="Kiosks" titleHidden count={totalItems}>
         <div className="flex flex-col gap-2">
           <Table>
             <TableHeader>

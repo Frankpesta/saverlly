@@ -6,7 +6,7 @@ import { buildSwaggerConfig } from './swagger.config';
 
 async function bootstrap() {
   // rawBody: true preserves the raw request buffer (req.rawBody) alongside the normal
-  // parsed JSON body — needed for Stripe webhook signature verification, which must run
+  // parsed JSON body. Needed for Stripe webhook signature verification, which must run
   // against the exact bytes Stripe sent, not a re-serialized copy.
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.useGlobalPipes(

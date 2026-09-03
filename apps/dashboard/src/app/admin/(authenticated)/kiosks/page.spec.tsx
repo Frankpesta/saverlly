@@ -146,39 +146,16 @@ describe("KiosksPage", () => {
     expect(screen.getByText("1 of 2 kiosks active")).toBeInTheDocument()
   })
 
-  it("walks the New Kiosk wizard's steps, submits the create request, and reveals the generated password", async () => {
+  it("links New Kiosk to the dedicated create page rather than opening a modal", async () => {
     renderWithClient(<KiosksPage />)
 
     await screen.findByText("Kiosk One")
-    await userEvent.click(screen.getByRole("button", { name: /new kiosk/i }))
-
-    await userEvent.type(screen.getByLabelText("Name"), "Kiosk Three")
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
-
-    const revenueInput = await screen.findByLabelText("Revenue share (%)")
-    await userEvent.clear(revenueInput)
-    await userEvent.type(revenueInput, "40")
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
-
-    await userEvent.type(await screen.findByLabelText("Name"), "New Owner")
-    await userEvent.type(screen.getByLabelText("Owner email"), "newowner3@example.com")
-    await userEvent.click(screen.getByRole("button", { name: /create kiosk/i }))
-
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/kiosks",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            name: "Kiosk Three",
-            revenueSharePct: 40,
-            owner: { name: "New Owner", email: "newowner3@example.com" },
-          }),
-        }),
-      ),
+    // The wizard used to open here as a Dialog. Creating a kiosk is now a page of its own
+    // (kiosks/new/page.spec.tsx exercises the actual form), so all this list page owns is
+    // the link to it.
+    expect(screen.getByRole("link", { name: /new kiosk/i })).toHaveAttribute(
+      "href",
+      "/admin/kiosks/new",
     )
-
-    expect(await screen.findByText("Gen3ratedPassw0rd!")).toBeInTheDocument()
-    await userEvent.click(screen.getByRole("button", { name: /done/i }))
   })
 })

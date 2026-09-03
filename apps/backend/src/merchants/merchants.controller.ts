@@ -20,7 +20,7 @@ export class MerchantsController {
   @ApiOperation({
     summary: 'Add a store',
     description:
-      'Tracking method is required — even for a merchant with no coupon API at all, since that is ' +
+      'Tracking method is required. Even for a merchant with no coupon API at all, since that is ' +
       'what makes commission attribution work. Coupon sourcing (affiliateProgramId) is optional.',
   })
   @ApiResponse({ status: 201, description: 'Merchant created' })

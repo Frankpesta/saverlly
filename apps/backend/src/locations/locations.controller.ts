@@ -96,7 +96,7 @@ export class LocationsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      "Delete a location (admin or kiosk-owner only, not location-manager) — cascades to its setup codes, devices, and each device's own history",
+      "Delete a location (admin or kiosk-owner only, not location-manager). Cascades to its setup codes, devices, and each device's own history",
   })
   @ApiResponse({
     status: 204,
@@ -116,7 +116,7 @@ export class LocationsController {
   @TenantResource(TenantResourceType.LOCATION)
   @ApiOperation({
     summary:
-      "Generate this location's device setup code — regenerates in place if one already exists (a location only ever has one)",
+      "Generate this location's device setup code. Regenerates in place if one already exists (a location only ever has one)",
   })
   @ApiResponse({ status: 201, description: 'Setup code created or regenerated' })
   createSetupCode(@Param('id') id: string) {

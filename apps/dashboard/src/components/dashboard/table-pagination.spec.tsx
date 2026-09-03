@@ -14,7 +14,7 @@ describe("TablePagination", () => {
   it("shows the item range and page count once there's more than one page", () => {
     render(<TablePagination page={1} pageCount={2} totalItems={30} pageSize={25} onPageChange={jest.fn()} />)
 
-    expect(screen.getByText("Showing 1–25 of 30")).toBeInTheDocument()
+    expect(screen.getByText("Showing 1-25 of 30")).toBeInTheDocument()
     expect(screen.getByText("Page 1 of 2")).toBeInTheDocument()
   })
 
@@ -28,7 +28,7 @@ describe("TablePagination", () => {
     rerender(<TablePagination page={2} pageCount={2} totalItems={30} pageSize={25} onPageChange={jest.fn()} />)
     expect(screen.getByRole("button", { name: /previous/i })).toBeEnabled()
     expect(screen.getByRole("button", { name: /next/i })).toBeDisabled()
-    expect(screen.getByText("Showing 26–30 of 30")).toBeInTheDocument()
+    expect(screen.getByText("Showing 26-30 of 30")).toBeInTheDocument()
   })
 
   it("calls onPageChange with the adjacent page when Previous/Next are clicked", async () => {

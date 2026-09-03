@@ -7,7 +7,7 @@ export default function AdminChangePasswordPage() {
   return (
     <ChangePasswordForm
       homeUrl="/admin/overview"
-      tagline="Almost there — set a password only you know before you continue."
+      tagline="Set a password only you know before you continue."
     />
   )
 }

@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 
 /**
- * validator.js requires a TLD by default, which rejects `http://localhost:3000/...` — exactly the
+ * validator.js requires a TLD by default, which rejects `http://localhost:3000/...`. Exactly the
  * URL our own POST /promotions/upload-image hands back in local development. Without this the
  * upload→create round trip is impossible on a dev machine even though both halves work.
  */
@@ -20,7 +20,7 @@ const URL_OPTIONS = { require_tld: false };
 export class CreatePromotionDto {
   @ApiProperty({
     description:
-      'Internal label used to identify this promotion in the admin list — never shown to shoppers.',
+      'Internal label used to identify this promotion in the admin list. Never shown to shoppers.',
   })
   @IsString()
   @MinLength(1)
@@ -60,7 +60,7 @@ export class CreatePromotionDto {
   @ApiPropertyOptional({
     type: [String],
     description:
-      'Specific location ids to target. Combined with targetTags as a union — see above.',
+      'Specific location ids to target. Combined with targetTags as a union. See above.',
   })
   @IsOptional()
   @IsArray()
@@ -78,7 +78,7 @@ export class CreatePromotionDto {
   @ApiPropertyOptional({
     default: true,
     description:
-      'Manual kill switch, independent of the startAt/endAt window — set false to pull a promotion ' +
+      'Manual kill switch, independent of the startAt/endAt window. Set false to pull a promotion ' +
       'without editing its schedule.',
   })
   @IsOptional()

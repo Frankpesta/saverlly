@@ -1,4 +1,4 @@
-// Prefer amounts anchored to a currency symbol or code — cart-total elements often
+// Prefer amounts anchored to a currency symbol or code. Cart-total elements often
 // also contain an item count (e.g. "3 items - $42.50"), and a bare-number match would
 // pick up the "3" instead of the price.
 const CURRENCY_SYMBOL_AMOUNT = /[$€£¥]\s?-?\d[\d,]*(?:\.\d+)?/;

@@ -15,7 +15,7 @@ async function forward(request: NextRequest, path: string[], token: string | und
       "Content-Type": request.headers.get("content-type") ?? "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    // arrayBuffer, not text() — a multipart/form-data upload's binary bytes and boundary would
+    // arrayBuffer, not text(), a multipart/form-data upload's binary bytes and boundary would
     // otherwise get corrupted by a UTF-8 text round-trip. A no-op for the existing JSON traffic.
     body: hasBody ? await request.clone().arrayBuffer() : undefined,
     cache: "no-store",
@@ -40,7 +40,7 @@ async function handle(
   }
 
   const body = await response.arrayBuffer()
-  // The Fetch spec forbids a body on null-body statuses (204/205/304) — even a zero-length
+  // The Fetch spec forbids a body on null-body statuses (204/205/304). Even a zero-length
   // ArrayBuffer counts as "has a body" and makes the Response constructor throw, turning a
   // successful backend delete (204) into a 500 here while the deletion already happened.
   const isNullBodyStatus = response.status === 204 || response.status === 205 || response.status === 304

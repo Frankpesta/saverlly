@@ -14,7 +14,7 @@ const navMain = [
   { title: "Locations", url: "/portal/locations", icon: <MapPinIcon /> },
   { title: "Devices", url: "/portal/devices", icon: <MonitorIcon /> },
   { title: "Announcements", url: "/portal/announcements", icon: <MegaphoneIcon /> },
-  // Earnings (commissions/payouts) is a KIOSK_OWNER-only concept server-side — a location
+  // Earnings (commissions/payouts) is a KIOSK_OWNER-only concept server-side, a location
   // manager hitting it would just get 403s throughout, so it's excluded below for that role.
   { title: "Earnings", url: "/portal/earnings", icon: <WalletIcon />, ownerOnly: true },
 ]

@@ -18,7 +18,7 @@ import { emailSchema } from "@/lib/validation/schemas"
 
 const loginSchema = z.object({
   email: emailSchema,
-  // Not the full passwordSchema here — a login field shouldn't re-validate an existing
+  // Not the full passwordSchema here, a login field shouldn't re-validate an existing
   // password against today's strength rules, only guard against submitting empty.
   password: z.string().min(1, "Password is required"),
 })

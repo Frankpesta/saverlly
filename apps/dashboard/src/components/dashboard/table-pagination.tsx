@@ -27,7 +27,7 @@ export function TablePagination({
   return (
     <div className="mt-3 flex flex-col gap-3 rounded-xl border border-black/[0.06] bg-card px-4 py-3 shadow-[0_8px_24px_rgba(17,27,24,0.035)] dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <p className="text-sm text-muted-foreground">
-        Showing {start}–{end} of {totalItems}
+        Showing {start}-{end} of {totalItems}
       </p>
       <div className="flex items-center justify-between gap-2 sm:justify-end">
         <Button

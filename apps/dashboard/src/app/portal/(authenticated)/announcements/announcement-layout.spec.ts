@@ -160,7 +160,7 @@ describe("the toast card", () => {
     }
   })
 
-  // The chrome × and the timer are the renderer's, not the design's — they are what make a
+  // The chrome × and the timer are the renderer's, not the design's. They are what make a
   // buttonless or misdesigned layout still closeable, so they can't depend on the layout at all.
   it("always draws its own close button, whatever the design contains", () => {
     const html = renderAnnouncementLayoutHtml({
@@ -201,7 +201,7 @@ describe("the toast card", () => {
 })
 
 // The dashboard is served over HTTPS; the backend serves uploads over plain HTTP. A raw
-// url("http://…") is mixed content, which the browser drops silently — no console error, no
+// url("http://…") is mixed content, which the browser drops silently. No console error, no
 // broken-image icon, the image just isn't there. That is the exact bug this resolver fixes.
 describe("resolveImageUrl", () => {
   const withImage = {
@@ -230,7 +230,7 @@ describe("resolveImageUrl", () => {
     expect(style.backgroundImage).not.toContain('url("http://56.228.62.8')
   })
 
-  // The kiosk agent has no proxy — it loads images straight from the backend, so it must render
+  // The kiosk agent has no proxy. It loads images straight from the backend, so it must render
   // the URL exactly as saved. A resolver leaking in as a default would break every kiosk.
   it("leaves the URL exactly as saved when no resolver is given", () => {
     expect(layoutElementStyle(withImage.elements[0]).backgroundImage).toBe(

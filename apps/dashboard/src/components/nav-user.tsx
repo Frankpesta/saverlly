@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import {
   Avatar,
   AvatarFallback,
@@ -9,7 +8,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -21,7 +19,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { EllipsisVerticalIcon, CircleUserRoundIcon, LogOutIcon } from "lucide-react"
+import { EllipsisVerticalIcon, LogOutIcon } from "lucide-react"
 
 function initials(name: string) {
   return name
@@ -34,11 +32,9 @@ function initials(name: string) {
 
 export function NavUser({
   user,
-  settingsUrl,
   onLogout,
 }: {
   user: { name: string; email: string; avatar?: string }
-  settingsUrl?: string
   onLogout: () => void
 }) {
   const { isMobile } = useSidebar()
@@ -94,22 +90,11 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem asChild={!!settingsUrl} disabled={!settingsUrl}>
-                {settingsUrl ? (
-                  <Link href={settingsUrl}>
-                    <CircleUserRoundIcon />
-                    Account
-                  </Link>
-                ) : (
-                  <>
-                    <CircleUserRoundIcon />
-                    Account
-                  </>
-                )}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
+            {/* The dropdown used to have an "Account" item here linking to the same URL as the
+                sidebar's own "Settings" nav item, so it was a second click to reach a place the
+                first click already reaches. Removed per the client's feedback rather than
+                pointed somewhere new, since there is nothing account-specific this menu needs
+                that Settings doesn't already cover. */}
             <DropdownMenuItem onClick={onLogout}>
               <LogOutIcon />
               Log out

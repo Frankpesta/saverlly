@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
 import type { Notification } from "@/lib/api/types"
 
-// Polling, not a websocket — this app has no realtime infra anywhere else, and 30s is a
+// Polling, not a websocket. This app has no realtime infra anywhere else, and 30s is a
 // reasonable balance for events (payout processed, Stripe status changed) that aren't
 // time-critical to see instantly.
 const POLL_INTERVAL_MS = 30_000

@@ -9,7 +9,7 @@ function osVersionString(): string {
 }
 
 async function promptForSetupCode(): Promise<string> {
-  // Escape hatch for scripted/unattended installs — avoids needing an interactive
+  // Escape hatch for scripted/unattended installs, avoids needing an interactive
   // console session just to provision a kiosk computer.
   if (process.env.SAVERLLY_SETUP_CODE) {
     return process.env.SAVERLLY_SETUP_CODE.trim();
@@ -27,7 +27,7 @@ async function promptForSetupCode(): Promise<string> {
 /**
  * Ensures this machine has a valid device token, registering with the backend only on
  * first run. Every later agent startup finds the token already on disk and returns it
- * immediately — registration never re-runs unless %PROGRAMDATA%/KioskAgent is gone
+ * immediately. Registration never re-runs unless %PROGRAMDATA%/KioskAgent is gone
  * (e.g. a full machine reimage), per 04-PHASE-4-desktop-agent.md.
  */
 export async function ensureRegistered(): Promise<string> {
@@ -39,7 +39,7 @@ export async function ensureRegistered(): Promise<string> {
   const deviceIdentifier = getOrCreateDeviceIdentifier();
   const setupCode = await promptForSetupCode();
   if (!setupCode) {
-    throw new Error('No setup code provided — cannot register this device');
+    throw new Error('No setup code provided. Cannot register this device');
   }
 
   const hostname = os.hostname();

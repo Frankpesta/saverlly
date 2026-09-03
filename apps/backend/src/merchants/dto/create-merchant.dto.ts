@@ -28,7 +28,7 @@ export class CreateMerchantDto {
 
   @ApiProperty({
     enum: AttributionMethod,
-    description: 'Required even if the store has no coupon API at all — this is what makes commission tracking work',
+    description: 'Required even if the store has no coupon API at all. This is what makes commission tracking work',
   })
   @IsEnum(AttributionMethod)
   attributionMethod: AttributionMethod;
@@ -67,7 +67,7 @@ export class CreateMerchantDto {
   affiliateUrlParamValue?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional coupon-sourcing config — connects this merchant to an existing affiliate program',
+    description: 'Optional coupon-sourcing config. Connects this merchant to an existing affiliate program',
   })
   @IsOptional()
   @IsUUID()

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import Stripe from 'stripe';
 
-// Placeholder — lets the app boot and every non-Stripe route keep working in an
+// Placeholder. Lets the app boot and every non-Stripe route keep working in an
 // environment with no real Stripe account configured yet. Any actual Stripe API call
 // made with this key fails with a real (401) Stripe error rather than a silent no-op.
 const PLACEHOLDER_SECRET_KEY = 'sk_test_placeholder_not_configured';
@@ -22,7 +22,7 @@ export class StripeService {
   /**
    * Creates a brand-new Stripe Connect Express account. Callers must persist the
    * returned id before doing anything else that can fail (e.g. creating the account
-   * link) — otherwise a transient failure on the next step leaves no record of this
+   * link). Otherwise a transient failure on the next step leaves no record of this
    * account, and a retry creates a second orphaned Express account for the same kiosk.
    */
   async createExpressAccount(): Promise<string> {
@@ -30,7 +30,7 @@ export class StripeService {
     return account.id;
   }
 
-  /** Stripe account links are single-use and short-lived — mint a fresh one on every call. */
+  /** Stripe account links are single-use and short-lived. Mint a fresh one on every call. */
   async createOnboardingLink(accountId: string): Promise<string> {
     const accountLink = await this.client.accountLinks.create({
       account: accountId,
@@ -42,7 +42,7 @@ export class StripeService {
   }
 
   /**
-   * idempotencyKey is the owning Payout's id — if this call is retried (our own retry
+   * idempotencyKey is the owning Payout's id. If this call is retried (our own retry
    * after a transient failure, or the Stripe SDK's own automatic network-error retry),
    * Stripe recognizes it as the same logical transfer instead of creating a duplicate.
    */

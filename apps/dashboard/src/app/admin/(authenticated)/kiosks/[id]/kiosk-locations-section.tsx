@@ -14,7 +14,7 @@ import { useLocations, useUpdateLocation, useDeleteLocation } from "@/lib/api/ho
 import { ApiError } from "@/lib/api/client"
 import type { Location } from "@/lib/api/types"
 
-/** Every location under this kiosk, editable (name + tags) inline without leaving the page —
+/** Every location under this kiosk, editable (name + tags) inline without leaving the page
  * full address/city/state editing still lives on the location's own detail page, linked here. */
 export function KioskLocationsSection({ kioskId }: { kioskId: string }) {
   const { data: locations, isLoading, isError } = useLocations()

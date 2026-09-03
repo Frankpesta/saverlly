@@ -18,10 +18,10 @@ export class SyncAffiliateFeedProcessor extends WorkerHost {
   }
 
   async process(_job: Job): Promise<void> {
-    // Iterates all merchants each run rather than one job-per-merchant — there's no per-merchant
+    // Iterates all merchants each run rather than one job-per-merchant. There's no per-merchant
     // schedule configuration in the spec for this feed (unlike scrape sources), so a single
     // repeatable job sweeping every eligible merchant is simplest. Merchants whose program has
-    // hasCouponApi: false are skipped silently — not an error state.
+    // hasCouponApi: false are skipped silently. Not an error state.
     const merchants = await this.prisma.merchant.findMany({
       where: { affiliateProgram: { hasCouponApi: true } },
       include: { affiliateProgram: true },
@@ -34,7 +34,7 @@ export class SyncAffiliateFeedProcessor extends WorkerHost {
       const adapter = this.adapterRegistry.getAdapter(merchant.affiliateProgram.networkName);
       if (!adapter) {
         this.logger.warn(
-          `No adapter available for network "${merchant.affiliateProgram.networkName}" — skipping merchant ${merchant.id}`,
+          `No adapter available for network "${merchant.affiliateProgram.networkName}". Skipping merchant ${merchant.id}`,
         );
         continue;
       }

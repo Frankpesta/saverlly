@@ -7,7 +7,7 @@ import {
 } from './affiliate-network-adapter.interface';
 
 /**
- * Generic/mock adapter for development — used for every network until a real,
+ * Generic/mock adapter for development. Used for every network until a real,
  * network-specific adapter (Impact, CJ Affiliate, Rakuten, etc.) is implemented
  * once the client confirms which networks they're actually signed up with.
  */
@@ -31,7 +31,7 @@ export class MockAffiliateAdapter implements AffiliateNetworkAdapter {
     ];
   }
 
-  // Fabricates a pending conversion for every sub-ID handed to it — every real network only
+  // Fabricates a pending conversion for every sub-ID handed to it. Every real network only
   // reports conversions it actually saw, so a real adapter's hit rate is far from 100%, but a
   // deterministic 100% hit rate is what makes this useful for exercising the ingestion job in dev.
   async fetchConversions(_programId: string, subIds: string[]): Promise<AffiliateConversionDto[]> {
@@ -45,7 +45,7 @@ export class MockAffiliateAdapter implements AffiliateNetworkAdapter {
     }));
   }
 
-  // Deterministic from the reference itself so repeat dev/manual-QA runs behave consistently —
+  // Deterministic from the reference itself so repeat dev/manual-QA runs behave consistently
   // last hex digit even => confirmed, odd => reversed. Mock-only; never reflects real network behavior.
   async checkConversionStatuses(
     _programId: string,

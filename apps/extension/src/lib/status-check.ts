@@ -22,12 +22,12 @@ export async function checkDeviceStatus(now: number = Date.now()): Promise<boole
     return active;
   } catch (err) {
     if (err instanceof AuthError) {
-      // apiFetch already flipped dormant=true on 401/403 — no token, kill-switched
+      // apiFetch already flipped dormant=true on 401/403. No token, kill-switched
       // device, or inactive kiosk. No grace period for an explicit auth rejection.
       return false;
     }
 
-    // Network/unexpected failure — ride on the last confirmed-good status for a
+    // Network/unexpected failure. Ride on the last confirmed-good status for a
     // short grace window rather than immediately going dormant on a blip.
     const lastOkAt = await getLastStatusOkAt();
     if (isWithinGracePeriod(lastOkAt, now)) {

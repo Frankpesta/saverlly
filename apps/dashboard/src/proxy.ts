@@ -10,7 +10,7 @@ const LOGIN_PATH = {
   portal: "/portal/login",
 } as const
 
-// Reachable with no session at all — same as the login page itself.
+// Reachable with no session at all. Same as the login page itself.
 const FORGOT_PASSWORD_PATH = {
   admin: "/admin/forgot-password",
   portal: "/portal/forgot-password",
@@ -36,7 +36,7 @@ function safeDecode(token: string): JwtPayload | null {
 /**
  * Exchanges the refresh cookie for a fresh token pair directly against the backend. proxy.ts
  * runs in the middleware layer, which has no access to next/headers' request-scoped cookies()
- * the way Route Handlers do (lib/auth/session.ts's refreshSession() can't be reused here) — so
+ * the way Route Handlers do (lib/auth/session.ts's refreshSession() can't be reused here). So
  * this reads/writes cookies via NextRequest/NextResponse's own cookie APIs instead.
  */
 async function tryRefresh(request: NextRequest): Promise<TokenPair | null> {
@@ -79,7 +79,7 @@ function withSessionCookies(response: NextResponse, tokens: TokenPair): NextResp
 }
 
 /**
- * UX-level route gating only — every proxied API call is independently re-checked by the
+ * UX-level route gating only. Every proxied API call is independently re-checked by the
  * backend's own JwtAuthGuard/RolesGuard, so this never needs to verify the JWT signature,
  * just decode it to steer navigation.
  *

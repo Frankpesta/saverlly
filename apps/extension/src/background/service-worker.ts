@@ -22,7 +22,7 @@ const STATUS_ALARM = 'saverlly-status-check';
 const BADGE_READY = { text: '%', color: '#16A34A' };
 const BADGE_SUPPRESSED = { text: '!', color: '#9CA3AF' };
 
-// In-memory only — re-derived on demand if the service worker is recycled by Chrome,
+// In-memory only. Re-derived on demand if the service worker is recycled by Chrome,
 // so losing it just means the popup shows "no offer detected" until next navigation.
 const tabState = new Map<number, TabCheckoutState>();
 
@@ -79,13 +79,13 @@ async function injectWithContext(tabId: number, files: string[], context: Inject
 }
 
 // Shared by onCommitted (full document navigations) and onHistoryStateUpdated (SPA route
-// changes via the History API, e.g. a cart page routing to checkout without a reload) —
+// changes via the History API, e.g. a cart page routing to checkout without a reload)
 // both need the same merchant-resolution, attribution, and checkout-detector injection flow.
 async function handleTopFrameNavigation(details: chrome.webNavigation.WebNavigationTransitionCallbackDetails): Promise<void> {
   if (details.frameId !== 0) return;
 
   // Any top-frame navigation invalidates the previous page's checkout state, regardless of
-  // whether this new page turns out dormant/non-merchant/coupon-less — clear it unconditionally
+  // whether this new page turns out dormant/non-merchant/coupon-less. Clear it unconditionally
   // rather than only in the branches below, so stale state can't linger past a dormant check.
   tabState.delete(details.tabId);
   setBadge(details.tabId, null);
@@ -115,7 +115,7 @@ async function handleTopFrameNavigation(details: chrome.webNavigation.WebNavigat
       { merchantId: merchant.id, recipe: merchant.checkoutRecipe },
     );
   } catch {
-    // Restricted page (chrome://, webstore) or tab closed mid-navigation — ignore.
+    // Restricted page (chrome://, webstore) or tab closed mid-navigation. Ignore.
   }
 }
 
@@ -149,7 +149,7 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
   });
 
   if (suppressed) {
-    // A competing affiliate's tracking is already active — stay paused and require the
+    // A competing affiliate's tracking is already active. Stay paused and require the
     // user to explicitly override it via the popup rather than silently applying over it.
     await reportCouponTestEvent({ merchantId: merchant.id, result: 'suppressed_stepdown' });
     setBadge(tabId, BADGE_SUPPRESSED);
@@ -162,10 +162,10 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
     // The badge above is the guaranteed fallback affordance either way.
     await (chrome.action as unknown as { openPopup?: () => Promise<void> }).openPopup?.();
   } catch {
-    // ignored — see comment above
+    // ignored. See comment above
   }
 
-  // No competing affiliate link — surface the popup's "Apply Coupons" prompt and wait for the
+  // No competing affiliate link. Surface the popup's "Apply Coupons" prompt and wait for the
   // user to click it (APPLY_BEST_COUPON), rather than applying automatically.
 }
 
@@ -217,7 +217,7 @@ async function getActiveTabId(): Promise<number | undefined> {
   return tab?.id;
 }
 
-// Content scripts (coupon-applier.js) run in the tab, not the popup — sender.tab.id is how
+// Content scripts (coupon-applier.js) run in the tab, not the popup. Sender.tab.id is how
 // their progress/result messages get attributed back to the right tab's state, so a popup
 // that (re)opens mid-run or after completion can restore the real state instead of "idle".
 function patchTabState(sender: chrome.runtime.MessageSender, patch: Partial<TabCheckoutState>): void {
@@ -243,7 +243,7 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
         result: message.result,
         discountAmount: message.discountAmount,
       });
-      // Only the last attempt in the sequence should flip the popup out of "applying" —
+      // Only the last attempt in the sequence should flip the popup out of "applying"
       // intermediate failures keep reporting to the backend but must not surface yet.
       if (message.isFinal) {
         patchTabState(sender, { applyResult: message });
@@ -253,7 +253,7 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
     }
     case 'COUPON_APPLY_PROGRESS': {
       patchTabState(sender, { applyProgress: message });
-      // Fire-and-forget relay — popup listens for this to render live apply progress.
+      // Fire-and-forget relay. Popup listens for this to render live apply progress.
       chrome.runtime.sendMessage(message).catch(() => {});
       return;
     }
@@ -275,7 +275,7 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
       }
     }
     case 'GET_ACTIVE_PROMOTIONS': {
-      // A dormant extension shows nothing at all, promos included — same fail-safe posture as
+      // A dormant extension shows nothing at all, promos included. Same fail-safe posture as
       // GET_TAB_STATE. Any error degrades to "no promos" rather than breaking the popup.
       if (await isDormant()) return [];
       try {

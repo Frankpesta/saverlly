@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { DatabaseIcon, CircleCheckIcon, PlayIcon } from "lucide-react"
+import { DatabaseIcon, CircleCheckIcon, PencilIcon, PlayIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -31,7 +32,7 @@ import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
 import { usePagination } from "@/hooks/use-pagination"
 import type { ScrapeSource } from "@/lib/api/types"
-import { ScrapeSourceDialog } from "./scrape-source-dialog"
+import { cn } from "@/lib/utils"
 
 export default function ScrapeSourcesPage() {
   const { data: sources, isLoading, isError } = useScrapeSources()
@@ -53,12 +54,15 @@ export default function ScrapeSourcesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Scrape Sources</h2>
+          <h2 className="text-title">Scrape Sources</h2>
           <p className="text-sm text-muted-foreground">
             Pages the scraper checks on a schedule for new coupon codes.
           </p>
         </div>
-        <ScrapeSourceDialog merchants={merchants} />
+        <Link href="/admin/scrape-sources/new" className={cn(buttonVariants(), "gap-1.5")}>
+          <PlusIcon className="size-4" />
+          New Scrape Source
+        </Link>
       </div>
 
       <BentoGrid>
@@ -104,7 +108,6 @@ export default function ScrapeSourcesPage() {
                 source={source}
                 index={index}
                 merchantName={source.merchantId ? merchantNameById.get(source.merchantId) : undefined}
-                merchants={merchants}
               />
             ))}
           </TableBody>
@@ -125,12 +128,10 @@ function ScrapeSourceRow({
   source,
   index,
   merchantName,
-  merchants,
 }: {
   source: ScrapeSource
   index: number
   merchantName?: string
-  merchants: ReturnType<typeof useMerchants>["data"]
 }) {
   const updateSource = useUpdateScrapeSource(source.id)
   const runNow = useRunScrapeSourceNow()
@@ -182,7 +183,13 @@ function ScrapeSourceRow({
       </TableCell>
       <TableCell>
         <TableRowActions>
-          <ScrapeSourceDialog merchants={merchants} source={source} />
+          <Link
+            href={`/admin/scrape-sources/${source.id}`}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+            aria-label={`Edit ${source.url}`}
+          >
+            <PencilIcon className="size-3.5" />
+          </Link>
           <Button
             type="button"
             variant="ghost"

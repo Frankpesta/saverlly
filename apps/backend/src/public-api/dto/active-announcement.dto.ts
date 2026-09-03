@@ -12,7 +12,7 @@ export class ActiveAnnouncementDto {
   @ApiProperty()
   body: string;
 
-  // Always present in the response (never omitted) but may be null — nullable:true,
+  // Always present in the response (never omitted) but may be null. Nullable:true,
   // not ApiPropertyOptional, since "optional" in OpenAPI means possibly-absent.
   @ApiProperty({ nullable: true, type: String })
   mediaUrl: string | null;
@@ -29,7 +29,7 @@ export class ActiveAnnouncementDto {
     additionalProperties: true,
     description:
       'Freeform canvas design (AnnouncementLayout). Null for announcements authored before the ' +
-      'canvas editor — the agent renders a default layout from title/body/mediaUrl in that case.',
+      'canvas editor. The agent renders a default layout from title/body/mediaUrl in that case.',
   })
   layout: AnnouncementLayout | null;
 }

@@ -23,7 +23,7 @@ describe('detectStepDown', () => {
 
   it('does not treat our own tracking param as a competing signal', () => {
     const cookies: { name: string }[] = [];
-    // sscid is in the known list — simulate it being *our own* param for this merchant.
+    // sscid is in the known list. Simulate it being *our own* param for this merchant.
     expect(detectStepDown(cookies, 'https://shop.example.com/checkout?sscid=ours', 'sscid')).toBe(false);
   });
 

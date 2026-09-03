@@ -20,7 +20,7 @@ export class RegisterDeviceDto {
   hostname?: string;
 
   @ApiPropertyOptional({
-    description: 'Agent-generated local UUID (device.json) — stored for support/audit correlation only, not used for dedup logic',
+    description: 'Agent-generated local UUID (device.json). Stored for support/audit correlation only, not used for dedup logic',
   })
   @IsOptional()
   @IsString()

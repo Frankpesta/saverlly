@@ -20,7 +20,7 @@ const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"]
 /**
  * A creative uploader for one of a promotion's two fixed slots. Unlike the generic
  * ImageUploadField, the drop zone previews at the slot's real aspect ratio, so a wrongly-shaped
- * image is obvious before the upload round-trip — and the backend's dimension rejection is
+ * image is obvious before the upload round-trip, and the backend's dimension rejection is
  * surfaced verbatim as a toast rather than a generic failure.
  */
 export function PromotionCreativeField({
@@ -51,7 +51,7 @@ export function PromotionCreativeField({
     }
     upload.mutate(file, {
       onSuccess: (data) => onChange(data.url),
-      // The backend's message names the exact dimensions it wanted and what it got — far more
+      // The backend's message names the exact dimensions it wanted and what it got. Far more
       // useful to the admin than "upload failed", so it's passed straight through.
       onError: (err) =>
         toast.error(err instanceof ApiError ? err.message : "Could not upload the creative."),
@@ -157,7 +157,7 @@ export function PromotionCreativeField({
               {upload.isPending ? "Uploading…" : `Drop a ${spec.width}×${spec.height} image`}
             </p>
             <p className="text-xs text-muted-foreground">
-              or click to browse — larger is fine at the same ratio
+              or click to browse. Larger is fine at the same ratio
             </p>
             <input
               ref={fileInputRef}

@@ -1,6 +1,6 @@
 import { dpapiProtect, dpapiUnprotect } from './dpapi';
 
-// These shell out to the real Windows DPAPI via PowerShell — legitimate here since the
+// These shell out to the real Windows DPAPI via PowerShell. Legitimate here since the
 // whole agent is Windows-only (per 04-PHASE-4-desktop-agent.md), unlike the extension's
 // DOM-interaction logic which genuinely can't run headlessly in CI. Each PowerShell
 // launch is slow-ish, so give these a longer-than-default timeout.

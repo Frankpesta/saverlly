@@ -34,7 +34,7 @@ export function PasswordResetEmail({
           color: emailStyles.muted,
         },
       },
-      "If you didn't request this, you can safely ignore this email — your password won't change.",
+      "If you didn't request this, you can safely ignore this email. Your password won't change.",
     ),
   );
 }

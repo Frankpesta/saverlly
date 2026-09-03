@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Mock Merchant — Checkout</title>
+    <title>Mock Merchant. Checkout</title>
     <style>
       body { font-family: sans-serif; max-width: 480px; margin: 40px auto; }
       .order-summary-total { font-size: 20px; font-weight: bold; }
@@ -28,7 +28,7 @@
     <p class="promo-error-message">Invalid promo code.</p>
 
     <script>
-      // WORKS10 is the only "valid" code for this mock page — everything else fails.
+      // WORKS10 is the only "valid" code for this mock page. Everything else fails.
       // A working discount actually changes the displayed total so coupon-applier.ts's
       // "confirm an actual discount was applied" check has something real to verify.
       document.querySelector('[data-testid="apply-promo"]').addEventListener('click', () => {

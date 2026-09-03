@@ -8,6 +8,7 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PASSWORD_BCRYPT_ROUNDS } from '../common/crypto/password-hash.constants';
 import { generatePassword } from '../common/crypto/password-generator.util';
+import { deleteUserOwnedRows } from '../common/prisma/cascade-delete.util';
 import { NotificationTriggersService } from '../notifications/notification-triggers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateKioskUserDto } from './dto/create-kiosk-user.dto';
@@ -94,7 +95,7 @@ export class KioskUsersService {
       throw new NotFoundException('User not found in this kiosk');
     }
 
-    // A kiosk-owner may only ever touch location-manager accounts — never a peer owner.
+    // A kiosk-owner may only ever touch location-manager accounts. Never a peer owner.
     this.assertRoleAssignable(actingRole, target.role);
     if (dto.role) {
       this.assertRoleAssignable(actingRole, dto.role);
@@ -122,7 +123,7 @@ export class KioskUsersService {
     this.assertRoleAssignable(actingRole, target.role);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.notification.deleteMany({ where: { userId } });
+      await deleteUserOwnedRows(tx, [userId]);
       await tx.user.delete({ where: { id: userId } });
     });
   }

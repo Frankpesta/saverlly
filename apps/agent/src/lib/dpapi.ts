@@ -1,7 +1,7 @@
 import { spawnSync } from 'child_process';
 
 // Scopes decryption to this machine (any user/SYSTEM), not the calling Windows user's
-// profile — the agent may run under different accounts across logins/reimages, and the
+// profile. The agent may run under different accounts across logins/reimages, and the
 // token must stay decryptable regardless of which one is active.
 const DPAPI_SCOPE = 'LocalMachine';
 // Extra ciphertext binding so a token.enc file can't be decrypted by copying it into some

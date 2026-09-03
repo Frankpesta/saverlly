@@ -126,4 +126,80 @@ describe('Admin-level teammates (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(400);
   });
+
+  // DismissedAlert.userId is ON DELETE RESTRICT, so once the "Needs attention" dismissal
+  // feature landed, deleting any admin who had dismissed something 500'd on a raw P2003.
+  it('deletes an admin who has dismissed a Needs Attention alert', async () => {
+    await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    const otherAdmin = await seedUser({ email: 'other-admin@test.com', role: 'ADMIN' });
+    const token = await loginAs(app, 'admin@test.com');
+
+    await testPrisma.dismissedAlert.create({
+      data: { userId: otherAdmin.id, alertKey: 'kiosks-inactive' },
+    });
+
+    await request(app.getHttpServer())
+      .delete(`/users/admins/${otherAdmin.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
+
+    await expect(
+      testPrisma.user.findUnique({ where: { id: otherAdmin.id } }),
+    ).resolves.toBeNull();
+    await expect(
+      testPrisma.dismissedAlert.findMany({ where: { userId: otherAdmin.id } }),
+    ).resolves.toHaveLength(0);
+  });
+
+  it('records, lists, and clears the caller’s own dismissed alerts', async () => {
+    await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    const token = await loginAs(app, 'admin@test.com');
+
+    await request(app.getHttpServer())
+      .get('/users/me/dismissed-alerts')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect([]);
+
+    // Dismissing is idempotent, the same key twice must not 409 on the unique constraint.
+    for (let i = 0; i < 2; i += 1) {
+      await request(app.getHttpServer())
+        .post('/users/me/dismissed-alerts')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ alertKey: 'kiosks-inactive' })
+        .expect(204);
+    }
+
+    await request(app.getHttpServer())
+      .get('/users/me/dismissed-alerts')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect(['kiosks-inactive']);
+
+    await request(app.getHttpServer())
+      .delete('/users/me/dismissed-alerts/kiosks-inactive')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
+
+    await request(app.getHttpServer())
+      .get('/users/me/dismissed-alerts')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect([]);
+  });
+
+  it("never shows one admin's dismissals to another", async () => {
+    const a = await seedUser({ email: 'admin@test.com', role: 'ADMIN' });
+    await seedUser({ email: 'other-admin@test.com', role: 'ADMIN' });
+    await testPrisma.dismissedAlert.create({
+      data: { userId: a.id, alertKey: 'payouts-pending' },
+    });
+
+    const otherToken = await loginAs(app, 'other-admin@test.com');
+    await request(app.getHttpServer())
+      .get('/users/me/dismissed-alerts')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(200)
+      .expect([]);
+  });
 });

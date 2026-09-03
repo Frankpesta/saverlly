@@ -27,7 +27,7 @@ function firstText(layout: AnnouncementLayout) {
 
 /**
  * jsdom doesn't implement `PointerEvent`, so `fireEvent.pointerMove(el, { clientX })` silently
- * drops the coordinates — the drag then computes against `undefined` and every position becomes
+ * drops the coordinates. The drag then computes against `undefined` and every position becomes
  * NaN. Building a `MouseEvent` with the pointer event's name keeps clientX/clientY intact (React
  * dispatches on the native event name, so its onPointerDown/Move/Up still fire).
  */
@@ -42,7 +42,7 @@ function pointer(
 }
 
 describe("AnnouncementCanvas", () => {
-  // jsdom reports a zero-width content rect, so the component keeps scale at 1 — which is what
+  // jsdom reports a zero-width content rect, so the component keeps scale at 1. Which is what
   // makes screen-pixel deltas below equal canvas-pixel deltas.
   const base = createDefaultLayout({ title: "Headline", body: "Body copy" })
 
@@ -97,7 +97,7 @@ describe("AnnouncementCanvas", () => {
 
   // The reported bug: an uploaded image never appeared on the canvas. Its URL is served over
   // plain HTTP by the backend while the dashboard is HTTPS, so the browser blocked it as mixed
-  // content — silently, which is why it looked like the insert had simply done nothing.
+  // content. Silently, which is why it looked like the insert had simply done nothing.
   it("routes image URLs through the proxy so they aren't mixed-content blocked", () => {
     const withImage: AnnouncementLayout = {
       version: 1,

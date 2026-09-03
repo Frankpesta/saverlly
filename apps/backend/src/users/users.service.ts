@@ -8,6 +8,7 @@ import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PASSWORD_BCRYPT_ROUNDS } from '../common/crypto/password-hash.constants';
 import { generatePassword } from '../common/crypto/password-generator.util';
+import { deleteUserOwnedRows } from '../common/prisma/cascade-delete.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
@@ -63,10 +64,10 @@ export class UsersService {
     });
   }
 
-  /** Lets an existing ADMIN create another ADMIN-level teammate — separate from kiosk-scoped
+  /** Lets an existing ADMIN create another ADMIN-level teammate. Separate from kiosk-scoped
    * user creation (kiosk-users module), since an admin has no kioskId at all. Mirrors that
    * module's generated-password pattern, but doesn't send a welcome email yet (no admin-facing
-   * email template exists — the password is only ever shown once in the response). */
+   * email template exists. The password is only ever shown once in the response). */
   async createAdmin(dto: CreateAdminUserDto) {
     const generatedPassword = generatePassword();
     const passwordHash = await bcrypt.hash(generatedPassword, PASSWORD_BCRYPT_ROUNDS);
@@ -117,9 +118,33 @@ export class UsersService {
     }
     await this.assertAdminExists(userId);
     await this.prisma.$transaction(async (tx) => {
-      await tx.notification.deleteMany({ where: { userId } });
+      await deleteUserOwnedRows(tx, [userId]);
       await tx.user.delete({ where: { id: userId } });
     });
+  }
+
+  /** "Needs attention" on the admin Overview has no backing table of its own. Its items are
+   * derived client-side from other resources (inactive kiosks, disabled devices, ...), so
+   * dismissing one just records the item's stable key against the user rather than mutating
+   * anything about the underlying kiosk/device/payout. */
+  async findDismissedAlertKeys(userId: string): Promise<string[]> {
+    const rows = await this.prisma.dismissedAlert.findMany({
+      where: { userId },
+      select: { alertKey: true },
+    });
+    return rows.map((row) => row.alertKey);
+  }
+
+  async dismissAlert(userId: string, alertKey: string): Promise<void> {
+    await this.prisma.dismissedAlert.upsert({
+      where: { userId_alertKey: { userId, alertKey } },
+      create: { userId, alertKey },
+      update: {},
+    });
+  }
+
+  async undismissAlert(userId: string, alertKey: string): Promise<void> {
+    await this.prisma.dismissedAlert.deleteMany({ where: { userId, alertKey } });
   }
 
   private async assertAdminExists(userId: string) {

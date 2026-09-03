@@ -9,14 +9,14 @@ import { NotificationsService } from './notifications.service';
   imports: [
     BullModule.registerQueue({
       name: QUEUE_NAMES.SEND_EMAIL,
-      // Own producer for this queue — the email module's SendEmailProcessor consumes it
+      // Own producer for this queue. The email module's SendEmailProcessor consumes it
       // via BullMQ's global processor auto-discovery (@nestjs/bullmq scans every provider
       // app-wide for @Processor-decorated classes), so no separate registration is needed
       // there. defaultJobOptions apply here since this is the client `.add()` is called on.
       defaultJobOptions: {
         attempts: 3,
         backoff: { type: 'exponential', delay: 5_000 },
-        // Some job payloads (welcome emails) carry a plaintext temporary password — don't
+        // Some job payloads (welcome emails) carry a plaintext temporary password. Don't
         // leave a delivered job's data sitting in Redis once it's no longer needed. Failed
         // jobs are left in place (default) since their delivery/debugging value outweighs
         // the residual exposure for the rare case that needs manual investigation.

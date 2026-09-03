@@ -26,7 +26,7 @@ import { nameSchema, zipSchema } from "@/lib/validation/schemas"
 
 const STEPS = [
   { title: "Where is it?", description: "The location's business address." },
-  { title: "Details", description: "Tags help with future targeting — optional." },
+  { title: "Details", description: "Optional. Tags help with future targeting." },
 ] as const
 
 const STEP_0_FIELDS = ["name", "address", "city", "state", "zip"] as const
@@ -129,7 +129,7 @@ export function NewLocationDialog() {
                 <FormField
                   label="Zip"
                   htmlFor="new-location-zip"
-                  hint="5-digit US ZIP code."
+                  hint="US ZIP, ZIP+4, or a postal code with letters and dashes."
                   error={errors.zip?.message}
                 >
                   <Controller
@@ -139,10 +139,9 @@ export function NewLocationDialog() {
                       <Input
                         id="new-location-zip"
                         value={field.value}
-                        onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                        onChange={(e) => field.onChange(e.target.value.toUpperCase().slice(0, 10))}
                         onBlur={field.onBlur}
-                        inputMode="numeric"
-                        maxLength={5}
+                        maxLength={10}
                         aria-invalid={!!fieldState.error}
                       />
                     )}

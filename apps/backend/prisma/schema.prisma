@@ -34,6 +34,7 @@ model User {
   disabled           Boolean        @default(false)
   refreshTokenHash   String? // hashed current refresh token; cleared on logout, rotated on refresh
   notifications      Notification[]
+  dismissedAlerts    DismissedAlert[]
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
@@ -46,7 +47,7 @@ model Kiosk {
   status               KioskStatus    @default(ACTIVE) // admin sets directly, no approval workflow
   revenueSharePct      Decimal        @db.Decimal(5, 2) // e.g. 30.00 = 30%
   stripeAccountId      String? // Stripe Connect Express account id, set once kiosk starts onboarding (Phase 5)
-  stripePayoutsEnabled Boolean        @default(false) // synced from Stripe's account.updated webhook — true once onboarding is fully complete and the account can actually receive transfers
+  stripePayoutsEnabled Boolean        @default(false) // synced from Stripe's account.updated webhook. True once onboarding is fully complete and the account can actually receive transfers
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
   locations            Location[]
@@ -63,10 +64,10 @@ model Location {
   address            String
   city               String
   state              String
-  zip                String? // US 5-digit ZIP for now — nullable/string so a later switch to allow letters/dashes (e.g. Canadian postal codes) is just a validation change, not a schema one
+  zip                String? // US ZIP, ZIP+4, or a letter/dash postal code (e.g. Canadian). Validated by ZIP_PATTERN in create-location.dto.ts, deliberately a plain nullable string here so widening the accepted formats stays a validation-only change
   latitude           Float?
   longitude          Float?
-  tags               String[] // e.g. ["mall", "downtown", "high-traffic"] — used for future ad targeting
+  tags               String[] // e.g. ["mall", "downtown", "high-traffic"]. Used for future ad targeting
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   devices           Device[]
@@ -75,7 +76,7 @@ model Location {
   @@index([kioskId])
 }
 
-// One setup code per location — regenerating replaces the existing code in place rather than
+// One setup code per location. Regenerating replaces the existing code in place rather than
 // adding another row, so a location never has more than one code (active or otherwise) at once.
 model LocationSetupCode {
   id         String   @id @default(uuid())
@@ -91,7 +92,7 @@ model Device {
   locationId            String
   location              Location             @relation(fields: [locationId], references: [id])
   label                 String // e.g. "Computer 4"
-  active                Boolean              @default(true) // kill-switch — no approval needed to start, but can be disabled any time
+  active                Boolean              @default(true) // kill-switch. No approval needed to start, but can be disabled any time
   localDeviceIdentifier String? // agent-generated UUID from its local device.json, for support/audit correlation across re-registrations of the same physical machine
   osVersion             String? // e.g. "Windows 11 Pro 10.0.26200", reported by the agent at registration
   lastSeenAt            DateTime?
@@ -109,7 +110,7 @@ model DeviceToken {
   id        String   @id @default(uuid())
   deviceId  String
   device    Device   @relation(fields: [deviceId], references: [id])
-  tokenHash String   @unique // opaque, high-entropy token stored hashed — never plaintext
+  tokenHash String   @unique // opaque, high-entropy token stored hashed. Never plaintext
   revoked   Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -130,9 +131,9 @@ enum AttributionMethod {
 
 model AffiliateProgram {
   id             String     @id @default(uuid())
-  networkName    String // e.g. "Impact", "CJ Affiliate", "Rakuten" — nullable/omitted if merchant has no network, just a direct tracking link
+  networkName    String // e.g. "Impact", "CJ Affiliate", "Rakuten". Nullable/omitted if merchant has no network, just a direct tracking link
   programId      String?
-  apiCredentials String? // encrypted at rest (AES-256-GCM) — never store plaintext keys; null if no API available
+  apiCredentials String? // encrypted at rest (AES-256-GCM). Never store plaintext keys; null if no API available
   hasCouponApi   Boolean    @default(false) // explicit flag: this program can feed coupon codes automatically
   merchants      Merchant[]
   createdAt      DateTime   @default(now())
@@ -144,13 +145,13 @@ model Merchant {
   domain                 String               @unique // e.g. "target.com"
   affiliateProgramId     String?
   affiliateProgram       AffiliateProgram?    @relation(fields: [affiliateProgramId], references: [id])
-  attributionMethod      AttributionMethod // required — every merchant needs a tracking method to earn commission at all
+  attributionMethod      AttributionMethod // required. Every merchant needs a tracking method to earn commission at all
   affiliateTrackingUrl   String? // base URL used to set the tracking cookie, if COOKIE or BOTH
   affiliateUrlParamKey   String? // query param name to append (e.g. "irclickid"), if URL_PARAM or BOTH
   affiliateUrlParamValue String? // the platform's own affiliate/tracking ID value to inject
-  affiliateSubIdParamKey String? // optional pass-through sub-ID/click-ID query param name (e.g. Impact's "SubId1", CJ's "SID") — null if the network doesn't support one; when set, a per-attribution-attempt value is minted and appended for commission attribution (Phase 5)
+  affiliateSubIdParamKey String? // optional pass-through sub-ID/click-ID query param name (e.g. Impact's "SubId1", CJ's "SID"). Null if the network doesn't support one; when set, a per-attribution-attempt value is minted and appended for commission attribution (Phase 5)
   active                 Boolean              @default(true)
-  checkoutRecipe         Json? // see "Merchant Recipe" — couponFieldSelector, applyButtonSelector, etc.
+  checkoutRecipe         Json? // see "Merchant Recipe". CouponFieldSelector, applyButtonSelector, etc.
   coupons                Coupon[]
   scrapeSources          ScrapeSource[]
   couponTestEvents       CouponTestEvent[]
@@ -179,16 +180,16 @@ model Coupon {
   couponTestEvents CouponTestEvent[]
   commissionEvents CommissionEvent[]
 
-  @@unique([merchantId, code]) // dedup across sources — repeat scrape/sync runs must upsert, never duplicate
+  @@unique([merchantId, code]) // dedup across sources. Repeat scrape/sync runs must upsert, never duplicate
 }
 
 model ScrapeSource {
   id              String    @id @default(uuid())
   url             String
-  merchantId      String? // optional — some scrape sources cover multiple merchants
+  merchantId      String? // optional. Some scrape sources cover multiple merchants
   merchant        Merchant? @relation(fields: [merchantId], references: [id])
   selectorConfig  Json // CSS selectors for code extraction
-  intervalMinutes Int       @default(1440) // schedule cadence, configurable per source — default daily
+  intervalMinutes Int       @default(1440) // schedule cadence, configurable per source. Default daily
   lastRunAt       DateTime?
   active          Boolean   @default(true)
 
@@ -220,14 +221,14 @@ model Announcement {
   @@index([kioskId])
 }
 
-// Admin-authored promotion shown inside the Chrome extension's popup — deliberately a separate
+// Admin-authored promotion shown inside the Chrome extension's popup. Deliberately a separate
 // model from Announcement rather than a `surface` enum on it. The two share almost nothing:
 // different author (ADMIN vs kiosk owner), audience (end-shopper vs kiosk staff), display surface
 // (extension popup vs the kiosk desktop overlay) and data shape (fixed image+link vs freeform
 // layout). Folding them together would leave most columns null and meaningless on every row.
 model Promotion {
   id            String   @id @default(uuid())
-  name          String // internal label for the admin list — never shown to shoppers
+  name          String // internal label for the admin list. Never shown to shoppers
   imageSmallUrl String // 320x100, rendered in the extension popup today
   imageLargeUrl String // 728x90 leaderboard, held for the future injected on-page banner surface
   clickUrl      String // where the shopper lands when they click the promo
@@ -248,12 +249,12 @@ model CouponTestEvent {
   id             String   @id @default(uuid())
   deviceId       String
   device         Device   @relation(fields: [deviceId], references: [id])
-  couponId       String? // nullable — a step-down suppression event or a manual trigger with no matching coupon has no couponId
+  couponId       String? // nullable, a step-down suppression event or a manual trigger with no matching coupon has no couponId
   coupon         Coupon?  @relation(fields: [couponId], references: [id])
   merchantId     String
   merchant       Merchant @relation(fields: [merchantId], references: [id])
   result         String // "applied" | "failed" | "suppressed_stepdown" | "no_coupons_available"
-  discountAmount Decimal? @db.Decimal(10, 2) // only set when result = "applied" — actual cart-total delta the extension confirmed, used for lifetime-savings totals
+  discountAmount Decimal? @db.Decimal(10, 2) // only set when result = "applied", actual cart-total delta the extension confirmed, used for lifetime-savings totals
   createdAt      DateTime @default(now())
 
   @@index([deviceId])
@@ -263,7 +264,7 @@ model CouponTestEvent {
 // Logged at the moment attribution tracking fires for a merchant with a sub-ID/click-ID
 // pass-through param (Merchant.affiliateSubIdParamKey). Lets a later-reported network
 // conversion be matched back to a device even though the network only ever echoes the
-// subId, not our own internal ids — see 05-PHASE-5-commission-tracking.md "Attribution Logic".
+// subId, not our own internal ids. See 05-PHASE-5-commission-tracking.md "Attribution Logic".
 model AttributionAttempt {
   id              String           @id @default(uuid())
   deviceId        String
@@ -290,9 +291,9 @@ model CommissionEvent {
   device             Device              @relation(fields: [deviceId], references: [id])
   merchantId         String
   merchant           Merchant            @relation(fields: [merchantId], references: [id])
-  couponId           String? // nullable — attribution-only sales (no coupon involved) are still valid commission events
+  couponId           String? // nullable, attribution-only sales (no coupon involved) are still valid commission events
   coupon             Coupon?             @relation(fields: [couponId], references: [id])
-  subId              String?             @unique // the AttributionAttempt.subId this conversion was matched from — nullable for a conversion reported with no recoverable sub-ID (orphaned, needs manual reconciliation)
+  subId              String?             @unique // the AttributionAttempt.subId this conversion was matched from. Nullable for a conversion reported with no recoverable sub-ID (orphaned, needs manual reconciliation)
   attributionAttempt AttributionAttempt? @relation(fields: [subId], references: [subId])
   networkReference   String // the affiliate network's own transaction/click ID, for reconciliation
   orderValue         Decimal             @db.Decimal(10, 2)
@@ -303,10 +304,10 @@ model CommissionEvent {
   confirmedAt        DateTime?
   reversedAt         DateTime?
   createdAt          DateTime            @default(now())
-  payoutId           String? // set once included in a Payout's aggregation — excluded from future aggregation runs
+  payoutId           String? // set once included in a Payout's aggregation. Excluded from future aggregation runs
   payout             Payout?             @relation(fields: [payoutId], references: [id])
 
-  @@unique([merchantId, networkReference]) // dedup — repeat ingestion/reconciliation runs must upsert, never duplicate a network's own conversion record
+  @@unique([merchantId, networkReference]) // dedup. Repeat ingestion/reconciliation runs must upsert, never duplicate a network's own conversion record
   @@index([deviceId])
   @@index([merchantId])
   @@index([status])
@@ -344,10 +345,29 @@ model Notification {
   type      NotificationType
   title     String
   body      String
-  metadata  Json? // e.g. { payoutId } / { enabled } — for future deep-linking, not rendered raw
+  metadata  Json? // e.g. { payoutId } / { enabled }. For future deep-linking, not rendered raw
   readAt    DateTime?
   createdAt DateTime          @default(now())
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
+}
+
+// The admin Overview "Needs attention" panel derives its items client-side from other tables
+// (inactive kiosks, disabled devices, low coupon success rate, pending payouts) rather than
+// having its own source of truth, so there's no row to mark done. This is what a user actually
+// dismisses: alertKey is a stable id the frontend derives per item (e.g. "kiosk-inactive:<id>"),
+// unique per user so a dismissal on one admin's screen doesn't hide it for another. Once the
+// underlying condition resolves (kiosk re-activated, etc) the derived item simply stops being
+// generated, so nothing here needs cleaning up on that path; a stale dismissal for a
+// long-resolved alert is harmless dead weight, not a bug.
+model DismissedAlert {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  alertKey  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, alertKey])
+  @@index([userId])
 }

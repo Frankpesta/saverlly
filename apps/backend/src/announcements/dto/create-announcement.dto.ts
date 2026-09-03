@@ -30,7 +30,7 @@ export class CreateAnnouncementDto {
       'ADMIN-only: create a platform-wide broadcast shown on every device across every kiosk, instead of ' +
       'one kiosk. An explicit flag rather than inferring broadcast from an omitted kioskId, since a forgotten ' +
       'kioskId silently becoming "show to everyone" is too large a blast radius for an implicit default. ' +
-      'When true, kioskId and locationIds are ignored — a broadcast always targets everyone.',
+      'When true, kioskId and locationIds are ignored, a broadcast always targets everyone.',
   })
   @IsOptional()
   @IsBoolean()
@@ -58,8 +58,8 @@ export class CreateAnnouncementDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  // require_tld:false so `http://localhost:3000/uploads/...` — what our own
-  // POST /announcements/upload-image returns in local dev — is accepted. validator.js rejects
+  // require_tld:false so `http://localhost:3000/uploads/...`. What our own
+  // POST /announcements/upload-image returns in local dev. Is accepted. validator.js rejects
   // any host without a TLD by default, which would make the upload→create round trip impossible
   // on a dev machine. Same reasoning as CreatePromotionDto.
   @IsUrl({ require_tld: false })
@@ -70,7 +70,7 @@ export class CreateAnnouncementDto {
     additionalProperties: true,
     description:
       'Freeform canvas design produced by the portal editor (AnnouncementLayout). Omit for a ' +
-      'plain title/body/image announcement — the kiosk agent then renders a default layout built ' +
+      'plain title/body/image announcement. The kiosk agent then renders a default layout built ' +
       'from those fields instead.',
   })
   @IsOptional()
@@ -95,7 +95,7 @@ export class CreateAnnouncementDto {
 
   @ApiPropertyOptional({
     description:
-      'Required (and must be >= 1) when repeatPolicy is MAX_N_TIMES — enforced in AnnouncementsService, ' +
+      'Required (and must be >= 1) when repeatPolicy is MAX_N_TIMES. Enforced in AnnouncementsService, ' +
       'since it depends on the resolved repeatPolicy. Whenever supplied, regardless of repeatPolicy, must be a positive integer.',
   })
   @IsOptional()

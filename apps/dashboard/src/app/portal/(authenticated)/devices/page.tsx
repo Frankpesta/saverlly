@@ -26,7 +26,7 @@ import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
 import { usePagination } from "@/hooks/use-pagination"
 
-const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour — matches the extension's own grace window
+const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour, matching the extension's own grace window
 
 export default function DevicesPage() {
   const { data: devices, isLoading, isError } = useDevices()
@@ -79,9 +79,7 @@ export default function DevicesPage() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        eyebrow="Device management"
         title="Devices"
-        description="Every device registered across your locations."
         actions={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL ? (
           <div className="flex flex-col items-end gap-1">
             <Button type="button" variant="outline" className="gap-1.5" asChild>
@@ -100,7 +98,7 @@ export default function DevicesPage() {
             variant="outline"
             className="gap-1.5"
             onClick={() =>
-              toast.info("Agent download isn't available yet — check back soon.")
+              toast.info("Agent download isn't available yet. Check back soon.")
             }
           >
             <DownloadIcon className="size-4" />
@@ -117,7 +115,7 @@ export default function DevicesPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load devices.</p>}
 
-      <CollectionArea title="Device directory" description="Review device health and manage whether each endpoint is active." count={totalItems}>
+      <CollectionArea title="Device directory" titleHidden count={totalItems}>
       <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
@@ -150,7 +148,7 @@ export default function DevicesPage() {
             {pageItems.map((device, index) => (
               <TableRow key={device.id} index={index}>
                 <TableCell className="font-medium">{device.label}</TableCell>
-                <TableCell>{locationNameById.get(device.locationId) ?? "—"}</TableCell>
+                <TableCell>{locationNameById.get(device.locationId) ?? "Unassigned"}</TableCell>
                 <TableCell>
                   {device.lastSeenAt ? relativeTime(device.lastSeenAt) : "Never"}
                 </TableCell>

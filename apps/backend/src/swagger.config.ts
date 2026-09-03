@@ -4,7 +4,7 @@ export function buildSwaggerConfig() {
   return new DocumentBuilder()
     .setTitle('Saverlly API')
     .setDescription(
-      'Multi-tenant SaaS platform for internet kiosk businesses — admin console, kiosk portal, ' +
+      'Multi-tenant SaaS platform for internet kiosk businesses, admin console, kiosk portal, ' +
         'and machine (Chrome extension / desktop agent) endpoints.',
     )
     .setVersion('1.0')
@@ -17,7 +17,7 @@ export function buildSwaggerConfig() {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'device-token',
-        description: 'Opaque device token issued at /devices/register — used by machine clients only.',
+        description: 'Opaque device token issued at /devices/register. Used by machine clients only.',
       },
       'device-token',
     )

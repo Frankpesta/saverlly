@@ -64,7 +64,7 @@ export class AffiliateProgramsService {
     }
   }
 
-  /** Internal use only (affiliate adapters) — never exposed via a controller. */
+  /** Internal use only (affiliate adapters). Never exposed via a controller. */
   async getDecryptedCredentials(id: string): Promise<Record<string, string> | null> {
     const program = await this.findOneOrThrow(id);
     if (!program.apiCredentials) {

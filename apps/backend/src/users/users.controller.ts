@@ -19,6 +19,7 @@ import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
+import { DismissAlertDto } from './dto/dismiss-alert.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { UsersService } from './users.service';
@@ -47,7 +48,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
     summary:
-      "Update the current authenticated user's own profile — email only, not role/kiosk/managedLocationIds",
+      "Update the current authenticated user's own profile. Email only, not role/kiosk/managedLocationIds",
   })
   @ApiResponse({ status: 200, description: 'Updated' })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
@@ -58,10 +59,49 @@ export class UsersController {
     return safeUser;
   }
 
+  @Get('me/dismissed-alerts')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "List alertKeys the current user has dismissed from the admin Overview 'Needs attention' panel",
+  })
+  @ApiResponse({ status: 200, description: 'Array of dismissed alertKey strings' })
+  myDismissedAlerts(@CurrentUser() currentUser: JwtPayload) {
+    return this.usersService.findDismissedAlertKeys(currentUser.sub);
+  }
+
+  @Post('me/dismissed-alerts')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Dismiss one 'Needs attention' item for the current user. Idempotent",
+  })
+  @ApiResponse({ status: 204, description: 'Dismissed' })
+  async dismissAlert(
+    @CurrentUser() currentUser: JwtPayload,
+    @Body() dto: DismissAlertDto,
+  ) {
+    await this.usersService.dismissAlert(currentUser.sub, dto.alertKey);
+  }
+
+  @Delete('me/dismissed-alerts/:alertKey')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Un-dismiss a previously dismissed 'Needs attention' item. Idempotent",
+  })
+  @ApiResponse({ status: 204, description: 'Un-dismissed' })
+  async undismissAlert(
+    @CurrentUser() currentUser: JwtPayload,
+    @Param('alertKey') alertKey: string,
+  ) {
+    await this.usersService.undismissAlert(currentUser.sub, alertKey);
+  }
+
   @Post('admins')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'Create another ADMIN-level teammate — generates a password server-side' })
+  @ApiOperation({ summary: 'Create another ADMIN-level teammate. Generates a password server-side' })
   @ApiResponse({ status: 201, description: 'Admin created, generated password returned once' })
   @ApiResponse({ status: 409, description: 'Email already in use' })
   createAdmin(@Body() dto: CreateAdminUserDto) {
@@ -96,7 +136,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete an admin — an admin cannot delete their own account this way' })
+  @ApiOperation({ summary: 'Delete an admin, an admin cannot delete their own account this way' })
   @ApiResponse({ status: 204, description: 'Deleted' })
   @ApiResponse({ status: 400, description: 'Cannot delete your own account, or admin not found' })
   removeAdmin(@Param('id') id: string, @CurrentUser() currentUser: JwtPayload) {

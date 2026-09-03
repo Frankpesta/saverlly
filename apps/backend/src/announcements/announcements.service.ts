@@ -17,7 +17,7 @@ export class AnnouncementsService {
 
   /**
    * Turns a client-supplied layout into what actually gets stored. The DTO validator already
-   * rejected anything unparseable, so this re-parse is not about acceptance — it's about storing
+   * rejected anything unparseable, so this re-parse is not about acceptance. It's about storing
    * the *sanitized* form (clamped dimensions, whitelisted fonts, http(s)-only image URLs) rather
    * than the caller's original JSON. That way the kiosk renderer, which builds an HTML document
    * out of these values, never has to trust the database.
@@ -53,7 +53,7 @@ export class AnnouncementsService {
     this.assertValidMaxDisplayCount(repeatPolicy, dto.maxDisplayCount);
 
     if (isBroadcast) {
-      // A broadcast targets everyone — kioskId and locationIds are meaningless here, so they're
+      // A broadcast targets everyone. KioskId and locationIds are meaningless here, so they're
       // ignored even if the client sent them, rather than trusting client intent on something
       // this consequential.
       return this.prisma.announcement.create({
@@ -119,7 +119,7 @@ export class AnnouncementsService {
         return []; // fail closed rather than send Prisma an unscoped/null kioskId filter
       }
       const managedLocationIds = manager?.managedLocationIds ?? [];
-      // Includes platform-wide broadcasts (kioskId: null) — read-only visibility into what's
+      // Includes platform-wide broadcasts (kioskId: null). Read-only visibility into what's
       // showing on their own devices, even though they can't open/edit/delete one (TenantScopeGuard
       // blocks that for anyone but ADMIN).
       const all = await this.prisma.announcement.findMany({
@@ -127,7 +127,7 @@ export class AnnouncementsService {
         orderBy: { createdAt: 'desc' },
       });
       // Scoped to their assigned location(s): either the announcement targets
-      // all locations (empty array — also true for every broadcast) or overlaps their managed set.
+      // all locations (empty array, also true for every broadcast) or overlaps their managed set.
       return all.filter(
         (a) =>
           a.locationIds.length === 0 ||
@@ -193,7 +193,7 @@ export class AnnouncementsService {
   }
 
   /**
-   * Empty/omitted locationIds means "all locations for the kiosk" — nothing to validate. A null
+   * Empty/omitted locationIds means "all locations for the kiosk". Nothing to validate. A null
    * kioskId is a broadcast, which has no locations to belong to; locationIds must be empty for one
    * (create() enforces this server-side regardless of client input, but update() can reach this
    * with a non-empty list too, so it's rejected explicitly here rather than silently ignored).

@@ -5,7 +5,7 @@
  *
  * This module is deliberately the *only* place layout is turned into styles. The dashboard editor
  * and the kiosk renderer both go through `layoutElementStyle`, and the dashboard's preview pane
- * renders `renderAnnouncementLayoutHtml` output verbatim in an iframe — so "what you see in the
+ * renders `renderAnnouncementLayoutHtml` output verbatim in an iframe. So "what you see in the
  * editor" and "what appears on the kiosk screen" cannot drift apart by construction.
  *
  * Everything here is pure and dependency-free: the agent runs it in plain Node, the backend runs
@@ -17,11 +17,11 @@ export const ANNOUNCEMENT_LAYOUT_VERSION = 1;
 /**
  * The design surface is a fixed pixel grid; the renderer scales it to whatever window it lands
  * in. A fixed grid is what makes a saved layout reproducible across kiosk screens of different
- * resolutions — positions are stored in canvas space, never in screen pixels or percentages.
+ * resolutions. Positions are stored in canvas space, never in screen pixels or percentages.
  *
  * These are toast dimensions, not screen dimensions. The overlay is a card in the bottom-right
  * corner of the kiosk screen (the CorelDRAW/Windows-notification shape), so the canvas is a
- * portrait card and the agent sizes its window to exactly this many device-independent pixels —
+ * portrait card and the agent sizes its window to exactly this many device-independent pixels
  * which means the design renders at 1:1 and never gets blown up to fill a display.
  */
 export const ANNOUNCEMENT_CANVAS_WIDTH = 400;
@@ -33,7 +33,7 @@ export const ANNOUNCEMENT_TOAST_MARGIN = 16;
 
 /**
  * How long the toast stays up before sliding away on its own. A corner toast that waits forever
- * for a click is just a smaller version of the takeover it replaced — but this is long enough to
+ * for a click is just a smaller version of the takeover it replaced. But this is long enough to
  * read a headline, an image and a line of body copy without hurrying.
  */
 export const ANNOUNCEMENT_AUTO_DISMISS_MS = 20_000;
@@ -142,7 +142,7 @@ function safeColor(value: unknown, fallback: string): string {
 /**
  * Only absolute http(s) URLs are allowed through, and only ones free of characters that could
  * break out of the `url("…")` CSS context or an HTML attribute. `javascript:`/`data:` are
- * rejected outright — this string ends up inside a page that runs on a kiosk we control.
+ * rejected outright. This string ends up inside a page that runs on a kiosk we control.
  */
 export function isSafeImageUrl(value: unknown): value is string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 2048) return false;
@@ -188,8 +188,8 @@ export function escapeHtml(value: string): string {
 
 let idCounter = 0;
 
-/** Ids only need to be unique within one layout — they're React keys and selection handles,
- *  never persisted foreign keys — so a counter plus a random suffix is plenty. */
+/** Ids only need to be unique within one layout. They're React keys and selection handles,
+ *  never persisted foreign keys. So a counter plus a random suffix is plenty. */
 export function createElementId(type: LayoutElementType): string {
   idCounter += 1;
   return `${type}-${idCounter}-${Math.random().toString(36).slice(2, 8)}`;
@@ -260,7 +260,7 @@ function parseElement(raw: unknown): AnnouncementLayoutElement | null {
 
 /**
  * Coerces arbitrary stored JSON into a renderable layout, or returns null when it isn't one.
- * Individual bad elements are dropped rather than failing the whole layout — one broken image
+ * Individual bad elements are dropped rather than failing the whole layout. One broken image
  * shouldn't blank an announcement that's already live on kiosk screens.
  */
 export function parseAnnouncementLayout(value: unknown): AnnouncementLayout | null {
@@ -407,25 +407,25 @@ export function ensureDismissable(layout: AnnouncementLayout): AnnouncementLayou
 }
 
 // ---------------------------------------------------------------------------
-// Styling — shared by the React editor and the HTML renderer
+// Styling. Shared by the React editor and the HTML renderer
 // ---------------------------------------------------------------------------
 
 export type StyleMap = Record<string, string>;
 
 export interface LayoutStyleOptions {
   /**
-   * Last-moment rewrite of an image element's URL, applied only when the styles are built —
+   * Last-moment rewrite of an image element's URL, applied only when the styles are built
    * never to the stored layout.
    *
    * This exists because the two renderers reach images over different transports. The kiosk
    * agent loads them directly from the backend and must use the URL exactly as saved. The
-   * dashboard runs on HTTPS while the backend serves uploads over plain HTTP (no TLS yet — see
+   * dashboard runs on HTTPS while the backend serves uploads over plain HTTP (no TLS yet. See
    * DEPLOYMENT.md's known limitations), so a raw `url("http://…")` is mixed content: the
    * browser blocks it silently, with no console error and no broken-image icon, and the design
    * simply appears to have no image in it. The dashboard therefore passes a resolver that
    * routes through its own same-origin image proxy.
    *
-   * Only the URL changes — position, size, fit and radius all still come from the one shared
+   * Only the URL changes. Position, size, fit and radius all still come from the one shared
    * definition below, so the editor still cannot drift from what the kiosk draws.
    */
   resolveImageUrl?: (url: string) => string;
@@ -514,7 +514,7 @@ export function styleMapToCssText(style: StyleMap): string {
 }
 
 // ---------------------------------------------------------------------------
-// HTML renderer — what the kiosk's WebView2 overlay loads
+// HTML renderer. What the kiosk's WebView2 overlay loads
 // ---------------------------------------------------------------------------
 
 function renderElementHtml(
@@ -538,14 +538,14 @@ function renderElementHtml(
 }
 
 /**
- * A complete, self-contained HTML document for the layout — no external CSS, no fonts to fetch,
+ * A complete, self-contained HTML document for the layout. No external CSS, no fonts to fetch,
  * no network at all beyond the image URLs themselves. The kiosk agent writes this to disk and
  * points its WebView2 overlay at it; the dashboard drops the identical string into an iframe so
  * the preview is the real renderer rather than a lookalike.
  *
  * The document is the toast card itself, not a screen containing one: the agent sizes its window
  * to exactly the canvas dimensions, so the design renders 1:1 and the `fit` scale below only ever
- * shrinks — never enlarges — the card. Enlarging is what made the old full-screen overlay look
+ * shrinks. Never enlarges. The card. Enlarging is what made the old full-screen overlay look
  * soft, since a 960px-wide design blown up to a 1920px screen is a 2× upscale of every glyph
  * boundary the layout was authored against.
  *
@@ -571,7 +571,7 @@ export function renderAnnouncementLayoutHtml(
     if (dismissed) return;
     dismissed = true;
     shell.className = 'leaving';
-    // Let the exit animation finish before the window disappears — closing on the click itself
+    // Let the exit animation finish before the window disappears. Closing on the click itself
     // makes the toast vanish rather than leave.
     window.setTimeout(function () {
       // The WinForms host listens for this and closes the window. window.close() is the fallback
@@ -637,7 +637,7 @@ export function renderAnnouncementLayoutHtml(
     inset: 0;
     background: ${escapeHtml(safe.background)};
     /* Clips anything dragged past the card's edge, including designs authored against the older,
-       larger canvas — a partial element at the boundary looks intentional, one bleeding into the
+       larger canvas, a partial element at the boundary looks intentional, one bleeding into the
        window edge does not. */
     overflow: hidden;
   }
@@ -669,7 +669,7 @@ ${safe.elements.map((element) => renderElementHtml(element, options)).join('\n')
 </div>
 <script>
 // Scale the fixed design grid down to the window when it can't fit, instead of laying out
-// responsively — the layout was authored against exact coordinates, so uniform scaling is the
+// responsively. The layout was authored against exact coordinates, so uniform scaling is the
 // only transform that preserves it faithfully. Capped at 1: the agent sizes the window to the
 // card, and upscaling a design past its authored size is exactly the softness this replaced.
 (function () {

@@ -22,7 +22,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   COMMISSION_DIGEST: "Commissions",
 }
 
-// Every trigger that sets metadata today points at something on the Earnings/Payouts screen —
+// Every trigger that sets metadata today points at something on the Earnings/Payouts screen
 // neither payouts nor commission digests have a per-record detail route, so this links to the
 // list page, not a specific row (same convention as global-search.tsx's hrefFor).
 function actionFor(
@@ -66,37 +66,39 @@ export function NotificationDetailDialog({
       <DialogContent className="sm:max-w-md">
         {notification && (
           <>
+            {/* Order is category, title, then the message as the dominant text. The timestamp
+                used to be the DialogDescription, which put it between the title and the
+                message and gave the least important thing on the card the most prominent
+                slot. It now sits in the footer meta row. */}
             <DialogHeader className="gap-2.5">
               <div className="flex items-center gap-2">
                 <Badge className="bg-[var(--brand-teal-tint)] text-[var(--brand-teal)] hover:bg-[var(--brand-teal-tint)]">
                   {TYPE_LABEL[notification.type]}
                 </Badge>
                 {!notification.readAt && (
-                  <span className="size-1.5 rounded-full bg-[var(--brand-teal)]" />
+                  <span className="size-1.5 rounded-full bg-[var(--brand-teal)]" aria-label="Unread" />
                 )}
               </div>
               <DialogTitle>{notification.title}</DialogTitle>
               <DialogDescription asChild>
-                <span className="text-xs leading-5 text-muted-foreground/70">
-                  {format(new Date(notification.createdAt), "PPp")} ·{" "}
-                  {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                </span>
+                <span className="text-body leading-6 text-foreground">{notification.body}</span>
               </DialogDescription>
             </DialogHeader>
 
-            <p className="px-7 pb-1 text-sm text-foreground">{notification.body}</p>
-
-            {action ? (
-              <DialogFooter className="px-7 pb-7">
+            <DialogFooter className="flex-row items-center justify-between gap-3 px-7 pb-7 sm:justify-between">
+              <span className="text-meta text-muted-foreground/70">
+                {format(new Date(notification.createdAt), "PPp")}
+                {" · "}
+                {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+              </span>
+              {action && (
                 <Button asChild>
                   <Link href={action.href} onClick={() => onOpenChange(false)}>
                     {action.label}
                   </Link>
                 </Button>
-              </DialogFooter>
-            ) : (
-              <div className="pb-7" />
-            )}
+              )}
+            </DialogFooter>
           </>
         )}
       </DialogContent>

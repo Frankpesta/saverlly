@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { XIcon } from "lucide-react"
 
-/** Floating pill bar that appears once at least one table row is selected — matches the
+/** Floating pill bar that appears once at least one table row is selected. Matches the
  *  bulk-action bar pattern from the tables reference. Renders nothing at `count === 0` so
  *  callers can mount it unconditionally right after their <Table>. */
 export function TableSelectionToolbar({

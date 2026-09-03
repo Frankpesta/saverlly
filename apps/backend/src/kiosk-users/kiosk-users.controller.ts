@@ -51,7 +51,7 @@ export class KioskUsersController {
     summary: 'Create a user under this kiosk',
     description:
       'Admin can create KIOSK_OWNER or LOCATION_MANAGER accounts. A kiosk-owner may only create ' +
-      'LOCATION_MANAGER accounts under their own kiosk — never a peer owner.',
+      'LOCATION_MANAGER accounts under their own kiosk. Never a peer owner.',
   })
   @ApiResponse({ status: 201, description: 'User created' })
   @ApiResponse({
@@ -79,7 +79,7 @@ export class KioskUsersController {
 
   @Patch(':userId')
   @ApiOperation({
-    summary: 'Update a kiosk user — role, disabled flag, or managedLocationIds',
+    summary: 'Update a kiosk user. Role, disabled flag, or managedLocationIds',
   })
   @ApiResponse({ status: 200, description: 'User updated' })
   @ApiResponse({

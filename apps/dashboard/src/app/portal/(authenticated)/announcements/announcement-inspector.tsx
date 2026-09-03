@@ -50,7 +50,7 @@ const FIT_OPTIONS = [
   { value: "contain", label: "Fit inside (letterbox)" },
 ]
 
-/** New elements land in the middle of the canvas rather than at 0,0 — dropping them under the
+/** New elements land in the middle of the canvas rather than at 0,0. Dropping them under the
  *  toolbar where they're half off-screen makes the first interaction a drag every time. */
 function centered(width: number, height: number) {
   return {
@@ -100,7 +100,7 @@ export function createElement(type: LayoutElementType): AnnouncementLayoutElemen
       }
     case "image":
       // An image element with no URL can't be rendered, so one is only created once an upload
-      // completes — see AddImageButton below.
+      // completes. See AddImageButton below.
       return null
   }
 }
@@ -218,7 +218,7 @@ function NumberField({
 
 /**
  * Properties of whatever is selected on the canvas. Deliberately shows only what the kiosk
- * renderer can actually honour — the font list is the Windows-stock set, because a webfont would
+ * renderer can actually honour. The font list is the Windows-stock set, because a webfont would
  * silently fall back to something else on the kiosk and make the design a lie.
  */
 export function ElementInspector({

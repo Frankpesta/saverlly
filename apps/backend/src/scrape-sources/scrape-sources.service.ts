@@ -18,13 +18,13 @@ export class ScrapeSourcesService implements OnModuleInit {
     @InjectQueue(QUEUE_NAMES.SCRAPE_COUPONS) private readonly scrapeQueue: Queue,
   ) {}
 
-  /** Resyncs repeatable jobs on boot — self-healing if Redis's job schedule was ever lost/reset. */
+  /** Resyncs repeatable jobs on boot. Self-healing if Redis's job schedule was ever lost/reset. */
   async onModuleInit() {
     try {
       const activeSources = await this.prisma.scrapeSource.findMany({ where: { active: true } });
       await Promise.all(activeSources.map((s) => this.scheduleRepeat(s.id, s.intervalMinutes)));
     } catch (err) {
-      this.logger.error('Failed to resync scrape-source repeat jobs on boot — continuing without scheduling', err);
+      this.logger.error('Failed to resync scrape-source repeat jobs on boot. Continuing without scheduling', err);
     }
   }
 
@@ -76,7 +76,7 @@ export class ScrapeSourcesService implements OnModuleInit {
       },
     });
 
-    // Reschedule unconditionally — cheap, and avoids subtly missing an interval/active-state change.
+    // Reschedule unconditionally. Cheap, and avoids subtly missing an interval/active-state change.
     await this.unscheduleRepeat(id, existing.intervalMinutes);
     if (updated.active) {
       await this.scheduleRepeat(id, updated.intervalMinutes);

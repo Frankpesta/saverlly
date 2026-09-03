@@ -76,9 +76,8 @@ export default function TopPerformingMerchantsPage() {
       </Link>
 
       <WorkspaceHeader
-        eyebrow="Leaderboard"
         title="Top merchants"
-        description="Every merchant ranked by confirmed commission, highest first."
+        description="Ranked by confirmed commission, highest first."
       />
 
       <CollectionSummary
@@ -88,7 +87,7 @@ export default function TopPerformingMerchantsPage() {
         ]}
       />
 
-      <CollectionArea title="Merchants" description="Ranked by confirmed commission amount." count={totalItems}>
+      <CollectionArea title="Merchants" titleHidden count={totalItems}>
         <div className="flex flex-col gap-2">
           <Table>
             <TableHeader>
@@ -128,7 +127,7 @@ export default function TopPerformingMerchantsPage() {
                         {row.successRate.toFixed(0)}% coupons
                       </Badge>
                     ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
+                      <span className="text-sm text-muted-foreground">No data</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right font-medium">{formatCurrency(row.total)}</TableCell>

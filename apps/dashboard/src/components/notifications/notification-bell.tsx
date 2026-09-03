@@ -4,6 +4,7 @@ import * as React from "react"
 import { usePathname } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
 import { BellIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -71,46 +72,64 @@ export function NotificationBell() {
           <SheetHeader className="border-b border-border/70 px-5 py-4">
             <SheetTitle>Notifications</SheetTitle>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-3 py-3">
+          <div className="flex-1 overflow-y-auto p-2">
             {items.length === 0 && (
-              <p className="px-2 py-10 text-center text-sm text-muted-foreground">
-                You&apos;re all caught up.
+              <p className="px-2 py-10 text-center text-body text-muted-foreground">
+                Nothing new right now.
               </p>
             )}
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col">
               {items.map((notification) => (
                 <button
                   key={notification.id}
                   type="button"
                   onClick={() => handleRowClick(notification)}
-                  className="flex w-full flex-col gap-1 rounded-lg px-3 py-3 text-left hover:bg-accent"
+                  className="flex w-full cursor-pointer flex-col gap-1 rounded-lg px-3 py-3.5 text-left transition-colors hover:bg-[var(--brand-teal-tint)]"
                 >
-                  <div className="flex items-center gap-2">
+                  {/* The time moves onto the title row, right-aligned. It used to sit directly
+                      under the message in the same tight column, which is what the client
+                      meant by the date being too close to the message and too prominent for
+                      how little it matters. */}
+                  <div className="flex w-full items-baseline gap-2">
                     {!notification.readAt && (
-                      <span className="size-1.5 shrink-0 rounded-full bg-[var(--brand-teal)]" />
+                      <span
+                        className="size-1.5 shrink-0 translate-y-[-1px] rounded-full bg-[var(--brand-teal)]"
+                        aria-label="Unread"
+                      />
                     )}
-                    <span className="truncate text-sm font-medium">{notification.title}</span>
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-label",
+                        notification.readAt ? "text-foreground" : "font-semibold text-foreground",
+                      )}
+                    >
+                      {notification.title}
+                    </span>
+                    <span className="shrink-0 text-meta text-muted-foreground/70">
+                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                    </span>
                   </div>
-                  <p className="line-clamp-2 text-xs text-muted-foreground">{notification.body}</p>
-                  <p className="text-[0.7rem] font-normal text-muted-foreground/70">
-                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                  <p className={cn("line-clamp-2 text-body text-muted-foreground", !notification.readAt && "pl-3.5")}>
+                    {notification.body}
                   </p>
                 </button>
               ))}
             </div>
           </div>
-          {unreadCount > 0 && (
-            <SheetFooter className="border-t border-border/70 p-4">
-              <Button
-                type="button"
-                className="w-full"
-                onClick={() => markAllRead.mutate()}
-                disabled={markAllRead.isPending}
-              >
-                Mark all read
-              </Button>
-            </SheetFooter>
-          )}
+          {/* Rendered whether or not anything is unread. Previously the whole footer unmounted
+              once everything was read, so the panel lost its bottom padding and the last row
+              sat flush against the edge. */}
+          <SheetFooter className="border-t border-border/70 p-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => markAllRead.mutate()}
+              disabled={unreadCount === 0 || markAllRead.isPending}
+            >
+              {unreadCount > 0 ? `Mark all read (${unreadCount})` : "All caught up"}
+            </Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
       <NotificationDetailDialog

@@ -10,9 +10,12 @@ import {
   MinLength,
 } from 'class-validator';
 
-// US 5-digit ZIP only, for now — the client has said they want to allow letters/dashes later
-// (e.g. Canadian postal codes), so this stays a single regex swap, not a schema change.
-export const ZIP_PATTERN = /^\d{5}$/;
+// Was US 5-digit-only. Widened per the client's request to also accept ZIP+4 ("12345-6789")
+// and letter/dash postal codes like Canada's ("A1A 1A1"): letters, digits, spaces, and dashes,
+// 3 to 10 characters, first and last character alphanumeric. Mirrors the frontend's
+// ZIP_PATTERN (apps/dashboard/src/lib/validation/schemas.ts) byte-for-byte. Location.zip was
+// already a nullable string column for exactly this reason, so no migration is involved.
+export const ZIP_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 -]{1,8}[A-Za-z0-9]$/;
 
 export class CreateLocationDto {
   @ApiPropertyOptional({
@@ -42,9 +45,9 @@ export class CreateLocationDto {
   @MinLength(1)
   state: string;
 
-  @ApiProperty({ example: '78701', description: 'US 5-digit ZIP' })
+  @ApiProperty({ example: '78701', description: 'US ZIP, ZIP+4, or a letter/dash postal code (e.g. Canadian)' })
   @IsString()
-  @Matches(ZIP_PATTERN, { message: 'zip must be exactly 5 digits' })
+  @Matches(ZIP_PATTERN, { message: 'zip must be 3-10 characters: letters, numbers, spaces, and dashes' })
   zip: string;
 
   @ApiPropertyOptional()

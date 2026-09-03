@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: res.status })
   }
 
-  // Issue fresh cookies immediately — the caller's old access token still carries
+  // Issue fresh cookies immediately. The caller's old access token still carries
   // mustChangePassword: true and would otherwise keep redirecting them back here.
   const tokens: TokenPair = await res.json()
   const cookieStore = await cookies()

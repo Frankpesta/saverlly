@@ -21,7 +21,7 @@ export interface ComboboxOption {
   disabled?: boolean
 }
 
-/** Cap on rendered `CommandItem`s for `allowCustomValue` lists — see the usage below. */
+/** Cap on rendered `CommandItem`s for `allowCustomValue` lists. See the usage below. */
 const MAX_RENDERED_OPTIONS = 50
 
 interface ComboboxProps {
@@ -38,7 +38,7 @@ interface ComboboxProps {
   "aria-invalid"?: boolean
   /** Free-typed text that doesn't match any option is discarded on blur/close (default combobox
    * behavior). Set true to also call onValueChange with the raw typed text when the popover
-   * closes without a selected match — useful for fields that accept an option list as
+   * closes without a selected match. Useful for fields that accept an option list as
    * suggestions but shouldn't hard-require picking one (e.g. City). */
   allowCustomValue?: boolean
 }
@@ -102,11 +102,11 @@ function Combobox({
         align="start"
         side="bottom"
         // Radix's collision-avoidance flips this above the trigger whenever it measures more
-        // room above than below — inside a Dialog (which has its own overflow-y-auto so it can
+        // room above than below. Inside a Dialog (which has its own overflow-y-auto so it can
         // scroll independently of the page) that boundary is the dialog's own remaining height,
         // not the page's, so a field positioned in the lower half of a tall dialog can flip
         // upward even though there's plenty of real screen space below. A combobox opening above
-        // its own label is disorienting, so it's pinned to always open below instead — a long
+        // its own label is disorienting, so it's pinned to always open below instead, a long
         // list still gets its own internal scroll (see CommandList's max-height).
         avoidCollisions={false}
         sideOffset={4}
@@ -120,7 +120,7 @@ function Combobox({
           />
           {/* Capped shorter than Command's own 300px default: a field positioned low in a tall
            * dialog only has so much room below before Radix's collision-avoidance flips the
-           * popover above the trigger instead — a shorter list needs less room, so it stays
+           * popover above the trigger instead, a shorter list needs less room, so it stays
            * anchored below across more dialog/viewport combinations. */}
           <CommandList className="max-h-[220px]">
             <CommandEmpty>{emptyText}</CommandEmpty>
@@ -129,7 +129,7 @@ function Combobox({
                 ? options
                     .filter((option) => option.label.toLowerCase().includes(query.toLowerCase()))
                     // A large options list (e.g. every US city) can match hundreds of rows for a
-                    // one- or two-character query — capped so typing doesn't mount hundreds of
+                    // one- or two-character query. Capped so typing doesn't mount hundreds of
                     // DOM nodes on every keystroke. Typing more narrows the real match further.
                     .slice(0, MAX_RENDERED_OPTIONS)
                 : options

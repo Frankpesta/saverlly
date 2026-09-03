@@ -21,7 +21,7 @@ export function renderEmail(job: EmailJob, urls: EmailUrls): RenderedEmail {
   switch (job.type) {
     case 'KIOSK_OWNER_WELCOME':
       return {
-        subject: `Welcome to Saverlly — ${job.kioskName} is live`,
+        subject: `${job.kioskName} is live on Saverlly`,
         react: React.createElement(KioskOwnerWelcomeEmail, {
           kioskName: job.kioskName,
           email: job.to,
@@ -43,7 +43,7 @@ export function renderEmail(job: EmailJob, urls: EmailUrls): RenderedEmail {
       };
     case 'PAYOUT_PROCESSED':
       return {
-        subject: `Payout sent — ${job.kioskName}`,
+        subject: `Payout sent for ${job.kioskName}`,
         react: React.createElement(PayoutProcessedEmail, {
           kioskName: job.kioskName,
           amount: job.amount,
@@ -57,8 +57,8 @@ export function renderEmail(job: EmailJob, urls: EmailUrls): RenderedEmail {
     case 'STRIPE_ONBOARDING_CHANGED':
       return {
         subject: job.enabled
-          ? `Payouts enabled — ${job.kioskName}`
-          : `Payouts paused — ${job.kioskName}`,
+          ? `Payouts enabled for ${job.kioskName}`
+          : `Payouts paused for ${job.kioskName}`,
         react: React.createElement(StripeOnboardingChangedEmail, {
           kioskName: job.kioskName,
           enabled: job.enabled,
@@ -68,7 +68,7 @@ export function renderEmail(job: EmailJob, urls: EmailUrls): RenderedEmail {
       };
     case 'COMMISSION_DIGEST':
       return {
-        subject: `Your commission summary — ${job.kioskName}`,
+        subject: `Your commission summary for ${job.kioskName}`,
         react: React.createElement(CommissionDigestEmail, {
           kioskName: job.kioskName,
           periodLabel: job.periodLabel,

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -24,7 +25,7 @@ import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
 import { usePagination } from "@/hooks/use-pagination"
 
-const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour — matches the extension's own grace window
+const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour, matching the extension's own grace window
 
 export default function AdminDevicesPage() {
   const { data: devices, isLoading, isError } = useDevices()
@@ -83,9 +84,7 @@ export default function AdminDevicesPage() {
   return (
     <div className="flex flex-col gap-6">
       <WorkspaceHeader
-        eyebrow="Platform network"
         title="Devices"
-        description="Every device registered across every kiosk on the platform."
       />
 
       <CollectionSummary items={[
@@ -96,7 +95,7 @@ export default function AdminDevicesPage() {
 
       {isError && <p className="text-sm text-destructive">Could not load devices.</p>}
 
-      <CollectionArea title="Device directory" description="Review device health across the platform and manage each endpoint." count={totalItems}>
+      <CollectionArea title="Device directory" titleHidden count={totalItems}>
       <div className="flex flex-col gap-2">
         <Table>
           <TableHeader>
@@ -122,7 +121,13 @@ export default function AdminDevicesPage() {
             {!isLoading && devices?.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  No devices registered yet.
+                  {/* Devices register themselves using a location's setup code, so an empty
+                      table is exactly the moment someone needs to find one. */}
+                  No devices registered yet. A device joins by entering its location&apos;s{" "}
+                  <Link href="/admin/locations" className="text-foreground underline underline-offset-2">
+                    setup code
+                  </Link>
+                  .
                 </TableCell>
               </TableRow>
             )}
@@ -133,9 +138,9 @@ export default function AdminDevicesPage() {
                 <TableRow key={device.id} index={index}>
                   <TableCell className="font-medium">{device.label}</TableCell>
                   <TableCell>
-                    {location ? (kioskNameById.get(location.kioskId) ?? "—") : "—"}
+                    {location ? (kioskNameById.get(location.kioskId) ?? "Unassigned") : "Unassigned"}
                   </TableCell>
-                  <TableCell>{location?.name ?? "—"}</TableCell>
+                  <TableCell>{location?.name ?? "Unassigned"}</TableCell>
                   <TableCell>
                     {device.lastSeenAt ? relativeTime(device.lastSeenAt) : "Never"}
                   </TableCell>

@@ -1,6 +1,6 @@
 import { execFileSync } from 'child_process';
 
-// Real Chrome enterprise policy location — list-type policies (Forcelist/Allowlist) are
+// Real Chrome enterprise policy location. List-type policies (Forcelist/Allowlist) are
 // represented in the registry as a key whose value names are "1", "2", "3", ... and whose
 // values are the list entries. Chrome re-reads this fresh on every launch, so it's not part
 // of the (resettable) Chrome user profile.
@@ -15,14 +15,14 @@ function regExeIgnoringErrors(args: string[]): void {
   try {
     regExe(args);
   } catch {
-    // e.g. "reg delete" on a key that doesn't exist yet — fine, that's the desired end state anyway.
+    // e.g. "reg delete" on a key that doesn't exist yet. Fine, that's the desired end state anyway.
   }
 }
 
 /**
  * Overwrites a list-type registry policy key with exactly these values (as "1", "2", ...),
  * deleting anything already there first. Re-running this unconditionally on every agent
- * startup — rather than diffing first — is what makes it self-healing against a registry-level
+ * startup. Rather than diffing first. Is what makes it self-healing against a registry-level
  * reset: there's no "already correct, skip" branch to accidentally skip past a tampered value.
  */
 function writeListPolicy(keyPath: string, values: string[]): void {
@@ -52,7 +52,7 @@ export function readListPolicy(keyPath: string): string[] {
 }
 
 export interface ChromePolicyOptions {
-  /** Defaults to the real Chrome policy path — override only for isolated testing. */
+  /** Defaults to the real Chrome policy path. Override only for isolated testing. */
   keyBase?: string;
 }
 
@@ -60,7 +60,7 @@ export interface ChromePolicyOptions {
  * Force-installs and locks the Saverlly extension via Chrome's ExtensionInstallForcelist +
  * ExtensionInstallAllowlist enterprise policies. Call unconditionally on every agent startup
  * (see writeListPolicy) so a registry-level reset self-heals without needing the setup code
- * again — see 04-PHASE-4-desktop-agent.md §2.
+ * again. See 04-PHASE-4-desktop-agent.md §2.
  */
 export function applyChromeForceInstallPolicy(
   extensionId: string,
@@ -80,14 +80,14 @@ export function applyChromeForceInstallPolicy(
 
 /**
  * Force-uninstalls the extension on agent uninstall, covering both the agent's own force-install
- * and any copy the kiosk owner separately installed from the Chrome Web Store — removing the
+ * and any copy the kiosk owner separately installed from the Chrome Web Store. Removing the
  * Forcelist entry alone only stops *enforcing* the install, it doesn't guarantee an
  * already-present copy actually gets removed. Blocklisting is the one policy that unconditionally
  * triggers Chrome to uninstall the extension regardless of how it got there.
  *
  * Deliberately does NOT clean up the Blocklist entry afterward: Chrome may not be running right
  * now to act on it, and leaving the key in place is what makes the removal self-healing on next
- * launch — same reasoning as applyChromeForceInstallPolicy's unconditional re-writes above.
+ * launch. Same reasoning as applyChromeForceInstallPolicy's unconditional re-writes above.
  */
 export function forceRemoveExtension(extensionId: string, options: ChromePolicyOptions = {}): void {
   if (!extensionId) {

@@ -21,18 +21,17 @@ const ROLE_LABEL: Record<string, string> = {
 export default function PortalSettingsPage() {
   const { data: currentUser, isLoading: userLoading } = useCurrentUser()
   const isKioskOwner = currentUser?.role === "KIOSK_OWNER"
-  // GET /kiosks/:id is ADMIN/KIOSK_OWNER only — a location manager would get a 403, so only fetch
+  // GET /kiosks/:id is ADMIN/KIOSK_OWNER only, a location manager would get a 403, so only fetch
   // it (and the team roster below) when the current user is actually allowed to see it.
   const { data: kiosk, isLoading: kioskLoading } = useKiosk(isKioskOwner ? (currentUser?.kioskId ?? "") : "")
-  // A location manager can't load the kiosk itself, but is allowed this narrow projection —
+  // A location manager can't load the kiosk itself, but is allowed this narrow projection
   // just enough to know who their kiosk owner is.
   const { data: kioskContact } = useKioskContact(!userLoading && !isKioskOwner)
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Settings</h2>
-        <p className="text-sm text-muted-foreground">Your account, kiosk, and team.</p>
+        <h2 className="text-title">Settings</h2>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2">

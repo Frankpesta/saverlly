@@ -99,7 +99,7 @@ export class KiosksController {
   @ApiResponse({
     status: 200,
     description:
-      "Status updated — takes effect on the kiosk's devices immediately",
+      "Status updated. Takes effect on the kiosk's devices immediately",
   })
   @ApiResponse({ status: 404, description: 'Kiosk not found' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateKioskStatusDto) {
@@ -111,7 +111,7 @@ export class KiosksController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      'Permanently delete a kiosk and everything under it — users, locations, devices, ' +
+      'Permanently delete a kiosk and everything under it. Users, locations, devices, ' +
       'device activity history, kiosk-scoped announcements, and payouts (admin only)',
   })
   @ApiResponse({

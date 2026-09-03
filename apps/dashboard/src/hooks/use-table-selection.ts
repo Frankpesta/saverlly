@@ -1,6 +1,6 @@
 import * as React from "react"
 
-/** Checkbox-based row selection for a table — tracks selected ids against whatever the
+/** Checkbox-based row selection for a table. Tracks selected ids against whatever the
  *  currently-visible item set is, and drops any id that falls out of that set (a delete,
  *  a filter change, a page change) so selection never silently references a stale row. */
 export function useTableSelection<T>(items: T[], getId: (item: T) => string) {

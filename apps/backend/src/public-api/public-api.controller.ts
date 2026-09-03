@@ -61,7 +61,7 @@ export class PublicApiController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      'Deregister this device — deletes its Device row and tokens entirely',
+      'Deregister this device. Deletes its Device row and tokens entirely',
     description:
       "Self-service counterpart to the admin-only DELETE /devices/:id, authenticated by the device's " +
       'own token instead of a human JWT. Called by the desktop agent as its last authenticated act during ' +
@@ -80,7 +80,7 @@ export class PublicApiController {
   @Get('devices/me/savings')
   @ApiOperation({
     summary:
-      "Lifetime savings total for this device — sum of confirmed discounts across every 'applied' event",
+      "Lifetime savings total for this device. Sum of confirmed discounts across every 'applied' event",
   })
   @ApiResponse({
     status: 200,
@@ -101,7 +101,7 @@ export class PublicApiController {
   @Get('announcements/active')
   @ApiOperation({
     summary:
-      "Active announcements for this device's location — startAt<=now<=endAt, and scoped to all locations or this device's location specifically. Poll every 60s.",
+      "Active announcements for this device's location. StartAt<=now<=endAt, and scoped to all locations or this device's location specifically. Poll every 60s.",
   })
   @ApiResponse({
     status: 200,
@@ -122,7 +122,7 @@ export class PublicApiController {
   @Get('promotions/active')
   @ApiOperation({
     summary:
-      "Active promotions for this device — startAt<=now<=endAt, active, and matching this device's location by tag or id. Rendered in the extension popup.",
+      "Active promotions for this device. StartAt<=now<=endAt, active, and matching this device's location by tag or id. Rendered in the extension popup.",
   })
   @ApiResponse({
     status: 200,
@@ -143,7 +143,7 @@ export class PublicApiController {
   @Get('merchants/by-domain/:domain')
   @ApiOperation({
     summary:
-      'Look up an active merchant by domain — merchant + active coupons + checkoutRecipe + attribution config',
+      'Look up an active merchant by domain. Merchant + active coupons + checkoutRecipe + attribution config',
   })
   @ApiResponse({
     status: 200,

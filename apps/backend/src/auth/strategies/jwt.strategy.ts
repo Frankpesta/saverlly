@@ -18,7 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  // Re-checked against the DB on every request rather than trusting the signed payload alone —
+  // Re-checked against the DB on every request rather than trusting the signed payload alone
   // otherwise a deleted or disabled user's still-unexpired access token (up to 7 days) keeps
   // working right up until it naturally expires. This is what makes "delete this kiosk" /
   // "disable this user" actually revoke access immediately instead of just eventually.

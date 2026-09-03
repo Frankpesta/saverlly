@@ -73,7 +73,7 @@ export type PromotionCreativeSize = keyof typeof PROMOTION_CREATIVE_SIZES
 
 export function useUploadPromotionImage(size: PromotionCreativeSize) {
   return useMutation({
-    // The `size` query param is what tells the backend which dimensions to enforce — a 728x90
+    // The `size` query param is what tells the backend which dimensions to enforce, a 728x90
     // uploaded into the `small` slot is rejected there, not silently accepted and squashed here.
     mutationFn: (file: File) =>
       apiUpload<{ url: string; width: number; height: number }>(
