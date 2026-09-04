@@ -11,8 +11,8 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { DateTimePicker } from "@/components/dashboard/date-time-picker"
-import { FormField, FormGrid, FormSection } from "@/components/dashboard/form-section"
+import { DateTimeRangePicker } from "@/components/dashboard/date-time-picker"
+import { FormField, FormSection } from "@/components/dashboard/form-section"
 import { useUploadAnnouncementImage } from "@/lib/api/hooks/use-announcements"
 import type { AnnouncementPayload } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
@@ -199,6 +199,8 @@ export function AnnouncementForm({
   // entirely, genuinely slow to type into.
   const repeatPolicy = watch("repeatPolicy")
   const layout = watch("layout")
+  const startAt = watch("startAt")
+  const endAt = watch("endAt")
   // Watched so the toolbar's drop zone shows a thumbnail of the image just uploaded. It changes
   // on an upload, not on a keystroke, so this costs nothing in typing responsiveness.
   const mediaUrl = watch("mediaUrl") ?? ""
@@ -408,36 +410,23 @@ export function AnnouncementForm({
           </FormSection>
 
           <FormSection label="Schedule">
-            <FormGrid>
-              <FormField label="Starts" htmlFor="ann-start" error={errors.startAt?.message}>
-                <Controller
-                  name="startAt"
-                  control={control}
-                  render={({ field, fieldState }) => (
-                    <DateTimePicker
-                      id="ann-start"
-                      value={field.value}
-                      onChange={field.onChange}
-                      aria-invalid={!!fieldState.error}
-                    />
-                  )}
-                />
-              </FormField>
-              <FormField label="Ends" htmlFor="ann-end" error={errors.endAt?.message}>
-                <Controller
-                  name="endAt"
-                  control={control}
-                  render={({ field, fieldState }) => (
-                    <DateTimePicker
-                      id="ann-end"
-                      value={field.value}
-                      onChange={field.onChange}
-                      aria-invalid={!!fieldState.error}
-                    />
-                  )}
-                />
-              </FormField>
-            </FormGrid>
+            <FormField
+              label="Runs"
+              htmlFor="ann-start"
+              hint="Drag across the calendar to pick the date range, then set the time on each end."
+              error={errors.endAt?.message ?? errors.startAt?.message}
+            >
+              <DateTimeRangePicker
+                id="ann-start"
+                start={startAt}
+                end={endAt}
+                onChange={({ start, end }) => {
+                  setValue("startAt", start, { shouldValidate: true })
+                  setValue("endAt", end, { shouldValidate: true })
+                }}
+                aria-invalid={!!(errors.startAt || errors.endAt)}
+              />
+            </FormField>
             <FormField
               label="Repeat policy"
               htmlFor="ann-repeat"

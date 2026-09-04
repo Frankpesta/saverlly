@@ -35,7 +35,7 @@ export function BentoGrid({
   return (
     <div
       className={cn(
-        "dashboard-bento-grid grid grid-cols-1 gap-4 sm:grid-cols-2",
+        "dashboard-bento-grid grid grid-cols-1 gap-6 sm:grid-cols-2",
         columnClass,
         className,
       )}

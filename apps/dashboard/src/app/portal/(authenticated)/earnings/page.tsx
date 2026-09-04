@@ -32,7 +32,7 @@ import {
   PAYOUT_STATUS_BADGE_VARIANT,
   PAYOUT_STATUS_LABEL,
 } from "@/lib/dashboard/status-labels"
-import { bucketByDay, monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
+import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
 
 export default function PortalEarningsPage() {
   const { data: currentUser } = useCurrentUser()
@@ -54,16 +54,6 @@ export default function PortalEarningsPage() {
   )
   const earningsGrowth = React.useMemo(
     () => monthOverMonthGrowth(confirmedEvents, (e) => e.confirmedAt ?? e.reportedAt, (e) => e.kioskShareAmount),
-    [confirmedEvents],
-  )
-  const earningsTrend = React.useMemo(
-    () =>
-      bucketByDay(
-        confirmedEvents,
-        (event) => event.confirmedAt ?? event.reportedAt,
-        (event) => event.kioskShareAmount,
-        14,
-      ).map((point) => point.value),
     [confirmedEvents],
   )
   const paidPayouts = React.useMemo(() => (payouts ?? []).filter((p) => p.status === "paid"), [payouts])
@@ -132,7 +122,6 @@ export default function PortalEarningsPage() {
           format={formatCurrency}
           icon={<TrendingUpIcon />}
           delta={earningsGrowth}
-          trend={earningsTrend}
           subtext="Lifetime"
         />
         <StatTile

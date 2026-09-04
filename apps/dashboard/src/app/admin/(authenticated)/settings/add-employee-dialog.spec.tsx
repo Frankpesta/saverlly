@@ -1,21 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import NewAdminEmployeePage from "./page"
-
-jest.mock("next/link", () => {
-  return function MockLink({
-    href,
-    children,
-    ...props
-  }: React.PropsWithChildren<{ href: string }>) {
-    return (
-      <a href={href} {...props}>
-        {children}
-      </a>
-    )
-  }
-})
+import { AddEmployeeDialog } from "./add-employee-dialog"
 
 function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -24,7 +10,7 @@ function renderWithClient(ui: React.ReactElement) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
 }
 
-describe("NewAdminEmployeePage", () => {
+describe("AddEmployeeDialog", () => {
   beforeEach(() => {
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -53,13 +39,15 @@ describe("NewAdminEmployeePage", () => {
     }) as jest.Mock
   })
 
-  it("adds an employee and reveals the generated password as a result panel", async () => {
+  it("adds an employee in the dialog and reveals the generated password", async () => {
     const user = userEvent.setup()
-    renderWithClient(<NewAdminEmployeePage />)
+    renderWithClient(<AddEmployeeDialog />)
 
-    await user.type(screen.getByLabelText("Name"), "New Teammate")
-    await user.type(screen.getByLabelText("Email"), "teammate@example.com")
     await user.click(screen.getByRole("button", { name: /^add employee$/i }))
+    const dialog = await screen.findByRole("dialog", { name: /add employee/i })
+    await user.type(within(dialog).getByLabelText("Name"), "New Teammate")
+    await user.type(within(dialog).getByLabelText("Email"), "teammate@example.com")
+    await user.click(within(dialog).getByRole("button", { name: /^add employee$/i }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
@@ -72,9 +60,6 @@ describe("NewAdminEmployeePage", () => {
     )
 
     expect(await screen.findByText("Generated-Password-1")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /back to settings/i })).toHaveAttribute(
-      "href",
-      "/admin/settings",
-    )
+    expect(screen.getByRole("button", { name: /^done$/i })).toBeInTheDocument()
   })
 })

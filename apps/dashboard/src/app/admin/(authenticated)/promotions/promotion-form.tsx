@@ -10,13 +10,12 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { DateTimePicker } from "@/components/dashboard/date-time-picker"
-import { FormField, FormGrid, FormSection } from "@/components/dashboard/form-section"
+import { DateTimeRangePicker } from "@/components/dashboard/date-time-picker"
+import { FormField, FormSection } from "@/components/dashboard/form-section"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import type { PromotionPayload } from "@/lib/api/hooks/use-promotions"
 import { toDatetimeLocal } from "@/lib/format-date"
 import { cn } from "@/lib/utils"
-import { PromotionPreview } from "./promotion-preview"
 import { PromotionCreativeField } from "./promotion-creative-field"
 import { PromotionTargetPicker } from "./promotion-target-picker"
 
@@ -130,7 +129,8 @@ export function PromotionForm({
 
   const imageSmallUrl = watch("imageSmallUrl")
   const imageLargeUrl = watch("imageLargeUrl")
-  const clickUrl = watch("clickUrl")
+  const startAt = watch("startAt")
+  const endAt = watch("endAt")
   const everywhere = watch("everywhere")
   const targetTags = watch("targetTags")
   const locationIds = watch("locationIds")
@@ -149,22 +149,10 @@ export function PromotionForm({
           <h2 className="text-title">{heading}</h2>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {headerActions}
-          <Link
-            href="/admin/promotions"
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            Cancel
-          </Link>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? pendingLabel : submitLabel}
-          </Button>
-        </div>
+        {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-        <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8">
           <FormSection label="Details">
             <FormField
               label="Name"
@@ -205,36 +193,23 @@ export function PromotionForm({
           </FormSection>
 
           <FormSection label="Schedule">
-            <FormGrid>
-              <FormField label="Starts" htmlFor="promo-start" error={errors.startAt?.message}>
-                <Controller
-                  name="startAt"
-                  control={control}
-                  render={({ field, fieldState }) => (
-                    <DateTimePicker
-                      id="promo-start"
-                      value={field.value}
-                      onChange={field.onChange}
-                      aria-invalid={!!fieldState.error}
-                    />
-                  )}
-                />
-              </FormField>
-              <FormField label="Ends" htmlFor="promo-end" error={errors.endAt?.message}>
-                <Controller
-                  name="endAt"
-                  control={control}
-                  render={({ field, fieldState }) => (
-                    <DateTimePicker
-                      id="promo-end"
-                      value={field.value}
-                      onChange={field.onChange}
-                      aria-invalid={!!fieldState.error}
-                    />
-                  )}
-                />
-              </FormField>
-            </FormGrid>
+            <FormField
+              label="Runs"
+              htmlFor="promo-start"
+              hint="Drag across the calendar to pick the date range, then set the time on each end."
+              error={errors.endAt?.message ?? errors.startAt?.message}
+            >
+              <DateTimeRangePicker
+                id="promo-start"
+                start={startAt}
+                end={endAt}
+                onChange={({ start, end }) => {
+                  setValue("startAt", start, { shouldValidate: true })
+                  setValue("endAt", end, { shouldValidate: true })
+                }}
+                aria-invalid={!!(errors.startAt || errors.endAt)}
+              />
+            </FormField>
             <div className="flex items-center justify-between rounded-lg border border-black/8 p-3 dark:border-white/10">
               <div>
                 <Label htmlFor="promo-active">Active</Label>
@@ -281,13 +256,15 @@ export function PromotionForm({
               }
             />
           </FormSection>
-        </div>
+      </div>
 
-        {/* Pinned so the creative stays in view while the schedule and targeting sections are
-            filled in further down the page. */}
-        <div className="lg:sticky lg:top-6 lg:self-start">
-          <PromotionPreview imageSmallUrl={imageSmallUrl} clickUrl={clickUrl} />
-        </div>
+      <div className="flex justify-end gap-2 border-t border-black/[0.09] pt-6 dark:border-white/10">
+        <Link href="/admin/promotions" className={cn(buttonVariants({ variant: "outline" }))}>
+          Cancel
+        </Link>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? pendingLabel : submitLabel}
+        </Button>
       </div>
     </form>
   )

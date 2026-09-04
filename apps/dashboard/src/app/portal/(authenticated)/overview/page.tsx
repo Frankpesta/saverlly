@@ -72,10 +72,6 @@ export default function PortalOverviewPage() {
     () => (events ?? []).filter((e) => e.status === "CONFIRMED"),
     [events],
   )
-  const reversedEvents = React.useMemo(
-    () => (events ?? []).filter((e) => e.status === "REVERSED"),
-    [events],
-  )
 
   const totalEarnings = React.useMemo(
     () => confirmedEvents.reduce((sum, e) => sum + e.kioskShareAmount, 0),
@@ -105,15 +101,6 @@ export default function PortalOverviewPage() {
         365,
       ),
     [confirmedEvents],
-  )
-
-  const breakdown = React.useMemo(
-    () => ({
-      confirmed: totalEarnings,
-      pending: balance?.pendingAmount ?? 0,
-      reversed: reversedEvents.reduce((sum, e) => sum + e.commissionAmount, 0),
-    }),
-    [totalEarnings, balance, reversedEvents],
   )
 
   const deviceStats = React.useMemo(() => deviceCounts(devices ?? []), [devices])
@@ -165,7 +152,7 @@ export default function PortalOverviewPage() {
   const displayName = currentUser?.name || currentUser?.email.split("@")[0] || "there"
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-title">
@@ -219,7 +206,6 @@ export default function PortalOverviewPage() {
           value={totalEarnings}
           format={formatCurrency}
           icon={<TrendingUpIcon />}
-          trend={chartSeries.slice(-14).map((point) => point.value)}
           subtext="Lifetime"
         />
         <StatTile
@@ -259,8 +245,8 @@ export default function PortalOverviewPage() {
         </BentoGrid>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <BentoCard span={2}>
+      <section>
+        <BentoCard>
           <div className="mb-2 flex flex-col gap-0.5">
             <h3 className="text-heading">Earnings overview</h3>
           </div>
@@ -270,32 +256,9 @@ export default function PortalOverviewPage() {
             <TrendChart data={chartSeries} valueLabel="Earnings" />
           )}
         </BentoCard>
-
-        <BentoCard>
-          <div className="flex h-full flex-col gap-3">
-            <h3 className="text-heading">Commission breakdown</h3>
-            <div className="flex flex-1 flex-col justify-center gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Confirmed</span>
-                <span className="text-sm font-medium">{formatCurrency(breakdown.confirmed)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Pending</span>
-                <span className="text-sm font-medium">{formatCurrency(breakdown.pending)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Reversed</span>
-                <span className="text-sm font-medium">{formatCurrency(breakdown.reversed)}</span>
-              </div>
-            </div>
-            <Link href="/portal/earnings" className="text-sm text-muted-foreground hover:underline">
-              View commissions →
-            </Link>
-          </div>
-        </BentoCard>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-heading">Devices by location</h3>
@@ -400,7 +363,7 @@ export default function PortalOverviewPage() {
         </Table>
       </BentoCard>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-heading">Recent payouts</h3>

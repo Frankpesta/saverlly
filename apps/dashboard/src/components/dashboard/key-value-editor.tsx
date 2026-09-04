@@ -106,17 +106,23 @@ function CredentialRow({
         data-1p-ignore
         value={row.key}
         onChange={(e) => onUpdate(row.id, "key", e.target.value)}
+        className="min-w-0 flex-1"
       />
-      <PasswordInput
-        placeholder="Value"
-        autoComplete="off"
-        name={`credential-value-${nameSuffix}-${row.id}`}
-        data-1p-ignore
-        data-lpignore="true"
-        value={row.value}
-        onChange={(e) => onUpdate(row.id, "value", e.target.value)}
-        {...autofillGuard}
-      />
+      {/* PasswordInput's own wrapper div is what's actually laid out as the flex item here, so
+          the flex-basis has to go on this div, not on the className it forwards to the inner
+          <input>, otherwise this field stays sized to its content and reads narrower than Key. */}
+      <div className="min-w-0 flex-1">
+        <PasswordInput
+          placeholder="Value"
+          autoComplete="off"
+          name={`credential-value-${nameSuffix}-${row.id}`}
+          data-1p-ignore
+          data-lpignore="true"
+          value={row.value}
+          onChange={(e) => onUpdate(row.id, "value", e.target.value)}
+          {...autofillGuard}
+        />
+      </div>
       <Button
         type="button"
         variant="ghost"

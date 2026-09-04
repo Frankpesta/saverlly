@@ -118,6 +118,7 @@ export function DateRangePicker({
   disabled,
   minDate,
   maxDate,
+  "aria-invalid": ariaInvalid,
 }: {
   id?: string
   /** `{ from, to }` as "yyyy-MM-dd" strings. Either may be empty. */
@@ -127,6 +128,7 @@ export function DateRangePicker({
   disabled?: boolean
   minDate?: Date
   maxDate?: Date
+  "aria-invalid"?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const from = parseDateValue(value.from)
@@ -153,6 +155,7 @@ export function DateRangePicker({
           onChange={setFromDigits}
           onCommit={(date) => onChange({ ...value, from: date ? formatDateValue(date) : "" })}
           aria-label="From"
+          aria-invalid={ariaInvalid}
           disabled={disabled}
           className="w-40"
         />
@@ -162,6 +165,7 @@ export function DateRangePicker({
           onChange={setToDigits}
           onCommit={(date) => onChange({ ...value, to: date ? formatDateValue(date) : "" })}
           aria-label="To"
+          aria-invalid={ariaInvalid}
           disabled={disabled}
           className="w-40"
           trailing={<CalendarToggle disabled={disabled} label="Open calendar" />}

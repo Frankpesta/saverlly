@@ -36,7 +36,7 @@ export function FormSection({
  *  the reference pairs related fields (Project Name / Client) side by side rather than
  *  stacking every field full-width. */
 export function FormGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", className)}>{children}</div>
+  return <div className={cn("grid grid-cols-1 gap-5 sm:grid-cols-2", className)}>{children}</div>
 }
 
 /** Label + control stack. The repeated shape every field in a form already had, pulled into
