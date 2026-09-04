@@ -83,7 +83,7 @@ describe("NewAnnouncementPage", () => {
 
     await userEvent.type(screen.getByLabelText("Title"), "Weekend Deal")
     await userEvent.type(screen.getByLabelText("Internal note"), "20% off this weekend only.")
-    expect(screen.getByLabelText("Starts")).toBeInTheDocument()
+    expect(screen.getByLabelText("Runs")).toBeInTheDocument()
     expect(screen.getByLabelText("All locations")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /continue/i })).not.toBeInTheDocument()
 

@@ -2,14 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion } from "motion/react"
 import {
   StoreIcon,
   MapPinIcon,
   MonitorIcon,
   BanknoteIcon,
-  ClockIcon,
-  CircleCheckIcon,
   TriangleAlertIcon,
   ArrowUpRightIcon,
   XIcon,
@@ -57,19 +54,6 @@ import { COMMISSION_STATUS_BADGE_VARIANT, COMMISSION_STATUS_LABEL } from "@/lib/
 
 const COMMISSION_STATUSES = ["CONFIRMED", "PENDING", "REVERSED"] as const
 
-// Same hues as the badge variants for these statuses (status-labels.ts), a status reads as
-// the same color everywhere in the app, not just in a Badge.
-const SEGMENT_BG: Record<(typeof COMMISSION_STATUSES)[number], string> = {
-  CONFIRMED: "bg-[var(--success)]",
-  PENDING: "bg-[var(--warning)]",
-  REVERSED: "bg-destructive",
-}
-const SEGMENT_DOT: Record<(typeof COMMISSION_STATUSES)[number], string> = {
-  CONFIRMED: "bg-[var(--success)]",
-  PENDING: "bg-[var(--warning)]",
-  REVERSED: "bg-destructive",
-}
-
 // A merchant needs a meaningful sample before its success rate means anything
 // flagging a merchant with 1 test event and a 0% rate would just be noise.
 const MIN_ATTEMPTS_FOR_RATE = 5
@@ -111,11 +95,6 @@ export default function AdminOverviewPage() {
   const totalGrowth = React.useMemo(
     () => monthOverMonthGrowth(events ?? [], (e) => e.reportedAt, (e) => e.commissionAmount),
     [events],
-  )
-  const confirmedGrowth = React.useMemo(
-    () =>
-      monthOverMonthGrowth(confirmedEvents, (e) => e.confirmedAt ?? e.reportedAt, (e) => e.commissionAmount),
-    [confirmedEvents],
   )
 
   const chartSeries = React.useMemo(
@@ -280,7 +259,7 @@ export default function AdminOverviewPage() {
   }, [kiosks])
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <section className="flex flex-col gap-4">
         <BentoGrid>
           <StatTile
@@ -302,76 +281,24 @@ export default function AdminOverviewPage() {
             format={formatCurrency}
             icon={<BanknoteIcon />}
             delta={totalGrowth}
-            trend={chartSeries.slice(-14).map((point) => point.value)}
             subtext={totalGrowth !== null ? "vs last month" : undefined}
-          />
-          <StatTile
-            label="Pending commissions"
-            value={commissionByStatus.PENDING}
-            format={formatCurrency}
-            icon={<ClockIcon />}
-            subtext="Awaiting confirmation"
-          />
-          <StatTile
-            label="Confirmed commissions"
-            value={commissionByStatus.CONFIRMED}
-            format={formatCurrency}
-            icon={<CircleCheckIcon />}
-            delta={confirmedGrowth}
-            trend={chartSeries.slice(-14).map((point) => point.value)}
-            subtext={confirmedGrowth !== null ? "vs last month" : undefined}
           />
         </BentoGrid>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          <BentoCard>
-            <div className="mb-2 flex flex-col gap-0.5">
-              <h3 className="text-heading">Commission performance</h3>
-            </div>
-            {eventsLoading ? (
-              <Skeleton className="h-[260px] w-full" />
-            ) : (
-              <TrendChart data={chartSeries} valueLabel="Commission" />
-            )}
-          </BentoCard>
+      <section className="flex flex-col gap-6">
+        <BentoCard>
+          <div className="mb-2 flex flex-col gap-0.5">
+            <h3 className="text-heading">Commission performance</h3>
+          </div>
+          {eventsLoading ? (
+            <Skeleton className="h-[260px] w-full" />
+          ) : (
+            <TrendChart data={chartSeries} valueLabel="Commission" />
+          )}
+        </BentoCard>
 
-          <BentoCard>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-heading">Commission breakdown</h3>
-              <Link href="/admin/commissions" className="text-sm text-muted-foreground hover:underline">
-                View all →
-              </Link>
-            </div>
-            <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-              {COMMISSION_STATUSES.map((status) => {
-                const pct = totalCommission > 0 ? (commissionByStatus[status] / totalCommission) * 100 : 0
-                if (pct <= 0) return null
-                return (
-                  <motion.div
-                    key={status}
-                    className={cn("h-full", SEGMENT_BG[status])}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${pct}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                  />
-                )
-              })}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
-              {COMMISSION_STATUSES.map((status) => (
-                <div key={status} className="flex items-center gap-2 text-sm">
-                  <span className={cn("size-2.5 shrink-0 rounded-full", SEGMENT_DOT[status])} />
-                  <span className="text-muted-foreground">{COMMISSION_STATUS_LABEL[status]}</span>
-                  <span className="font-medium">{formatCurrency(commissionByStatus[status])}</span>
-                </div>
-              ))}
-            </div>
-          </BentoCard>
-        </div>
-
-        <div className="flex flex-col gap-4 lg:col-span-1">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <Gauge
             label="Kiosks active"
             value={kioskStats.active}
@@ -417,7 +344,7 @@ export default function AdminOverviewPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-heading">Top performing kiosks</h3>
@@ -523,7 +450,7 @@ export default function AdminOverviewPage() {
         </BentoCard>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BentoCard>
           <div className="flex h-full flex-col gap-3">
             <h3 className="text-heading">Payout overview</h3>

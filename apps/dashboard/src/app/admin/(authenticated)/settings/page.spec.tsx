@@ -140,15 +140,15 @@ describe("AdminSettingsPage", () => {
     )
   })
 
-  it("lists existing employees and links Add employee to its own page", async () => {
+  it("lists existing employees and opens the Add employee dialog", async () => {
+    const user = userEvent.setup()
     renderWithClient(<AdminSettingsPage />)
 
     expect(await screen.findByText(/\(you\)/)).toBeInTheDocument()
-    // Adding an employee is now a page of its own
-    // (settings/employees/new/page.spec.tsx exercises the actual form).
-    expect(screen.getByRole("link", { name: /add employee/i })).toHaveAttribute(
-      "href",
-      "/admin/settings/employees/new",
-    )
+
+    // Adding an employee is a dialog rather than its own page
+    // (add-employee-dialog.spec.tsx exercises the actual form).
+    await user.click(screen.getByRole("button", { name: /add employee/i }))
+    expect(await screen.findByRole("dialog", { name: /add employee/i })).toBeInTheDocument()
   })
 })

@@ -28,7 +28,7 @@ export function EntityFormHeader({
   headerActions?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/[0.09] pb-6 dark:border-white/10">
+    <div className="flex w-full flex-wrap items-start justify-between gap-4 border-b border-black/[0.09] pb-6 dark:border-white/10">
       <div className="flex flex-col gap-3">
         <Link
           href={backHref}
@@ -78,14 +78,14 @@ export function EntityFormCard({
   className?: string
 }) {
   return (
-    <Card className={cn("max-w-2xl", className)}>
+    <Card className={cn("w-full [--card-spacing:--spacing(8)]", className)}>
       {title && (
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{title}</CardTitle>
           {headerExtra}
         </CardHeader>
       )}
-      <CardContent className="flex flex-col gap-6">{children}</CardContent>
+      <CardContent className="flex flex-col gap-8">{children}</CardContent>
       <CardFooter className="justify-end gap-2">
         <Link href={cancelHref} className={cn(buttonVariants({ variant: "outline" }))}>
           Cancel

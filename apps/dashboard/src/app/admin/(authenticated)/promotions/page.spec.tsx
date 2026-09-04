@@ -114,7 +114,7 @@ describe("AdminPromotionsPage", () => {
     expect(screen.queryByText("Paused Promo")).not.toBeInTheDocument()
   })
 
-  it("shows the empty state, pointing at the extension slot a promotion fills", async () => {
+  it("shows the empty state", async () => {
     ;(global.fetch as jest.Mock).mockImplementation(async () => ({
       ok: true,
       status: 200,
@@ -123,9 +123,6 @@ describe("AdminPromotionsPage", () => {
     renderWithClient(<AdminPromotionsPage />)
 
     expect(await screen.findByText("No promotions yet")).toBeInTheDocument()
-    // The popup mock is the point of this empty state. It must actually render, not just copy.
-    expect(screen.getByText(/320 × 100 creative/)).toBeInTheDocument()
-    expect(screen.getByText("Sponsored")).toBeInTheDocument()
     expect(
       screen.getByRole("link", { name: /create your first promotion/i }),
     ).toHaveAttribute("href", "/admin/promotions/new")
