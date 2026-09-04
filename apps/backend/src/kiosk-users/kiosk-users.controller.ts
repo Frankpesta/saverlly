@@ -77,9 +77,38 @@ export class KioskUsersController {
     return this.kioskUsersService.findAllForKiosk(kioskId);
   }
 
+  @Post(':userId/resend-password')
+  @ApiOperation({
+    summary: 'Issue a new first-time password and re-send the welcome email',
+    description:
+      'Generates a fresh password, flags the account to change it on next sign-in, re-sends the ' +
+      'welcome email, and returns the password so it can be read out directly if email fails.',
+  })
+  @ApiResponse({ status: 201, description: 'Password reset and re-sent' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Cross-tenant, or a kiosk-owner acting on a non-location-manager account',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User does not belong to this kiosk',
+  })
+  resendPassword(
+    @Param('kioskId') kioskId: string,
+    @Param('userId') userId: string,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.kioskUsersService.resendPassword(
+      kioskId,
+      userId,
+      currentUser.role,
+    );
+  }
+
   @Patch(':userId')
   @ApiOperation({
-    summary: 'Update a kiosk user. Role, disabled flag, or managedLocationIds',
+    summary: 'Update a kiosk user. Name, email, role, disabled, or managedLocationIds',
   })
   @ApiResponse({ status: 200, description: 'User updated' })
   @ApiResponse({

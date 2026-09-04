@@ -25,6 +25,7 @@ export type NavItem = {
 
 export function AppSidebar({
   homeUrl,
+  profileHref,
   navMain,
   navSecondary,
   user,
@@ -32,6 +33,7 @@ export function AppSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   homeUrl: string
+  profileHref: string
   navMain: NavItem[]
   navSecondary?: NavItem[]
   user: { name: string; email: string; avatar?: string }
@@ -60,7 +62,7 @@ export function AppSidebar({
         )}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/70 p-3">
-        <NavUser user={user} onLogout={onLogout} />
+        <NavUser user={user} profileHref={profileHref} onLogout={onLogout} />
       </SidebarFooter>
     </Sidebar>
   )

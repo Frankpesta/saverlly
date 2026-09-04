@@ -25,6 +25,7 @@ model User {
   id                 String         @id @default(uuid())
   email              String         @unique
   name               String? // shown in greetings instead of the email local-part once set; nullable since older rows predate this field
+  avatarUrl          String? // profile photo, uploaded to /uploads/avatars; null falls back to initials
   passwordHash       String
   mustChangePassword Boolean        @default(true) // true for server-generated passwords; forces a change on next login
   role               UserRole
@@ -35,6 +36,7 @@ model User {
   refreshTokenHash   String? // hashed current refresh token; cleared on logout, rotated on refresh
   notifications      Notification[]
   dismissedAlerts    DismissedAlert[]
+  announcements      Announcement[]
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
@@ -207,8 +209,16 @@ model Announcement {
   kioskId         String? // null = platform-wide broadcast (ADMIN-only); locationIds is always empty when null
   kiosk           Kiosk?                   @relation(fields: [kioskId], references: [id])
   locationIds     String[] // empty array = all locations for this kiosk (or, for a broadcast, everyone)
+  /// Who wrote it. A location manager may edit and delete only their own announcements, never
+  /// one the owner (or another manager) made for the same location. Nullable because
+  /// announcements predating this column have no recorded author, and SetNull because deleting
+  /// a team member must not take their live announcements off the kiosks with them.
+  createdById     String?
+  createdBy       User?                    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   title           String
-  body            String
+  /// Internal note, for finding this announcement in the dashboard. Never drawn on the kiosk:
+  /// what a kiosk shows comes entirely from `layout`. Nullable because it is optional to write.
+  body            String?
   mediaUrl        String? // image/asset for the visual editor
   layout          Json? // freeform canvas design (AnnouncementLayout); null = pre-canvas announcement, agent falls back to a default layout built from title/body/mediaUrl
   startAt         DateTime
@@ -219,6 +229,7 @@ model Announcement {
   updatedAt       DateTime                 @updatedAt
 
   @@index([kioskId])
+  @@index([createdById])
 }
 
 // Admin-authored promotion shown inside the Chrome extension's popup. Deliberately a separate
@@ -361,6 +372,16 @@ model Notification {
 // underlying condition resolves (kiosk re-activated, etc) the derived item simply stops being
 // generated, so nothing here needs cleaning up on that path; a stale dismissal for a
 // long-resolved alert is harmless dead weight, not a bug.
+/// Runtime-editable platform configuration, so values an admin should be able to change (the
+/// support address the kiosk portal points people at, for one) stop being build-time env vars
+/// that need a redeploy. Deliberately a key/value table rather than a one-row settings model:
+/// adding a setting is then a constant, not a migration.
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model DismissedAlert {
   id        String   @id @default(uuid())
   userId    String

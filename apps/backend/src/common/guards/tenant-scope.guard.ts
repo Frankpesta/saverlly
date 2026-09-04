@@ -68,6 +68,21 @@ export class TenantScopeGuard implements CanActivate {
       return false;
     }
 
+    // An announcement has no single locationId (it can span several, or all of them), so the
+    // generic location check below would refuse every location manager. Authorship is the line
+    // instead: they may change what they wrote, and nothing else. An announcement the owner made
+    // for the same location stays the owner's.
+    if (
+      options.type === TenantResourceType.ANNOUNCEMENT &&
+      user.role === UserRole.LOCATION_MANAGER
+    ) {
+      const announcement = await this.prisma.announcement.findUnique({
+        where: { id: resourceId },
+        select: { createdById: true },
+      });
+      return announcement?.createdById === user.sub;
+    }
+
     if (user.role === UserRole.LOCATION_MANAGER) {
       if (!scope.locationId) {
         return false; // kiosk-level resource, out of a location-manager's reach

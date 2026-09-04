@@ -1,6 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { UserRole } from '@prisma/client';
+import { NormalizeEmail } from '../../common/transformers/normalize-email.decorator';
 import { KIOSK_ASSIGNABLE_ROLES } from './create-kiosk-user.dto';
 
 export class UpdateKioskUserDto {
@@ -9,6 +18,16 @@ export class UpdateKioskUserDto {
   @IsString()
   @MinLength(1)
   name?: string;
+
+  @ApiPropertyOptional({
+    example: 'jane@example.com',
+    description:
+      'Changing this changes the address the account signs in with. Must not already be in use.',
+  })
+  @IsOptional()
+  @NormalizeEmail()
+  @IsEmail()
+  email?: string;
 
   @ApiPropertyOptional({ enum: KIOSK_ASSIGNABLE_ROLES })
   @IsOptional()

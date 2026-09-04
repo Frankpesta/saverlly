@@ -18,9 +18,13 @@ export type TokenPair = {
 export type UserProfile = {
   id: string
   name: string | null
+  avatarUrl: string | null
   email: string
   role: UserRole
   kioskId: string | null
+  managedLocationIds?: string[]
+  mustChangePassword?: boolean
+  createdAt?: string
 }
 
 export type KioskStatus = "ACTIVE" | "INACTIVE"
@@ -42,6 +46,7 @@ export type KioskAssignableRole = Extract<UserRole, "KIOSK_OWNER" | "LOCATION_MA
 export type KioskUser = {
   id: string
   name: string | null
+  avatarUrl: string | null
   email: string
   role: KioskAssignableRole
   kioskId: string
@@ -55,6 +60,7 @@ export type KioskUser = {
 export type AdminUser = {
   id: string
   name: string | null
+  avatarUrl: string | null
   email: string
   role: "ADMIN"
   kioskId: null
@@ -232,8 +238,13 @@ export type Announcement = {
   kioskId: string | null
   /** Location ids this announcement is scoped to. Empty array = all locations for the kiosk. */
   locationIds: string[]
+  /** Who wrote it. A location manager may edit or delete only their own; null belongs to nobody
+   *  (it predates authorship) and stays owner-only. */
+  createdById: string | null
   title: string
-  body: string
+  /** Internal note. Never drawn on the kiosk, and nullable since the canvas editor replaced it
+   *  as the source of what an announcement says. */
+  body: string | null
   mediaUrl: string | null
   /** Freeform canvas design. Null for announcements created before the canvas editor. The
    *  editor and the kiosk agent both fall back to a default layout built from title/body/mediaUrl. */

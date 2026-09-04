@@ -69,6 +69,9 @@ async function deleteAllInOrder(): Promise<void> {
   await testPrisma.location.deleteMany();
   await testPrisma.user.deleteMany();
   await testPrisma.kiosk.deleteMany();
+  // No FK relations, but it persists across tests and would otherwise leak a support email set
+  // by one spec into another's reading of GET /settings/public.
+  await testPrisma.platformSetting.deleteMany();
 }
 
 /**

@@ -85,10 +85,14 @@ export class AnnouncementsService {
       throw new NotFoundException('Kiosk not found');
     }
     await this.assertLocationsBelongToKiosk(kioskId, dto.locationIds);
+    await this.assertManagerMayTarget(currentUser, dto.locationIds);
 
     return this.prisma.announcement.create({
       data: {
         kioskId,
+        // Recorded so a location manager can come back and edit or delete their own, and only
+        // their own. The owner's announcements for the same location stay the owner's.
+        createdById: currentUser.sub,
         locationIds: dto.locationIds ?? [],
         title: dto.title,
         body: dto.body,
@@ -156,14 +160,24 @@ export class AnnouncementsService {
     return announcement;
   }
 
-  async update(id: string, dto: UpdateAnnouncementDto) {
+  async update(
+    id: string,
+    currentUser: JwtPayload,
+    dto: UpdateAnnouncementDto,
+  ) {
     const existing = await this.findOne(id);
+    this.assertIsAuthorIfManager(currentUser, existing.createdById);
     const startAt = dto.startAt ?? existing.startAt.toISOString();
     const endAt = dto.endAt ?? existing.endAt.toISOString();
     if (new Date(endAt) <= new Date(startAt)) {
       throw new BadRequestException('endAt must be after startAt');
     }
     await this.assertLocationsBelongToKiosk(existing.kioskId, dto.locationIds);
+    // Re-checked on update as well as create, or a manager could edit their own announcement to
+    // point at a location they don't manage.
+    if (dto.locationIds !== undefined) {
+      await this.assertManagerMayTarget(currentUser, dto.locationIds);
+    }
     const repeatPolicy = dto.repeatPolicy ?? existing.repeatPolicy;
     const maxDisplayCount =
       dto.maxDisplayCount !== undefined
@@ -187,9 +201,32 @@ export class AnnouncementsService {
     });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, currentUser: JwtPayload) {
+    const existing = await this.findOne(id);
+    this.assertIsAuthorIfManager(currentUser, existing.createdById);
     await this.prisma.announcement.delete({ where: { id } });
+  }
+
+  /**
+   * A location manager may change only what they wrote.
+   *
+   * TenantScopeGuard already applies this rule for the PATCH/DELETE routes; repeating it here
+   * keeps the service safe to call from anywhere, and means a route that forgets the guard fails
+   * closed rather than opening a hole. Announcements written before authorship existed have a
+   * null `createdById`, which belongs to nobody and so stays owner-only.
+   */
+  private assertIsAuthorIfManager(
+    currentUser: JwtPayload,
+    createdById: string | null,
+  ): void {
+    if (currentUser.role !== UserRole.LOCATION_MANAGER) {
+      return;
+    }
+    if (createdById !== currentUser.sub) {
+      throw new ForbiddenException(
+        'You can only change announcements you created yourself',
+      );
+    }
   }
 
   /**
@@ -217,6 +254,42 @@ export class AnnouncementsService {
     if (matching.length !== locationIds.length) {
       throw new BadRequestException(
         'One or more locationIds do not exist or do not belong to this kiosk',
+      );
+    }
+  }
+
+  /**
+   * A location manager may only announce to locations they actually manage.
+   *
+   * Two rules, both enforced here rather than left to the guard: `TenantScopeGuard` works off a
+   * single resource id in the URL, and a create has none, so nothing upstream can see which
+   * locations the body is asking for.
+   *
+   * An empty `locationIds` is the "every location in this kiosk" convention. That is a decision
+   * for the owner, so a manager has to name their locations explicitly. This is also why the
+   * dashboard disables "All locations" for them rather than letting the request fail.
+   */
+  private async assertManagerMayTarget(
+    currentUser: JwtPayload,
+    locationIds: string[] | undefined,
+  ): Promise<void> {
+    if (currentUser.role !== UserRole.LOCATION_MANAGER) {
+      return;
+    }
+    if (!locationIds || locationIds.length === 0) {
+      throw new ForbiddenException(
+        'Pick which of your locations this is for. Only the kiosk owner can announce to every location.',
+      );
+    }
+    const manager = await this.prisma.user.findUnique({
+      where: { id: currentUser.sub },
+      select: { managedLocationIds: true },
+    });
+    const managed = manager?.managedLocationIds ?? [];
+    const outOfScope = locationIds.filter((id) => !managed.includes(id));
+    if (outOfScope.length > 0) {
+      throw new ForbiddenException(
+        'You can only create announcements for locations you manage',
       );
     }
   }

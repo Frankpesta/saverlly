@@ -1,31 +1,23 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import Link from "next/link"
 import { ChangePasswordCard } from "@/components/settings/change-password-card"
 import { SettingsSection } from "@/components/settings/settings-section"
-import { AccountEmailField } from "@/components/settings/account-email-field"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
-import { useKiosk, useKioskContact } from "@/lib/api/hooks/use-kiosks"
-import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
+import { useKioskContact } from "@/lib/api/hooks/use-kiosks"
 import { TeamSection } from "./team-section"
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL
-
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN: "Admin",
-  KIOSK_OWNER: "Kiosk owner",
-  LOCATION_MANAGER: "Location manager",
-}
-
+/**
+ * Two things only: who else can get in, and changing your own password.
+ *
+ * Identity and kiosk details used to be "Account" and "Kiosk" sections here. Both moved to
+ * /portal/profile, so this page stopped mixing personal details with team administration.
+ */
 export default function PortalSettingsPage() {
   const { data: currentUser, isLoading: userLoading } = useCurrentUser()
   const isKioskOwner = currentUser?.role === "KIOSK_OWNER"
-  // GET /kiosks/:id is ADMIN/KIOSK_OWNER only, a location manager would get a 403, so only fetch
-  // it (and the team roster below) when the current user is actually allowed to see it.
-  const { data: kiosk, isLoading: kioskLoading } = useKiosk(isKioskOwner ? (currentUser?.kioskId ?? "") : "")
-  // A location manager can't load the kiosk itself, but is allowed this narrow projection
-  // just enough to know who their kiosk owner is.
+  // A location manager can't load their own kiosk, but is allowed this narrow projection,
+  // just enough to know who to ask about access.
   const { data: kioskContact } = useKioskContact(!userLoading && !isKioskOwner)
 
   return (
@@ -34,59 +26,7 @@ export default function PortalSettingsPage() {
         <h2 className="text-title">Settings</h2>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-2">
-        <SettingsSection title="Account" description="The identity and access level for this workspace.">
-          <div className="flex flex-col gap-3">
-            {userLoading && <Skeleton className="h-10 w-full" />}
-            {currentUser && (
-              <AccountEmailField
-                name={currentUser.name}
-                email={currentUser.email}
-                roleLabel={ROLE_LABEL[currentUser.role] ?? currentUser.role}
-              />
-            )}
-          </div>
-        </SettingsSection>
-
-        <ChangePasswordCard />
-
-        {isKioskOwner && (
-          <SettingsSection title="Kiosk" description="Managed by your Saverlly administrator.">
-            <div className="flex flex-col gap-3">
-              {kioskLoading && <Skeleton className="h-10 w-full" />}
-              {kiosk && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Name</span>
-                    <span className="text-sm font-medium">{kiosk.name}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Status</span>
-                    <Badge variant={KIOSK_STATUS_BADGE_VARIANT[kiosk.status]}>
-                      {KIOSK_STATUS_LABEL[kiosk.status]}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Revenue share</span>
-                    <span className="text-sm font-medium">{kiosk.revenueSharePct}%</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Contact{" "}
-                    {SUPPORT_EMAIL ? (
-                      <a href={`mailto:${SUPPORT_EMAIL}`} className="text-[var(--brand-teal)] hover:underline">
-                        your Saverlly admin
-                      </a>
-                    ) : (
-                      "your Saverlly admin"
-                    )}{" "}
-                    to change these details.
-                  </p>
-                </>
-              )}
-            </div>
-          </SettingsSection>
-        )}
-
+      <div className="grid grid-cols-1 items-start gap-10">
         {isKioskOwner && currentUser?.kioskId && <TeamSection kioskId={currentUser.kioskId} />}
 
         {!userLoading && !isKioskOwner && (
@@ -103,10 +43,19 @@ export default function PortalSettingsPage() {
               ) : (
                 "your kiosk owner"
               )}{" "}
-              to manage kiosk details or team access.
+              to change your locations or team access. Your own name, email and photo are on your{" "}
+              <Link href="/portal/profile" className="text-[var(--brand-teal)] hover:underline">
+                profile
+              </Link>
+              .
             </p>
           </SettingsSection>
         )}
+
+        {/* Anchored so the profile page's "Change password" button lands on it. */}
+        <div id="password" className="scroll-mt-24 max-w-xl">
+          <ChangePasswordCard />
+        </div>
       </div>
     </div>
   )

@@ -69,12 +69,21 @@ export class AnnouncementsController {
   ) {}
 
   @Post()
-  @Roles(UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @ApiOperation({
     summary:
       "Create an announcement (admin specifies kioskId; kiosk-owner's own kiosk is implied)",
+    description:
+      'A location manager may create one only for locations they manage: locationIds is ' +
+      'required and every id must be in their own managedLocationIds. An empty array means ' +
+      "every location in the kiosk, which is the owner's call, not theirs.",
   })
   @ApiResponse({ status: 201, description: 'Announcement created' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'A location manager targeting a location they do not manage, or all locations',
+  })
   create(
     @CurrentUser() currentUser: JwtPayload,
     @Body() dto: CreateAnnouncementDto,
@@ -82,8 +91,10 @@ export class AnnouncementsController {
     return this.announcementsService.create(currentUser, dto);
   }
 
+  // Granted alongside POST / above: without it a manager designs a whole announcement and the
+  // image upload fails silently partway through.
   @Post('upload-image')
-  @Roles(UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: "Upload an image for use as an announcement's mediaUrl",
@@ -151,7 +162,7 @@ export class AnnouncementsController {
     description:
       'Kiosk-owner and location-manager get read-only visibility into platform-wide ' +
       "broadcasts and their own kiosk's announcements (location-manager further scoped to " +
-      'their assigned locations). Only ADMIN or the owning KIOSK_OWNER can PATCH/DELETE one.',
+      'their assigned locations). PATCH/DELETE is the owner, or the manager who wrote it.',
   })
   @ApiResponse({ status: 200, description: 'The announcement' })
   @ApiResponse({ status: 403, description: "Not in the caller's tenant scope" })
@@ -161,18 +172,30 @@ export class AnnouncementsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.ANNOUNCEMENT)
-  @ApiOperation({ summary: 'Update an announcement' })
+  @ApiOperation({
+    summary: 'Update an announcement',
+    description:
+      'A location manager may only update one they created themselves. Anything the owner (or ' +
+      'another manager) made for the same location is not theirs to change.',
+  })
   @ApiResponse({ status: 200, description: 'Announcement updated' })
-  @ApiResponse({ status: 403, description: "Not in the caller's tenant scope" })
-  update(@Param('id') id: string, @Body() dto: UpdateAnnouncementDto) {
-    return this.announcementsService.update(id, dto);
+  @ApiResponse({
+    status: 403,
+    description: "Not in the caller's tenant scope, or not the manager's own announcement",
+  })
+  update(
+    @Param('id') id: string,
+    @CurrentUser() currentUser: JwtPayload,
+    @Body() dto: UpdateAnnouncementDto,
+  ) {
+    return this.announcementsService.update(id, currentUser, dto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.KIOSK_OWNER)
+  @Roles(UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.ANNOUNCEMENT)
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -182,7 +205,7 @@ export class AnnouncementsController {
     status: 403,
     description: 'Not allowed for this role or tenant',
   })
-  remove(@Param('id') id: string) {
-    return this.announcementsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() currentUser: JwtPayload) {
+    return this.announcementsService.remove(id, currentUser);
   }
 }

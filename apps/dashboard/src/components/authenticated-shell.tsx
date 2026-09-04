@@ -9,6 +9,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export function AuthenticatedShell({
   homeUrl,
+  profileHref,
   loginPath,
   fallbackTitle,
   navMain,
@@ -17,6 +18,7 @@ export function AuthenticatedShell({
   children,
 }: {
   homeUrl: string
+  profileHref: string
   loginPath: string
   fallbackTitle: string
   navMain: NavItem[]
@@ -48,6 +50,7 @@ export function AuthenticatedShell({
     >
       <AppSidebar
         homeUrl={homeUrl}
+        profileHref={profileHref}
         navMain={navMain}
         navSecondary={navSecondary}
         user={user}

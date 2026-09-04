@@ -9,8 +9,10 @@ export class ActiveAnnouncementDto {
   @ApiProperty()
   title: string;
 
-  @ApiProperty()
-  body: string;
+  // The dashboard-side internal note, not kiosk copy. The agent only reads it when building a
+  // fallback layout for an announcement that predates the canvas editor.
+  @ApiProperty({ nullable: true, type: String })
+  body: string | null;
 
   // Always present in the response (never omitted) but may be null. Nullable:true,
   // not ApiPropertyOptional, since "optional" in OpenAPI means possibly-absent.

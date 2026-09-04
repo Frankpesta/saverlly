@@ -17,6 +17,8 @@ function Harness({ initial }: { initial: AnnouncementLayout }) {
         onSelect={setSelectedId}
       />
       <output data-testid="state">{JSON.stringify(layout.elements.map((e) => [e.x, e.y]))}</output>
+      <output data-testid="count">{layout.elements.length}</output>
+      <output data-testid="selected">{selectedId ?? "none"}</output>
     </>
   )
 }
@@ -45,6 +47,58 @@ describe("AnnouncementCanvas", () => {
   // jsdom reports a zero-width content rect, so the component keeps scale at 1. Which is what
   // makes screen-pixel deltas below equal canvas-pixel deltas.
   const base = createDefaultLayout({ title: "Headline", body: "Body copy" })
+
+  // The keyboard handler only ever handled arrow keys, so deleting meant hunting for the bin
+  // icon in the inspector every time.
+  describe("keyboard shortcuts on the selection", () => {
+    it("deletes on Delete and on Backspace", () => {
+      for (const key of ["Delete", "Backspace"]) {
+        const { unmount } = render(<Harness initial={base} />)
+        const before = Number(screen.getByTestId("count").textContent)
+        const target = screen.getByRole("button", { name: /Text: Headline/ })
+
+        pointer(target, "pointerdown", { clientX: 100, clientY: 100 })
+        fireEvent.keyDown(target, { key })
+
+        expect(Number(screen.getByTestId("count").textContent)).toBe(before - 1)
+        expect(screen.getByTestId("selected")).toHaveTextContent("none")
+        unmount()
+      }
+    })
+
+    it("duplicates on Ctrl+D, offset so the copy is visible", () => {
+      render(<Harness initial={base} />)
+      const before = Number(screen.getByTestId("count").textContent)
+      const element = firstText(base)
+      const target = screen.getByRole("button", { name: /Text: Headline/ })
+
+      pointer(target, "pointerdown", { clientX: 100, clientY: 100 })
+      fireEvent.keyDown(target, { key: "d", ctrlKey: true })
+
+      const positions = JSON.parse(screen.getByTestId("state").textContent!)
+      expect(Number(screen.getByTestId("count").textContent)).toBe(before + 1)
+      expect(positions[positions.length - 1]).toEqual([element.x + 16, element.y + 16])
+    })
+
+    it("deselects on Escape", () => {
+      render(<Harness initial={base} />)
+      const target = screen.getByRole("button", { name: /Text: Headline/ })
+
+      pointer(target, "pointerdown", { clientX: 100, clientY: 100 })
+      expect(screen.getByTestId("selected")).not.toHaveTextContent("none")
+
+      fireEvent.keyDown(target, { key: "Escape" })
+      expect(screen.getByTestId("selected")).toHaveTextContent("none")
+    })
+  })
+
+  // Canvas size lives on the layout now, so the stage has to follow it rather than the old
+  // portrait constants.
+  it("sizes the stage from the layout, not from a fixed constant", () => {
+    render(<Harness initial={{ ...base, width: 560, height: 320 }} />)
+    const stage = screen.getByTestId("announcement-stage")
+    expect(stage).toHaveStyle({ width: "560px", height: "320px" })
+  })
 
   it("selects an element on pointer down", () => {
     render(<Harness initial={base} />)
@@ -88,11 +142,33 @@ describe("AnnouncementCanvas", () => {
     const element = firstText(base)
     const target = screen.getByRole("button", { name: /Text: Headline/ })
 
+    // Selected first, which is what a real interaction always does. This used to fire the
+    // keydown at an unselected element, which only worked because each element carried its own
+    // handler. In a browser that handler never ran at all: pointerdown calls preventDefault, so
+    // the element never took focus and the keystroke went elsewhere entirely.
+    pointer(target, "pointerdown", { clientX: 100, clientY: 100 })
+
     fireEvent.keyDown(target, { key: "ArrowRight" })
     expect(JSON.parse(screen.getByTestId("state").textContent!)[0][0]).toBe(element.x + 1)
 
     fireEvent.keyDown(target, { key: "ArrowRight", shiftKey: true })
     expect(JSON.parse(screen.getByTestId("state").textContent!)[0][0]).toBe(element.x + 9)
+  })
+
+  // The stage owns the shortcuts, so they have to survive the pointer landing on a resize handle
+  // rather than on the element's own box.
+  it("keeps the shortcuts working after grabbing a resize handle", () => {
+    render(<Harness initial={base} />)
+    const element = firstText(base)
+    const target = screen.getByRole("button", { name: /Text: Headline/ })
+
+    pointer(target, "pointerdown", { clientX: 100, clientY: 100 })
+    const handle = document.querySelectorAll('[role="presentation"]')[0]
+    pointer(handle, "pointerdown", { clientX: 100, clientY: 100 })
+    pointer(handle, "pointerup")
+
+    fireEvent.keyDown(screen.getByTestId("announcement-stage"), { key: "ArrowRight" })
+    expect(JSON.parse(screen.getByTestId("state").textContent!)[0][0]).toBe(element.x + 1)
   })
 
   // The reported bug: an uploaded image never appeared on the canvas. Its URL is served over
@@ -102,6 +178,8 @@ describe("AnnouncementCanvas", () => {
     const withImage: AnnouncementLayout = {
       version: 1,
       background: "#fff",
+      width: 400,
+      height: 520,
       elements: [
         {
           id: "img-1",

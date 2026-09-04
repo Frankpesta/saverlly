@@ -54,20 +54,25 @@
      just "body text but semibold". Before this existed every card heading on Overview was
      text-sm font-semibold, the same size as the body text beside it, which is why the page
      read as flat and hard to scan. Tracking tightens as size grows, which is how optical
-     sizing works: large text needs less letter-spacing, small uppercase labels need more. */
+     sizing works: large text needs less letter-spacing, small uppercase labels need more.
+
+     Tuned for Rubik, whose rounded geometric letterforms are wider and more open than the
+     grotesque this scale was first set against. The heavy negative tracking that kept Inter's
+     narrow forms from looking loose closes Rubik's counters up instead, so every heading role
+     is roughly a third less tight than it was. */
   --text-display: 2.25rem;
-  --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.035em;
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.022em;
   --text-display--font-weight: 600;
 
   --text-title: 1.5rem;
-  --text-title--line-height: 1.2;
-  --text-title--letter-spacing: -0.022em;
+  --text-title--line-height: 1.22;
+  --text-title--letter-spacing: -0.014em;
   --text-title--font-weight: 600;
 
   --text-heading: 1.0625rem;
   --text-heading--line-height: 1.35;
-  --text-heading--letter-spacing: -0.012em;
+  --text-heading--letter-spacing: -0.006em;
   --text-heading--font-weight: 600;
 
   --text-body: 0.875rem;

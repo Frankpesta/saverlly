@@ -5,6 +5,9 @@ import {
   TypeIcon,
   ImageIcon,
   SquareIcon,
+  CircleIcon,
+  MinusIcon,
+  TriangleIcon,
   MousePointerClickIcon,
   Trash2Icon,
   CopyIcon,
@@ -12,13 +15,17 @@ import {
   ArrowDownIcon,
 } from "lucide-react"
 import {
-  ANNOUNCEMENT_CANVAS_HEIGHT,
-  ANNOUNCEMENT_CANVAS_WIDTH,
+  ANNOUNCEMENT_CANVAS_PRESETS,
   KIOSK_SAFE_FONTS,
+  SHAPE_KINDS,
+  canvasPresetFor,
   createElementId,
+  resizeLayout,
   type AnnouncementLayout,
   type AnnouncementLayoutElement,
+  type LayoutAction,
   type LayoutElementType,
+  type ShapeKind,
 } from "@saverlly/shared-types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,25 +57,59 @@ const FIT_OPTIONS = [
   { value: "contain", label: "Fit inside (letterbox)" },
 ]
 
-/** New elements land in the middle of the canvas rather than at 0,0. Dropping them under the
- *  toolbar where they're half off-screen makes the first interaction a drag every time. */
-function centered(width: number, height: number) {
+export type CanvasSize = { width: number; height: number }
+
+export const SHAPE_KIND_LABEL: Record<ShapeKind, string> = {
+  rectangle: "Rectangle",
+  ellipse: "Ellipse",
+  line: "Line",
+  triangle: "Triangle",
+}
+
+const SHAPE_KIND_ICON: Record<ShapeKind, typeof SquareIcon> = {
+  rectangle: SquareIcon,
+  ellipse: CircleIcon,
+  line: MinusIcon,
+  triangle: TriangleIcon,
+}
+
+/** A new element's size, clamped so it still fits a canvas smaller than the size it assumes. */
+function fitted(canvas: CanvasSize, width: number, height: number) {
+  const w = Math.min(width, Math.round(canvas.width * 0.8))
+  const h = Math.min(height, Math.round(canvas.height * 0.8))
+  // Centred rather than at 0,0. Dropping a new element under the toolbar where it is half
+  // off-screen makes the first interaction a drag, every time.
   return {
-    x: Math.round((ANNOUNCEMENT_CANVAS_WIDTH - width) / 2),
-    y: Math.round((ANNOUNCEMENT_CANVAS_HEIGHT - height) / 2),
-    width,
-    height,
+    x: Math.round((canvas.width - w) / 2),
+    y: Math.round((canvas.height - h) / 2),
+    width: w,
+    height: h,
   }
 }
 
-export function createElement(type: LayoutElementType): AnnouncementLayoutElement | null {
+/** A line is a bar, not a box: its height is its thickness, so it gets its own proportions. */
+function fittedLine(canvas: CanvasSize) {
+  const width = Math.round(canvas.width * 0.6)
+  return {
+    x: Math.round((canvas.width - width) / 2),
+    y: Math.round(canvas.height / 2),
+    width,
+    height: 4,
+  }
+}
+
+export function createElement(
+  type: LayoutElementType,
+  canvas: CanvasSize,
+  shapeKind: ShapeKind = "rectangle",
+): AnnouncementLayoutElement | null {
   const id = createElementId(type)
   switch (type) {
     case "text":
       return {
         id,
         type: "text",
-        ...centered(320, 56),
+        ...fitted(canvas, 320, 56),
         text: "New text",
         fontFamily: "Segoe UI",
         fontSize: 22,
@@ -76,12 +117,13 @@ export function createElement(type: LayoutElementType): AnnouncementLayoutElemen
         color: "#111111",
         align: "center",
         italic: false,
+        action: null,
       }
     case "button":
       return {
         id,
         type: "button",
-        ...centered(176, 44),
+        ...fitted(canvas, 176, 44),
         label: "Dismiss",
         backgroundColor: "#0f766e",
         color: "#ffffff",
@@ -89,30 +131,34 @@ export function createElement(type: LayoutElementType): AnnouncementLayoutElemen
         fontSize: 16,
         fontWeight: 600,
         radius: 8,
+        action: { type: "dismiss" },
       }
     case "shape":
       return {
         id,
         type: "shape",
-        ...centered(240, 160),
+        ...(shapeKind === "line" ? fittedLine(canvas) : fitted(canvas, 240, 160)),
+        kind: shapeKind,
         fill: "#e2e8f0",
-        radius: 12,
+        radius: shapeKind === "rectangle" ? 12 : 0,
       }
     case "image":
       // An image element with no URL can't be rendered, so one is only created once an upload
-      // completes. See AddImageButton below.
+      // completes or a URL is pasted. See CanvasToolbar below.
       return null
   }
 }
 
 export function CanvasToolbar({
   onAdd,
+  onAddShape,
   onUploadFile,
   isUploading,
   imageUrl,
   onImageUrlChange,
 }: {
   onAdd: (type: LayoutElementType) => void
+  onAddShape: (kind: ShapeKind) => void
   onUploadFile: (file: File) => void
   isUploading: boolean
   imageUrl: string
@@ -125,15 +171,37 @@ export function CanvasToolbar({
           <TypeIcon className="size-4" />
           Text
         </Button>
-        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => onAdd("shape")}>
-          <SquareIcon className="size-4" />
-          Shape
-        </Button>
         <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => onAdd("button")}>
           <MousePointerClickIcon className="size-4" />
           Button
         </Button>
       </div>
+
+      {/* One button per shape, rather than a single "Shape" that always made a rectangle. There
+          was no kind discriminator at all before, so the only way to a circle was cranking the
+          corner radius to 999 on a square, and lines and triangles were unreachable. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs text-muted-foreground">Shapes</span>
+        <div className="flex flex-wrap gap-2">
+          {SHAPE_KINDS.map((kind) => {
+            const Icon = SHAPE_KIND_ICON[kind]
+            return (
+              <Button
+                key={kind}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => onAddShape(kind)}
+              >
+                <Icon className="size-4" />
+                {SHAPE_KIND_LABEL[kind]}
+              </Button>
+            )
+          })}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="ann-canvas-image" className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <ImageIcon className="size-3.5" />
@@ -148,6 +216,87 @@ export function CanvasToolbar({
         />
       </div>
     </div>
+  )
+}
+
+const ACTION_OPTIONS = [
+  { value: "dismiss", label: "Close the announcement" },
+  { value: "url", label: "Open a web page" },
+  { value: "email", label: "Start an email" },
+]
+
+/**
+ * What clicking this element does.
+ *
+ * Buttons had no action at all before: the renderer stamped `data-saverlly-dismiss` on every one
+ * of them, so a button could only ever close the toast no matter what its label said.
+ */
+function ActionField({
+  idPrefix,
+  action,
+  onChange,
+  allowNone,
+}: {
+  idPrefix: string
+  action: LayoutAction | null
+  onChange: (action: LayoutAction | null) => void
+  /** Text is plain type unless it is deliberately linked, so it gets a "do nothing" option that
+   *  a button does not. */
+  allowNone?: boolean
+}) {
+  const value = action?.type ?? "none"
+  const options = allowNone
+    ? [{ value: "none", label: "Nothing (plain text)" }, ...ACTION_OPTIONS]
+    : ACTION_OPTIONS
+
+  function pick(next: string) {
+    if (next === "none") return onChange(null)
+    if (next === "url") return onChange({ type: "url", href: "https://" })
+    if (next === "email") return onChange({ type: "email", address: "" })
+    onChange({ type: "dismiss" })
+  }
+
+  return (
+    <>
+      <FormField label="On click" htmlFor={`${idPrefix}-action`}>
+        <Combobox
+          id={`${idPrefix}-action`}
+          value={value}
+          onValueChange={pick}
+          options={options}
+        />
+      </FormField>
+      {action?.type === "url" && (
+        <FormField
+          label="Web address"
+          htmlFor={`${idPrefix}-href`}
+          hint="Must start with http:// or https://. It opens in the kiosk's browser."
+        >
+          <Input
+            id={`${idPrefix}-href`}
+            type="url"
+            value={action.href}
+            spellCheck={false}
+            onChange={(event) => onChange({ type: "url", href: event.target.value })}
+          />
+        </FormField>
+      )}
+      {action?.type === "email" && (
+        <FormField
+          label="Email address"
+          htmlFor={`${idPrefix}-email`}
+          hint="Opens the kiosk's mail app with a new message to this address."
+        >
+          <Input
+            id={`${idPrefix}-email`}
+            type="email"
+            value={action.address}
+            spellCheck={false}
+            onChange={(event) => onChange({ type: "email", address: event.target.value })}
+          />
+        </FormField>
+      )}
+    </>
   )
 }
 
@@ -233,7 +382,6 @@ export function ElementInspector({
   onSelect: (id: string | null) => void
 }) {
   const element = layout.elements.find((candidate) => candidate.id === selectedId) ?? null
-  const buttonCount = layout.elements.filter((candidate) => candidate.type === "button").length
 
   function update(patch: Partial<AnnouncementLayoutElement>) {
     if (!element) return
@@ -280,8 +428,31 @@ export function ElementInspector({
   }
 
   if (!element) {
+    const preset = canvasPresetFor(layout)
     return (
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
+        {/* Size used to be two compile-time constants, which is why "how do I change the doc
+            size" had no answer. Changing it here rescales and re-centres the design rather than
+            leaving half of it off the new edge. */}
+        <FormField
+          label="Canvas size"
+          htmlFor="ann-canvas-size"
+          hint={preset?.hint ?? `Custom, ${layout.width} by ${layout.height}.`}
+        >
+          <Combobox
+            id="ann-canvas-size"
+            value={preset?.id ?? ""}
+            onValueChange={(id) => {
+              const next = ANNOUNCEMENT_CANVAS_PRESETS.find((candidate) => candidate.id === id)
+              if (next) onChange(resizeLayout(layout, next.width, next.height))
+            }}
+            placeholder="Custom size"
+            options={ANNOUNCEMENT_CANVAS_PRESETS.map((candidate) => ({
+              value: candidate.id,
+              label: `${candidate.label} (${candidate.width}×${candidate.height})`,
+            }))}
+          />
+        </FormField>
         <ColorField
           label="Canvas background"
           id="ann-canvas-bg"
@@ -294,10 +465,6 @@ export function ElementInspector({
       </div>
     )
   }
-
-  // The last button is the kiosk user's only way to close the overlay, so removing it is blocked
-  // here rather than silently repaired at render time.
-  const isLastButton = element.type === "button" && buttonCount === 1
 
   return (
     <div className="flex flex-col gap-4">
@@ -315,12 +482,14 @@ export function ElementInspector({
           <Button type="button" variant="ghost" size="icon-sm" onClick={duplicate} aria-label="Duplicate element">
             <CopyIcon className="size-3.5" />
           </Button>
+          {/* No longer blocked when this is the last button. The rendered toast always draws its
+              own close button and dismisses itself on a timer, so a buttonless design cannot
+              strand a kiosk, and refusing the delete was the editor overruling the owner. */}
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             onClick={remove}
-            disabled={isLastButton}
             aria-label="Delete element"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
@@ -328,13 +497,6 @@ export function ElementInspector({
           </Button>
         </div>
       </div>
-
-      {isLastButton && (
-        <p className="text-xs text-muted-foreground">
-          This is the only button on the canvas. Kiosk users need one to dismiss the announcement,
-          so it can&apos;t be deleted.
-        </p>
-      )}
 
       {element.type === "text" && (
         <>
@@ -385,6 +547,12 @@ export function ElementInspector({
             id="ann-el-color"
             value={element.color}
             onChange={(color) => update({ color })}
+          />
+          <ActionField
+            idPrefix="ann-el-text"
+            action={element.action}
+            onChange={(action) => update({ action })}
+            allowNone
           />
         </>
       )}
@@ -447,24 +615,54 @@ export function ElementInspector({
               min={0}
             />
           </FormGrid>
+          <ActionField
+            idPrefix="ann-el-btn"
+            action={element.action}
+            onChange={(action) => update({ action: action ?? { type: "dismiss" } })}
+          />
         </>
       )}
 
       {element.type === "shape" && (
         <>
+          <FormField label="Shape" htmlFor="ann-el-shape-kind">
+            <Combobox
+              id="ann-el-shape-kind"
+              value={element.kind}
+              onValueChange={(kind) => update({ kind: kind as ShapeKind })}
+              options={SHAPE_KINDS.map((kind) => ({
+                value: kind,
+                label: SHAPE_KIND_LABEL[kind],
+              }))}
+            />
+          </FormField>
           <ColorField
             label="Fill"
             id="ann-el-fill"
             value={element.fill}
             onChange={(fill) => update({ fill })}
           />
-          <NumberField
-            label="Corner radius"
-            id="ann-el-shape-radius"
-            value={element.radius}
-            onChange={(radius) => update({ radius })}
-            min={0}
-          />
+          {/* Only a rectangle has corners to round. An ellipse is always fully round, a line is
+              capped to its own thickness, and a triangle is clipped to its points. */}
+          {element.kind === "rectangle" && (
+            <NumberField
+              label="Corner radius"
+              id="ann-el-shape-radius"
+              value={element.radius}
+              onChange={(radius) => update({ radius })}
+              min={0}
+            />
+          )}
+          {element.kind === "line" && (
+            <NumberField
+              label="Thickness"
+              id="ann-el-shape-thickness"
+              value={element.height}
+              onChange={(height) => update({ height })}
+              min={1}
+              max={64}
+            />
+          )}
         </>
       )}
 

@@ -49,7 +49,7 @@ describe('pollAndDisplayAnnouncements', () => {
   // The whole announcement is handed to the overlay now, not a flattened title/body/mediaUrl
   // triple. The overlay needs `layout` to render the kiosk owner's actual design.
   it("passes the announcement's media and layout through to the overlay", async () => {
-    const layout = { version: 1, background: '#ffffff', elements: [] };
+    const layout = { version: 1, background: '#ffffff', width: 400, height: 520, elements: [] };
     mockFetchActiveAnnouncements.mockResolvedValue([
       ann('a', { mediaUrl: 'https://example.com/pic.png', layout }),
     ]);

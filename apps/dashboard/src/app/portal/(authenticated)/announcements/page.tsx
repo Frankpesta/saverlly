@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { MegaphoneIcon, CircleCheckIcon, ClockIcon, PencilIcon, PlusIcon } from "lucide-react"
+import { MegaphoneIcon, CircleCheckIcon, ClockIcon, EyeIcon, PencilIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -20,6 +20,8 @@ import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { useAnnouncements } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
+import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
+import { canManageAnnouncement } from "@/lib/dashboard/announcement-permissions"
 import { usePagination } from "@/hooks/use-pagination"
 import type { Announcement, AnnouncementRepeatPolicy } from "@/lib/api/types"
 import { ANNOUNCEMENT_STATUS_BADGE_VARIANT, type AnnouncementStatus } from "@/lib/dashboard/status-labels"
@@ -43,6 +45,7 @@ function statusFor(announcement: Announcement, now: number): AnnouncementStatus 
 export default function AnnouncementsPage() {
   const { data: announcements, isLoading, isError } = useAnnouncements()
   const { data: locations } = useLocations()
+  const { data: currentUser } = useCurrentUser()
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(announcements)
 
   const [now, setNow] = React.useState(() => Date.now())
@@ -127,6 +130,7 @@ export default function AnnouncementsPage() {
 
             {pageItems.map((announcement, index) => {
               const status = statusFor(announcement, now)
+              const canManage = canManageAnnouncement(currentUser, announcement)
               return (
                 <TableRow key={announcement.id} index={index}>
                   <TableCell className="font-medium">
@@ -148,12 +152,19 @@ export default function AnnouncementsPage() {
                   </TableCell>
                   <TableCell>
                     <TableRowActions>
+                      {/* A manager only edits what they wrote; everything else on this list is
+                          read-only to them, so the row says which one this is rather than
+                          sending them to a page that turns out to be a preview. */}
                       <Link
                         href={`/portal/announcements/${announcement.id}`}
                         className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
-                        aria-label={`Edit ${announcement.title}`}
+                        aria-label={`${canManage ? "Edit" : "View"} ${announcement.title}`}
                       >
-                        <PencilIcon className="size-3.5" />
+                        {canManage ? (
+                          <PencilIcon className="size-3.5" />
+                        ) : (
+                          <EyeIcon className="size-3.5" />
+                        )}
                       </Link>
                     </TableRowActions>
                   </TableCell>

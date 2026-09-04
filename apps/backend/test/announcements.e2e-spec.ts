@@ -559,7 +559,10 @@ describe('Announcements (e2e)', () => {
         .expect(403);
     });
 
-    it('403s a location-manager PATCHing or DELETEing an announcement they can view', async () => {
+    // A manager may now change what they wrote themselves, but this one has no author, so it is
+    // still not theirs. See location-manager-permissions.e2e-spec.ts for the full authorship
+    // matrix (their own, the owner's, and an unauthored one).
+    it('403s a location-manager PATCHing or DELETEing an announcement they did not write', async () => {
       const { kiosk, token } = await locationManagerCtx();
       const announcement = await seedAnnouncement(kiosk.id);
 
@@ -587,7 +590,10 @@ describe('Announcements (e2e)', () => {
         .expect(401);
     });
 
-    it('403s a location-manager', async () => {
+    // Granted alongside POST /announcements: a manager who can author an announcement for their
+    // own locations has to be able to put a picture in it, or the upload fails silently partway
+    // through designing one.
+    it('allows a location-manager, who can now author announcements for their own locations', async () => {
       const kiosk = await seedKiosk();
       await seedUser({
         email: 'lm2@test.com',
@@ -604,7 +610,7 @@ describe('Announcements (e2e)', () => {
           filename: 'a.png',
           contentType: 'image/png',
         })
-        .expect(403);
+        .expect(201);
     });
 
     it('400s when no file is attached', async () => {

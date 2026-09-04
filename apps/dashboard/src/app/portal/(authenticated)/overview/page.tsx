@@ -13,8 +13,10 @@ import {
   CircleCheckIcon,
   CirclePauseIcon,
   MegaphoneIcon,
+  PlusIcon,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -46,7 +48,7 @@ import {
   PAYOUT_STATUS_BADGE_VARIANT,
   PAYOUT_STATUS_LABEL,
 } from "@/lib/dashboard/status-labels"
-import { NewLocationDialog } from "../locations/new-location-dialog"
+import { cn } from "@/lib/utils"
 
 function greeting(): string {
   const hour = new Date().getHours()
@@ -184,7 +186,14 @@ export default function PortalOverviewPage() {
             <span>{deviceStats.active} active devices</span>
           </div>
         </div>
-        <div className="shrink-0">{currentUser?.role === "KIOSK_OWNER" && <NewLocationDialog />}</div>
+        <div className="shrink-0">
+          {currentUser?.role === "KIOSK_OWNER" && (
+            <Link href="/portal/locations/new" className={cn(buttonVariants(), "gap-1.5")}>
+              <PlusIcon className="size-4" />
+              New Location
+            </Link>
+          )}
+        </div>
       </div>
 
       <section className="flex flex-col gap-4">

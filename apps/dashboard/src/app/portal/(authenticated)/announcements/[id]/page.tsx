@@ -14,6 +14,7 @@ import {
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { ApiError } from "@/lib/api/client"
 import { toDatetimeLocal } from "@/lib/format-date"
+import { canManageAnnouncement } from "@/lib/dashboard/announcement-permissions"
 import { createDefaultLayout } from "@saverlly/shared-types"
 import {
   AnnouncementForm,
@@ -31,10 +32,10 @@ export default function AnnouncementDetailPage() {
   const deleteAnnouncement = useDeleteAnnouncement()
   const isLoading = announcementLoading || userLoading
 
-  // A location manager never has edit rights on announcements, and a kiosk owner can't edit a
-  // platform-wide admin broadcast (kioskId null). TenantScopeGuard denies mutating those for
-  // anyone but ADMIN, even though everyone in scope can view/preview them.
-  const canEdit = currentUser?.role !== "LOCATION_MANAGER" && announcement?.kioskId !== null
+  // A location manager may now edit and delete announcements they wrote themselves, but nothing
+  // the owner (or another manager) made for the same location. A kiosk owner still can't touch a
+  // platform-wide admin broadcast. Same rule the backend enforces, in one shared helper.
+  const canEdit = !!announcement && canManageAnnouncement(currentUser, announcement)
 
   function handleSubmit(values: AnnouncementFormValues) {
     updateAnnouncement.mutate(toAnnouncementPayload(values), {
@@ -88,7 +89,7 @@ export default function AnnouncementDetailPage() {
           <p className="text-sm text-muted-foreground">
             {announcement.kioskId === null
               ? "A platform-wide broadcast. Only Saverlly staff can change it."
-              : "Your role can view announcements but not change them."}
+              : "Someone else created this one, so it isn't yours to change. You can still see what it shows."}
           </p>
         </div>
         <div className="max-w-md">
@@ -105,7 +106,7 @@ export default function AnnouncementDetailPage() {
       key={announcement.id}
       defaultValues={{
         title: announcement.title,
-        body: announcement.body,
+        body: announcement.body ?? "",
         mediaUrl: announcement.mediaUrl ?? "",
         startAt: toDatetimeLocal(announcement.startAt),
         endAt: toDatetimeLocal(announcement.endAt),
@@ -119,7 +120,7 @@ export default function AnnouncementDetailPage() {
           announcement.layout ??
           createDefaultLayout({
             title: announcement.title,
-            body: announcement.body,
+            body: announcement.body ?? undefined,
             mediaUrl: announcement.mediaUrl,
           }),
       }}

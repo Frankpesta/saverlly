@@ -38,6 +38,7 @@ const kioskUsers: KioskUser[] = [
   {
     id: "user-1",
     name: "Owner One",
+    avatarUrl: null,
     email: "owner1@example.com",
     role: "KIOSK_OWNER",
     kioskId: "kiosk-1",
@@ -77,6 +78,7 @@ describe("KioskDetailPage", () => {
               ...kioskUsers[0],
               id: "user-2",
               name: "New Manager",
+              avatarUrl: null,
               email: "manager@example.com",
               role: "LOCATION_MANAGER",
             },

@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
+import { Geist_Mono, Rubik } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/components/app-providers";
 
-const inter = Inter({
+// The brand typeface. Rubik is geometric and slightly rounded where Inter is neutral and
+// grotesque, so it carries more character at the same sizes. The whole app reads its size,
+// weight and tracking from the --text-* scale in globals.css, which is why swapping the family
+// is this one declaration rather than a sweep through every component.
+const rubik = Rubik({
   variable: "--font-sans-brand",
   subsets: ["latin"],
 });
@@ -25,7 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${rubik.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>

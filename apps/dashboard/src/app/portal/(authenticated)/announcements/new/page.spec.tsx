@@ -82,7 +82,7 @@ describe("NewAnnouncementPage", () => {
     renderWithClient(<NewAnnouncementPage />)
 
     await userEvent.type(screen.getByLabelText("Title"), "Weekend Deal")
-    await userEvent.type(screen.getByLabelText("Body"), "20% off this weekend only.")
+    await userEvent.type(screen.getByLabelText("Internal note"), "20% off this weekend only.")
     expect(screen.getByLabelText("Starts")).toBeInTheDocument()
     expect(screen.getByLabelText("All locations")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /continue/i })).not.toBeInTheDocument()
@@ -111,7 +111,9 @@ describe("NewAnnouncementPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /create announcement/i }))
 
     expect(await screen.findByText("Title is required")).toBeInTheDocument()
-    expect(screen.getByText("Body is required")).toBeInTheDocument()
+    // The internal note is deliberately not required: it was a mandatory field labelled "Body"
+    // that read like kiosk copy, when the kiosk never showed it.
+    expect(screen.queryByText(/note is required/i)).not.toBeInTheDocument()
     expect(
       (global.fetch as jest.Mock).mock.calls.some(([, i]) => i?.method === "POST"),
     ).toBe(false)

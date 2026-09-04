@@ -39,6 +39,7 @@ const announcements: Announcement[] = [
   {
     id: "ann-1",
     kioskId: "kiosk-1",
+    createdById: "user-1",
     locationIds: [],
     title: "Active Promo",
     body: "Save big!",
@@ -54,6 +55,7 @@ const announcements: Announcement[] = [
   {
     id: "ann-2",
     kioskId: "kiosk-1",
+    createdById: "user-1",
     locationIds: ["loc-1"],
     title: "Future Sale",
     body: "Coming soon",

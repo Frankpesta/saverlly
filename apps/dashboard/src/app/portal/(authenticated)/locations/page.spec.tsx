@@ -21,6 +21,7 @@ jest.mock("next/link", () => {
 const currentUser: UserProfile = {
   id: "user-1",
   name: "Kiosk Owner",
+  avatarUrl: null,
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -78,12 +79,8 @@ function mockFetchWith(role: UserProfile["role"]) {
     if (url === "/api/proxy/users/me") {
       return { ok: true, status: 200, json: async () => ({ ...currentUser, role }) } as Response
     }
-    if (url === "/api/proxy/locations" && method === "POST") {
-      return {
-        ok: true,
-        status: 201,
-        json: async () => ({ ...locations[0], id: "loc-2", name: "Uptown" }),
-      } as Response
+    if (url === "/api/proxy/locations/loc-1" && method === "DELETE") {
+      return { ok: true, status: 204, json: async () => undefined } as Response
     }
     throw new Error(`Unhandled fetch in test: ${method} ${url}`)
   }) as jest.Mock
@@ -103,60 +100,87 @@ describe("LocationsPage", () => {
     expect(within(row as HTMLElement).getByText("1")).toBeInTheDocument() // device count cell
   })
 
-  it("shows the New Location button for a KIOSK_OWNER", async () => {
+  // Creating a location is now a page of its own (locations/new/page.spec.tsx exercises the
+  // actual form), so this only asserts the entry point and its role gate.
+  it("links a KIOSK_OWNER to the create page", async () => {
     mockFetchWith("KIOSK_OWNER")
     renderWithClient(<LocationsPage />)
 
-    expect(await screen.findByRole("button", { name: /new location/i })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: /new location/i })).toHaveAttribute(
+      "href",
+      "/portal/locations/new",
+    )
   })
 
-  it("hides the New Location button for a LOCATION_MANAGER", async () => {
+  it("hides the New Location link from a LOCATION_MANAGER", async () => {
     mockFetchWith("LOCATION_MANAGER")
     renderWithClient(<LocationsPage />)
 
     await screen.findByText("Downtown")
-    expect(screen.queryByRole("button", { name: /new location/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /new location/i })).not.toBeInTheDocument()
   })
 
-  // More interaction steps than the default 5000ms budget comfortably covers now that
-  // City/State are each their own combobox popover (open, search, pick), not plain text
-  // inputs. Genuinely slower, not a hang (confirmed passing well within 20s solo).
-  it("walks the New Location wizard and submits the create request", async () => {
+  // The client asked to be able to delete a location without opening it first.
+  it("deletes a location from the row, for an owner", async () => {
     mockFetchWith("KIOSK_OWNER")
     renderWithClient(<LocationsPage />)
 
-    await userEvent.click(await screen.findByRole("button", { name: /new location/i }))
-
-    await userEvent.type(screen.getByLabelText("Name"), "Uptown")
-    await userEvent.type(screen.getByLabelText("Address"), "2 Elm St")
-    await userEvent.click(screen.getByRole("combobox", { name: "City" }))
-    await userEvent.type(screen.getByPlaceholderText("Type a city..."), "Springfield")
-    await userEvent.click(await screen.findByRole("option", { name: "Springfield" }))
-
-    await userEvent.click(screen.getByRole("combobox", { name: "State" }))
-    await userEvent.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
-
-    await userEvent.type(screen.getByLabelText("Zip"), "00000")
-    await userEvent.click(screen.getByRole("button", { name: /continue/i }))
-
-    await userEvent.type(await screen.findByLabelText("Tags"), "mall, downtown")
-    await userEvent.click(screen.getByRole("button", { name: /create location/i }))
+    await userEvent.click(await screen.findByRole("button", { name: "Delete Downtown" }))
+    await userEvent.click(await screen.findByRole("button", { name: "Delete" }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/locations",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            name: "Uptown",
-            address: "2 Elm St",
-            city: "Springfield",
-            state: "IL",
-            zip: "00000",
-            tags: ["mall", "downtown"],
-          }),
-        }),
+        "/api/proxy/locations/loc-1",
+        expect.objectContaining({ method: "DELETE" }),
       ),
     )
-  }, 20000)
+  })
+
+  it("does not offer delete to a LOCATION_MANAGER", async () => {
+    mockFetchWith("LOCATION_MANAGER")
+    renderWithClient(<LocationsPage />)
+
+    await screen.findByText("Downtown")
+    expect(screen.queryByRole("button", { name: "Delete Downtown" })).not.toBeInTheDocument()
+  })
+
+  // The setup code used to live only partway down a location's own detail page. The owner
+  // installing a device is exactly who needs it, so it travels with the row here too.
+  it("shows the setup code inline", async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? "GET"
+      if (url === "/api/proxy/locations" && method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [
+            {
+              ...locations[0],
+              locationSetupCode: {
+                id: "code-1",
+                code: "ABCD1234",
+                active: true,
+                createdAt: "2026-01-01T00:00:00.000Z",
+              },
+            },
+          ],
+        } as Response
+      }
+      if (url === "/api/proxy/devices" && method === "GET") {
+        return { ok: true, status: 200, json: async () => devices } as Response
+      }
+      if (url === "/api/proxy/users/me") {
+        return { ok: true, status: 200, json: async () => currentUser } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${method} ${url}`)
+    }) as jest.Mock
+
+    renderWithClient(<LocationsPage />)
+
+    expect(await screen.findByText("ABCD1234")).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /copy setup code for downtown/i }),
+    ).toBeInTheDocument()
+  })
 })

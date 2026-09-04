@@ -70,10 +70,9 @@ export default function KioskDetailPage() {
             <ArrowLeftIcon className="size-4" />
             Kiosks
           </Link>
-          <div>
-            <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Kiosk profile</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight">{kiosk?.name ?? "Kiosk"}</h2>
-          </div>
+          {/* No "Kiosk profile" eyebrow above the name: the back link already says Kiosks and
+              the heading already names this one, so it was a third rendering of the same idea. */}
+          <h2 className="text-title">{kiosk?.name ?? "Kiosk"}</h2>
         </div>
         {kiosk && (
           <div className="flex items-center gap-3">
@@ -88,6 +87,10 @@ export default function KioskDetailPage() {
       {isLoading && <Skeleton className="h-64 w-full max-w-lg" />}
 
       {kiosk && (
+        // Business details and Users side by side, Locations full width beneath them. Locations
+        // is a list of addresses with their own tag editors, so it was the widest content on the
+        // page crammed into the narrowest column, wrapping every address over two lines while
+        // the left column ran out of content well above it.
         <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -108,8 +111,9 @@ export default function KioskDetailPage() {
             <KioskEditForm key={kiosk.id} kiosk={kiosk} />
           </Card>
 
-          <div className="flex flex-col gap-10">
-            <KioskUsersSection kioskId={kiosk.id} />
+          <KioskUsersSection kioskId={kiosk.id} />
+
+          <div className="lg:col-span-2">
             <KioskLocationsSection kioskId={kiosk.id} />
           </div>
         </div>

@@ -46,6 +46,7 @@ const locations: Location[] = [
 const announcement: Announcement = {
   id: "ann-1",
   kioskId: "kiosk-1",
+  createdById: "user-1",
   locationIds: [],
   title: "Active Promo",
   body: "Save big!",
@@ -62,6 +63,7 @@ const announcement: Announcement = {
 const owner: UserProfile = {
   id: "user-1",
   name: "Jane Owner",
+  avatarUrl: null,
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -70,6 +72,7 @@ const owner: UserProfile = {
 const locationManager: UserProfile = {
   id: "user-2",
   name: "Max Manager",
+  avatarUrl: null,
   email: "manager@example.com",
   role: "LOCATION_MANAGER",
   kioskId: "kiosk-1",
@@ -143,7 +146,9 @@ describe("AnnouncementDetailPage", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/portal/announcements"))
   })
 
-  it("shows just the preview card (no edit form, no schedule/targeting, no delete button) for a location manager", async () => {
+  // Authorship is the line for a manager now, not the role alone. The fixture announcement was
+  // written by the owner (user-1), so this manager (user-2) still only gets the preview.
+  it("shows just the preview card for a location manager who did not write it", async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url === "/api/proxy/announcements/ann-1") {
@@ -162,6 +167,62 @@ describe("AnnouncementDetailPage", () => {
     expect(screen.queryByDisplayValue("Active Promo")).not.toBeInTheDocument()
     expect(screen.queryByText("Repeat")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/Someone else created this one, so it isn't yours to change/),
+    ).toBeInTheDocument()
+  })
+
+  // The other half of the same rule: they may change what they wrote themselves.
+  it("gives a location manager the full edit form for an announcement they created", async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/proxy/announcements/ann-1") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...announcement, createdById: locationManager.id }),
+        } as Response
+      }
+      if (url === "/api/proxy/locations") {
+        return { ok: true, status: 200, json: async () => locations } as Response
+      }
+      if (url === "/api/proxy/users/me") {
+        return { ok: true, status: 200, json: async () => locationManager } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${url}`)
+    }) as jest.Mock
+
+    renderWithClient(<AnnouncementDetailPage />)
+
+    expect(await screen.findByDisplayValue("Active Promo")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Delete Active Promo" })).toBeInTheDocument()
+  })
+
+  // A platform-wide broadcast belongs to Saverlly staff, whoever is looking at it.
+  it("keeps a broadcast read-only even for its own author", async () => {
+    mockParamsId = "ann-2"
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === "/api/proxy/announcements/ann-2") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...broadcast, createdById: owner.id }),
+        } as Response
+      }
+      if (url === "/api/proxy/locations") {
+        return { ok: true, status: 200, json: async () => locations } as Response
+      }
+      if (url === "/api/proxy/users/me") {
+        return { ok: true, status: 200, json: async () => owner } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${url}`)
+    }) as jest.Mock
+
+    renderWithClient(<AnnouncementDetailPage />)
+
+    expect(await screen.findByText(/Only Saverlly staff can change it/)).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("Platform Broadcast")).not.toBeInTheDocument()
   })
 
   it("shows just the preview card (no edit form, no schedule/targeting, no delete button) for a kiosk owner viewing a platform-wide broadcast", async () => {

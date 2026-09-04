@@ -246,13 +246,15 @@ export class SearchService {
 function toAnnouncementResult(a: {
   id: string;
   title: string;
-  body: string;
+  // Optional now that it is an internal note rather than required kiosk copy.
+  body: string | null;
   kioskId: string | null;
 }): SearchResultDto {
   return {
     type: 'announcement',
     id: a.id,
     title: a.title,
-    subtitle: a.kioskId === null ? 'Platform-wide' : a.body.slice(0, 80),
+    subtitle:
+      a.kioskId === null ? 'Platform-wide' : (a.body?.slice(0, 80) ?? 'Announcement'),
   };
 }

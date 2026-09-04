@@ -25,7 +25,7 @@ import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
 import { usePagination } from "@/hooks/use-pagination"
 import { cn } from "@/lib/utils"
-import { SetupCodeCell } from "./setup-code-cell"
+import { SetupCodeCell } from "@/components/dashboard/setup-code-cell"
 
 export default function AdminLocationsPage() {
   const { data: locations, isLoading, isError } = useLocations()

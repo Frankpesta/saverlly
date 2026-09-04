@@ -418,6 +418,8 @@ describe('showAnnouncementOverlay', () => {
           layout: {
             version: 1,
             background: '#0b0b0b',
+            width: 400,
+            height: 520,
             elements: [
               {
                 id: 'b1',
@@ -433,6 +435,7 @@ describe('showAnnouncementOverlay', () => {
                 fontSize: 18,
                 fontWeight: 600,
                 radius: 8,
+                action: { type: 'dismiss' as const },
               },
             ],
           },
@@ -551,6 +554,60 @@ describe('showAnnouncementOverlay', () => {
       expect(script).toContain("$keyArgs.KeyCode -eq 'Escape'");
       // A failed init must close rather than leave a blank black window with no way out.
       expect(script).toContain('if (-not $e.IsSuccess) {');
+    });
+
+    // Buttons had no action at all before: everything was stamped with data-saverlly-dismiss, so
+    // the only thing a kiosk owner could change about a button was its label.
+    describe('a link a kiosk owner attached to a button', () => {
+      it('opens the target rather than only closing the toast', async () => {
+        await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
+        const script = writtenScript();
+
+        expect(script).toContain("$message -like 'saverlly:open:*'");
+        expect(script).toContain('Start-Process $target');
+      });
+
+      // This string reaches Start-Process, so the last gate before the shell is the one that has
+      // to hold, whatever the layout sanitizer already rejected upstream.
+      it('re-validates the scheme before handing anything to the shell', async () => {
+        await showAnnouncementOverlay(announcement(), { webview2Dir: WEBVIEW2_DIR });
+        const script = writtenScript();
+
+        expect(script).toContain("$target -match '^(https?://|mailto:)");
+        expect(script.indexOf('-match')).toBeLessThan(script.indexOf('Start-Process $target'));
+      });
+    });
+
+    // The canvas is a per-layout choice now, not two compile-time constants, so the window has
+    // to follow the design instead of always being a 400x520 portrait card.
+    describe('canvas sizes other than the portrait default', () => {
+      function layoutSized(width: number, height: number) {
+        return { version: 1, background: '#ffffff', width, height, elements: [] };
+      }
+
+      it('sizes the window to a landscape design', async () => {
+        await showAnnouncementOverlay(announcement({ layout: layoutSized(560, 320) }), {
+          webview2Dir: WEBVIEW2_DIR,
+        });
+        const script = writtenScript();
+
+        expect(script).toContain('560 * $dpiScale');
+        expect(script).toContain('320 * $dpiScale');
+        expect(script).toContain('$fullBleed = $false');
+      });
+
+      it('fills the working area for a full-screen design, and keeps the taskbar reachable', async () => {
+        await showAnnouncementOverlay(announcement({ layout: layoutSized(1280, 720) }), {
+          webview2Dir: WEBVIEW2_DIR,
+        });
+        const script = writtenScript();
+
+        expect(script).toContain('$fullBleed = $true');
+        expect(script).toContain('$cardWidth = $area.Width');
+        // WorkingArea, not Bounds: even a takeover leaves the taskbar, so a kiosk is never
+        // genuinely trapped behind an announcement.
+        expect(script).not.toContain('PrimaryScreen.Bounds');
+      });
     });
   });
 

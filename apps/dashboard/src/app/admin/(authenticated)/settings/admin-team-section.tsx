@@ -3,7 +3,10 @@
 import Link from "next/link"
 import { toast } from "sonner"
 import { UserPlusIcon } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { buttonVariants } from "@/components/ui/button"
+import { profileInitials } from "@/components/profile/avatar-upload"
+import { proxiedImageUrl } from "@/lib/image-proxy"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
@@ -50,16 +53,28 @@ export function AdminTeamSection() {
           return (
             <div
               key={admin.id}
-              className="flex items-center justify-between rounded-lg border border-black/8 px-4 py-3"
+              className="flex items-center justify-between gap-3 rounded-lg border border-black/8 px-4 py-3"
             >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium">
+              <div className="flex min-w-0 items-center gap-3">
+              {/* Their actual photo, matching the kiosk roster and the profile page, so a
+                  teammate is recognisable rather than a line of text. */}
+              <Avatar className="size-9">
+                {admin.avatarUrl && (
+                  <AvatarImage src={proxiedImageUrl(admin.avatarUrl)} alt={admin.name ?? admin.email} />
+                )}
+                <AvatarFallback className="text-xs font-semibold">
+                  {profileInitials(admin.name, admin.email)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate text-sm font-medium">
                   {admin.name || admin.email}
                   {isSelf && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
                 </span>
-                {admin.name && <span className="text-xs text-muted-foreground">{admin.email}</span>}
+                {admin.name && <span className="truncate text-xs text-muted-foreground">{admin.email}</span>}
               </div>
-              <div className="flex items-center gap-1">
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
                 <span className="text-sm text-muted-foreground">
                   {admin.disabled ? "Disabled" : "Active"}
                 </span>

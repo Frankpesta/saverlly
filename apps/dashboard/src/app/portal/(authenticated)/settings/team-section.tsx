@@ -1,178 +1,152 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { PencilIcon } from "lucide-react"
+import { CrownIcon, PencilIcon, UserPlusIcon } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
+import { SettingsSection } from "@/components/settings/settings-section"
+import { profileInitials } from "@/components/profile/avatar-upload"
 import { useKioskUsers, useUpdateKioskUser } from "@/lib/api/hooks/use-kiosk-users"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { ApiError } from "@/lib/api/client"
+import { proxiedImageUrl } from "@/lib/image-proxy"
 import type { KioskUser } from "@/lib/api/types"
-import { AddTeamMemberDialog } from "./add-team-member-dialog"
-
-const ROLE_LABEL = {
-  KIOSK_OWNER: "Kiosk owner",
-  LOCATION_MANAGER: "Location manager",
-} as const
+import { cn } from "@/lib/utils"
 
 export function TeamSection({ kioskId }: { kioskId: string }) {
   const { data: users, isLoading, isError } = useKioskUsers(kioskId)
-  const updateUser = useUpdateKioskUser(kioskId)
-  const [editing, setEditing] = React.useState<KioskUser | null>(null)
-
-  function toggleDisabled(userId: string, disabled: boolean) {
-    updateUser.mutate(
-      { userId, patch: { disabled: !disabled } },
-      {
-        onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not update team member."),
-      },
-    )
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Team</CardTitle>
-        <AddTeamMemberDialog kioskId={kioskId} />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {isError && <p className="text-sm text-destructive">Could not load team members.</p>}
-        {isLoading && <Skeleton className="h-10 w-full" />}
-        {!isLoading && users?.length === 0 && (
-          <p className="text-sm text-muted-foreground">No team members yet.</p>
-        )}
-        {users?.map((user) => (
-          <div
-            key={user.id}
-            className="flex items-center justify-between rounded-lg border border-black/8 px-4 py-3"
-          >
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium">{user.name || user.email}</span>
-              {user.name && <span className="text-xs text-muted-foreground">{user.email}</span>}
-              <Badge variant="secondary" className="w-fit">
-                {ROLE_LABEL[user.role]}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-sm text-muted-foreground">
-                {user.disabled ? "Disabled" : "Active"}
-              </span>
-              <Switch
-                checked={!user.disabled}
-                onCheckedChange={() => toggleDisabled(user.id, user.disabled)}
-                disabled={updateUser.isPending || user.role === "KIOSK_OWNER"}
-                aria-label={`Toggle ${user.email} access`}
-                className="mr-1"
-              />
-              {user.role === "LOCATION_MANAGER" && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setEditing(user)}
-                  aria-label={`Edit ${user.email}`}
-                >
-                  <PencilIcon className="size-3.5" />
-                </Button>
-              )}
-            </div>
-          </div>
-        ))}
-      </CardContent>
-
-      {editing && (
-        <EditTeamMemberDialog
-          kioskId={kioskId}
-          user={editing}
-          onOpenChange={(open) => !open && setEditing(null)}
-        />
-      )}
-    </Card>
-  )
-}
-
-function EditTeamMemberDialog({
-  kioskId,
-  user,
-  onOpenChange,
-}: {
-  kioskId: string
-  user: KioskUser
-  onOpenChange: (open: boolean) => void
-}) {
   const { data: locations } = useLocations()
-  const [managedLocationIds, setManagedLocationIds] = React.useState(user.managedLocationIds)
   const updateUser = useUpdateKioskUser(kioskId)
 
-  function toggleLocation(locationId: string) {
-    setManagedLocationIds((prev) =>
-      prev.includes(locationId) ? prev.filter((id) => id !== locationId) : [...prev, locationId],
-    )
-  }
+  const locationNameById = React.useMemo(() => {
+    const map = new Map<string, string>()
+    for (const location of locations ?? []) map.set(location.id, location.name)
+    return map
+  }, [locations])
 
-  function handleSave() {
+  // Owner first, then managers. They used to differ only by the word inside a badge, which is
+  // not a difference you can see across a list.
+  const owners = users?.filter((user) => user.role === "KIOSK_OWNER") ?? []
+  const managers = users?.filter((user) => user.role === "LOCATION_MANAGER") ?? []
+
+  function toggleDisabled(user: KioskUser) {
     updateUser.mutate(
-      { userId: user.id, patch: { managedLocationIds } },
+      { userId: user.id, patch: { disabled: !user.disabled } },
       {
-        onSuccess: () => {
-          toast.success("Team member updated.")
-          onOpenChange(false)
-        },
         onError: (error) =>
           toast.error(error instanceof ApiError ? error.message : "Could not update team member."),
       },
     )
   }
 
-  return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit {user.name || user.email}</DialogTitle>
-          <DialogDescription>Choose which locations this manager can access.</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-1 px-7 pb-1">
-          {locations?.length === 0 && (
-            <p className="text-sm text-muted-foreground">You have no locations yet.</p>
+  function renderRow(user: KioskUser) {
+    const isOwner = user.role === "KIOSK_OWNER"
+    const managed = user.managedLocationIds
+      .map((id) => locationNameById.get(id))
+      .filter(Boolean) as string[]
+
+    return (
+      <div
+        key={user.id}
+        className={cn(
+          "flex items-center gap-3 rounded-lg border border-black/8 px-4 py-3 dark:border-white/10",
+          user.disabled && "opacity-60",
+        )}
+      >
+        <Avatar className={cn("size-9", isOwner && "ring-1 ring-[var(--brand-teal)]")}>
+          {user.avatarUrl && (
+            <AvatarImage src={proxiedImageUrl(user.avatarUrl)} alt={user.name ?? user.email} />
           )}
-          {locations?.map((location) => (
-            <label
-              key={location.id}
-              className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-            >
-              <input
-                type="checkbox"
-                checked={managedLocationIds.includes(location.id)}
-                onChange={() => toggleLocation(location.id)}
-                className="size-4 rounded border-input accent-[var(--brand-teal)]"
-              />
-              {location.name}
-            </label>
-          ))}
+          <AvatarFallback
+            className={
+              isOwner
+                ? "bg-[var(--brand-teal-tint)] text-xs font-semibold text-[var(--brand-teal)]"
+                : "text-xs"
+            }
+          >
+            {profileInitials(user.name, user.email)}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex items-center gap-1.5 truncate text-sm font-medium">
+            {user.name || user.email}
+            {isOwner && <CrownIcon className="size-3.5 shrink-0 text-[var(--brand-teal)]" />}
+          </span>
+          {user.name && (
+            <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+          )}
+          {!isOwner && (
+            <span className="truncate text-xs text-muted-foreground">
+              {managed.length === 0 ? "No locations assigned" : managed.join(", ")}
+            </span>
+          )}
         </div>
-        <DialogFooter className="px-7 pb-7">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={updateUser.isPending}>
-            {updateUser.isPending ? "Saving…" : "Save changes"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {user.disabled && <Badge variant="secondary">Inactive</Badge>}
+          <Switch
+            checked={!user.disabled}
+            onCheckedChange={() => toggleDisabled(user)}
+            disabled={updateUser.isPending || isOwner}
+            aria-label={`Toggle ${user.email} access`}
+          />
+          {!isOwner && (
+            <Link
+              href={`/portal/settings/team/${user.id}`}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                "text-muted-foreground hover:text-foreground",
+              )}
+              aria-label={`Edit ${user.email}`}
+            >
+              <PencilIcon className="size-3.5" />
+            </Link>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <SettingsSection title="Team">
+      <div className="flex flex-col gap-5">
+        {isError && <p className="text-sm text-destructive">Could not load team members.</p>}
+        {isLoading && <Skeleton className="h-16 w-full" />}
+
+        {owners.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-eyebrow text-muted-foreground uppercase">Owner</span>
+            {owners.map(renderRow)}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-eyebrow text-muted-foreground uppercase">
+              Location managers
+            </span>
+            <Link
+              href="/portal/settings/team/new"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+            >
+              <UserPlusIcon className="size-4" />
+              Add team member
+            </Link>
+          </div>
+          {!isLoading && managers.length === 0 && (
+            <p className="rounded-lg border border-dashed border-black/12 px-4 py-6 text-center text-sm text-muted-foreground dark:border-white/12">
+              No location managers yet.
+            </p>
+          )}
+          {managers.map(renderRow)}
+        </div>
+      </div>
+    </SettingsSection>
   )
 }

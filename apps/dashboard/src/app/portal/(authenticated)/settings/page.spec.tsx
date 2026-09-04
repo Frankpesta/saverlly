@@ -2,11 +2,26 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import PortalSettingsPage from "./page"
-import type { Kiosk, KioskUser, Location, UserProfile } from "@/lib/api/types"
+import type { KioskUser, Location, UserProfile } from "@/lib/api/types"
+
+jest.mock("next/link", () => {
+  return function MockLink({
+    href,
+    children,
+    ...props
+  }: React.PropsWithChildren<{ href: string }>) {
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    )
+  }
+})
 
 const owner: UserProfile = {
   id: "user-1",
   name: "Jane Owner",
+  avatarUrl: null,
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -15,26 +30,17 @@ const owner: UserProfile = {
 const manager: UserProfile = {
   id: "user-2",
   name: "Max Manager",
+  avatarUrl: null,
   email: "manager@example.com",
   role: "LOCATION_MANAGER",
   kioskId: "kiosk-1",
-}
-
-const kiosk: Kiosk = {
-  id: "kiosk-1",
-  name: "Kiosk One",
-  status: "ACTIVE",
-  revenueSharePct: "30",
-  stripeAccountId: null,
-  stripePayoutsEnabled: false,
-  createdAt: "2026-01-01T00:00:00.000Z",
-  updatedAt: "2026-01-01T00:00:00.000Z",
 }
 
 const users: KioskUser[] = [
   {
     id: "user-1",
     name: "Jane Owner",
+    avatarUrl: null,
     email: "owner@example.com",
     role: "KIOSK_OWNER",
     kioskId: "kiosk-1",
@@ -47,11 +53,12 @@ const users: KioskUser[] = [
   {
     id: "user-2",
     name: "Max Manager",
+    avatarUrl: null,
     email: "manager@example.com",
     role: "LOCATION_MANAGER",
     kioskId: "kiosk-1",
     disabled: false,
-    managedLocationIds: [],
+    managedLocationIds: ["loc-1"],
     mustChangePassword: false,
     createdAt: "2026-01-03T00:00:00.000Z",
     updatedAt: "2026-01-03T00:00:00.000Z",
@@ -91,14 +98,6 @@ describe("PortalSettingsPage", () => {
         const method = init?.method ?? "GET"
 
         if (url === "/api/proxy/users/me") return { ok: true, status: 200, json: async () => owner } as Response
-        if (url === "/api/proxy/kiosks/kiosk-1") return { ok: true, status: 200, json: async () => kiosk } as Response
-        if (url === "/api/proxy/kiosks/kiosk-1/users" && method === "POST") {
-          return {
-            ok: true,
-            status: 201,
-            json: async () => ({ user: users[1], generatedPassword: "Gen3ratedPassw0rd!" }),
-          } as Response
-        }
         if (url === "/api/proxy/kiosks/kiosk-1/users") {
           return { ok: true, status: 200, json: async () => users } as Response
         }
@@ -109,7 +108,7 @@ describe("PortalSettingsPage", () => {
           return {
             ok: true,
             status: 200,
-            json: async () => ({ ...users[1], managedLocationIds: ["loc-1"] }),
+            json: async () => ({ ...users[1], disabled: true }),
           } as Response
         }
 
@@ -117,20 +116,50 @@ describe("PortalSettingsPage", () => {
       }) as jest.Mock
     })
 
-    it("shows account info, kiosk details, and the team roster", async () => {
+    it("shows the team roster, grouped by owner and managers", async () => {
       renderWithClient(<PortalSettingsPage />)
 
-      expect(await screen.findByText("owner@example.com")).toBeInTheDocument()
-      expect(await screen.findByText("Kiosk One")).toBeInTheDocument()
-      expect(screen.getByText("30%")).toBeInTheDocument()
       expect(await screen.findByText("manager@example.com")).toBeInTheDocument()
+      expect(screen.getByText("Owner")).toBeInTheDocument()
+      expect(screen.getByText("Location managers")).toBeInTheDocument()
+    })
+
+    // Personal details moved to /portal/profile, so Settings is team plus password only.
+    it("no longer carries the account or kiosk sections", async () => {
+      renderWithClient(<PortalSettingsPage />)
+
+      await screen.findByText("manager@example.com")
+      expect(screen.queryByText("Account")).not.toBeInTheDocument()
+      expect(screen.queryByText("Revenue share")).not.toBeInTheDocument()
+      expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1", expect.anything())
     })
 
     it("shows the self-service change-password card", async () => {
       renderWithClient(<PortalSettingsPage />)
 
-      expect(await screen.findByText("owner@example.com")).toBeInTheDocument()
+      expect(await screen.findByText("manager@example.com")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /update password/i })).toBeInTheDocument()
+    })
+
+    // Managers' locations used to be visible only after opening an edit dialog.
+    it("names each manager's assigned locations inline", async () => {
+      renderWithClient(<PortalSettingsPage />)
+
+      expect(await screen.findByText("Downtown")).toBeInTheDocument()
+    })
+
+    it("links to the create and edit pages rather than opening modals", async () => {
+      renderWithClient(<PortalSettingsPage />)
+
+      await screen.findByText("manager@example.com")
+      expect(screen.getByRole("link", { name: /add team member/i })).toHaveAttribute(
+        "href",
+        "/portal/settings/team/new",
+      )
+      expect(screen.getByRole("link", { name: /edit manager@example.com/i })).toHaveAttribute(
+        "href",
+        "/portal/settings/team/user-2",
+      )
     })
 
     it("disables the access toggle for the kiosk-owner's own row", async () => {
@@ -142,60 +171,29 @@ describe("PortalSettingsPage", () => {
       expect(toggles[1]).not.toBeDisabled() // location-manager row
     })
 
-    it("adds a team member as a location manager with no role picker, and reveals the generated password", async () => {
+    it("suspends a manager's access from the roster", async () => {
       const user = userEvent.setup()
       renderWithClient(<PortalSettingsPage />)
 
       await screen.findByText("manager@example.com")
-      await user.click(screen.getByRole("button", { name: /add team member/i }))
-      await user.type(screen.getByLabelText("Name"), "New Person")
-      await user.type(screen.getByLabelText("Email"), "new@example.com")
-      await user.click(screen.getByRole("button", { name: "Add team member" }))
-
-      await waitFor(() =>
-        expect(global.fetch).toHaveBeenCalledWith(
-          "/api/proxy/kiosks/kiosk-1/users",
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({
-              name: "New Person",
-              email: "new@example.com",
-              role: "LOCATION_MANAGER",
-            }),
-          }),
-        ),
-      )
-
-      expect(await screen.findByText("Gen3ratedPassw0rd!")).toBeInTheDocument()
-    })
-
-    it("lets the kiosk owner assign a location to a location manager", async () => {
-      const user = userEvent.setup()
-      renderWithClient(<PortalSettingsPage />)
-
-      await screen.findByText("manager@example.com")
-      await user.click(screen.getByRole("button", { name: /edit manager@example.com/i }))
-
-      const checkbox = await screen.findByRole("checkbox", { name: "Downtown" })
-      await user.click(checkbox)
-      await user.click(screen.getByRole("button", { name: /save changes/i }))
+      await user.click(screen.getByRole("switch", { name: /toggle manager@example.com access/i }))
 
       await waitFor(() =>
         expect(global.fetch).toHaveBeenCalledWith(
           "/api/proxy/kiosks/kiosk-1/users/user-2",
           expect.objectContaining({
             method: "PATCH",
-            body: JSON.stringify({ managedLocationIds: ["loc-1"] }),
+            body: JSON.stringify({ disabled: true }),
           }),
         ),
       )
     })
 
-    it("does not offer a location-assignment edit button for the owner's own row", async () => {
+    it("does not offer an edit link for the owner's own row", async () => {
       renderWithClient(<PortalSettingsPage />)
 
       await screen.findByText("manager@example.com")
-      expect(screen.queryByRole("button", { name: /edit owner@example.com/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: /edit owner@example.com/i })).not.toBeInTheDocument()
     })
   })
 
@@ -210,10 +208,10 @@ describe("PortalSettingsPage", () => {
       }) as jest.Mock
     })
 
-    it("shows only account info, never fetches kiosk or team data", async () => {
+    it("never fetches kiosk or team data", async () => {
       renderWithClient(<PortalSettingsPage />)
 
-      expect(await screen.findByText("manager@example.com")).toBeInTheDocument()
+      await screen.findByRole("link", { name: "Jane Owner" })
 
       expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1", expect.anything())
       expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1/users", expect.anything())
@@ -229,7 +227,7 @@ describe("PortalSettingsPage", () => {
     it("still shows the self-service change-password card for a location manager", async () => {
       renderWithClient(<PortalSettingsPage />)
 
-      expect(await screen.findByText("manager@example.com")).toBeInTheDocument()
+      await screen.findByRole("link", { name: "Jane Owner" })
       expect(screen.getByRole("button", { name: /update password/i })).toBeInTheDocument()
     })
   })

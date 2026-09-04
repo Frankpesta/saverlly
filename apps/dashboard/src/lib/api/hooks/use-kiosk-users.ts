@@ -18,6 +18,8 @@ export type CreateKioskUserPayload = {
   name: string
   email: string
   role: KioskAssignableRole
+  /** Which locations a LOCATION_MANAGER can see. Ignored for a KIOSK_OWNER, who sees all. */
+  managedLocationIds?: string[]
 }
 
 export type CreateKioskUserResult = {
@@ -41,6 +43,7 @@ export function useCreateKioskUser(kioskId: string) {
 
 export type UpdateKioskUserPayload = Partial<{
   name: string
+  email: string
   role: KioskAssignableRole
   disabled: boolean
   managedLocationIds: string[]
@@ -53,6 +56,22 @@ export function useUpdateKioskUser(kioskId: string) {
       apiFetch<KioskUser>(`/kiosks/${kioskId}/users/${userId}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: kioskUsersKey(kioskId) })
+    },
+  })
+}
+
+/** Mints a fresh first-time password and re-sends the welcome email. The reply carries the
+ * password so the owner can read it out when the email doesn't arrive, which is the case the
+ * client reported. */
+export function useResendKioskUserPassword(kioskId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiFetch<CreateKioskUserResult>(`/kiosks/${kioskId}/users/${userId}/resend-password`, {
+        method: "POST",
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: kioskUsersKey(kioskId) })

@@ -1,13 +1,38 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { toast } from "sonner"
 import DevicesPage from "./page"
 import type { Device, Location } from "@/lib/api/types"
+import type { AgentRelease } from "@/lib/api/hooks/use-agent-release"
 
 jest.mock("sonner", () => ({
   toast: { info: jest.fn(), error: jest.fn(), success: jest.fn() },
 }))
+
+jest.mock("next/link", () => {
+  return function MockLink({
+    href,
+    children,
+    ...props
+  }: React.PropsWithChildren<{ href: string }>) {
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    )
+  }
+})
+
+// Mutated per-test to cover the remote and unavailable shapes, then restored.
+const agentRelease: AgentRelease = {
+  available: true,
+  version: "0.1.0",
+  filename: "SaverllyAgentSetup.exe",
+  sizeBytes: 32320178,
+  sha256: "a".repeat(64),
+  builtAt: "2026-09-02T18:33:00.000Z",
+  remoteUrl: null,
+}
 
 const locations: Location[] = [
   {
@@ -63,6 +88,9 @@ describe("DevicesPage", () => {
       if (url === "/api/proxy/devices/device-1" && method === "PATCH") {
         return { ok: true, status: 200, json: async () => ({ ...devices[0], active: false }) } as Response
       }
+      if (url === "/api/proxy/releases/agent/latest/meta") {
+        return { ok: true, status: 200, json: async () => agentRelease } as Response
+      }
       throw new Error(`Unhandled fetch in test: ${method} ${url}`)
     }) as jest.Mock
   })
@@ -75,25 +103,41 @@ describe("DevicesPage", () => {
     await waitFor(() => expect(screen.getAllByText("1").length).toBeGreaterThan(0))
   })
 
-  it("shows a Download Agent button that is honest about not being wired up yet", async () => {
+  // This button used to link to an unset NEXT_PUBLIC_ var and fall back to a toast saying the
+  // download "isn't available yet", so it never actually downloaded anything.
+  it("downloads through the backend, and states the version and size first", async () => {
     renderWithClient(<DevicesPage />)
 
-    const button = await screen.findByRole("button", { name: /download agent/i })
-    await userEvent.click(button)
-
-    expect(toast.info).toHaveBeenCalledWith(expect.stringMatching(/isn't available yet/i))
+    const link = await screen.findByRole("link", { name: /download agent/i })
+    expect(link).toHaveAttribute("href", "/api/proxy/releases/agent/latest")
+    expect(screen.getByText(/v0\.1\.0 · 31 MB/)).toBeInTheDocument()
   })
 
-  it("links Download Agent straight to the configured download URL when set", async () => {
-    const original = process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL
-    process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL = "https://cdn.example.com/saverlly-agent.exe"
+  it("links straight to object storage when the release is hosted remotely", async () => {
+    const original = { ...agentRelease }
+    Object.assign(agentRelease, {
+      remoteUrl: "https://cdn.example.com/SaverllyAgentSetup.exe",
+      sizeBytes: null,
+    })
 
     renderWithClient(<DevicesPage />)
 
     const link = await screen.findByRole("link", { name: /download agent/i })
-    expect(link).toHaveAttribute("href", "https://cdn.example.com/saverlly-agent.exe")
+    expect(link).toHaveAttribute("href", "https://cdn.example.com/SaverllyAgentSetup.exe")
 
-    process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL = original
+    Object.assign(agentRelease, original)
+  })
+
+  it("disables the button when no installer is published", async () => {
+    const original = { ...agentRelease }
+    Object.assign(agentRelease, { available: false })
+
+    renderWithClient(<DevicesPage />)
+
+    expect(await screen.findByRole("button", { name: /download agent/i })).toBeDisabled()
+    expect(screen.getByText(/no installer has been published/i)).toBeInTheDocument()
+
+    Object.assign(agentRelease, original)
   })
 
   it("toggles a device's kill-switch", async () => {
