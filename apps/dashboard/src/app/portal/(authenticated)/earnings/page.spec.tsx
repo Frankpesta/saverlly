@@ -7,6 +7,7 @@ import type { Balance, CommissionEvent, Device, Kiosk, Payout, UserProfile } fro
 const currentUser: UserProfile = {
   id: "user-1",
   name: "Kiosk Owner",
+  avatarUrl: null,
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",

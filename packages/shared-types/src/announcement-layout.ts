@@ -27,6 +27,71 @@ export const ANNOUNCEMENT_LAYOUT_VERSION = 1;
 export const ANNOUNCEMENT_CANVAS_WIDTH = 400;
 export const ANNOUNCEMENT_CANVAS_HEIGHT = 520;
 
+/**
+ * The canvas sizes an owner can choose between, stored on the layout itself rather than fixed in
+ * these two constants.
+ *
+ * The client asked how to switch "the doc size from vertical to horizontal", which the old
+ * single-size canvas had no answer to. Size now travels with the design, so the agent sizes its
+ * window from what was authored instead of from a compile-time constant, and one kiosk can show a
+ * portrait toast and a full-screen takeover on different days.
+ *
+ * `fullBleed` marks a preset that fills the display rather than sitting in the corner, which is
+ * the one case where the toast margin and bottom-right anchoring don't apply.
+ */
+export const ANNOUNCEMENT_CANVAS_PRESETS = [
+  {
+    id: 'portrait',
+    label: 'Portrait toast',
+    hint: 'Bottom-right card. The default.',
+    width: 400,
+    height: 520,
+    fullBleed: false,
+  },
+  {
+    id: 'landscape',
+    label: 'Landscape toast',
+    hint: 'Wider and shorter, for a headline with an image beside it.',
+    width: 560,
+    height: 320,
+    fullBleed: false,
+  },
+  {
+    id: 'fullscreen',
+    label: 'Full screen',
+    hint: 'Covers the whole kiosk display. Use sparingly.',
+    width: 1280,
+    height: 720,
+    fullBleed: true,
+  },
+] as const;
+
+export type AnnouncementCanvasPreset = (typeof ANNOUNCEMENT_CANVAS_PRESETS)[number];
+export type AnnouncementCanvasPresetId = AnnouncementCanvasPreset['id'];
+
+/** Upper bound on either canvas dimension. Wide enough for a 4K-ish full-screen design, tight
+ *  enough that a hostile layout can't ask the agent for a 100,000px window. */
+const MAX_CANVAS_DIMENSION = 4096;
+const MIN_CANVAS_DIMENSION = 160;
+
+/** The preset a layout's dimensions correspond to, or null for a custom size. */
+export function canvasPresetFor(
+  layout: Pick<AnnouncementLayout, 'width' | 'height'>,
+): AnnouncementCanvasPreset | null {
+  return (
+    ANNOUNCEMENT_CANVAS_PRESETS.find(
+      (preset) => preset.width === layout.width && preset.height === layout.height,
+    ) ?? null
+  );
+}
+
+/** True when the layout fills the display instead of sitting as a corner toast. */
+export function isFullBleedLayout(
+  layout: Pick<AnnouncementLayout, 'width' | 'height'>,
+): boolean {
+  return canvasPresetFor(layout)?.fullBleed === true;
+}
+
 /** Gap between the toast and the working area's right/bottom edges, in the same canvas-space
  *  pixels. Keeps the card clear of the taskbar and the notification tray. */
 export const ANNOUNCEMENT_TOAST_MARGIN = 16;
@@ -71,6 +136,38 @@ export interface LayoutElementBox {
   height: number;
 }
 
+/**
+ * What clicking an element does.
+ *
+ * Buttons previously had no action at all: the renderer stamped `data-saverlly-dismiss` on every
+ * one of them, so the only thing an owner could change about a button was its label. A button
+ * that opens the promotion it is advertising is the obvious thing to want, and it is what the
+ * client asked for.
+ *
+ * `dismiss` stays the default so an existing layout's buttons behave exactly as they did.
+ */
+export type LayoutAction =
+  | { type: 'dismiss' }
+  | { type: 'url'; href: string }
+  | { type: 'email'; address: string };
+
+export const DEFAULT_LAYOUT_ACTION: LayoutAction = { type: 'dismiss' };
+
+/**
+ * The URL an action navigates to, or null when it only dismisses.
+ *
+ * Everything reaching this point has already been through `parseElement`, but this is what ends
+ * up inside an HTML attribute on a kiosk we control, so it re-checks rather than trusting.
+ */
+export function resolveActionHref(action: LayoutAction | null | undefined): string | null {
+  if (!action) return null;
+  if (action.type === 'url') return isSafeLinkUrl(action.href) ? action.href : null;
+  if (action.type === 'email') {
+    return isSafeEmailAddress(action.address) ? `mailto:${action.address}` : null;
+  }
+  return null;
+}
+
 export interface TextLayoutElement extends LayoutElementBox {
   type: 'text';
   text: string;
@@ -80,6 +177,8 @@ export interface TextLayoutElement extends LayoutElementBox {
   color: string;
   align: 'left' | 'center' | 'right';
   italic: boolean;
+  /** Set to make the text clickable. Null (the default) leaves it as plain type. */
+  action: LayoutAction | null;
 }
 
 export interface ImageLayoutElement extends LayoutElementBox {
@@ -89,9 +188,8 @@ export interface ImageLayoutElement extends LayoutElementBox {
   radius: number;
 }
 
-/** The dismiss affordance. Every layout needs a way out or the kiosk is stuck behind the
- *  overlay, which is why `ensureDismissable` exists and the editor won't let you delete the
- *  last one. */
+/** A call to action. Defaults to dismissing the toast, which is what every button did before
+ *  actions existed, but can open a URL or an email instead. */
 export interface ButtonLayoutElement extends LayoutElementBox {
   type: 'button';
   label: string;
@@ -101,11 +199,25 @@ export interface ButtonLayoutElement extends LayoutElementBox {
   fontSize: number;
   fontWeight: number;
   radius: number;
+  action: LayoutAction;
 }
+
+/**
+ * The drawable primitives.
+ *
+ * There was no discriminator here at all before, only `fill` and `radius`, so the single way to
+ * get a circle was to crank `radius` to 999 on a square and the other shapes were simply
+ * unreachable. `rectangle` is the default so an existing shape element keeps its appearance.
+ */
+export const SHAPE_KINDS = ['rectangle', 'ellipse', 'line', 'triangle'] as const;
+export type ShapeKind = (typeof SHAPE_KINDS)[number];
 
 export interface ShapeLayoutElement extends LayoutElementBox {
   type: 'shape';
+  kind: ShapeKind;
   fill: string;
+  /** Corner rounding. Ignored by `ellipse` and `triangle`, which have no corners to round, and
+   *  by `line`, which is always fully rounded to its own thickness. */
   radius: number;
 }
 
@@ -118,6 +230,10 @@ export type AnnouncementLayoutElement =
 export interface AnnouncementLayout {
   version: number;
   background: string;
+  /** Canvas size in canvas-space pixels. Stored on the layout rather than read from a constant,
+   *  so the agent sizes its overlay window to what was actually designed. */
+  width: number;
+  height: number;
   elements: AnnouncementLayoutElement[];
 }
 
@@ -148,6 +264,43 @@ export function isSafeImageUrl(value: unknown): value is string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 2048) return false;
   if (!/^https?:\/\//i.test(value)) return false;
   return !/["'()\\<>\s]/.test(value);
+}
+
+/**
+ * The same rules as `isSafeImageUrl`, for a link an owner attached to a button or a run of text.
+ *
+ * Kept separate rather than reusing the image checker because the two answer different questions
+ * and are likely to diverge: an image URL might one day be restricted to our own upload host,
+ * where an outbound link deliberately isn't. Both reject anything that isn't absolute http(s), so
+ * `javascript:` and `data:` never reach a kiosk.
+ */
+export function isSafeLinkUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 2048) return false;
+  if (!/^https?:\/\//i.test(value)) return false;
+  return !/["'\\<>\s]/.test(value);
+}
+
+/** Deliberately loose: this only has to be safe to place in a `mailto:` attribute, and rejecting
+ *  unusual but valid addresses is worse than accepting one that bounces. */
+export function isSafeEmailAddress(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 254) return false;
+  if (/["'\\<>\s]/.test(value)) return false;
+  return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(value);
+}
+
+function safeAction(value: unknown, fallback: LayoutAction | null): LayoutAction | null {
+  if (typeof value !== 'object' || value === null) return fallback;
+  const input = value as Record<string, unknown>;
+  if (input.type === 'dismiss') return { type: 'dismiss' };
+  if (input.type === 'url' && isSafeLinkUrl(input.href)) {
+    return { type: 'url', href: input.href };
+  }
+  if (input.type === 'email' && isSafeEmailAddress(input.address)) {
+    return { type: 'email', address: input.address };
+  }
+  // An action that doesn't validate becomes the fallback rather than a link to nowhere: a button
+  // that quietly does nothing is worse on a kiosk than one that closes the toast.
+  return fallback;
 }
 
 function safeNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -195,7 +348,10 @@ export function createElementId(type: LayoutElementType): string {
   return `${type}-${idCounter}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function parseElement(raw: unknown): AnnouncementLayoutElement | null {
+function parseElement(
+  raw: unknown,
+  canvas: { width: number; height: number },
+): AnnouncementLayoutElement | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const input = raw as Record<string, unknown>;
   const type = safeEnum<LayoutElementType>(
@@ -204,12 +360,14 @@ function parseElement(raw: unknown): AnnouncementLayoutElement | null {
     'text',
   );
 
+  // Clamped against the layout's own canvas rather than the portrait constants, so an element
+  // legitimately placed at x:900 on a full-screen design isn't dragged back into a 400px box.
   const box: LayoutElementBox = {
     id: typeof input.id === 'string' && input.id.length > 0 ? input.id.slice(0, 64) : createElementId(type),
-    x: safeNumber(input.x, 0, -ANNOUNCEMENT_CANVAS_WIDTH, ANNOUNCEMENT_CANVAS_WIDTH * 2),
-    y: safeNumber(input.y, 0, -ANNOUNCEMENT_CANVAS_HEIGHT, ANNOUNCEMENT_CANVAS_HEIGHT * 2),
-    width: safeNumber(input.width, 200, 8, ANNOUNCEMENT_CANVAS_WIDTH * 2),
-    height: safeNumber(input.height, 80, 8, ANNOUNCEMENT_CANVAS_HEIGHT * 2),
+    x: safeNumber(input.x, 0, -canvas.width, canvas.width * 2),
+    y: safeNumber(input.y, 0, -canvas.height, canvas.height * 2),
+    width: safeNumber(input.width, 200, 8, canvas.width * 2),
+    height: safeNumber(input.height, 80, 8, canvas.height * 2),
   };
 
   switch (type) {
@@ -234,11 +392,15 @@ function parseElement(raw: unknown): AnnouncementLayoutElement | null {
         fontSize: safeNumber(input.fontSize, 18, 8, 200),
         fontWeight: safeNumber(input.fontWeight, 600, 100, 900),
         radius: safeNumber(input.radius, 8, 0, 999),
+        // A button saved before actions existed has no `action` key, and dismissing is exactly
+        // what it used to do, so that is the right fallback.
+        action: safeAction(input.action, DEFAULT_LAYOUT_ACTION) ?? DEFAULT_LAYOUT_ACTION,
       };
     case 'shape':
       return {
         ...box,
         type: 'shape',
+        kind: safeEnum(input.kind, SHAPE_KINDS, 'rectangle'),
         fill: safeColor(input.fill, '#e2e8f0'),
         radius: safeNumber(input.radius, 0, 0, 999),
       };
@@ -254,6 +416,8 @@ function parseElement(raw: unknown): AnnouncementLayoutElement | null {
         color: safeColor(input.color, '#111111'),
         align: safeEnum(input.align, ['left', 'center', 'right'] as const, 'left'),
         italic: input.italic === true,
+        // Null, not dismiss: text is plain type unless the owner deliberately links it.
+        action: safeAction(input.action, null),
       };
   }
 }
@@ -268,14 +432,33 @@ export function parseAnnouncementLayout(value: unknown): AnnouncementLayout | nu
   const input = value as Record<string, unknown>;
   if (!Array.isArray(input.elements)) return null;
 
+  // A layout saved before the canvas was resizable has no width/height, and it was authored
+  // against the portrait toast, so that is what it gets.
+  const canvas = {
+    width: safeNumber(
+      input.width,
+      ANNOUNCEMENT_CANVAS_WIDTH,
+      MIN_CANVAS_DIMENSION,
+      MAX_CANVAS_DIMENSION,
+    ),
+    height: safeNumber(
+      input.height,
+      ANNOUNCEMENT_CANVAS_HEIGHT,
+      MIN_CANVAS_DIMENSION,
+      MAX_CANVAS_DIMENSION,
+    ),
+  };
+
   const elements = input.elements
     .slice(0, 50) // a kiosk announcement with 50+ elements is a bug or an attack, not a design
-    .map(parseElement)
+    .map((element) => parseElement(element, canvas))
     .filter((element): element is AnnouncementLayoutElement => element !== null);
 
   return {
     version: safeNumber(input.version, ANNOUNCEMENT_LAYOUT_VERSION, 1, 99),
     background: safeColor(input.background, '#ffffff'),
+    width: canvas.width,
+    height: canvas.height,
     elements,
   };
 }
@@ -335,6 +518,7 @@ export function createDefaultLayout(source: {
     color: '#111111',
     align: 'center',
     italic: false,
+    action: null,
   });
 
   elements.push({
@@ -351,6 +535,7 @@ export function createDefaultLayout(source: {
     color: '#444444',
     align: 'center',
     italic: false,
+    action: null,
   });
 
   elements.push({
@@ -367,42 +552,78 @@ export function createDefaultLayout(source: {
     fontSize: 16,
     fontWeight: 600,
     radius: 8,
+    action: { type: 'dismiss' },
   });
 
-  return { version: ANNOUNCEMENT_LAYOUT_VERSION, background: '#ffffff', elements };
+  return {
+    version: ANNOUNCEMENT_LAYOUT_VERSION,
+    background: '#ffffff',
+    width: ANNOUNCEMENT_CANVAS_WIDTH,
+    height: ANNOUNCEMENT_CANVAS_HEIGHT,
+    elements,
+  };
 }
 
 /**
- * Guarantees the layout contains at least one button.
+ * A blank canvas at the given size, keeping the background the owner had already chosen.
  *
- * Less load-bearing than it was: the toast now always draws its own chrome close button and
- * dismisses itself on a timer, so a buttonless design is no longer a kiosk that can't be
- * reclaimed. It stays because a designed, labelled call to action is a better dismiss affordance
- * than a 28px ×, and a layout that lost its only button to an editing mistake should still get
- * one back.
+ * This is what "Clear canvas" produces. It is deliberately not `createDefaultLayout({})`, which
+ * rebuilds a title/body/button arrangement: an owner asking to clear the canvas wants an empty
+ * one, not a different set of elements to delete.
  */
-export function ensureDismissable(layout: AnnouncementLayout): AnnouncementLayout {
-  if (layout.elements.some((element) => element.type === 'button')) return layout;
+export function createEmptyLayout(
+  options: { background?: string; width?: number; height?: number } = {},
+): AnnouncementLayout {
+  return {
+    version: ANNOUNCEMENT_LAYOUT_VERSION,
+    background: isSafeColor(options.background) ? options.background : '#ffffff',
+    width: options.width ?? ANNOUNCEMENT_CANVAS_WIDTH,
+    height: options.height ?? ANNOUNCEMENT_CANVAS_HEIGHT,
+    elements: [],
+  };
+}
+
+/**
+ * Repositions every element after a canvas resize, so switching portrait to landscape rearranges
+ * the design instead of leaving half of it off the right edge.
+ *
+ * Elements are scaled proportionally by the smaller of the two axis ratios and then re-centred.
+ * Uniform scaling keeps the design's proportions, which is what a layout authored against exact
+ * coordinates depends on. Font sizes scale with it, or a headline sized for a 400px card would
+ * read as a caption on a 1280px one.
+ */
+export function resizeLayout(
+  layout: AnnouncementLayout,
+  width: number,
+  height: number,
+): AnnouncementLayout {
+  if (layout.width === width && layout.height === height) return layout;
+
+  const ratio = Math.min(width / layout.width, height / layout.height);
+  const offsetX = (width - layout.width * ratio) / 2;
+  const offsetY = (height - layout.height * ratio) / 2;
+  const scaleTo = (value: number) => Math.round(value * ratio);
+
   return {
     ...layout,
-    elements: [
-      ...layout.elements,
-      {
-        id: createElementId('button'),
-        type: 'button',
-        x: ANNOUNCEMENT_CANVAS_WIDTH / 2 - 80,
-        y: ANNOUNCEMENT_CANVAS_HEIGHT - 68,
-        width: 160,
-        height: 44,
-        label: 'Dismiss',
-        backgroundColor: '#0f766e',
-        color: '#ffffff',
-        fontFamily: 'Segoe UI',
-        fontSize: 18,
-        fontWeight: 600,
-        radius: 8,
-      },
-    ],
+    width,
+    height,
+    elements: layout.elements.map((element) => {
+      const box = {
+        x: Math.round(element.x * ratio + offsetX),
+        y: Math.round(element.y * ratio + offsetY),
+        width: Math.max(8, scaleTo(element.width)),
+        height: Math.max(8, scaleTo(element.height)),
+      };
+      if (element.type === 'text' || element.type === 'button') {
+        return {
+          ...element,
+          ...box,
+          fontSize: Math.min(200, Math.max(8, scaleTo(element.fontSize))),
+        };
+      }
+      return { ...element, ...box };
+    }),
   };
 }
 
@@ -467,6 +688,10 @@ export function layoutElementStyle(
         whiteSpace: 'pre-wrap',
         overflow: 'hidden',
         wordBreak: 'break-word',
+        // Linked text renders as an <a>, which would otherwise pick up the browser's default
+        // blue-and-underlined. The owner chose a colour; that colour wins.
+        textDecoration: 'none',
+        ...(element.action ? { cursor: 'pointer' } : {}),
       };
     case 'image':
       return {
@@ -495,11 +720,33 @@ export function layoutElementStyle(
         overflow: 'hidden',
       };
     case 'shape':
+      return { ...base, ...shapeStyle(element) };
+  }
+}
+
+/** Each shape kind is the same filled box with a different way of being cut out of it, so the
+ *  renderer stays a single absolutely-positioned div and nothing here needs an SVG. */
+function shapeStyle(element: ShapeLayoutElement): StyleMap {
+  switch (element.kind) {
+    case 'ellipse':
+      return { backgroundColor: element.fill, borderRadius: '50%' };
+    case 'line':
+      // A line is its box's full width at the box's height as thickness, rounded to a cap. Drawn
+      // this way rather than as a border so it rotates and resizes like every other element.
       return {
-        ...base,
         backgroundColor: element.fill,
-        borderRadius: `${element.radius}px`,
+        borderRadius: `${Math.round(element.height / 2)}px`,
       };
+    case 'triangle':
+      // clip-path rather than the old border trick: it respects the element's real box, so the
+      // selection outline and resize handles line up with what is drawn.
+      return {
+        backgroundColor: element.fill,
+        clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)',
+      };
+    case 'rectangle':
+    default:
+      return { backgroundColor: element.fill, borderRadius: `${element.radius}px` };
   }
 }
 
@@ -517,6 +764,20 @@ export function styleMapToCssText(style: StyleMap): string {
 // HTML renderer. What the kiosk's WebView2 overlay loads
 // ---------------------------------------------------------------------------
 
+/**
+ * The attribute pair that tells the runtime script what a click should do.
+ *
+ * Everything used to carry `data-saverlly-dismiss` unconditionally, which is why every button on
+ * a kiosk closed the toast no matter what it said. An action that resolves to a URL gets
+ * `data-saverlly-open` instead, and the script turns that into a message the agent acts on.
+ */
+function actionAttributes(action: LayoutAction | null | undefined): string {
+  if (!action) return '';
+  const href = resolveActionHref(action);
+  if (!href) return ' data-saverlly-dismiss';
+  return ` data-saverlly-open="${escapeHtml(href)}"`;
+}
+
 function renderElementHtml(
   element: AnnouncementLayoutElement,
   options: LayoutStyleOptions = {},
@@ -524,14 +785,25 @@ function renderElementHtml(
   const style = escapeHtml(styleMapToCssText(layoutElementStyle(element, options)));
 
   switch (element.type) {
-    case 'text':
+    case 'text': {
+      const href = resolveActionHref(element.action);
+      if (element.action && href) {
+        // A real anchor, so it reads as a link to anything inspecting the document, even though
+        // the script intercepts the click rather than letting WebView2 navigate the overlay.
+        return `<a href="${escapeHtml(href)}" style="${style}"${actionAttributes(element.action)}>${escapeHtml(element.text)}</a>`;
+      }
+      if (element.action) {
+        // A dismiss action on text: not a link, so it stays a div.
+        return `<div style="${style}" data-saverlly-dismiss>${escapeHtml(element.text)}</div>`;
+      }
       return `<div style="${style}">${escapeHtml(element.text)}</div>`;
+    }
     case 'image':
       // Presentational: the alt text would never be read out on a kiosk overlay, and an empty
       // alt is the correct signal for a purely decorative background image.
       return `<div style="${style}" role="presentation"></div>`;
     case 'button':
-      return `<button type="button" style="${style}" data-saverlly-dismiss>${escapeHtml(element.label)}</button>`;
+      return `<button type="button" style="${style}"${actionAttributes(element.action)}>${escapeHtml(element.label)}</button>`;
     case 'shape':
       return `<div style="${style}" role="presentation"></div>`;
   }
@@ -556,8 +828,14 @@ export function renderAnnouncementLayoutHtml(
   layout: AnnouncementLayout,
   options: { interactive?: boolean } & LayoutStyleOptions = {},
 ): string {
-  const safe = ensureDismissable(parseAnnouncementLayout(layout) ?? createDefaultLayout({}));
+  // No ensureDismissable: an empty canvas is a legal design now that "Clear canvas" exists, and
+  // the chrome close button plus the auto-dismiss timer below are what actually guarantee the
+  // kiosk can be reclaimed. Injecting a button the owner deliberately deleted was the editor
+  // fighting them.
+  const safe = parseAnnouncementLayout(layout) ?? createDefaultLayout({});
   const interactive = options.interactive !== false;
+  const canvasWidth = safe.width;
+  const canvasHeight = safe.height;
 
   // The preview is a still life: it must not slide itself off the page 20 seconds after a kiosk
   // owner opens the editor, and it has no host to post a dismissal to.
@@ -585,6 +863,22 @@ export function renderAnnouncementLayoutHtml(
   }
 
   document.addEventListener('click', function (event) {
+    // An action that opens something: hand the URL to the host rather than navigating the
+    // overlay itself, which would replace the announcement with a web page inside a 400px
+    // frameless window and leave no way back.
+    var opener = event.target.closest('[data-saverlly-open]');
+    if (opener) {
+      event.preventDefault();
+      var href = opener.getAttribute('data-saverlly-open');
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage('saverlly:open:' + href);
+      } else {
+        window.open(href, '_blank', 'noopener');
+      }
+      // The toast has done its job once the link is away.
+      dismiss();
+      return;
+    }
     if (event.target.closest('[data-saverlly-dismiss]')) dismiss();
   });
 
@@ -613,15 +907,15 @@ export function renderAnnouncementLayoutHtml(
      each other. */
   #shell {
     position: relative;
-    width: ${ANNOUNCEMENT_CANVAS_WIDTH}px;
-    height: ${ANNOUNCEMENT_CANVAS_HEIGHT}px;
+    width: ${canvasWidth}px;
+    height: ${canvasHeight}px;
     flex: none;
     scale: var(--fit, 1);
     animation: saverlly-rise ${TOAST_ENTER_MS}ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   #shell.leaving { animation: saverlly-sink ${TOAST_EXIT_MS}ms ease-in both; }
   @keyframes saverlly-rise {
-    from { translate: 0 ${Math.round(ANNOUNCEMENT_CANVAS_HEIGHT / 12)}px; opacity: 0; }
+    from { translate: 0 ${Math.round(canvasHeight / 12)}px; opacity: 0; }
     to { translate: 0 0; opacity: 1; }
   }
   @keyframes saverlly-sink {
@@ -677,8 +971,8 @@ ${safe.elements.map((element) => renderElementHtml(element, options)).join('\n')
   function fit() {
     var scale = Math.min(
       1,
-      window.innerWidth / ${ANNOUNCEMENT_CANVAS_WIDTH},
-      window.innerHeight / ${ANNOUNCEMENT_CANVAS_HEIGHT}
+      window.innerWidth / ${canvasWidth},
+      window.innerHeight / ${canvasHeight}
     );
     shell.style.setProperty('--fit', scale);
   }

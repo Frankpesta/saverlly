@@ -47,6 +47,7 @@ export default async function AdminLayout({
   return (
     <AuthenticatedShell
       homeUrl="/admin/overview"
+      profileHref="/admin/profile"
       loginPath="/admin/login"
       fallbackTitle="Admin Console"
       navMain={navMain}

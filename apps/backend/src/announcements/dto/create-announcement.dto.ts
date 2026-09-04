@@ -51,10 +51,15 @@ export class CreateAnnouncementDto {
   @MinLength(1)
   title: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'Internal note, shown only in the dashboard list so an announcement is findable later. ' +
+      'It is never drawn on the kiosk: what a kiosk shows comes entirely from `layout`. It was ' +
+      'required and labelled "Body", which read like copy that would appear on screen.',
+  })
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  body: string;
+  body?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

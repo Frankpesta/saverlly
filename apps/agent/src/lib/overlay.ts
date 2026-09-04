@@ -2,10 +2,9 @@ import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  ANNOUNCEMENT_CANVAS_HEIGHT,
-  ANNOUNCEMENT_CANVAS_WIDTH,
   ANNOUNCEMENT_TOAST_MARGIN,
   createDefaultLayout,
+  isFullBleedLayout,
   parseAnnouncementLayout,
   renderAnnouncementLayoutHtml,
   type ActiveAnnouncement,
@@ -192,7 +191,15 @@ public class SaverllyToastForm : Form {
  * scaling at all, and the extra device pixels on a high-DPI screen go into sharper glyphs rather
  * than into stretching the design.
  */
-function webView2OverlayScript(htmlPath: string, dllDir: string, context: ScriptContext): string {
+function webView2OverlayScript(
+  htmlPath: string,
+  dllDir: string,
+  context: ScriptContext,
+  /** The design's own canvas, not the compile-time constants: the owner picks a size in the
+   *  editor and the window is made to match, so a landscape or full-screen design is not
+   *  letterboxed into a portrait card. */
+  canvas: { width: number; height: number; fullBleed: boolean },
+): string {
   return wrapOverlayScript(
     context,
     `
@@ -244,19 +251,35 @@ try {
 # the taskbar and clear of the notification tray without having to know where either one is.
 $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $margin = [int][Math]::Round(${ANNOUNCEMENT_TOAST_MARGIN} * $dpiScale)
-$cardWidth = [int][Math]::Round(${ANNOUNCEMENT_CANVAS_WIDTH} * $dpiScale)
-$cardHeight = [int][Math]::Round(${ANNOUNCEMENT_CANVAS_HEIGHT} * $dpiScale)
-# A card taller than the screen it sits on is not a toast. On a small or heavily scaled display
-# the window shrinks and the document's own fit scale takes the design down with it.
-$maxWidth = $area.Width - (2 * $margin)
-$maxHeight = $area.Height - (2 * $margin)
-if ($cardWidth -gt $maxWidth) { $cardWidth = $maxWidth }
-if ($cardHeight -gt $maxHeight) { $cardHeight = $maxHeight }
+$fullBleed = ${canvas.fullBleed ? '$true' : '$false'}
+
+if ($fullBleed) {
+  # A full-screen design fills the working area and sits flush in the corner. Still the working
+  # area rather than Bounds, so the taskbar stays reachable and the kiosk is never truly trapped.
+  $cardWidth = $area.Width
+  $cardHeight = $area.Height
+  $cardLeft = $area.Left
+  $cardTop = $area.Top
+} else {
+  $cardWidth = [int][Math]::Round(${canvas.width} * $dpiScale)
+  $cardHeight = [int][Math]::Round(${canvas.height} * $dpiScale)
+  # A card taller than the screen it sits on is not a toast. On a small or heavily scaled display
+  # the window shrinks and the document's own fit scale takes the design down with it.
+  $maxWidth = $area.Width - (2 * $margin)
+  $maxHeight = $area.Height - (2 * $margin)
+  if ($cardWidth -gt $maxWidth) { $cardWidth = $maxWidth }
+  if ($cardHeight -gt $maxHeight) { $cardHeight = $maxHeight }
+  $cardLeft = $area.Right - $cardWidth - $margin
+  $cardTop = $area.Bottom - $cardHeight - $margin
+}
 $form.ClientSize = New-Object System.Drawing.Size($cardWidth, $cardHeight)
-$form.Location = New-Object System.Drawing.Point(($area.Right - $cardWidth - $margin), ($area.Bottom - $cardHeight - $margin))
+$form.Location = New-Object System.Drawing.Point($cardLeft, $cardTop)
 
 # Rounded corners via a window region, so the card reads as a card rather than as a rectangle of
 # browser. Best-effort: a square window is a cosmetic loss, not a failure to announce anything.
+# Skipped for a full-screen design, where rounding the display's own corners would just show the
+# desktop through four notches.
+if (-not $fullBleed) {
 try {
   $radius = [int][Math]::Round(${TOAST_CORNER_RADIUS} * $dpiScale)
   $diameter = $radius * 2
@@ -268,6 +291,7 @@ try {
   $path.CloseFigure()
   $form.Region = New-Object System.Drawing.Region($path)
 } catch { }
+}
 
 $web = New-Object Microsoft.Web.WebView2.WinForms.WebView2
 $web.Dock = 'Fill'
@@ -290,10 +314,24 @@ $web.add_CoreWebView2InitializationCompleted({
   $settings.IsStatusBarEnabled = $false
   $settings.IsZoomControlEnabled = $false
   $settings.AreBrowserAcceleratorKeysEnabled = $false
-  # How the Dismiss button gets back to us: the rendered document posts 'saverlly:dismiss'.
+  # How the document talks back to us. Two messages:
+  #   saverlly:dismiss       close the toast
+  #   saverlly:open:<url>    open a link the owner attached to a button or a run of text
   $sender.CoreWebView2.add_WebMessageReceived({
     param($messageSender, $messageArgs)
-    if ($messageArgs.TryGetWebMessageAsString() -eq 'saverlly:dismiss') { $form.Close() }
+    $message = $messageArgs.TryGetWebMessageAsString()
+    if ($message -eq 'saverlly:dismiss') { $form.Close(); return }
+    if ($message -like 'saverlly:open:*') {
+      $target = $message.Substring(14)
+      # Re-validated here even though the layout sanitizer already rejected anything that isn't
+      # absolute http(s) or mailto. This string reaches Start-Process, so the last gate before the
+      # shell is the one that has to hold. A scheme we don't recognise is dropped silently.
+      if ($target -match '^(https?://|mailto:)[^\\s"''<>|&;]+$') {
+        try { Start-Process $target } catch { }
+      }
+      $form.Close()
+      return
+    }
   })
 })
 
@@ -658,17 +696,25 @@ export async function showAnnouncementOverlay(
         parseAnnouncementLayout(announcement.layout) ??
         createDefaultLayout({
           title: announcement.title,
-          body: announcement.body,
+          body: announcement.body ?? undefined,
           mediaUrl: announcement.mediaUrl,
         });
 
       const htmlPath = announcementOverlayHtmlPath();
       fs.writeFileSync(htmlPath, renderAnnouncementLayoutHtml(layout), 'utf8');
-      fs.writeFileSync(scriptPath, webView2OverlayScript(htmlPath, dllDir, context), 'utf8');
+      fs.writeFileSync(
+        scriptPath,
+        webView2OverlayScript(htmlPath, dllDir, context, {
+          width: layout.width,
+          height: layout.height,
+          fullBleed: isFullBleedLayout(layout),
+        }),
+        'utf8',
+      );
     } else {
       fs.writeFileSync(
         scriptPath,
-        legacyOverlayScript(announcement.title, announcement.body, announcement.mediaUrl, context),
+        legacyOverlayScript(announcement.title, announcement.body ?? '', announcement.mediaUrl, context),
         'utf8',
       );
     }

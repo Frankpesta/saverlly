@@ -11,7 +11,8 @@ import type { Location } from "@/lib/api/types"
  *
  * It used to exist only inside a card partway down a location's own detail page, which the
  * client reported as having to hunt for. The code now travels with the location payload, so
- * this row needs no extra request to display it. */
+ * this row needs no extra request to display it. Shared by the admin and portal locations
+ * tables: the kiosk owner installing a device is the person who needs the code most. */
 export function SetupCodeCell({ location }: { location: Location }) {
   const createCode = useCreateSetupCode(location.id)
   const code = location.locationSetupCode

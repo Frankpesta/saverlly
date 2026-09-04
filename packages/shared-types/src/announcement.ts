@@ -4,7 +4,9 @@ import { AnnouncementLayout } from './announcement-layout';
 export interface ActiveAnnouncement {
   id: string;
   title: string;
-  body: string;
+  /** The dashboard-side internal note, not kiosk copy. Optional, and only ever read by
+   *  `createDefaultLayout` when an announcement predates the canvas editor and has no layout. */
+  body?: string | null;
   mediaUrl?: string | null;
   repeatPolicy: AnnouncementRepeatPolicy;
   maxDisplayCount?: number | null;

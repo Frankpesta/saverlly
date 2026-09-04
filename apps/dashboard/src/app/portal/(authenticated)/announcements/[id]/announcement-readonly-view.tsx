@@ -14,7 +14,7 @@ export function AnnouncementReadOnlyView({ announcement }: { announcement: Annou
     announcement.layout ??
     createDefaultLayout({
       title: announcement.title,
-      body: announcement.body,
+      body: announcement.body ?? undefined,
       mediaUrl: announcement.mediaUrl,
     })
 

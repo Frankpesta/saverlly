@@ -110,8 +110,12 @@ export class LocationsController {
     return this.locationsService.remove(id);
   }
 
+  // A location manager provisioning a device at a site they run is the actual use case for
+  // this code, and TenantScopeGuard already restricts them to their own managedLocationIds.
+  // Withholding it meant they saw the card, watched the GET 403 into "Could not load the setup
+  // code", and had to ask the owner to read a code out to them.
   @Post(':id/setup-code')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.LOCATION)
   @ApiOperation({
@@ -124,7 +128,7 @@ export class LocationsController {
   }
 
   @Get(':id/setup-code')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.LOCATION)
   @ApiOperation({ summary: "This location's setup code, or null if none has been generated yet" })
@@ -137,7 +141,7 @@ export class LocationsController {
   }
 
   @Patch(':id/setup-code')
-  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER)
+  @Roles(UserRole.ADMIN, UserRole.KIOSK_OWNER, UserRole.LOCATION_MANAGER)
   @UseGuards(TenantScopeGuard)
   @TenantResource(TenantResourceType.LOCATION)
   @ApiOperation({ summary: 'Revoke or reactivate this location\'s setup code' })

@@ -27,6 +27,8 @@ import { PayoutsModule } from './payouts/payouts.module';
 import { SearchModule } from './search/search.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { EmailModule } from './email/email.module';
+import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { ReleasesModule } from './releases/releases.module';
 
 @Module({
   imports: [
@@ -72,6 +74,8 @@ import { EmailModule } from './email/email.module';
     SearchModule,
     NotificationsModule,
     EmailModule,
+    PlatformSettingsModule,
+    ReleasesModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

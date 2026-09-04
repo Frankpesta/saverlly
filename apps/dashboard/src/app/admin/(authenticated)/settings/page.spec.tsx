@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AdminSettingsPage from "./page"
@@ -7,6 +7,7 @@ import type { UserProfile } from "@/lib/api/types"
 const admin: UserProfile = {
   id: "user-1",
   name: "Admin User",
+  avatarUrl: null,
   email: "admin@example.com",
   role: "ADMIN",
   kioskId: null,
@@ -16,6 +17,7 @@ const admins = [
   {
     id: "user-1",
     name: "Admin User",
+    avatarUrl: null,
     email: "admin@example.com",
     role: "ADMIN" as const,
     kioskId: null,
@@ -41,11 +43,18 @@ describe("AdminSettingsPage", () => {
       if (url === "/api/proxy/users/me" && method === "GET") {
         return { ok: true, status: 200, json: async () => admin } as Response
       }
-      if (url === "/api/proxy/users/me" && method === "PATCH") {
+      if (url === "/api/proxy/settings" && method === "GET") {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ ...admin, name: "Updated Admin", email: "updated@example.com" }),
+          json: async () => ({ supportEmail: "support@saverlly.com" }),
+        } as Response
+      }
+      if (url === "/api/proxy/settings" && method === "PATCH") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ supportEmail: "help@saverlly.com" }),
         } as Response
       }
       if (url === "/api/proxy/users/admins" && method === "GET") {
@@ -59,6 +68,7 @@ describe("AdminSettingsPage", () => {
             user: {
               id: "user-2",
               name: "New Teammate",
+              avatarUrl: null,
               email: "teammate@example.com",
               role: "ADMIN",
               kioskId: null,
@@ -75,38 +85,59 @@ describe("AdminSettingsPage", () => {
     }) as jest.Mock
   })
 
-  it("shows account info and the self-service change-password card", async () => {
+  it("shows the self-service change-password card", async () => {
     renderWithClient(<AdminSettingsPage />)
 
-    const accountSection = (await screen.findByText("Account")).closest("section")!
-    expect(await within(accountSection).findByText("admin@example.com")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /update password/i })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /update password/i })).toBeInTheDocument()
   })
 
-  it("edits the account name and email via PATCH /users/me", async () => {
+  // Identity (name, email, photo, role) moved to /admin/profile, so Settings is employees,
+  // platform config, and password only.
+  it("no longer carries the account section", async () => {
+    renderWithClient(<AdminSettingsPage />)
+
+    await screen.findByText(/\(you\)/)
+    expect(screen.queryByText("Account")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Edit account" })).not.toBeInTheDocument()
+  })
+
+  // The support address used to be a build-time NEXT_PUBLIC_ var, so changing it meant a
+  // frontend redeploy. The client asked to change it from the backend.
+  it("saves the support email to the backend", async () => {
     const user = userEvent.setup()
     renderWithClient(<AdminSettingsPage />)
 
-    const accountSection = (await screen.findByText("Account")).closest("section")!
-    await within(accountSection).findByText("admin@example.com")
-    await user.click(screen.getByRole("button", { name: "Edit account" }))
+    const input = await screen.findByLabelText("Support email")
+    expect(input).toHaveValue("support@saverlly.com")
 
-    const nameInput = screen.getByPlaceholderText("Name")
-    await user.clear(nameInput)
-    await user.type(nameInput, "Updated Admin")
+    await user.clear(input)
+    await user.type(input, "help@saverlly.com")
     await user.click(screen.getByRole("button", { name: "Save" }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/proxy/users/me",
+        "/api/proxy/settings",
         expect.objectContaining({
           method: "PATCH",
-          body: JSON.stringify({ name: "Updated Admin", email: "admin@example.com" }),
+          body: JSON.stringify({ supportEmail: "help@saverlly.com" }),
         }),
       ),
     )
+  })
 
-    expect(await screen.findByText("Updated Admin")).toBeInTheDocument()
+  it("accepts an empty support email, which unlinks the portal copy", async () => {
+    const user = userEvent.setup()
+    renderWithClient(<AdminSettingsPage />)
+
+    await user.clear(await screen.findByLabelText("Support email"))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/proxy/settings",
+        expect.objectContaining({ body: JSON.stringify({ supportEmail: "" }) }),
+      ),
+    )
   })
 
   it("lists existing employees and links Add employee to its own page", async () => {

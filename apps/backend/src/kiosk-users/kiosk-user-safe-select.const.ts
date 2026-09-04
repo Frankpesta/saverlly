@@ -4,6 +4,7 @@
 export const KIOSK_USER_SAFE_SELECT = {
   id: true,
   name: true,
+  avatarUrl: true,
   email: true,
   role: true,
   kioskId: true,

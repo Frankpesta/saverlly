@@ -19,7 +19,10 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { EllipsisVerticalIcon, LogOutIcon } from "lucide-react"
+import Link from "next/link"
+import { CircleUserIcon, EllipsisVerticalIcon, LogOutIcon } from "lucide-react"
+import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
+import { proxiedImageUrl } from "@/lib/image-proxy"
 
 function initials(name: string) {
   return name
@@ -31,13 +34,27 @@ function initials(name: string) {
 }
 
 export function NavUser({
-  user,
+  user: fallbackUser,
+  profileHref,
   onLogout,
 }: {
+  /** Rendered from the server session on the first paint, before the client query resolves. */
   user: { name: string; email: string; avatar?: string }
+  profileHref: string
   onLogout: () => void
 }) {
   const { isMobile } = useSidebar()
+  // The layout's props come from the JWT session, which carries no display name or photo. Read
+  // the live profile too, so a name or avatar changed on the profile page shows up here at once
+  // rather than after the next full page load.
+  const { data: profile } = useCurrentUser()
+  const user = profile
+    ? {
+        name: profile.name || profile.email,
+        email: profile.email,
+        avatar: profile.avatarUrl ? proxiedImageUrl(profile.avatarUrl) : undefined,
+      }
+    : fallbackUser
 
   return (
     <SidebarMenu>
@@ -90,11 +107,15 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {/* The dropdown used to have an "Account" item here linking to the same URL as the
-                sidebar's own "Settings" nav item, so it was a second click to reach a place the
-                first click already reaches. Removed per the client's feedback rather than
-                pointed somewhere new, since there is nothing account-specific this menu needs
-                that Settings doesn't already cover. */}
+            {/* This item used to say "Account" and link to the same URL as the sidebar's own
+                "Settings" nav item, which the client called out as a duplicate. It points at the
+                profile page now, which Settings does not cover. */}
+            <DropdownMenuItem asChild>
+              <Link href={profileHref}>
+                <CircleUserIcon />
+                Profile
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onLogout}>
               <LogOutIcon />
               Log out

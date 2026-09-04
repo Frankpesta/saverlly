@@ -39,17 +39,27 @@ async function handle(
     }
   }
 
-  const body = await response.arrayBuffer()
   // The Fetch spec forbids a body on null-body statuses (204/205/304). Even a zero-length
   // ArrayBuffer counts as "has a body" and makes the Response constructor throw, turning a
   // successful backend delete (204) into a 500 here while the deletion already happened.
   const isNullBodyStatus = response.status === 204 || response.status === 205 || response.status === 304
 
-  return new NextResponse(isNullBodyStatus ? null : body, {
+  const headers = new Headers({
+    "Content-Type": response.headers.get("content-type") ?? "application/json",
+  })
+  // Carried through so a file response stays a file response. Without Content-Disposition the
+  // agent installer would arrive named after the route rather than SaverllyAgentSetup.exe, and
+  // without Content-Length the browser can't show download progress.
+  for (const header of ["content-disposition", "content-length"]) {
+    const value = response.headers.get(header)
+    if (value) headers.set(header, value)
+  }
+
+  // Streamed rather than buffered: the agent installer is ~32MB, and holding it whole in memory
+  // per request is needless. Transparent for the JSON traffic that makes up everything else.
+  return new NextResponse(isNullBodyStatus ? null : response.body, {
     status: response.status,
-    headers: {
-      "Content-Type": response.headers.get("content-type") ?? "application/json",
-    },
+    headers,
   })
 }
 

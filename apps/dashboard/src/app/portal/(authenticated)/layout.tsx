@@ -35,6 +35,7 @@ export default async function PortalLayout({
   return (
     <AuthenticatedShell
       homeUrl="/portal/overview"
+      profileHref="/portal/profile"
       loginPath="/portal/login"
       fallbackTitle="Kiosk Portal"
       navMain={visibleNavMain}

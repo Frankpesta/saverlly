@@ -16,6 +16,7 @@ import { FormField, FormGrid, FormSection } from "@/components/dashboard/form-se
 import { useUploadAnnouncementImage } from "@/lib/api/hooks/use-announcements"
 import type { AnnouncementPayload } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
+import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { ApiError } from "@/lib/api/client"
 import { toDatetimeLocal } from "@/lib/format-date"
 import type { AnnouncementRepeatPolicy } from "@/lib/api/types"
@@ -23,15 +24,28 @@ import { cn } from "@/lib/utils"
 import {
   createDefaultLayout,
   createElementId,
+  createEmptyLayout,
   isSafeImageUrl,
   type AnnouncementLayout,
   type AnnouncementLayoutElement,
   type LayoutElementType,
+  type ShapeKind,
 } from "@saverlly/shared-types"
 import { AnnouncementCanvas, LayerList } from "./announcement-canvas"
 import { AnnouncementLayoutPreview } from "./announcement-layout-preview"
 import { CanvasToolbar, ElementInspector, createElement } from "./announcement-inspector"
 import { LocationTargetPicker } from "./location-target-picker"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const REPEAT_POLICIES = ["ONCE", "EVERY_LOGIN", "MAX_N_TIMES"] as const
 
@@ -44,7 +58,10 @@ const REPEAT_LABEL: Record<AnnouncementRepeatPolicy, string> = {
 const announcementSchema = z
   .object({
     title: z.string().trim().min(1, "Title is required"),
-    body: z.string().trim().min(1, "Body is required"),
+    // Optional, and renamed to "Internal note" in the UI. It was required and labelled "Body",
+    // which read like copy that would appear on the kiosk. It never was: what a kiosk shows
+    // comes entirely from the layout.
+    body: z.string().trim(),
     mediaUrl: z.string().trim(),
     startAt: z.string().min(1, "Start date is required"),
     endAt: z.string().min(1, "End date is required"),
@@ -79,6 +96,24 @@ const announcementSchema = z
 
 export type AnnouncementFormValues = z.infer<typeof announcementSchema>
 
+/**
+ * The schema depends on who is filling it in: an empty `locationIds` means "every location in
+ * the kiosk", which only the owner may do. Built per-role rather than checked after submit, so a
+ * manager sees the requirement on the field instead of a 403 toast at the end.
+ */
+function makeAnnouncementSchema(canTargetAllLocations: boolean) {
+  if (canTargetAllLocations) return announcementSchema
+  return announcementSchema.superRefine((data, ctx) => {
+    if (data.locationIds.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Pick at least one of your locations",
+        path: ["locationIds"],
+      })
+    }
+  })
+}
+
 export function emptyAnnouncementForm(): AnnouncementFormValues {
   return {
     title: "",
@@ -96,7 +131,7 @@ export function emptyAnnouncementForm(): AnnouncementFormValues {
 export function toAnnouncementPayload(values: AnnouncementFormValues): AnnouncementPayload {
   return {
     title: values.title,
-    body: values.body,
+    body: values.body || undefined,
     mediaUrl: values.mediaUrl || undefined,
     startAt: new Date(values.startAt).toISOString(),
     endAt: new Date(values.endAt).toISOString(),
@@ -136,6 +171,11 @@ export function AnnouncementForm({
 }) {
   const uploadImage = useUploadAnnouncementImage()
   const { data: locations } = useLocations()
+  const { data: currentUser } = useCurrentUser()
+  // A manager's own `useLocations()` is already scoped to their managedLocationIds, so the list
+  // below is theirs. What they can't do is leave it empty, which the backend reads as "every
+  // location in the kiosk".
+  const canTargetAllLocations = currentUser?.role !== "LOCATION_MANAGER"
 
   const {
     register,
@@ -146,7 +186,7 @@ export function AnnouncementForm({
     setValue,
     formState: { errors },
   } = useForm<AnnouncementFormValues>({
-    resolver: zodResolver(announcementSchema),
+    resolver: zodResolver(makeAnnouncementSchema(canTargetAllLocations)),
     mode: "onTouched",
     reValidateMode: "onChange",
     defaultValues,
@@ -159,6 +199,9 @@ export function AnnouncementForm({
   // entirely, genuinely slow to type into.
   const repeatPolicy = watch("repeatPolicy")
   const layout = watch("layout")
+  // Watched so the toolbar's drop zone shows a thumbnail of the image just uploaded. It changes
+  // on an upload, not on a keystroke, so this costs nothing in typing responsiveness.
+  const mediaUrl = watch("mediaUrl") ?? ""
 
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
 
@@ -166,10 +209,39 @@ export function AnnouncementForm({
     setValue("layout", next, { shouldDirty: true })
   }
 
-  /** Uploading from the canvas toolbar drops the image straight onto the canvas. The upload
-   *  field is an "add an image" affordance there, not a value to hold on to, so it's cleared
-   *  again immediately. `mediaUrl` is still tracked separately as the fallback thumbnail for
-   *  pre-canvas rendering. */
+  /**
+   * A new image element, sized to fit the canvas and centred on it.
+   *
+   * The upload path used to hardcode `x:240, y:150, 480×300`. Those are leftovers from the old
+   * 960×640 full-screen canvas, so on the 400×520 toast the image landed almost entirely off the
+   * right edge and was clipped away by the stage's `overflow: hidden`. Which is exactly the
+   * "the image doesn't show up" the client reported.
+   */
+  function imageElementFor(url: string): AnnouncementLayoutElement {
+    const width = Math.round(layout.width * 0.8)
+    const height = Math.round(Math.min(layout.height * 0.5, width * 0.625))
+    return {
+      id: createElementId("image"),
+      type: "image",
+      x: Math.round((layout.width - width) / 2),
+      y: Math.round((layout.height - height) / 2),
+      width,
+      height,
+      url,
+      fit: "cover",
+      radius: 12,
+    }
+  }
+
+  function addImage(url: string) {
+    const element = imageElementFor(url)
+    setLayout({ ...layout, elements: [...layout.elements, element] })
+    setSelectedId(element.id)
+  }
+
+  /** Uploading from the canvas toolbar drops the image straight onto the canvas. `mediaUrl` is
+   *  tracked alongside it as the fallback thumbnail for pre-canvas rendering, and as the value
+   *  the toolbar's own preview shows. */
   function handleUploadFile(file: File) {
     uploadImage.mutate(file, {
       onSuccess: (data) => {
@@ -177,20 +249,8 @@ export function AnnouncementForm({
           toast.error("That image URL can't be used on a kiosk screen.")
           return
         }
-        setValue("mediaUrl", data.url)
-        const element: AnnouncementLayoutElement = {
-          id: createElementId("image"),
-          type: "image",
-          x: 240,
-          y: 150,
-          width: 480,
-          height: 300,
-          url: data.url,
-          fit: "cover",
-          radius: 12,
-        }
-        setLayout({ ...layout, elements: [...layout.elements, element] })
-        setSelectedId(element.id)
+        setValue("mediaUrl", data.url, { shouldDirty: true })
+        addImage(data.url)
       },
       onError: (error) =>
         toast.error(error instanceof ApiError ? error.message : "Could not upload image."),
@@ -198,7 +258,14 @@ export function AnnouncementForm({
   }
 
   function handleAddElement(type: LayoutElementType) {
-    const element = createElement(type)
+    const element = createElement(type, layout)
+    if (!element) return
+    setLayout({ ...layout, elements: [...layout.elements, element] })
+    setSelectedId(element.id)
+  }
+
+  function handleAddShape(kind: ShapeKind) {
+    const element = createElement("shape", layout, kind)
     if (!element) return
     setLayout({ ...layout, elements: [...layout.elements, element] })
     setSelectedId(element.id)
@@ -207,6 +274,20 @@ export function AnnouncementForm({
   function handleResetLayout() {
     const { title, body, mediaUrl } = getValues()
     setLayout(createDefaultLayout({ title, body, mediaUrl }))
+    setSelectedId(null)
+  }
+
+  /** Distinct from "Reset": reset rebuilds a title/body/button arrangement, this leaves nothing
+   *  behind. The canvas size and background are kept, since those are the frame rather than the
+   *  content. Confirmed, because it discards work with no undo. */
+  function handleClearCanvas() {
+    setLayout(
+      createEmptyLayout({
+        background: layout.background,
+        width: layout.width,
+        height: layout.height,
+      }),
+    )
     setSelectedId(null)
   }
 
@@ -250,44 +331,78 @@ export function AnnouncementForm({
             <div className="flex items-center justify-between gap-3">
               <CanvasToolbar
                 onAdd={handleAddElement}
+                onAddShape={handleAddShape}
                 onUploadFile={handleUploadFile}
                 isUploading={uploadImage.isPending}
-                imageUrl=""
+                // The real uploaded URL, so the toolbar shows a thumbnail of what was just added.
+                // It was hardcoded to "" here, which left the drop zone looking as though nothing
+                // had happened even when the upload had succeeded.
+                imageUrl={mediaUrl}
                 onImageUrlChange={(url) => {
-                  if (!isSafeImageUrl(url)) return
-                  const element: AnnouncementLayoutElement = {
-                    id: createElementId("image"),
-                    type: "image",
-                    x: 40,
-                    y: 120,
-                    width: 320,
-                    height: 220,
-                    url,
-                    fit: "cover",
-                    radius: 12,
+                  if (!url) {
+                    setValue("mediaUrl", "", { shouldDirty: true })
+                    return
                   }
-                  setLayout({ ...layout, elements: [...layout.elements, element] })
-                  setSelectedId(element.id)
+                  if (!isSafeImageUrl(url)) return
+                  setValue("mediaUrl", url, { shouldDirty: true })
+                  addImage(url)
                 }}
               />
             </div>
-            <button
-              type="button"
-              onClick={handleResetLayout}
-              className="w-fit text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              Reset the canvas to a default layout built from the title and body
-            </button>
+            <div className="flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                onClick={handleResetLayout}
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Reset to a default layout built from the title
+              </button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline"
+                  >
+                    Clear the canvas
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear the canvas?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Everything you have drawn is removed and you start from a blank canvas. The
+                      size and background colour stay as they are. This can&apos;t be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleClearCanvas}
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                    >
+                      Clear canvas
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </FormSection>
 
           <FormSection
             label="Details"
-            description="Not drawn on the kiosk screen. This is how the announcement is listed and searched in your dashboard."
+            description="Never drawn on the kiosk screen. This is how the announcement is listed and searched in your dashboard."
           >
             <FormField label="Title" htmlFor="ann-title" error={errors.title?.message}>
               <Input id="ann-title" {...register("title")} />
             </FormField>
-            <FormField label="Body" htmlFor="ann-body" error={errors.body?.message}>
+            {/* Was a required field labelled "Body", which read like copy the kiosk would show.
+                It never was, and it is optional now. */}
+            <FormField
+              label="Internal note"
+              htmlFor="ann-body"
+              hint="Optional. Only you see this, in the dashboard list."
+              error={errors.body?.message}
+            >
               <Textarea id="ann-body" rows={3} {...register("body")} aria-invalid={!!errors.body} />
             </FormField>
           </FormSection>
@@ -364,9 +479,13 @@ export function AnnouncementForm({
                   locations={locations ?? []}
                   value={field.value}
                   onChange={field.onChange}
+                  canTargetAllLocations={canTargetAllLocations}
                 />
               )}
             />
+            {errors.locationIds && (
+              <p className="text-xs text-destructive">{errors.locationIds.message}</p>
+            )}
           </FormSection>
         </div>
 

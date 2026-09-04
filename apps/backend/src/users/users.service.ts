@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   BadRequestException,
   ConflictException,
@@ -17,6 +19,7 @@ import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 const SAFE_USER_SELECT = {
   id: true,
   name: true,
+  avatarUrl: true,
   email: true,
   role: true,
   kioskId: true,
@@ -33,6 +36,47 @@ export class UsersService {
 
   findByEmail(email: string) {
     return this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  }
+
+  /**
+   * Point a user's avatarUrl at a newly uploaded file, or clear it.
+   *
+   * The previous file is unlinked so replacing a photo repeatedly doesn't leave the uploads
+   * directory growing without bound. Only files this server wrote under /uploads/avatars are
+   * touched: an avatarUrl pointing anywhere else is left alone.
+   */
+  async setAvatar(userId: string, avatarUrl: string | null) {
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('User not found');
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+    });
+
+    if (existing.avatarUrl && existing.avatarUrl !== avatarUrl) {
+      this.discardAvatarFile(existing.avatarUrl);
+    }
+    return user;
+  }
+
+  private discardAvatarFile(url: string) {
+    const marker = '/uploads/avatars/';
+    const index = url.indexOf(marker);
+    if (index === -1) return;
+    // basename() so a crafted "…/uploads/avatars/../../.env" can't escape the directory.
+    const filename = path.basename(url.slice(index + marker.length));
+    if (!filename || filename === '.' || filename === '..') return;
+    fs.rm(
+      path.join(process.cwd(), 'uploads', 'avatars', filename),
+      { force: true },
+      () => undefined,
+    );
   }
 
   async updateMe(userId: string, data: { name?: string; email?: string }) {

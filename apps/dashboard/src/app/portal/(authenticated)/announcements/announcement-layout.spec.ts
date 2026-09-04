@@ -2,9 +2,12 @@ import {
   ANNOUNCEMENT_AUTO_DISMISS_MS,
   ANNOUNCEMENT_CANVAS_HEIGHT,
   ANNOUNCEMENT_CANVAS_WIDTH,
+  canvasPresetFor,
   createDefaultLayout,
-  ensureDismissable,
+  createEmptyLayout,
   isAnnouncementLayout,
+  isFullBleedLayout,
+  resizeLayout,
   layoutElementStyle,
   parseAnnouncementLayout,
   renderAnnouncementLayoutHtml,
@@ -14,7 +17,7 @@ import {
 } from "@saverlly/shared-types"
 
 function layoutWith(element: Record<string, unknown>): unknown {
-  return { version: 1, background: "#ffffff", elements: [element] }
+  return { version: 1, background: "#ffffff", width: 400, height: 520, elements: [element] }
 }
 
 describe("parseAnnouncementLayout", () => {
@@ -80,17 +83,25 @@ describe("parseAnnouncementLayout", () => {
   })
 })
 
-describe("ensureDismissable", () => {
-  // Without a button the kiosk user cannot close the overlay, which effectively bricks the
-  // machine until the agent restarts.
-  it("adds a dismiss button to a layout that has none", () => {
-    const layout: AnnouncementLayout = { version: 1, background: "#fff", elements: [] }
-    expect(ensureDismissable(layout).elements.some((e) => e.type === "button")).toBe(true)
+// "Clear canvas" has to actually clear it. The renderer used to inject a dismiss button into any
+// layout that had none (ensureDismissable), so an emptied canvas silently grew a button back.
+describe("createEmptyLayout", () => {
+  it("produces a layout with nothing on it", () => {
+    expect(createEmptyLayout().elements).toEqual([])
   })
 
-  it("leaves a layout that already has one untouched", () => {
-    const layout = createDefaultLayout({ title: "t", body: "b" })
-    expect(ensureDismissable(layout)).toBe(layout)
+  it("keeps the background and size, which are the frame rather than the content", () => {
+    const empty = createEmptyLayout({ background: "#101010", width: 560, height: 320 })
+    expect(empty.background).toBe("#101010")
+    expect(empty.width).toBe(560)
+    expect(empty.height).toBe(320)
+  })
+
+  it("renders as an empty card rather than growing a button back", () => {
+    const html = renderAnnouncementLayoutHtml(createEmptyLayout())
+    expect(html).not.toContain("<button type=\"button\"")
+    // The renderer-owned close button is still there: that is what guarantees a way out.
+    expect(html).toContain('id="chrome-close"')
   })
 })
 
@@ -106,7 +117,7 @@ describe("renderAnnouncementLayoutHtml", () => {
   })
 
   it("always produces a dismissable document even from an empty layout", () => {
-    const html = renderAnnouncementLayoutHtml({ version: 1, background: "#fff", elements: [] })
+    const html = renderAnnouncementLayoutHtml(createEmptyLayout())
     expect(html).toContain("data-saverlly-dismiss")
   })
 
@@ -163,11 +174,7 @@ describe("the toast card", () => {
   // The chrome × and the timer are the renderer's, not the design's. They are what make a
   // buttonless or misdesigned layout still closeable, so they can't depend on the layout at all.
   it("always draws its own close button, whatever the design contains", () => {
-    const html = renderAnnouncementLayoutHtml({
-      version: 1,
-      background: "#fff",
-      elements: [],
-    })
+    const html = renderAnnouncementLayoutHtml(createEmptyLayout())
     expect(html).toContain('id="chrome-close"')
     expect(html).toContain("Close announcement")
   })
@@ -207,6 +214,8 @@ describe("resolveImageUrl", () => {
   const withImage = {
     version: 1,
     background: "#fff",
+    width: 400,
+    height: 520,
     elements: [
       {
         id: "i1",
@@ -274,5 +283,160 @@ describe("createDefaultLayout", () => {
         (e) => e.type === "image",
       ),
     ).toBe(false)
+  })
+})
+
+// Shapes had no discriminator at all: only `fill` and `radius`, so the single way to get a
+// circle was cranking the radius to 999 on a square, and lines and triangles were unreachable.
+describe("shape kinds", () => {
+  function shape(kind: string) {
+    return parseAnnouncementLayout(
+      layoutWith({ type: "shape", kind, fill: "#ff0000", width: 100, height: 20 }),
+    )!.elements[0]
+  }
+
+  it("defaults an unknown or missing kind to a rectangle, so old shapes look unchanged", () => {
+    expect(shape("hexagon")).toMatchObject({ kind: "rectangle" })
+    const legacy = parseAnnouncementLayout(layoutWith({ type: "shape", fill: "#ff0000" }))!
+    expect(legacy.elements[0]).toMatchObject({ kind: "rectangle" })
+  })
+
+  it("draws an ellipse as a fully rounded box", () => {
+    expect(layoutElementStyle(shape("ellipse")).borderRadius).toBe("50%")
+  })
+
+  it("caps a line to its own thickness rather than a corner radius", () => {
+    expect(layoutElementStyle(shape("line")).borderRadius).toBe("10px")
+  })
+
+  it("clips a triangle to its points, so its box still matches the selection outline", () => {
+    expect(layoutElementStyle(shape("triangle")).clipPath).toBe("polygon(50% 0%, 100% 100%, 0% 100%)")
+  })
+})
+
+// Every button used to be stamped with data-saverlly-dismiss regardless of what it said, so the
+// only editable thing about one was its label.
+describe("click actions", () => {
+  function button(action: unknown) {
+    return parseAnnouncementLayout(
+      layoutWith({ type: "button", label: "Go", action }),
+    )!.elements[0]
+  }
+
+  it("defaults a button with no action to dismiss, preserving how old layouts behaved", () => {
+    expect(button(undefined)).toMatchObject({ action: { type: "dismiss" } })
+  })
+
+  it("keeps a URL action and renders it as something the host can open", () => {
+    const element = button({ type: "url", href: "https://saverlly.com/deal" })
+    expect(element).toMatchObject({ action: { type: "url", href: "https://saverlly.com/deal" } })
+    const html = renderAnnouncementLayoutHtml({
+      version: 1,
+      background: "#fff",
+      width: 400,
+      height: 520,
+      elements: [element],
+    })
+    expect(html).toContain('data-saverlly-open="https://saverlly.com/deal"')
+    expect(html).toContain("saverlly:open:")
+  })
+
+  it("turns an email action into a mailto", () => {
+    const element = button({ type: "email", address: "hi@saverlly.com" })
+    const html = renderAnnouncementLayoutHtml({
+      version: 1,
+      background: "#fff",
+      width: 400,
+      height: 520,
+      elements: [element],
+    })
+    expect(html).toContain('data-saverlly-open="mailto:hi@saverlly.com"')
+  })
+
+  // A layout is authored by a kiosk owner and rendered as HTML on a kiosk machine, so an unsafe
+  // scheme surviving would mean script execution on the kiosk.
+  it("falls back to dismiss rather than emitting an unsafe or broken link", () => {
+    for (const href of ["javascript:alert(1)", "data:text/html,x", "not-a-url", "/relative"]) {
+      expect(button({ type: "url", href })).toMatchObject({ action: { type: "dismiss" } })
+    }
+    expect(button({ type: "email", address: "not an address" })).toMatchObject({
+      action: { type: "dismiss" },
+    })
+  })
+
+  it("leaves text unlinked unless an action is set, and renders a linked run as an anchor", () => {
+    const plain = parseAnnouncementLayout(layoutWith({ type: "text", text: "hi" }))!.elements[0]
+    expect(plain).toMatchObject({ action: null })
+
+    const linked = parseAnnouncementLayout(
+      layoutWith({ type: "text", text: "Shop now", action: { type: "url", href: "https://a.test/x" } }),
+    )!.elements[0]
+    const html = renderAnnouncementLayoutHtml({
+      version: 1,
+      background: "#fff",
+      width: 400,
+      height: 520,
+      elements: [linked],
+    })
+    expect(html).toContain('<a href="https://a.test/x"')
+    expect(html).toContain('data-saverlly-open="https://a.test/x"')
+  })
+})
+
+// "How do I change the doc size from vertical to horizontal" had no answer while the canvas was
+// two compile-time constants.
+describe("canvas size", () => {
+  it("defaults a layout with no dimensions to the portrait toast it was authored against", () => {
+    const parsed = parseAnnouncementLayout({ version: 1, background: "#fff", elements: [] })!
+    expect(parsed.width).toBe(ANNOUNCEMENT_CANVAS_WIDTH)
+    expect(parsed.height).toBe(ANNOUNCEMENT_CANVAS_HEIGHT)
+  })
+
+  it("names the matching preset, and reports a custom size as no preset", () => {
+    expect(canvasPresetFor({ width: 400, height: 520 })?.id).toBe("portrait")
+    expect(canvasPresetFor({ width: 560, height: 320 })?.id).toBe("landscape")
+    expect(canvasPresetFor({ width: 123, height: 456 })).toBeNull()
+  })
+
+  it("marks only the full-screen preset as filling the display", () => {
+    expect(isFullBleedLayout({ width: 1280, height: 720 })).toBe(true)
+    expect(isFullBleedLayout({ width: 400, height: 520 })).toBe(false)
+  })
+
+  it("sizes the rendered document to the layout rather than to the constants", () => {
+    const html = renderAnnouncementLayoutHtml(createEmptyLayout({ width: 560, height: 320 }))
+    expect(html).toContain("width: 560px")
+    expect(html).toContain("height: 320px")
+  })
+
+  // Resizing without rescaling would leave half the design off the new right edge.
+  it("rescales and re-centres the design when the canvas changes", () => {
+    const portrait = createDefaultLayout({ title: "Title", body: "Body" })
+    const landscape = resizeLayout(portrait, 560, 320)
+
+    expect(landscape.width).toBe(560)
+    expect(landscape.height).toBe(320)
+    for (const element of landscape.elements) {
+      expect(element.x).toBeGreaterThanOrEqual(0)
+      expect(element.y).toBeGreaterThanOrEqual(0)
+      expect(element.x + element.width).toBeLessThanOrEqual(560)
+      expect(element.y + element.height).toBeLessThanOrEqual(320)
+    }
+  })
+
+  it("scales type with the canvas, so a headline stays a headline", () => {
+    const portrait = createDefaultLayout({ title: "Title" })
+    const headline = portrait.elements.find((e) => e.type === "text")!
+    const bigger = resizeLayout(portrait, 1280, 720)
+    const scaled = bigger.elements.find((e) => e.type === "text")!
+    expect(scaled.type === "text" && headline.type === "text").toBe(true)
+    if (scaled.type === "text" && headline.type === "text") {
+      expect(scaled.fontSize).toBeGreaterThan(headline.fontSize)
+    }
+  })
+
+  it("is a no-op when the size hasn't changed", () => {
+    const layout = createDefaultLayout({ title: "t" })
+    expect(resizeLayout(layout, layout.width, layout.height)).toBe(layout)
   })
 })

@@ -29,6 +29,7 @@ jest.mock("next/link", () => {
 const currentUser: UserProfile = {
   id: "user-1",
   name: "Jane Owner",
+  avatarUrl: null,
   email: "owner@example.com",
   role: "KIOSK_OWNER",
   kioskId: "kiosk-1",
@@ -142,6 +143,7 @@ const announcements: Announcement[] = [
   {
     id: "ann-1",
     kioskId: "kiosk-1",
+    createdById: "user-1",
     locationIds: [],
     title: "New promo",
     body: "Body",
@@ -157,6 +159,7 @@ const announcements: Announcement[] = [
   {
     id: "ann-2",
     kioskId: null,
+    createdById: "user-1",
     locationIds: [],
     title: "Platform maintenance",
     body: "Body",

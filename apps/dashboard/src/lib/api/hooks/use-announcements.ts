@@ -28,7 +28,9 @@ export type AnnouncementPayload = {
   kioskId?: string
   locationIds?: string[]
   title: string
-  body: string
+  /** Internal note, never drawn on the kiosk. Optional since the canvas editor replaced it as
+   *  the source of what an announcement actually says. */
+  body?: string
   mediaUrl?: string
   startAt: string
   endAt: string

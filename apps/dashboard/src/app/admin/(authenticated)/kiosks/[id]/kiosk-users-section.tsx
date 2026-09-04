@@ -3,7 +3,10 @@
 import Link from "next/link"
 import { toast } from "sonner"
 import { CrownIcon, PencilIcon, UserPlusIcon } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { profileInitials } from "@/components/profile/avatar-upload"
+import { proxiedImageUrl } from "@/lib/image-proxy"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -55,18 +58,28 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <span
-            className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold uppercase",
-              isOwner
-                ? "bg-[var(--brand-teal-tint)] text-[var(--brand-teal)]"
-                : "bg-muted text-muted-foreground",
+          {/* The person's actual photo when they have set one. This used to be a crown glyph for
+              the owner and a single initial for everyone else, so an admin looking at a kiosk saw
+              icons rather than the people running it. The crown moves next to the name below,
+              where it still marks the owner without displacing their face. */}
+          <Avatar className={cn("size-9", isOwner && "ring-1 ring-[var(--brand-teal)]")}>
+            {user.avatarUrl && (
+              <AvatarImage src={proxiedImageUrl(user.avatarUrl)} alt={user.name ?? user.email} />
             )}
-          >
-            {isOwner ? <CrownIcon className="size-4" /> : (user.name || user.email).slice(0, 1)}
-          </span>
+            <AvatarFallback
+              className={cn(
+                "text-xs font-semibold",
+                isOwner && "bg-[var(--brand-teal-tint)] text-[var(--brand-teal)]",
+              )}
+            >
+              {profileInitials(user.name, user.email)}
+            </AvatarFallback>
+          </Avatar>
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-sm font-medium">{user.name || user.email}</span>
+            <span className="flex items-center gap-1.5 truncate text-sm font-medium">
+              {user.name || user.email}
+              {isOwner && <CrownIcon className="size-3.5 shrink-0 text-[var(--brand-teal)]" />}
+            </span>
             {user.name && <span className="truncate text-xs text-muted-foreground">{user.email}</span>}
             {!isOwner && user.managedLocationIds.length > 0 && (
               <span className="text-xs text-muted-foreground">

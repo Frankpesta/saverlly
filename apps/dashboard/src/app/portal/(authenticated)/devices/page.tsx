@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { toast } from "sonner"
-import { DownloadIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -25,6 +24,7 @@ import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
 import { usePagination } from "@/hooks/use-pagination"
+import { DownloadAgentButton } from "./download-agent-button"
 
 const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour, matching the extension's own grace window
 
@@ -78,34 +78,7 @@ export default function DevicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <WorkspaceHeader
-        title="Devices"
-        actions={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL ? (
-          <div className="flex flex-col items-end gap-1">
-            <Button type="button" variant="outline" className="gap-1.5" asChild>
-              <a href={process.env.NEXT_PUBLIC_AGENT_DOWNLOAD_URL} download>
-                <DownloadIcon className="size-4" />
-                Download Agent
-              </a>
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Run the installer and follow the setup wizard.
-            </p>
-          </div>
-        ) : (
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() =>
-              toast.info("Agent download isn't available yet. Check back soon.")
-            }
-          >
-            <DownloadIcon className="size-4" />
-            Download Agent
-          </Button>
-        )}
-      />
+      <WorkspaceHeader title="Devices" actions={<DownloadAgentButton />} />
 
       <CollectionSummary items={[
         { label: "Devices", value: stats.total, detail: "Registered endpoints" },
@@ -140,7 +113,13 @@ export default function DevicesPage() {
             {!isLoading && devices?.length === 0 && (
               <TableRow>
                 <TableCell colSpan={isKioskOwner ? 5 : 4} className="text-center text-muted-foreground">
-                  No devices registered yet.
+                  {/* A device joins by running the agent installer and entering its location's
+                      setup code, so an empty table is exactly when someone needs both. */}
+                  No devices yet. Download the agent above, then enter a location&apos;s{" "}
+                  <Link href="/portal/locations" className="text-foreground underline underline-offset-2">
+                    setup code
+                  </Link>{" "}
+                  during install.
                 </TableCell>
               </TableRow>
             )}

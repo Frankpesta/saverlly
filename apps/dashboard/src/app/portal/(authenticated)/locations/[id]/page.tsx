@@ -28,6 +28,7 @@ import { ApiError } from "@/lib/api/client"
 import type { Location } from "@/lib/api/types"
 import { nameSchema, zipSchema } from "@/lib/validation/schemas"
 import { SetupCodesSection } from "./setup-codes-section"
+import { LocationManagersSection } from "./location-managers-section"
 import { LocationDevicesSection } from "./location-devices-section"
 
 const locationEditSchema = z.object({
@@ -68,8 +69,9 @@ export default function LocationDetailPage() {
             <ArrowLeftIcon className="size-4" />
             Locations
           </Link>
-          <p className="mt-5 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Location profile</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">{location?.name ?? "Location"}</h2>
+          {/* No "Location profile" eyebrow above the name. It restated the heading below it,
+              which is the pattern the client kept reading as filler. */}
+          <h2 className="mt-4 text-title">{location?.name ?? "Location"}</h2>
         </div>
         {location && isKioskOwner && (
           <DeleteRowButton
@@ -96,6 +98,7 @@ export default function LocationDetailPage() {
           </Card>
 
           <SetupCodesSection locationId={location.id} />
+          <LocationManagersSection locationId={location.id} locationName={location.name} />
           <LocationDevicesSection locationId={location.id} />
         </div>
       )}

@@ -2,8 +2,7 @@
 
 import * as React from "react"
 import {
-  ANNOUNCEMENT_CANVAS_HEIGHT,
-  ANNOUNCEMENT_CANVAS_WIDTH,
+  createElementId,
   layoutElementStyle,
   type AnnouncementLayout,
   type AnnouncementLayoutElement,
@@ -74,8 +73,12 @@ export function AnnouncementCanvas({
   snapToGrid?: boolean
 }) {
   const frameRef = React.useRef<HTMLDivElement>(null)
+  const stageRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
   const [scale, setScale] = React.useState(1)
+  // Read from the layout, not from constants: the owner picks portrait, landscape or full screen.
+  const canvasWidth = layout.width
+  const canvasHeight = layout.height
 
   // The stage keeps its exact pixel geometry and is scaled to the available width, rather than
   // laying out responsively. Responsive reflow would move elements relative to each other and
@@ -85,11 +88,13 @@ export function AnnouncementCanvas({
     if (!frame) return
     const observer = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 0
-      if (width > 0) setScale(Math.min(1, width / ANNOUNCEMENT_CANVAS_WIDTH))
+      if (width > 0) setScale(Math.min(1, width / canvasWidth))
     })
     observer.observe(frame)
     return () => observer.disconnect()
-  }, [])
+    // Re-measured when the owner switches canvas size, or a 1280px full-screen design would
+    // keep being scaled against the 400px portrait width.
+  }, [canvasWidth])
 
   function updateElement(id: string, patch: Partial<AnnouncementLayoutElement>) {
     onChange({
@@ -108,6 +113,11 @@ export function AnnouncementCanvas({
     event.preventDefault()
     event.stopPropagation()
     onSelect(element.id)
+    // preventDefault above suppresses the browser's own focus-on-mousedown, so without this the
+    // stage never holds focus and every keyboard shortcut below (nudge, delete, duplicate) goes
+    // to whatever was focused before. Which is why arrow-key nudging did nothing in a real
+    // browser despite passing in jsdom, where fireEvent dispatches straight at the element.
+    stageRef.current?.focus()
     ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
     dragRef.current = {
       pointerId: event.pointerId,
@@ -174,7 +184,46 @@ export function AnnouncementCanvas({
     }
   }
 
-  function handleKeyDown(event: React.KeyboardEvent, element: AnnouncementLayoutElement) {
+  function removeElement(id: string) {
+    onChange({ ...layout, elements: layout.elements.filter((element) => element.id !== id) })
+    onSelect(null)
+  }
+
+  function duplicateElement(element: AnnouncementLayoutElement) {
+    const copy = {
+      ...element,
+      id: createElementId(element.type),
+      x: element.x + 16,
+      y: element.y + 16,
+    } as AnnouncementLayoutElement
+    onChange({ ...layout, elements: [...layout.elements, copy] })
+    onSelect(copy.id)
+  }
+
+  /** Bound to the stage rather than to each element, so it fires whether the pointer last landed
+   *  on the element itself or on one of its resize handles. */
+  function handleKeyDown(event: React.KeyboardEvent) {
+    const element = layout.elements.find((candidate) => candidate.id === selectedId)
+    if (!element) return
+
+    // Delete used to do nothing at all here: only the arrow keys were handled, so removing an
+    // element meant finding the bin icon in the inspector every time.
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault()
+      removeElement(element.id)
+      return
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "d") {
+      event.preventDefault()
+      duplicateElement(element)
+      return
+    }
+    if (event.key === "Escape") {
+      event.preventDefault()
+      onSelect(null)
+      return
+    }
+
     const step = event.shiftKey ? GRID_PX : 1
     const nudge: Record<string, [number, number]> = {
       ArrowLeft: [-step, 0],
@@ -192,20 +241,26 @@ export function AnnouncementCanvas({
     <div
       ref={frameRef}
       className="flex w-full justify-center overflow-hidden rounded-xl border border-black/10 bg-[repeating-conic-gradient(#f4f4f5_0%_25%,#ffffff_0%_50%)] bg-[length:16px_16px] dark:border-white/10 dark:bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)]"
-      style={{ height: ANNOUNCEMENT_CANVAS_HEIGHT * scale }}
+      style={{ height: canvasHeight * scale }}
       onPointerDown={() => onSelect(null)}
     >
       <div
+        ref={stageRef}
         data-testid="announcement-stage"
-        className="relative origin-top-left"
+        // Focusable and owning the keyboard shortcuts, so they work no matter which part of an
+        // element was grabbed. Each element stays focusable in its own right for tab navigation;
+        // its keydown simply bubbles up to here.
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className="relative origin-top-left outline-none"
         style={{
-          width: ANNOUNCEMENT_CANVAS_WIDTH,
-          height: ANNOUNCEMENT_CANVAS_HEIGHT,
+          width: canvasWidth,
+          height: canvasHeight,
           transform: `scale(${scale})`,
           // A transform doesn't shrink the layout box, so a scaled-down stage would still occupy
           // its full unscaled width and defeat the centering. Pulling the right edge in by the
           // difference makes the box measure what the eye sees.
-          marginRight: ANNOUNCEMENT_CANVAS_WIDTH * (scale - 1),
+          marginRight: canvasWidth * (scale - 1),
           backgroundColor: layout.background,
         }}
       >
@@ -227,7 +282,6 @@ export function AnnouncementCanvas({
               onPointerDown={(event) => handlePointerDown(event, element, null)}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
-              onKeyDown={(event) => handleKeyDown(event, element)}
             >
               {element.type === "text" && element.text}
               {element.type === "button" && element.label}
@@ -290,7 +344,8 @@ export function describeElement(element: AnnouncementLayoutElement): string {
     case "button":
       return `Button: ${element.label}`
     case "shape":
-      return "Shape"
+      // Named by kind, so a layer list of four shapes isn't four identical rows.
+      return `${element.kind.charAt(0).toUpperCase()}${element.kind.slice(1)}`
   }
 }
 
