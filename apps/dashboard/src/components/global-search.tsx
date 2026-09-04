@@ -109,7 +109,7 @@ export function GlobalSearch() {
       >
         <span className="flex items-center gap-2">
           <SearchIcon className="size-4" />
-          <span className="hidden sm:inline">Search...</span>
+          <span className="hidden sm:inline">Search</span>
         </span>
       </Button>
       <CommandDialog
@@ -129,8 +129,8 @@ export function GlobalSearch() {
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                   effectiveActiveType === type
-                    ? "border-transparent bg-[var(--brand-teal)] text-white"
-                    : "border-border text-muted-foreground hover:border-[var(--brand-teal-soft)] hover:text-foreground",
+                    ? "border-transparent bg-(--brand-teal) text-white"
+                    : "border-border text-muted-foreground hover:border-(--brand-teal-soft) hover:text-foreground",
                 )}
               >
                 {GROUP_LABEL[type]} · {results.filter((r) => r.type === type).length}
