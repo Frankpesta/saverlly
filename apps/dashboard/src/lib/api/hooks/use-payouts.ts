@@ -27,10 +27,11 @@ export function useProcessPayout() {
 }
 
 /** Kiosk-owner: their own kiosk's payouts. */
-export function useMyPayouts() {
+export function useMyPayouts(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["my", "payouts"],
     queryFn: () => apiFetch<Payout[]>("/my/payouts"),
+    enabled: options?.enabled,
   })
 }
 

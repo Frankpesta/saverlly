@@ -59,11 +59,12 @@ function greeting(): string {
 
 export default function PortalOverviewPage() {
   const { data: currentUser } = useCurrentUser()
+  const isKioskOwner = currentUser?.role === "KIOSK_OWNER"
   const kioskId = currentUser?.kioskId ?? ""
   const { data: kiosk, isLoading: kioskLoading } = useKiosk(kioskId)
-  const { data: balance } = useMyBalance()
-  const { data: events, isLoading: eventsLoading } = useMyCommissionEvents()
-  const { data: payouts, isLoading: payoutsLoading } = useMyPayouts()
+  const { data: balance } = useMyBalance({ enabled: isKioskOwner })
+  const { data: events, isLoading: eventsLoading } = useMyCommissionEvents({ enabled: isKioskOwner })
+  const { data: payouts, isLoading: payoutsLoading } = useMyPayouts({ enabled: isKioskOwner })
   const { data: locations, isLoading: locationsLoading } = useLocations()
   const { data: devices, isLoading: devicesLoading } = useDevices()
   const { data: announcements, isLoading: announcementsLoading } = useAnnouncements()
@@ -174,7 +175,7 @@ export default function PortalOverviewPage() {
           </div>
         </div>
         <div className="shrink-0">
-          {currentUser?.role === "KIOSK_OWNER" && (
+          {isKioskOwner && (
             <Link href="/portal/locations/new" className={cn(buttonVariants(), "gap-1.5")}>
               <PlusIcon className="size-4" />
               New Location
@@ -183,40 +184,42 @@ export default function PortalOverviewPage() {
         </div>
       </div>
 
-      <section className="flex flex-col gap-4">
-        <div>
-          <h3 className="text-heading">Earnings</h3>
-        </div>
-        <BentoGrid>
-        <StatTile
-          label="Available balance"
-          value={balance?.confirmedAvailableAmount ?? 0}
-          format={formatCurrency}
-          icon={<WalletIcon />}
-        />
-        <StatTile
-          label="Pending balance"
-          value={balance?.pendingAmount ?? 0}
-          format={formatCurrency}
-          icon={<ClockIcon />}
-          subtext="Awaiting confirmation"
-        />
-        <StatTile
-          label="Total earnings"
-          value={totalEarnings}
-          format={formatCurrency}
-          icon={<TrendingUpIcon />}
-          subtext="Lifetime"
-        />
-        <StatTile
-          label="Total paid out"
-          value={totalPaidOut}
-          format={formatCurrency}
-          icon={<CreditCardIcon />}
-          subtext={`${paidPayouts.length} payout${paidPayouts.length === 1 ? "" : "s"}`}
-        />
-        </BentoGrid>
-      </section>
+      {isKioskOwner && (
+        <section className="flex flex-col gap-4">
+          <div>
+            <h3 className="text-heading">Earnings</h3>
+          </div>
+          <BentoGrid>
+          <StatTile
+            label="Available balance"
+            value={balance?.confirmedAvailableAmount ?? 0}
+            format={formatCurrency}
+            icon={<WalletIcon />}
+          />
+          <StatTile
+            label="Pending balance"
+            value={balance?.pendingAmount ?? 0}
+            format={formatCurrency}
+            icon={<ClockIcon />}
+            subtext="Awaiting confirmation"
+          />
+          <StatTile
+            label="Total earnings"
+            value={totalEarnings}
+            format={formatCurrency}
+            icon={<TrendingUpIcon />}
+            subtext="Lifetime"
+          />
+          <StatTile
+            label="Total paid out"
+            value={totalPaidOut}
+            format={formatCurrency}
+            icon={<CreditCardIcon />}
+            subtext={`${paidPayouts.length} payout${paidPayouts.length === 1 ? "" : "s"}`}
+          />
+          </BentoGrid>
+        </section>
+      )}
 
       <section className="flex flex-col gap-4">
         <div>
@@ -230,12 +233,14 @@ export default function PortalOverviewPage() {
           icon={<MonitorIcon />}
           subtext={`${deviceStats.active} active, ${deviceStats.disabled} disabled`}
         />
-        <StatTile
-          label="Commission events"
-          value={events?.length ?? 0}
-          icon={<ReceiptIcon />}
-          subtext={eventsGrowthLabel ? `${eventsGrowthLabel} this month` : undefined}
-        />
+        {isKioskOwner && (
+          <StatTile
+            label="Commission events"
+            value={events?.length ?? 0}
+            icon={<ReceiptIcon />}
+            subtext={eventsGrowthLabel ? `${eventsGrowthLabel} this month` : undefined}
+          />
+        )}
         <Meter
           label="Devices active"
           value={deviceStats.active}
@@ -245,18 +250,20 @@ export default function PortalOverviewPage() {
         </BentoGrid>
       </section>
 
-      <section>
-        <BentoCard>
-          <div className="mb-2 flex flex-col gap-0.5">
-            <h3 className="text-heading">Earnings overview</h3>
-          </div>
-          {eventsLoading ? (
-            <Skeleton className="h-[260px] w-full" />
-          ) : (
-            <TrendChart data={chartSeries} valueLabel="Earnings" />
-          )}
-        </BentoCard>
-      </section>
+      {isKioskOwner && (
+        <section>
+          <BentoCard>
+            <div className="mb-2 flex flex-col gap-0.5">
+              <h3 className="text-heading">Earnings overview</h3>
+            </div>
+            {eventsLoading ? (
+              <Skeleton className="h-[260px] w-full" />
+            ) : (
+              <TrendChart data={chartSeries} valueLabel="Earnings" />
+            )}
+          </BentoCard>
+        </section>
+      )}
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BentoCard>
@@ -315,6 +322,7 @@ export default function PortalOverviewPage() {
         </BentoCard>
       </section>
 
+      {isKioskOwner && (
       <BentoCard>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-heading">Recent commission activity</h3>
@@ -362,8 +370,10 @@ export default function PortalOverviewPage() {
           </TableBody>
         </Table>
       </BentoCard>
+      )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className={cn("grid grid-cols-1 gap-6", isKioskOwner && "lg:grid-cols-2")}>
+        {isKioskOwner && (
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-heading">Recent payouts</h3>
@@ -393,6 +403,7 @@ export default function PortalOverviewPage() {
             ))}
           </div>
         </BentoCard>
+        )}
 
         <BentoCard>
           <div className="mb-3 flex items-center justify-between">
