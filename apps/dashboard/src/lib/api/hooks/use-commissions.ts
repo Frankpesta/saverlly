@@ -43,17 +43,19 @@ export function useSyncCommissionsNow() {
 }
 
 /** Kiosk-owner: their own kiosk's full commission history. */
-export function useMyCommissionEvents() {
+export function useMyCommissionEvents(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["my", "commission-events"],
     queryFn: () => apiFetch<CommissionEvent[]>("/my/commission-events"),
+    enabled: options?.enabled,
   })
 }
 
 /** Kiosk-owner: live-computed available vs pending balance. */
-export function useMyBalance() {
+export function useMyBalance(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["my", "balance"],
     queryFn: () => apiFetch<Balance>("/my/balance"),
+    enabled: options?.enabled,
   })
 }

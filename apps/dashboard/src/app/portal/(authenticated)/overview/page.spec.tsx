@@ -35,6 +35,15 @@ const currentUser: UserProfile = {
   kioskId: "kiosk-1",
 }
 
+const locationManager: UserProfile = {
+  id: "user-2",
+  name: "Sam Manager",
+  avatarUrl: null,
+  email: "manager@example.com",
+  role: "LOCATION_MANAGER",
+  kioskId: "kiosk-1",
+}
+
 const kiosk: Kiosk = {
   id: "kiosk-1",
   name: "Kiosk One",
@@ -181,16 +190,21 @@ function renderWithClient(ui: React.ReactElement) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
 }
 
+let activeUser: UserProfile = currentUser
+
 describe("PortalOverviewPage", () => {
   beforeEach(() => {
+    activeUser = currentUser
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       const respond = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
-      if (url === "/api/proxy/users/me") return respond(currentUser)
+      const forbidden = () => ({ ok: false, status: 403, json: async () => ({ message: "Forbidden" }) }) as Response
+      if (url === "/api/proxy/users/me") return respond(activeUser)
       if (url === "/api/proxy/kiosks/kiosk-1") return respond(kiosk)
-      if (url === "/api/proxy/my/balance") return respond(balance)
-      if (url === "/api/proxy/my/commission-events") return respond(events)
-      if (url === "/api/proxy/my/payouts") return respond(payouts)
+      if (url === "/api/proxy/my/balance") return activeUser.role === "KIOSK_OWNER" ? respond(balance) : forbidden()
+      if (url === "/api/proxy/my/commission-events")
+        return activeUser.role === "KIOSK_OWNER" ? respond(events) : forbidden()
+      if (url === "/api/proxy/my/payouts") return activeUser.role === "KIOSK_OWNER" ? respond(payouts) : forbidden()
       if (url === "/api/proxy/locations") return respond(locations)
       if (url === "/api/proxy/devices") return respond(devices)
       if (url === "/api/proxy/announcements") return respond(announcements)
@@ -246,5 +260,21 @@ describe("PortalOverviewPage", () => {
 
     expect(await screen.findByText(/Jane Owner/)).toBeInTheDocument()
     expect(screen.queryByText(/owner,/)).not.toBeInTheDocument()
+  })
+
+  it("hides all earnings UI from a location manager", async () => {
+    activeUser = locationManager
+    renderWithClient(<PortalOverviewPage />)
+
+    await screen.findByText(/Sam Manager/)
+    expect(screen.queryByText("Earnings")).not.toBeInTheDocument()
+    expect(screen.queryByText("Earnings overview")).not.toBeInTheDocument()
+    expect(screen.queryByText("Recent commission activity")).not.toBeInTheDocument()
+    expect(screen.queryByText("Recent payouts")).not.toBeInTheDocument()
+    expect(screen.queryByText("Commission events")).not.toBeInTheDocument()
+    expect(screen.queryByText("Available balance")).not.toBeInTheDocument()
+    // Non-earnings sections still render for a location manager.
+    expect(await screen.findByText("Operations")).toBeInTheDocument()
+    expect(screen.getByText("Announcements")).toBeInTheDocument()
   })
 })
