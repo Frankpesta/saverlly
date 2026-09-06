@@ -146,7 +146,7 @@ export type SyncNowResult = {
   reversed: number
 }
 
-export type PayoutStatus = "pending" | "processing" | "paid" | "failed"
+export type PayoutStatus = "PENDING" | "PROCESSING" | "PAID" | "FAILED"
 
 export type Payout = {
   id: string
@@ -187,7 +187,7 @@ export type Merchant = {
 }
 
 export type CouponSource = "API" | "SCRAPE" | "MANUAL"
-export type CouponDiscountType = "percent" | "fixed" | "unknown"
+export type CouponDiscountType = "PERCENT" | "FIXED" | "UNKNOWN"
 
 export type Coupon = {
   id: string

@@ -65,7 +65,7 @@ const payouts: Payout[] = [
     periodStart: "2026-01-01T00:00:00.000Z",
     periodEnd: "2026-01-31T00:00:00.000Z",
     totalAmount: 300,
-    status: "paid",
+    status: "PAID",
     stripeTransferId: "tr_1",
     paidAt: "2026-02-01T00:00:00.000Z",
     createdAt: "2026-02-01T00:00:00.000Z",

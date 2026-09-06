@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { CommissionStatus } from '@prisma/client';
+import { CommissionStatus, PayoutStatus } from '@prisma/client';
 import request from 'supertest';
 import Stripe from 'stripe';
 import { resetDatabase, resetRedisTestDb, testPrisma } from './utils/db';
@@ -93,7 +93,7 @@ describe('Stripe webhooks (e2e)', () => {
         periodStart: new Date(),
         periodEnd: new Date(),
         totalAmount: 5,
-        status: 'processing',
+        status: PayoutStatus.PROCESSING,
         stripeTransferId: 'tr_test_123',
       },
     });
@@ -109,7 +109,7 @@ describe('Stripe webhooks (e2e)', () => {
     const updated = await testPrisma.payout.findUniqueOrThrow({
       where: { id: payout.id },
     });
-    expect(updated.status).toBe('paid');
+    expect(updated.status).toBe(PayoutStatus.PAID);
     expect(updated.paidAt).not.toBeNull();
 
     const notification = await testPrisma.notification.findFirstOrThrow({
@@ -131,7 +131,7 @@ describe('Stripe webhooks (e2e)', () => {
         periodStart: new Date(),
         periodEnd: new Date(),
         totalAmount: 5,
-        status: 'processing',
+        status: PayoutStatus.PROCESSING,
         stripeTransferId: 'tr_test_dup',
       },
     });
@@ -147,7 +147,7 @@ describe('Stripe webhooks (e2e)', () => {
     const updated = await testPrisma.payout.findUniqueOrThrow({
       where: { id: payout.id },
     });
-    expect(updated.status).toBe('paid');
+    expect(updated.status).toBe(PayoutStatus.PAID);
 
     const notificationCount = await testPrisma.notification.count({
       where: { userId: owner.id },
@@ -163,7 +163,7 @@ describe('Stripe webhooks (e2e)', () => {
         periodStart: new Date(),
         periodEnd: new Date(),
         totalAmount: 5,
-        status: 'processing',
+        status: PayoutStatus.PROCESSING,
         stripeTransferId: 'tr_test_456',
       },
     });
@@ -177,7 +177,7 @@ describe('Stripe webhooks (e2e)', () => {
     const updated = await testPrisma.payout.findUniqueOrThrow({
       where: { id: payout.id },
     });
-    expect(updated.status).toBe('failed');
+    expect(updated.status).toBe(PayoutStatus.FAILED);
   });
 
   it('syncs stripePayoutsEnabled from an account.updated event and notifies the owner on a real flip', async () => {

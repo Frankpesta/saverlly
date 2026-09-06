@@ -12,7 +12,17 @@ import { StripeWebhooksController } from './stripe-webhooks.controller';
 
 @Module({
   imports: [
-    BullModule.registerQueue({ name: QUEUE_NAMES.GENERATE_PAYOUTS }),
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.GENERATE_PAYOUTS,
+      // Without this, a transient failure (RDS blip) gets one attempt and then silently
+      // waits for next month's scheduled run -- see the send-email queue in
+      // notifications.module.ts for the same pattern. Safe to retry: generatePayouts()
+      // always re-reads unswept events fresh, so a retry never double-processes.
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+      },
+    }),
     StripeModule,
     NotificationsModule,
   ],

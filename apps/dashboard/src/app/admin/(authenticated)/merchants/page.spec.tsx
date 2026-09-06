@@ -54,7 +54,7 @@ const coupons: Coupon[] = [
     code: "SAVE10",
     description: null,
     source: "MANUAL",
-    discountType: "percent",
+    discountType: "PERCENT",
     discountValue: 10,
     successCount: 5,
     failCount: 1,

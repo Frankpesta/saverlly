@@ -12,7 +12,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -20,7 +20,10 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { EmailThrottlerGuard } from './guards/email-throttler.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RefreshThrottlerGuard } from './guards/refresh-throttler.guard';
+import { ResetTokenThrottlerGuard } from './guards/reset-token-throttler.guard';
 import type { JwtPayload } from './interfaces/jwt-payload.interface';
 
 @ApiTags('Auth')
@@ -30,6 +33,8 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(EmailThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Log in with email + password, get an access/refresh token pair',
   })
@@ -44,6 +49,8 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RefreshThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Exchange a refresh token for a new access/refresh token pair',
   })
@@ -93,7 +100,7 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(EmailThrottlerGuard)
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @ApiOperation({
     summary:
@@ -110,7 +117,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(ThrottlerGuard)
+  @UseGuards(ResetTokenThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Complete a password reset using the token from the reset email',

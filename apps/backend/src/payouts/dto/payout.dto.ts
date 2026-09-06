@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PayoutStatus } from '@prisma/client';
 
 export class PayoutKioskDto {
   @ApiProperty() id: string;
@@ -17,8 +18,8 @@ export class PayoutDto {
   @ApiProperty() periodStart: Date;
   @ApiProperty() periodEnd: Date;
   @ApiProperty() totalAmount: number;
-  @ApiProperty({ enum: ['pending', 'processing', 'paid', 'failed'] })
-  status: string;
+  @ApiProperty({ enum: PayoutStatus })
+  status: PayoutStatus;
   // Always present in the response (never omitted) but may be null. Nullable:true,
   // not ApiPropertyOptional, since "optional" in OpenAPI means possibly-absent.
   @ApiProperty({ nullable: true, type: String }) stripeTransferId: string | null;

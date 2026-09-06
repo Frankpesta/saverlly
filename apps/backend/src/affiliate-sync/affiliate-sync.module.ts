@@ -7,7 +7,16 @@ import { AffiliateSyncSchedulerService } from './affiliate-sync-scheduler.servic
 
 @Module({
   imports: [
-    BullModule.registerQueue({ name: QUEUE_NAMES.SYNC_AFFILIATE_FEED }),
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.SYNC_AFFILIATE_FEED,
+      // Without this, a transient failure (affiliate network timeout/5xx) gets one attempt
+      // and then silently waits for tomorrow's scheduled run -- see the send-email queue in
+      // notifications.module.ts for the same pattern.
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+      },
+    }),
     AffiliateAdaptersModule,
   ],
   providers: [SyncAffiliateFeedProcessor, AffiliateSyncSchedulerService],

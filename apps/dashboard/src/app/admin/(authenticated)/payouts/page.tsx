@@ -42,8 +42,8 @@ export default function AdminPayoutsPage() {
 
   const stats = React.useMemo(() => {
     const list = payouts ?? []
-    const pending = list.filter((p) => p.status === "pending")
-    const paid = list.filter((p) => p.status === "paid")
+    const pending = list.filter((p) => p.status === "PENDING")
+    const paid = list.filter((p) => p.status === "PAID")
     return {
       total: list.length,
       pendingAmount: pending.reduce((sum, p) => sum + p.totalAmount, 0),
@@ -58,7 +58,7 @@ export default function AdminPayoutsPage() {
   const paidGrowth = React.useMemo(
     () =>
       monthOverMonthGrowth(
-        (payouts ?? []).filter((p) => p.status === "paid"),
+        (payouts ?? []).filter((p) => p.status === "PAID"),
         (p) => p.paidAt,
         (p) => p.totalAmount,
       ),
@@ -179,7 +179,7 @@ function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
         </Badge>
       </TableCell>
       <TableCell>
-        {payout.status === "pending" && (
+        {payout.status === "PENDING" && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" size="sm" disabled={!stripeConnected}>

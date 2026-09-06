@@ -16,12 +16,12 @@ import { ApiError } from "@/lib/api/client"
 import type { Coupon, CouponDiscountType, Merchant } from "@/lib/api/types"
 
 const DISCOUNT_LABEL: Record<CouponDiscountType, string> = {
-  percent: "Percent off",
-  fixed: "Fixed amount off",
-  unknown: "Unspecified",
+  PERCENT: "Percent off",
+  FIXED: "Fixed amount off",
+  UNKNOWN: "Unspecified",
 }
 
-const DISCOUNT_TYPES = ["percent", "fixed", "unknown"] as const
+const DISCOUNT_TYPES = ["PERCENT", "FIXED", "UNKNOWN"] as const
 
 const couponSchema = z.object({
   merchantId: z.string(),
@@ -78,7 +78,7 @@ export function CouponForm({
       merchantId: lockedMerchantId ?? coupon?.merchantId ?? "",
       code: coupon?.code ?? "",
       description: coupon?.description ?? "",
-      discountType: coupon?.discountType ?? "unknown",
+      discountType: coupon?.discountType ?? "UNKNOWN",
       discountValue: coupon?.discountValue?.toString() ?? "",
       expiresAt: coupon?.expiresAt ? toDateInput(coupon.expiresAt) : "",
     },
@@ -189,7 +189,7 @@ export function CouponForm({
             </FormField>
             <FormField label="Value (optional)" htmlFor="coupon-discount-value" error={errors.discountValue?.message}>
               <div className="relative">
-                {discountType === "fixed" && (
+                {discountType === "FIXED" && (
                   <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
                     $
                   </span>
@@ -201,11 +201,11 @@ export function CouponForm({
                   step="0.01"
                   {...register("discountValue")}
                   className={cn(
-                    discountType === "fixed" && "pl-6",
-                    discountType === "percent" && "pr-7",
+                    discountType === "FIXED" && "pl-6",
+                    discountType === "PERCENT" && "pr-7",
                   )}
                 />
-                {discountType === "percent" && (
+                {discountType === "PERCENT" && (
                   <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm text-muted-foreground">
                     %
                   </span>

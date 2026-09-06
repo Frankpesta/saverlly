@@ -107,9 +107,12 @@ export class AnnouncementsService {
   }
 
   async findAll(currentUser: JwtPayload) {
+    // Safety cap, not real pagination -- see merchants.service.ts's findAll for the reasoning.
+    // Applied to all three branches below.
     if (currentUser.role === UserRole.ADMIN) {
       return this.prisma.announcement.findMany({
         orderBy: { createdAt: 'desc' },
+        take: 500,
       });
     }
 
@@ -129,6 +132,7 @@ export class AnnouncementsService {
       const all = await this.prisma.announcement.findMany({
         where: { OR: [{ kioskId }, { kioskId: null }] },
         orderBy: { createdAt: 'desc' },
+        take: 500,
       });
       // Scoped to their assigned location(s): either the announcement targets
       // all locations (empty array, also true for every broadcast) or overlaps their managed set.
@@ -147,6 +151,7 @@ export class AnnouncementsService {
     return this.prisma.announcement.findMany({
       where: { OR: [{ kioskId: currentUser.kioskId }, { kioskId: null }] },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
   }
 

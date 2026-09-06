@@ -1,9 +1,16 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { CommissionStatus, Payout, Prisma, UserRole } from '@prisma/client';
+import {
+  CommissionStatus,
+  Payout,
+  PayoutStatus,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 import type Stripe from 'stripe';
 import { groupBy } from '../common/collections/group-by.util';
 import { NotificationTriggersService } from '../notifications/notification-triggers.service';
@@ -11,8 +18,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StripeService } from '../stripe/stripe.service';
 import { PayoutDto } from './dto/payout.dto';
 
+// Thrown (and caught) inside generatePayouts() when a concurrent run has already claimed some
+// of the events this run read as unswept, forcing its transaction to roll back cleanly rather
+// than persist a Payout whose totalAmount double-counts (or undercounts) commission events.
+class ConcurrentPayoutClaimError extends Error {}
+
 @Injectable()
 export class PayoutsService {
+  private readonly logger = new Logger(PayoutsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripeService: StripeService,
@@ -58,22 +72,41 @@ export class PayoutsService {
       );
       const periodStart = lastPayout?.periodEnd ?? earliestConfirmedAt;
 
-      await this.prisma.$transaction(async (tx) => {
-        const payout = await tx.payout.create({
-          data: {
-            kioskId,
-            periodStart,
-            periodEnd,
-            totalAmount,
-            status: 'pending',
-          },
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const payout = await tx.payout.create({
+            data: {
+              kioskId,
+              periodStart,
+              periodEnd,
+              totalAmount,
+              status: PayoutStatus.PENDING,
+            },
+          });
+          // Conditional claim (payoutId: null in the where, not just the id list) so a
+          // concurrent generatePayouts run can never silently overwrite this one's claim on
+          // the same events -- whichever transaction's updateMany loses the race claims zero
+          // of the contested rows instead of last-writer-wins clobbering the other's payoutId.
+          const claimed = await tx.commissionEvent.updateMany({
+            where: { id: { in: events.map((e) => e.id) }, payoutId: null },
+            data: { payoutId: payout.id },
+          });
+          if (claimed.count !== events.length) {
+            throw new ConcurrentPayoutClaimError(kioskId);
+          }
         });
-        await tx.commissionEvent.updateMany({
-          where: { id: { in: events.map((e) => e.id) } },
-          data: { payoutId: payout.id },
-        });
-      });
-      payoutsCreated++;
+        payoutsCreated++;
+      } catch (error) {
+        if (error instanceof ConcurrentPayoutClaimError) {
+          this.logger.warn(
+            `Skipped payout for kiosk ${kioskId}: a concurrent run already claimed some of ` +
+              `its unswept commission events. The transaction rolled back cleanly -- those ` +
+              `events remain unswept and will be picked up correctly by the next run.`,
+          );
+          continue;
+        }
+        throw error;
+      }
     }
 
     return { payoutsCreated };
@@ -115,7 +148,7 @@ export class PayoutsService {
     if (!payout) {
       throw new NotFoundException('Payout not found');
     }
-    if (payout.status !== 'pending') {
+    if (payout.status !== PayoutStatus.PENDING) {
       throw new BadRequestException(
         `Payout is not pending (current status: ${payout.status})`,
       );
@@ -129,8 +162,8 @@ export class PayoutsService {
     // Stripe transfer for the same payout. The affected-row count here tells us which
     // request actually won the race.
     const claim = await this.prisma.payout.updateMany({
-      where: { id: payoutId, status: 'pending' },
-      data: { status: 'processing' },
+      where: { id: payoutId, status: PayoutStatus.PENDING },
+      data: { status: PayoutStatus.PROCESSING },
     });
     if (claim.count === 0) {
       throw new BadRequestException(
@@ -154,7 +187,7 @@ export class PayoutsService {
       // leaving the payout stuck in "processing" with no transfer ever created.
       await this.prisma.payout.update({
         where: { id: payoutId },
-        data: { status: 'pending' },
+        data: { status: PayoutStatus.PENDING },
       });
       throw err;
     }
@@ -181,7 +214,10 @@ export class PayoutsService {
         // WHERE clause against the just-committed row, so its status:'processing' no longer
         // matches and it notifies no one.
         const payout = await this.prisma.payout.findFirst({
-          where: { stripeTransferId: transfer.id, status: 'processing' },
+          where: {
+            stripeTransferId: transfer.id,
+            status: PayoutStatus.PROCESSING,
+          },
           include: {
             kiosk: {
               include: {
@@ -194,8 +230,8 @@ export class PayoutsService {
 
         const paidAt = new Date();
         const claimed = await this.prisma.payout.updateMany({
-          where: { id: payout.id, status: 'processing' },
-          data: { status: 'paid', paidAt },
+          where: { id: payout.id, status: PayoutStatus.PROCESSING },
+          data: { status: PayoutStatus.PAID, paidAt },
         });
         if (claimed.count === 0) break;
 
@@ -219,7 +255,7 @@ export class PayoutsService {
         const transfer = event.data.object;
         await this.prisma.payout.updateMany({
           where: { stripeTransferId: transfer.id },
-          data: { status: 'failed' },
+          data: { status: PayoutStatus.FAILED },
         });
         break;
       }
@@ -280,6 +316,10 @@ export class PayoutsService {
         },
       },
       orderBy: { createdAt: 'desc' },
+      // Safety cap, not real pagination -- see merchants.service.ts's findAll for the general
+      // reasoning and commissions.service.ts's findAllForAdmin for why this one's higher than
+      // the catalog-entity caps (an ever-growing event log, not a bounded catalog).
+      take: 2000,
     });
     return payouts.map((p) => ({
       ...toPayoutDto(p),

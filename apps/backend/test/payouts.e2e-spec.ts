@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { CommissionStatus, UserRole } from '@prisma/client';
+import { CommissionStatus, PayoutStatus, UserRole } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PayoutsService } from '../src/payouts/payouts.service';
@@ -38,7 +38,7 @@ describe('Payouts API (e2e)', () => {
     await resetDatabase();
   });
 
-  async function seedKioskWithPayout(overrides: { stripeAccountId?: string; payoutStatus?: string } = {}) {
+  async function seedKioskWithPayout(overrides: { stripeAccountId?: string; payoutStatus?: PayoutStatus } = {}) {
     const kiosk = await seedKiosk({ revenueSharePct: 30 });
     if (overrides.stripeAccountId) {
       await testPrisma.kiosk.update({ where: { id: kiosk.id }, data: { stripeAccountId: overrides.stripeAccountId } });
@@ -49,7 +49,7 @@ describe('Payouts API (e2e)', () => {
         periodStart: new Date(),
         periodEnd: new Date(),
         totalAmount: 10,
-        status: overrides.payoutStatus ?? 'pending',
+        status: overrides.payoutStatus ?? PayoutStatus.PENDING,
       },
     });
     return { kiosk, payout };
@@ -109,7 +109,7 @@ describe('Payouts API (e2e)', () => {
   });
 
   it('400s processing an already-processing payout', async () => {
-    const { kiosk, payout } = await seedKioskWithPayout({ stripeAccountId: 'acct_test_2', payoutStatus: 'processing' });
+    const { kiosk, payout } = await seedKioskWithPayout({ stripeAccountId: 'acct_test_2', payoutStatus: PayoutStatus.PROCESSING });
     const { adminToken } = await seedUsers(kiosk.id, kiosk.id);
 
     await request(app.getHttpServer())
@@ -199,7 +199,7 @@ describe('Payouts API (e2e)', () => {
       .expect(200);
     expect(listRes.body).toHaveLength(1);
     expect(listRes.body[0].totalAmount).toBe(8);
-    expect(listRes.body[0].status).toBe('pending');
+    expect(listRes.body[0].status).toBe('PENDING');
 
     await request(app.getHttpServer())
       .post(`/payouts/${listRes.body[0].id}/process`)
@@ -249,7 +249,7 @@ describe('PayoutsService.processPayout with a mocked Stripe client (e2e, real DB
         periodStart: new Date(),
         periodEnd: new Date(),
         totalAmount: overrides.totalAmount ?? 12.5,
-        status: 'pending',
+        status: PayoutStatus.PENDING,
       },
     });
     return { kiosk, payout };
@@ -267,11 +267,11 @@ describe('PayoutsService.processPayout with a mocked Stripe client (e2e, real DB
     expect(amountArg.toNumber()).toBe(12.5);
     expect(idempotencyKeyArg).toBe(payout.id);
 
-    expect(result.status).toBe('processing');
+    expect(result.status).toBe(PayoutStatus.PROCESSING);
     expect(result.stripeTransferId).toBe('tr_mock_123');
 
     const stored = await testPrisma.payout.findUniqueOrThrow({ where: { id: payout.id } });
-    expect(stored.status).toBe('processing');
+    expect(stored.status).toBe(PayoutStatus.PROCESSING);
     expect(stored.stripeTransferId).toBe('tr_mock_123');
   });
 
@@ -282,7 +282,7 @@ describe('PayoutsService.processPayout with a mocked Stripe client (e2e, real DB
     await expect(app.get(PayoutsService).processPayout(payout.id)).rejects.toThrow('stripe unavailable');
 
     const stored = await testPrisma.payout.findUniqueOrThrow({ where: { id: payout.id } });
-    expect(stored.status).toBe('pending');
+    expect(stored.status).toBe(PayoutStatus.PENDING);
     expect(stored.stripeTransferId).toBeNull();
   });
 

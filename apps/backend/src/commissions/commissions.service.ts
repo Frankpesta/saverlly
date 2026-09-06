@@ -320,6 +320,11 @@ export class CommissionsService {
         },
       },
       orderBy: { reportedAt: 'desc' },
+      // Safety cap, not real pagination -- see merchants.service.ts's findAll for the general
+      // reasoning. Higher than the catalog-entity caps since this is an ever-growing event
+      // log; callers with more to see already have real filters (merchantId/status/
+      // locationId/kioskId/date range) to narrow the unfiltered default down.
+      take: 2000,
     });
     return events.map(toCommissionEventDto);
   }

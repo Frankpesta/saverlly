@@ -80,7 +80,7 @@ export default function PortalOverviewPage() {
   )
 
   const paidPayouts = React.useMemo(
-    () => (payouts ?? []).filter((p) => p.status === "paid"),
+    () => (payouts ?? []).filter((p) => p.status === "PAID"),
     [payouts],
   )
   const totalPaidOut = React.useMemo(

@@ -12,7 +12,7 @@ const payouts: Payout[] = [
     periodStart: "2026-01-01T00:00:00.000Z",
     periodEnd: "2026-01-31T00:00:00.000Z",
     totalAmount: 300,
-    status: "pending",
+    status: "PENDING",
     stripeTransferId: null,
     paidAt: null,
     createdAt: "2026-02-01T00:00:00.000Z",
@@ -24,7 +24,7 @@ const payouts: Payout[] = [
     periodStart: "2026-01-01T00:00:00.000Z",
     periodEnd: "2026-01-31T00:00:00.000Z",
     totalAmount: 150,
-    status: "pending",
+    status: "PENDING",
     stripeTransferId: null,
     paidAt: null,
     createdAt: "2026-02-01T00:00:00.000Z",
@@ -51,7 +51,7 @@ describe("AdminPayoutsPage", () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ ...payouts[0], status: "processing" }),
+          json: async () => ({ ...payouts[0], status: "PROCESSING" }),
         } as Response
       }
 

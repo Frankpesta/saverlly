@@ -43,6 +43,7 @@
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.1.0",
     "@saverlly/shared-types": "*",
+    "@sentry/node": "^10.73.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.81.3",
     "class-transformer": "^0.5.1",
