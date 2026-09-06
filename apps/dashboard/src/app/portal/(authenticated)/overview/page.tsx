@@ -3,13 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import {
-  WalletIcon,
-  ClockIcon,
-  TrendingUpIcon,
-  CreditCardIcon,
   MapPinIcon,
   MonitorIcon,
-  ReceiptIcon,
+  HandCoinsIcon,
   CircleCheckIcon,
   CirclePauseIcon,
   MegaphoneIcon,
@@ -32,7 +28,7 @@ import { Meter } from "@/components/dashboard/meter"
 import { TrendChart } from "@/components/dashboard/trend-chart"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { useKiosk } from "@/lib/api/hooks/use-kiosks"
-import { useMyBalance, useMyCommissionEvents } from "@/lib/api/hooks/use-commissions"
+import { useMyCommissionEvents } from "@/lib/api/hooks/use-commissions"
 import { useMyPayouts } from "@/lib/api/hooks/use-payouts"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
@@ -62,7 +58,6 @@ export default function PortalOverviewPage() {
   const isKioskOwner = currentUser?.role === "KIOSK_OWNER"
   const kioskId = currentUser?.kioskId ?? ""
   const { data: kiosk, isLoading: kioskLoading } = useKiosk(kioskId)
-  const { data: balance } = useMyBalance({ enabled: isKioskOwner })
   const { data: events, isLoading: eventsLoading } = useMyCommissionEvents({ enabled: isKioskOwner })
   const { data: payouts, isLoading: payoutsLoading } = useMyPayouts({ enabled: isKioskOwner })
   const { data: locations, isLoading: locationsLoading } = useLocations()
@@ -72,20 +67,6 @@ export default function PortalOverviewPage() {
   const confirmedEvents = React.useMemo(
     () => (events ?? []).filter((e) => e.status === "CONFIRMED"),
     [events],
-  )
-
-  const totalEarnings = React.useMemo(
-    () => confirmedEvents.reduce((sum, e) => sum + e.kioskShareAmount, 0),
-    [confirmedEvents],
-  )
-
-  const paidPayouts = React.useMemo(
-    () => (payouts ?? []).filter((p) => p.status === "PAID"),
-    [payouts],
-  )
-  const totalPaidOut = React.useMemo(
-    () => paidPayouts.reduce((sum, p) => sum + p.totalAmount, 0),
-    [paidPayouts],
   )
 
   const eventsGrowthLabel = React.useMemo(
@@ -184,43 +165,6 @@ export default function PortalOverviewPage() {
         </div>
       </div>
 
-      {isKioskOwner && (
-        <section className="flex flex-col gap-4">
-          <div>
-            <h3 className="text-heading">Earnings</h3>
-          </div>
-          <BentoGrid>
-          <StatTile
-            label="Available balance"
-            value={balance?.confirmedAvailableAmount ?? 0}
-            format={formatCurrency}
-            icon={<WalletIcon />}
-          />
-          <StatTile
-            label="Pending balance"
-            value={balance?.pendingAmount ?? 0}
-            format={formatCurrency}
-            icon={<ClockIcon />}
-            subtext="Awaiting confirmation"
-          />
-          <StatTile
-            label="Total earnings"
-            value={totalEarnings}
-            format={formatCurrency}
-            icon={<TrendingUpIcon />}
-            subtext="Lifetime"
-          />
-          <StatTile
-            label="Total paid out"
-            value={totalPaidOut}
-            format={formatCurrency}
-            icon={<CreditCardIcon />}
-            subtext={`${paidPayouts.length} payout${paidPayouts.length === 1 ? "" : "s"}`}
-          />
-          </BentoGrid>
-        </section>
-      )}
-
       <section className="flex flex-col gap-4">
         <div>
           <h3 className="text-heading">Operations</h3>
@@ -237,7 +181,7 @@ export default function PortalOverviewPage() {
           <StatTile
             label="Commission events"
             value={events?.length ?? 0}
-            icon={<ReceiptIcon />}
+            icon={<HandCoinsIcon />}
             subtext={eventsGrowthLabel ? `${eventsGrowthLabel} this month` : undefined}
           />
         )}

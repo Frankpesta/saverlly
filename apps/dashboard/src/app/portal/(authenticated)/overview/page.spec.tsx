@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import PortalOverviewPage from "./page"
 import type {
   Announcement,
-  Balance,
   CommissionEvent,
   Device,
   Kiosk,
@@ -55,7 +54,6 @@ const kiosk: Kiosk = {
   updatedAt: "2026-01-01T00:00:00.000Z",
 }
 
-const balance: Balance = { pendingAmount: 500, confirmedAvailableAmount: 1200 }
 
 const locations: Location[] = [
   {
@@ -201,7 +199,6 @@ describe("PortalOverviewPage", () => {
       const forbidden = () => ({ ok: false, status: 403, json: async () => ({ message: "Forbidden" }) }) as Response
       if (url === "/api/proxy/users/me") return respond(activeUser)
       if (url === "/api/proxy/kiosks/kiosk-1") return respond(kiosk)
-      if (url === "/api/proxy/my/balance") return activeUser.role === "KIOSK_OWNER" ? respond(balance) : forbidden()
       if (url === "/api/proxy/my/commission-events")
         return activeUser.role === "KIOSK_OWNER" ? respond(events) : forbidden()
       if (url === "/api/proxy/my/payouts") return activeUser.role === "KIOSK_OWNER" ? respond(payouts) : forbidden()
@@ -218,14 +215,6 @@ describe("PortalOverviewPage", () => {
     expect(await screen.findByText("Active")).toBeInTheDocument()
     expect(screen.getByText("Kiosk One")).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText("1 active devices")).toBeInTheDocument())
-  })
-
-  it("shows available/pending balance and lifetime earnings from real balance + commission data", async () => {
-    renderWithClient(<PortalOverviewPage />)
-
-    expect(await screen.findByText("$1,200")).toBeInTheDocument() // confirmedAvailableAmount
-    expect(screen.getAllByText("$500").length).toBeGreaterThan(0) // pendingAmount
-    expect(screen.getAllByText("$300").length).toBeGreaterThan(0) // total earnings (CONFIRMED kioskShareAmount)
   })
 
   it("drops the Merchant column and shows only Device/Amount/Status in Recent Commission Activity", async () => {
