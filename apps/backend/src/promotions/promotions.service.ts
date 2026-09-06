@@ -33,7 +33,11 @@ export class PromotionsService {
   }
 
   findAll() {
-    return this.prisma.promotion.findMany({ orderBy: { createdAt: 'desc' } });
+    // Safety cap, not real pagination -- see merchants.service.ts's findAll for the reasoning.
+    return this.prisma.promotion.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
   }
 
   async findOne(id: string) {

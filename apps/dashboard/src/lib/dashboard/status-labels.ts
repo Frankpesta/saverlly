@@ -17,17 +17,17 @@ export const COMMISSION_STATUS_BADGE_VARIANT: Record<CommissionEventStatus, Badg
 }
 
 export const PAYOUT_STATUS_LABEL: Record<PayoutStatus, string> = {
-  paid: "Paid",
-  processing: "Processing",
-  pending: "Pending",
-  failed: "Failed",
+  PAID: "Paid",
+  PROCESSING: "Processing",
+  PENDING: "Pending",
+  FAILED: "Failed",
 }
 
 export const PAYOUT_STATUS_BADGE_VARIANT: Record<PayoutStatus, BadgeVariant> = {
-  paid: "success",
-  processing: "info",
-  pending: "warning",
-  failed: "destructive",
+  PAID: "success",
+  PROCESSING: "info",
+  PENDING: "warning",
+  FAILED: "destructive",
 }
 
 export const KIOSK_STATUS_LABEL: Record<KioskStatus, string> = {

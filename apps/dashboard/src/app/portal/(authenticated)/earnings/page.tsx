@@ -56,7 +56,7 @@ export default function PortalEarningsPage() {
     () => monthOverMonthGrowth(confirmedEvents, (e) => e.confirmedAt ?? e.reportedAt, (e) => e.kioskShareAmount),
     [confirmedEvents],
   )
-  const paidPayouts = React.useMemo(() => (payouts ?? []).filter((p) => p.status === "paid"), [payouts])
+  const paidPayouts = React.useMemo(() => (payouts ?? []).filter((p) => p.status === "PAID"), [payouts])
   const totalPaidOut = React.useMemo(
     () => paidPayouts.reduce((sum, p) => sum + p.totalAmount, 0),
     [paidPayouts],

@@ -579,33 +579,40 @@ describe('showAnnouncementOverlay', () => {
     });
 
     // The canvas is a per-layout choice now, not two compile-time constants, so the window has
-    // to follow the design instead of always being a 400x520 portrait card.
+    // to follow the design instead of always being a fixed portrait card.
     describe('canvas sizes other than the portrait default', () => {
       function layoutSized(width: number, height: number) {
         return { version: 1, background: '#ffffff', width, height, elements: [] };
       }
 
-      it('sizes the window to a landscape design', async () => {
-        await showAnnouncementOverlay(announcement({ layout: layoutSized(560, 320) }), {
+      it('sizes the window to a landscape design (US Letter sideways)', async () => {
+        await showAnnouncementOverlay(announcement({ layout: layoutSized(1056, 816) }), {
           webview2Dir: WEBVIEW2_DIR,
         });
         const script = writtenScript();
 
-        expect(script).toContain('560 * $dpiScale');
-        expect(script).toContain('320 * $dpiScale');
-        expect(script).toContain('$fullBleed = $false');
+        expect(script).toContain('1056 * $dpiScale');
+        expect(script).toContain('816 * $dpiScale');
       });
 
-      it('fills the working area for a full-screen design, and keeps the taskbar reachable', async () => {
-        await showAnnouncementOverlay(announcement({ layout: layoutSized(1280, 720) }), {
+      // There is no full-bleed/full-screen mode anymore (removed 2026-09-06 per the client's
+      // clarification that canvas size is exactly US Letter, portrait or landscape) -- every
+      // layout, including an oversized custom one, goes through the same clamp-to-working-area
+      // path. Worth its own test now that the default (816x1056) is close enough to a modest
+      // kiosk display's working area that the clamp is what keeps it on screen at all, not just
+      // a defensive fallback for a hypothetical huge design.
+      it('always clamps the card to the working area, keeping the taskbar reachable', async () => {
+        await showAnnouncementOverlay(announcement({ layout: layoutSized(4096, 4096) }), {
           webview2Dir: WEBVIEW2_DIR,
         });
         const script = writtenScript();
 
-        expect(script).toContain('$fullBleed = $true');
-        expect(script).toContain('$cardWidth = $area.Width');
-        // WorkingArea, not Bounds: even a takeover leaves the taskbar, so a kiosk is never
-        // genuinely trapped behind an announcement.
+        expect(script).toContain('$maxWidth = $area.Width - (2 * $margin)');
+        expect(script).toContain('$maxHeight = $area.Height - (2 * $margin)');
+        expect(script).toContain('if ($cardWidth -gt $maxWidth) { $cardWidth = $maxWidth }');
+        expect(script).toContain('if ($cardHeight -gt $maxHeight) { $cardHeight = $maxHeight }');
+        // WorkingArea, not Bounds: the taskbar stays reachable, so a kiosk is never genuinely
+        // trapped behind an announcement.
         expect(script).not.toContain('PrimaryScreen.Bounds');
       });
     });

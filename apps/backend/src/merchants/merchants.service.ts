@@ -35,7 +35,14 @@ export class MerchantsService {
   }
 
   findAll() {
-    return this.prisma.merchant.findMany({ orderBy: { createdAt: 'desc' } });
+    // Safety cap, not real pagination -- the dashboard fetches this list once and paginates
+    // client-side (usePagination), so this keeps that working unchanged while still bounding
+    // worst-case query/response size as the merchant catalog grows. orderBy desc means a cap
+    // here means "most recent 500", never an arbitrary/wrong slice.
+    return this.prisma.merchant.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
   }
 
   async findOneOrThrow(id: string) {

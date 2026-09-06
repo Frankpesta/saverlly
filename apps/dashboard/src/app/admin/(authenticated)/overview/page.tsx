@@ -172,10 +172,10 @@ export default function AdminOverviewPage() {
   const payoutTotals = React.useMemo(() => {
     const list = payouts ?? []
     const now = new Date()
-    const pending = list.filter((p) => p.status === "pending")
+    const pending = list.filter((p) => p.status === "PENDING")
     const paidThisMonth = list.filter(
       (p) =>
-        p.status === "paid" &&
+        p.status === "PAID" &&
         p.paidAt &&
         new Date(p.paidAt).getMonth() === now.getMonth() &&
         new Date(p.paidAt).getFullYear() === now.getFullYear(),

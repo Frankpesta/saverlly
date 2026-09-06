@@ -164,6 +164,12 @@ model Merchant {
   @@index([affiliateProgramId])
 }
 
+enum CouponDiscountType {
+  PERCENT
+  FIXED
+  UNKNOWN
+}
+
 model Coupon {
   id               String            @id @default(uuid())
   merchantId       String
@@ -171,7 +177,10 @@ model Coupon {
   code             String
   description      String?
   source           CouponSource
-  discountType     String? // "percent" | "fixed" | "unknown"
+  // Free-standing external-facing lowercase strings ("percent"/"fixed"/"unknown") for the
+  // public-api response the extension reads -- see public-api.service.ts's toPublicCoupon,
+  // which lowercases this enum at the boundary rather than changing that external contract.
+  discountType     CouponDiscountType?
   discountValue    Float?
   successCount     Int               @default(0)
   failCount        Int               @default(0)
@@ -183,6 +192,10 @@ model Coupon {
   commissionEvents CommissionEvent[]
 
   @@unique([merchantId, code]) // dedup across sources. Repeat scrape/sync runs must upsert, never duplicate
+  // Supports the extension's hot coupon-apply query path (public-api's getMerchantByDomain:
+  // WHERE merchantId = ? AND active = true), which the merchantId-leading unique index above
+  // only partially serves.
+  @@index([merchantId, active])
 }
 
 model ScrapeSource {
@@ -207,7 +220,12 @@ enum AnnouncementRepeatPolicy {
 model Announcement {
   id              String                   @id @default(uuid())
   kioskId         String? // null = platform-wide broadcast (ADMIN-only); locationIds is always empty when null
-  kiosk           Kiosk?                   @relation(fields: [kioskId], references: [id])
+  // Explicit Restrict (not Prisma's implicit SetNull default for an optional relation): a kiosk
+  // must never be deletable while it still has announcements, because a silently-orphaned
+  // (kioskId -> null) announcement would then read as a platform-wide broadcast shown to every
+  // kiosk. The real delete path (deleteKioskCascade) already deletes these rows first, so this
+  // only ever fires as a loud failure if some future path forgets to.
+  kiosk           Kiosk?                   @relation(fields: [kioskId], references: [id], onDelete: Restrict)
   locationIds     String[] // empty array = all locations for this kiosk (or, for a broadcast, everyone)
   /// Who wrote it. A location manager may edit and delete only their own announcements, never
   /// one the owner (or another manager) made for the same location. Nullable because
@@ -230,6 +248,10 @@ model Announcement {
 
   @@index([kioskId])
   @@index([createdById])
+  // GIN, not a plain btree: locationIds is filtered with array-containment (`has`/`hasSome`),
+  // which only a GIN index can serve -- a btree index on an array column can't support those
+  // operators at all, so this table would otherwise always full-scan on that filter as it grows.
+  @@index([locationIds], type: Gin)
 }
 
 // Admin-authored promotion shown inside the Chrome extension's popup. Deliberately a separate
@@ -254,6 +276,10 @@ model Promotion {
   updatedAt     DateTime @updatedAt
 
   @@index([active, startAt, endAt])
+  // GIN, not btree -- see Announcement.locationIds above for why. Both array columns here are
+  // filtered with array-containment (`has`/`hasSome`) against a location's tags/id.
+  @@index([targetTags], type: Gin)
+  @@index([locationIds], type: Gin)
 }
 
 model CouponTestEvent {
@@ -270,6 +296,7 @@ model CouponTestEvent {
 
   @@index([deviceId])
   @@index([merchantId])
+  @@index([couponId])
 }
 
 // Logged at the moment attribution tracking fires for a merchant with a sub-ID/click-ID
@@ -321,8 +348,16 @@ model CommissionEvent {
   @@unique([merchantId, networkReference]) // dedup. Repeat ingestion/reconciliation runs must upsert, never duplicate a network's own conversion record
   @@index([deviceId])
   @@index([merchantId])
+  @@index([couponId])
   @@index([status])
   @@index([payoutId])
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
 }
 
 model Payout {
@@ -332,12 +367,17 @@ model Payout {
   periodStart      DateTime
   periodEnd        DateTime
   totalAmount      Decimal           @db.Decimal(10, 2) // sum of CONFIRMED kioskShareAmount only, never includes pending
-  status           String            @default("pending") // "pending" | "processing" | "paid" | "failed"
+  status           PayoutStatus      @default(PENDING)
   stripeTransferId String?
   paidAt           DateTime?
   createdAt        DateTime          @default(now())
   commissionEvents CommissionEvent[]
 
+  // Guards against generating two payouts for the same kiosk+period -- e.g. a retried
+  // generate-payouts run (cron re-fire, manual re-trigger after a timeout) -- at the DB level
+  // rather than relying solely on the app-level "only unswept CONFIRMED events" invariant,
+  // which a deleted Payout row (CommissionEvent.payoutId -> SetNull) could otherwise defeat.
+  @@unique([kioskId, periodStart, periodEnd])
   @@index([kioskId])
 }
 

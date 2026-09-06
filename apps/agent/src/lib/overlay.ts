@@ -4,7 +4,6 @@ import * as path from 'path';
 import {
   ANNOUNCEMENT_TOAST_MARGIN,
   createDefaultLayout,
-  isFullBleedLayout,
   parseAnnouncementLayout,
   renderAnnouncementLayoutHtml,
   type ActiveAnnouncement,
@@ -195,10 +194,9 @@ function webView2OverlayScript(
   htmlPath: string,
   dllDir: string,
   context: ScriptContext,
-  /** The design's own canvas, not the compile-time constants: the owner picks a size in the
-   *  editor and the window is made to match, so a landscape or full-screen design is not
-   *  letterboxed into a portrait card. */
-  canvas: { width: number; height: number; fullBleed: boolean },
+  /** The design's own canvas, not the compile-time constants: the owner picks portrait or
+   *  landscape in the editor and the window is made to match. */
+  canvas: { width: number; height: number },
 ): string {
   return wrapOverlayScript(
     context,
@@ -251,35 +249,24 @@ try {
 # the taskbar and clear of the notification tray without having to know where either one is.
 $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 $margin = [int][Math]::Round(${ANNOUNCEMENT_TOAST_MARGIN} * $dpiScale)
-$fullBleed = ${canvas.fullBleed ? '$true' : '$false'}
 
-if ($fullBleed) {
-  # A full-screen design fills the working area and sits flush in the corner. Still the working
-  # area rather than Bounds, so the taskbar stays reachable and the kiosk is never truly trapped.
-  $cardWidth = $area.Width
-  $cardHeight = $area.Height
-  $cardLeft = $area.Left
-  $cardTop = $area.Top
-} else {
-  $cardWidth = [int][Math]::Round(${canvas.width} * $dpiScale)
-  $cardHeight = [int][Math]::Round(${canvas.height} * $dpiScale)
-  # A card taller than the screen it sits on is not a toast. On a small or heavily scaled display
-  # the window shrinks and the document's own fit scale takes the design down with it.
-  $maxWidth = $area.Width - (2 * $margin)
-  $maxHeight = $area.Height - (2 * $margin)
-  if ($cardWidth -gt $maxWidth) { $cardWidth = $maxWidth }
-  if ($cardHeight -gt $maxHeight) { $cardHeight = $maxHeight }
-  $cardLeft = $area.Right - $cardWidth - $margin
-  $cardTop = $area.Bottom - $cardHeight - $margin
-}
+$cardWidth = [int][Math]::Round(${canvas.width} * $dpiScale)
+$cardHeight = [int][Math]::Round(${canvas.height} * $dpiScale)
+# A card taller than the screen it sits on is not a toast. On a small or heavily scaled display
+# the window shrinks and the document's own fit scale takes the design down with it. This is what
+# keeps the now-Letter-sized default (816×1056) fitting on a modest kiosk display without needing
+# a separate "does this fit" check anywhere else.
+$maxWidth = $area.Width - (2 * $margin)
+$maxHeight = $area.Height - (2 * $margin)
+if ($cardWidth -gt $maxWidth) { $cardWidth = $maxWidth }
+if ($cardHeight -gt $maxHeight) { $cardHeight = $maxHeight }
+$cardLeft = $area.Right - $cardWidth - $margin
+$cardTop = $area.Bottom - $cardHeight - $margin
 $form.ClientSize = New-Object System.Drawing.Size($cardWidth, $cardHeight)
 $form.Location = New-Object System.Drawing.Point($cardLeft, $cardTop)
 
 # Rounded corners via a window region, so the card reads as a card rather than as a rectangle of
 # browser. Best-effort: a square window is a cosmetic loss, not a failure to announce anything.
-# Skipped for a full-screen design, where rounding the display's own corners would just show the
-# desktop through four notches.
-if (-not $fullBleed) {
 try {
   $radius = [int][Math]::Round(${TOAST_CORNER_RADIUS} * $dpiScale)
   $diameter = $radius * 2
@@ -291,7 +278,6 @@ try {
   $path.CloseFigure()
   $form.Region = New-Object System.Drawing.Region($path)
 } catch { }
-}
 
 $web = New-Object Microsoft.Web.WebView2.WinForms.WebView2
 $web.Dock = 'Fill'
@@ -707,7 +693,6 @@ export async function showAnnouncementOverlay(
         webView2OverlayScript(htmlPath, dllDir, context, {
           width: layout.width,
           height: layout.height,
-          fullBleed: isFullBleedLayout(layout),
         }),
         'utf8',
       );

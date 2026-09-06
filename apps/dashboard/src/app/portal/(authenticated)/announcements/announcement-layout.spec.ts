@@ -6,7 +6,6 @@ import {
   createDefaultLayout,
   createEmptyLayout,
   isAnnouncementLayout,
-  isFullBleedLayout,
   resizeLayout,
   layoutElementStyle,
   parseAnnouncementLayout,
@@ -149,12 +148,13 @@ describe("renderAnnouncementLayoutHtml", () => {
 // The toast is a corner card, not a screen: the agent sizes its window to these dimensions, so a
 // design that assumes screen proportions would be a design nobody can read.
 describe("the toast card", () => {
-  it("is a portrait card small enough to sit in the corner of a modest kiosk display", () => {
+  it("is a US Letter portrait card (8.5x11\" at 96 CSS px/in)", () => {
     expect(ANNOUNCEMENT_CANVAS_WIDTH).toBeLessThan(ANNOUNCEMENT_CANVAS_HEIGHT)
-    // Comfortably inside the working area of the smallest display we support (1366×768), with
-    // room left for the margin the agent adds on both edges.
-    expect(ANNOUNCEMENT_CANVAS_WIDTH).toBeLessThanOrEqual(480)
-    expect(ANNOUNCEMENT_CANVAS_HEIGHT).toBeLessThanOrEqual(640)
+    expect(ANNOUNCEMENT_CANVAS_WIDTH).toBe(816)
+    expect(ANNOUNCEMENT_CANVAS_HEIGHT).toBe(1056)
+    // Bigger than the working area of a modest kiosk display (e.g. 1366×768) by design -- the
+    // agent's own webView2OverlayScript clamps the window to fit whatever screen it lands on
+    // (overlay.ts's maxWidth/maxHeight), so this doesn't need to be a size ceiling anymore.
   })
 
   // Elements are clipped to the stage, so anything the default arrangement puts outside the card
@@ -393,14 +393,9 @@ describe("canvas size", () => {
   })
 
   it("names the matching preset, and reports a custom size as no preset", () => {
-    expect(canvasPresetFor({ width: 400, height: 520 })?.id).toBe("portrait")
-    expect(canvasPresetFor({ width: 560, height: 320 })?.id).toBe("landscape")
+    expect(canvasPresetFor({ width: 816, height: 1056 })?.id).toBe("portrait")
+    expect(canvasPresetFor({ width: 1056, height: 816 })?.id).toBe("landscape")
     expect(canvasPresetFor({ width: 123, height: 456 })).toBeNull()
-  })
-
-  it("marks only the full-screen preset as filling the display", () => {
-    expect(isFullBleedLayout({ width: 1280, height: 720 })).toBe(true)
-    expect(isFullBleedLayout({ width: 400, height: 520 })).toBe(false)
   })
 
   it("sizes the rendered document to the layout rather than to the constants", () => {
@@ -427,7 +422,9 @@ describe("canvas size", () => {
   it("scales type with the canvas, so a headline stays a headline", () => {
     const portrait = createDefaultLayout({ title: "Title" })
     const headline = portrait.elements.find((e) => e.type === "text")!
-    const bigger = resizeLayout(portrait, 1280, 720)
+    // 2x the default (816×1056) canvas, so this is unambiguously a scale-up regardless of what
+    // the default canvas size happens to be.
+    const bigger = resizeLayout(portrait, 1632, 2112)
     const scaled = bigger.elements.find((e) => e.type === "text")!
     expect(scaled.type === "text" && headline.type === "text").toBe(true)
     if (scaled.type === "text" && headline.type === "text") {

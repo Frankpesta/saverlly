@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { CommissionStatus } from '@prisma/client';
+import { CommissionStatus, PayoutStatus } from '@prisma/client';
 import { PayoutsService } from '../src/payouts/payouts.service';
 import { resetDatabase, testPrisma } from './utils/db';
 import { seedCommissionEvent, seedDevice, seedKiosk, seedLocation, seedMerchant } from './utils/fixtures';
@@ -41,7 +41,7 @@ describe('Payout aggregation (e2e, real DB) — confirmed-only invariant', () =>
 
     const payout = await testPrisma.payout.findFirstOrThrow({ where: { kioskId: kiosk.id } });
     expect(payout.totalAmount.toString()).toBe('3.75');
-    expect(payout.status).toBe('pending');
+    expect(payout.status).toBe(PayoutStatus.PENDING);
 
     const refreshedA = await testPrisma.commissionEvent.findUniqueOrThrow({ where: { id: eventA.id } });
     const refreshedB = await testPrisma.commissionEvent.findUniqueOrThrow({ where: { id: eventB.id } });
@@ -113,6 +113,30 @@ describe('Payout aggregation (e2e, real DB) — confirmed-only invariant', () =>
     const payoutB = await testPrisma.payout.findFirstOrThrow({ where: { kioskId: scenarioB.kiosk.id } });
     expect(payoutA.totalAmount.toString()).toBe('1');
     expect(payoutB.totalAmount.toString()).toBe('2');
+  });
+
+  it('two concurrent runs racing the same unswept events produce exactly one payout, not two and not zero', async () => {
+    const { kiosk, device, merchant } = await seedKioskWithDevice();
+    const event = await seedCommissionEvent(device.id, merchant.id, { status: CommissionStatus.CONFIRMED, kioskShareAmount: 5 });
+
+    // Both calls read the same unswept event before either commits its claim. Without the
+    // conditional (payoutId: null) claim in generatePayouts(), this used to be able to create
+    // two Payout rows that both counted the same event's amount (last-writer-wins on
+    // commissionEvent.payoutId). With the fix, exactly one run wins the claim and the other
+    // rolls back its own transaction cleanly instead of persisting a bad total.
+    const [first, second] = await Promise.all([
+      payouts.generatePayouts(),
+      payouts.generatePayouts(),
+    ]);
+
+    expect(first.payoutsCreated + second.payoutsCreated).toBe(1);
+
+    const allPayouts = await testPrisma.payout.findMany({ where: { kioskId: kiosk.id } });
+    expect(allPayouts).toHaveLength(1);
+    expect(allPayouts[0].totalAmount.toString()).toBe('5');
+
+    const refreshedEvent = await testPrisma.commissionEvent.findUniqueOrThrow({ where: { id: event.id } });
+    expect(refreshedEvent.payoutId).toBe(allPayouts[0].id);
   });
 
   it('a second run only sweeps newly-confirmed events, chaining periodStart from the prior payout\'s periodEnd', async () => {

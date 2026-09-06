@@ -15,9 +15,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Device } from '@prisma/client';
 import { CurrentDevice } from '../common/decorators/current-device.decorator';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
+import { DeviceThrottlerGuard } from '../common/guards/device-throttler.guard';
 import { DevicesService } from '../devices/devices.service';
 import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
 import { ActivePromotionDto } from './dto/active-promotion.dto';
@@ -31,7 +33,12 @@ import { PublicApiService } from './public-api.service';
 @ApiTags('Public (device-facing)')
 @ApiBearerAuth('device-token')
 @Controller('public')
-@UseGuards(DeviceAuthGuard)
+@UseGuards(DeviceAuthGuard, DeviceThrottlerGuard)
+// Per-device, not per-IP (many kiosk devices can share a store network's IP) -- see
+// DeviceThrottlerGuard. 60/min comfortably covers every legitimate polling cadence in this
+// controller (60s status/announcement/promotion polls, per-page-visit attribution/coupon
+// events) while still bounding what a single compromised or misbehaving device can do.
+@Throttle({ default: { limit: 60, ttl: 60_000 } })
 export class PublicApiController {
   constructor(
     private readonly publicApiService: PublicApiService,

@@ -14,8 +14,27 @@ import { MyCommissionsController } from './my-commissions.controller';
 @Module({
   imports: [
     BullModule.registerQueue(
-      { name: QUEUE_NAMES.SYNC_COMMISSIONS },
-      { name: QUEUE_NAMES.COMMISSION_DIGEST },
+      {
+        name: QUEUE_NAMES.SYNC_COMMISSIONS,
+        // Without this, a transient failure (RDS blip, affiliate network timeout) gets one
+        // attempt and then silently waits for tomorrow's scheduled run -- see the send-email
+        // queue in notifications.module.ts for the same pattern.
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+        },
+      },
+      {
+        name: QUEUE_NAMES.COMMISSION_DIGEST,
+        // sendDailyDigests() loops per kiosk with no "already sent" tracking, so a retry
+        // after a partial failure could re-email the kiosks already processed before the
+        // failure. Accepted tradeoff: a rare duplicate summary email is far less bad than
+        // silently skipping the whole day's digest for every kiosk on one transient error.
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+        },
+      },
     ),
     AffiliateAdaptersModule,
     NotificationsModule,

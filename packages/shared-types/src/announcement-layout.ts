@@ -23,9 +23,15 @@ export const ANNOUNCEMENT_LAYOUT_VERSION = 1;
  * corner of the kiosk screen (the CorelDRAW/Windows-notification shape), so the canvas is a
  * portrait card and the agent sizes its window to exactly this many device-independent pixels
  * which means the design renders at 1:1 and never gets blown up to fill a display.
+ *
+ * Client clarification (2026-09-06) on an earlier "make it bigger" request: the canvas is one
+ * fixed size, US Letter, with only an orientation choice -- not an open set of presets. 816×1056
+ * is 8.5"×11" at 96 CSS px/in, the standard device-independent-pixel mapping this codebase already
+ * uses everywhere else (see the WebView2 DPI-awareness work in apps/agent/src/lib/overlay.ts).
+ * These two constants are the portrait orientation and the default for a brand-new layout.
  */
-export const ANNOUNCEMENT_CANVAS_WIDTH = 400;
-export const ANNOUNCEMENT_CANVAS_HEIGHT = 520;
+export const ANNOUNCEMENT_CANVAS_WIDTH = 816;
+export const ANNOUNCEMENT_CANVAS_HEIGHT = 1056;
 
 /**
  * The canvas sizes an owner can choose between, stored on the layout itself rather than fixed in
@@ -33,44 +39,36 @@ export const ANNOUNCEMENT_CANVAS_HEIGHT = 520;
  *
  * The client asked how to switch "the doc size from vertical to horizontal", which the old
  * single-size canvas had no answer to. Size now travels with the design, so the agent sizes its
- * window from what was authored instead of from a compile-time constant, and one kiosk can show a
- * portrait toast and a full-screen takeover on different days.
+ * window from what was authored instead of from a compile-time constant.
  *
- * `fullBleed` marks a preset that fills the display rather than sitting in the corner, which is
- * the one case where the toast margin and bottom-right anchoring don't apply.
+ * Exactly two entries, deliberately: US Letter, upright or sideways. A three-preset version of
+ * this list briefly existed (a "Full screen" 1280×720 fullBleed option) but the client's
+ * clarification was explicit -- "one size... with 2 options vertical or horizontal" -- so that
+ * option is gone, along with the fullBleed concept it needed (canvasPresetFor is still what the
+ * agent's toast-corner sizing keys off; there's no longer a display mode that skips it).
  */
 export const ANNOUNCEMENT_CANVAS_PRESETS = [
   {
     id: 'portrait',
-    label: 'Portrait toast',
-    hint: 'Bottom-right card. The default.',
-    width: 400,
-    height: 520,
-    fullBleed: false,
+    label: 'Portrait',
+    hint: 'US Letter, upright (8.5 × 11").',
+    width: 816,
+    height: 1056,
   },
   {
     id: 'landscape',
-    label: 'Landscape toast',
-    hint: 'Wider and shorter, for a headline with an image beside it.',
-    width: 560,
-    height: 320,
-    fullBleed: false,
-  },
-  {
-    id: 'fullscreen',
-    label: 'Full screen',
-    hint: 'Covers the whole kiosk display. Use sparingly.',
-    width: 1280,
-    height: 720,
-    fullBleed: true,
+    label: 'Landscape',
+    hint: 'US Letter, sideways (11 × 8.5").',
+    width: 1056,
+    height: 816,
   },
 ] as const;
 
 export type AnnouncementCanvasPreset = (typeof ANNOUNCEMENT_CANVAS_PRESETS)[number];
 export type AnnouncementCanvasPresetId = AnnouncementCanvasPreset['id'];
 
-/** Upper bound on either canvas dimension. Wide enough for a 4K-ish full-screen design, tight
- *  enough that a hostile layout can't ask the agent for a 100,000px window. */
+/** Upper bound on either canvas dimension. Wide enough for a 4K-ish design, tight enough that a
+ *  hostile layout can't ask the agent for a 100,000px window. */
 const MAX_CANVAS_DIMENSION = 4096;
 const MIN_CANVAS_DIMENSION = 160;
 
@@ -83,13 +81,6 @@ export function canvasPresetFor(
       (preset) => preset.width === layout.width && preset.height === layout.height,
     ) ?? null
   );
-}
-
-/** True when the layout fills the display instead of sitting as a corner toast. */
-export function isFullBleedLayout(
-  layout: Pick<AnnouncementLayout, 'width' | 'height'>,
-): boolean {
-  return canvasPresetFor(layout)?.fullBleed === true;
 }
 
 /** Gap between the toast and the working area's right/bottom edges, in the same canvas-space

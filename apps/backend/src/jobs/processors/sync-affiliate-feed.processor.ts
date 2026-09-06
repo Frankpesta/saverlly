@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { CouponSource } from '@prisma/client';
 import { Job } from 'bullmq';
 import { AffiliateAdapterRegistryService } from '../../affiliate-adapters/affiliate-adapter-registry.service';
+import { normalizeDiscountType } from '../../coupons/discount-type.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES } from '../queue-names';
 
@@ -46,7 +47,7 @@ export class SyncAffiliateFeedProcessor extends WorkerHost {
           update: {
             source: CouponSource.API,
             description: coupon.description,
-            discountType: coupon.discountType,
+            discountType: normalizeDiscountType(coupon.discountType),
             discountValue: coupon.discountValue,
             expiresAt: coupon.expiresAt,
             active: true,
@@ -56,7 +57,7 @@ export class SyncAffiliateFeedProcessor extends WorkerHost {
             code: coupon.code,
             source: CouponSource.API,
             description: coupon.description,
-            discountType: coupon.discountType,
+            discountType: normalizeDiscountType(coupon.discountType),
             discountValue: coupon.discountValue,
             expiresAt: coupon.expiresAt,
           },

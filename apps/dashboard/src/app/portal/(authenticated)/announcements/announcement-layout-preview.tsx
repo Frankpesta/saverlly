@@ -3,7 +3,6 @@
 import * as React from "react"
 import {
   ANNOUNCEMENT_AUTO_DISMISS_MS,
-  isFullBleedLayout,
   renderAnnouncementLayoutHtml,
   type AnnouncementLayout,
 } from "@saverlly/shared-types"
@@ -57,8 +56,8 @@ export function AnnouncementLayoutPreview({
       </div>
 
       {/* Shaped from the layout, not from the old portrait constants, so switching the canvas to
-          landscape or full screen shows a landscape or full-screen preview rather than the same
-          tall card with the design squeezed into it. */}
+          landscape shows a landscape preview rather than the same tall card with the design
+          squeezed into it. */}
       <div
         className="mx-auto w-full overflow-hidden rounded-xl border border-black/10 bg-black/80 dark:border-white/10"
         style={{
@@ -75,11 +74,8 @@ export function AnnouncementLayoutPreview({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        This is the real overlay document, rendered exactly as the kiosk will show it,{" "}
-        {isFullBleedLayout(layout)
-          ? "covering the whole kiosk display"
-          : "as a card in the bottom-right corner of the screen"}
-        , which slides in and closes itself after{" "}
+        This is the real overlay document, rendered exactly as the kiosk will show it, as a card
+        in the bottom-right corner of the screen, which slides in and closes itself after{" "}
         {Math.round(ANNOUNCEMENT_AUTO_DISMISS_MS / 1000)} seconds.
       </p>
     </div>

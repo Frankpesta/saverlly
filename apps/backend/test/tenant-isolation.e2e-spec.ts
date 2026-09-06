@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common';
-import { CommissionStatus } from '@prisma/client';
+import { CommissionStatus, PayoutStatus } from '@prisma/client';
 import request from 'supertest';
 import { resetDatabase, testPrisma } from './utils/db';
 import {
@@ -462,7 +462,7 @@ describe('Tenant isolation (e2e)', () => {
           periodStart: new Date(),
           periodEnd: new Date(),
           totalAmount: 12,
-          status: 'pending',
+          status: PayoutStatus.PENDING,
         },
       });
       await seedUser({
@@ -487,7 +487,7 @@ describe('Tenant isolation (e2e)', () => {
           periodStart: new Date(),
           periodEnd: new Date(),
           totalAmount: 12,
-          status: 'pending',
+          status: PayoutStatus.PENDING,
         },
       });
       await seedUser({

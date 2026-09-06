@@ -139,7 +139,18 @@ export class PublicApiService {
       throw new NotFoundException('Merchant not found or inactive');
     }
 
-    return merchant;
+    return {
+      ...merchant,
+      // discountType is CouponDiscountType (an uppercase enum) internally, but the extension
+      // (packages/shared-types' PublicCoupon contract) expects the original lowercase
+      // "percent"|"fixed"|"unknown" strings -- lowercase at this external boundary rather
+      // than changing that contract, so an already-installed extension build isn't broken by
+      // a backend-only schema change.
+      coupons: merchant.coupons.map((coupon) => ({
+        ...coupon,
+        discountType: coupon.discountType?.toLowerCase() ?? null,
+      })),
+    };
   }
 
   async recordCouponTestEvent(deviceId: string, dto: CreateCouponTestEventDto) {

@@ -1,5 +1,19 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { isPubliclyRoutableHostname } from "@/lib/security/ssrf-guard"
+
+// The backend's own upload host is always allowed even though it may resolve to a private/
+// loopback address (e.g. both services on the same VPS, or the backend reachable only over
+// an internal network) -- it's a trusted first-party target, not user-controlled. Every other
+// URL (the wizard also lets a user paste an arbitrary external image URL) gets the full
+// private-IP check below.
+const TRUSTED_HOSTNAME = (() => {
+  try {
+    return new URL(process.env.BACKEND_API_URL ?? "http://localhost:3000").hostname
+  } catch {
+    return "localhost"
+  }
+})()
 
 /**
  * Streams an arbitrary image URL back through the dashboard's own (HTTPS) origin.
@@ -26,6 +40,13 @@ export async function GET(request: NextRequest) {
     return new NextResponse(null, { status: 400 })
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return new NextResponse(null, { status: 400 })
+  }
+
+  if (
+    parsed.hostname !== TRUSTED_HOSTNAME &&
+    !(await isPubliclyRoutableHostname(parsed.hostname))
+  ) {
     return new NextResponse(null, { status: 400 })
   }
 

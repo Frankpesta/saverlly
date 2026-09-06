@@ -1,8 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CouponDiscountType } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
-
-const DISCOUNT_TYPES = ['percent', 'fixed', 'unknown'] as const;
+import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class CreateCouponDto {
   @ApiProperty()
@@ -20,10 +19,10 @@ export class CreateCouponDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: DISCOUNT_TYPES })
+  @ApiPropertyOptional({ enum: CouponDiscountType })
   @IsOptional()
-  @IsIn(DISCOUNT_TYPES)
-  discountType?: (typeof DISCOUNT_TYPES)[number];
+  @IsEnum(CouponDiscountType)
+  discountType?: CouponDiscountType;
 
   @ApiPropertyOptional()
   @IsOptional()
