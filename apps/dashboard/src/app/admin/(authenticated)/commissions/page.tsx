@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { ReceiptIcon, CircleCheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react"
+import { HandCoinsIcon, CircleCheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -140,7 +140,7 @@ export default function AdminCommissionsPage() {
         <StatTile
           label="Total events"
           value={events?.length ?? 0}
-          icon={<ReceiptIcon />}
+          icon={<HandCoinsIcon />}
           delta={totalGrowth}
           subtext={totalGrowth !== null ? "vs last month" : undefined}
         />
