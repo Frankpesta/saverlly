@@ -83,12 +83,20 @@ export function AnnouncementCanvas({
   // The stage keeps its exact pixel geometry and is scaled to the available width, rather than
   // laying out responsively. Responsive reflow would move elements relative to each other and
   // break the "what you see is what the kiosk shows" guarantee.
-  React.useEffect(() => {
+  //
+  // useLayoutEffect and a synchronous first read, not just the ResizeObserver: the observer's
+  // callback is async, so on a plain useEffect the browser could paint one frame with the new
+  // canvasHeight (from the layout that just changed) alongside the *previous* orientation's scale
+  // -- most visible switching portrait to landscape, where the stale, larger scale used to hang
+  // the design partway off the frame for a beat before the observer caught up.
+  React.useLayoutEffect(() => {
     const frame = frameRef.current
     if (!frame) return
+    const width = frame.getBoundingClientRect().width
+    if (width > 0) setScale(Math.min(1, width / canvasWidth))
     const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width ?? 0
-      if (width > 0) setScale(Math.min(1, width / canvasWidth))
+      const observedWidth = entries[0]?.contentRect.width ?? 0
+      if (observedWidth > 0) setScale(Math.min(1, observedWidth / canvasWidth))
     })
     observer.observe(frame)
     return () => observer.disconnect()
@@ -252,7 +260,14 @@ export function AnnouncementCanvas({
         // its keydown simply bubbles up to here.
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className="relative origin-top-left outline-none"
+        // shrink-0: `stage` is a flex child of `frame`, and its width/height come from an inline
+        // style rather than intrinsic content, so without this flexbox's default flex-shrink:1
+        // silently compresses the stage below its declared size once canvasWidth exceeds the
+        // frame's available width -- landscape's 1056px does this far more often than portrait's
+        // 816px did. `transform: scale()` below never participates in that layout sizing, so the
+        // shrink and the scale would fight each other and corrupt every element's absolute
+        // position, which is what made elements vanish off the clipped (`overflow-hidden`) edge.
+        className="relative origin-top-left outline-none shrink-0"
         style={{
           width: canvasWidth,
           height: canvasHeight,
