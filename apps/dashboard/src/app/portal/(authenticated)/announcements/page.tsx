@@ -18,6 +18,7 @@ import {
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
+import { WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useAnnouncements } from "@/lib/api/hooks/use-announcements"
 import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
@@ -68,18 +69,16 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-title">Announcements</h2>
-          <p className="text-sm text-muted-foreground">
-            Ads and messages shown to customers on the kiosk screen.
-          </p>
-        </div>
-        <Link href="/portal/announcements/new" className={cn(buttonVariants(), "gap-1.5")}>
-          <PlusIcon className="size-4" />
-          New Announcement
-        </Link>
-      </div>
+      <WorkspaceHeader
+        title="Announcements"
+        description="Ads and messages shown to customers on the kiosk screen."
+        actions={
+          <Link href="/portal/announcements/new" className={cn(buttonVariants(), "gap-1.5")}>
+            <PlusIcon className="size-4" />
+            New Announcement
+          </Link>
+        }
+      />
 
       <BentoGrid>
         <StatTile
