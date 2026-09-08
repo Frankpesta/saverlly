@@ -133,7 +133,7 @@ export default function PortalEarningsPage() {
         />
       </BentoGrid>
 
-      <Card className="border border-black/6 dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
+      <Card>
         <CardHeader>
           <CardTitle>Payouts</CardTitle>
         </CardHeader>
@@ -167,7 +167,7 @@ export default function PortalEarningsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border border-black/6 dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
+      <Card>
         <CardHeader>
           <CardTitle>Commission history</CardTitle>
         </CardHeader>
@@ -225,7 +225,7 @@ export default function PortalEarningsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border border-black/6 dark:border-white/10 shadow-[0_8px_24px_rgba(11,11,11,0.04)]">
+      <Card>
         <CardHeader>
           <CardTitle>Payout history</CardTitle>
         </CardHeader>

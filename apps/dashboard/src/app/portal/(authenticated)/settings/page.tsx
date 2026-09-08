@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ChangePasswordCard } from "@/components/settings/change-password-card"
 import { SettingsSection } from "@/components/settings/settings-section"
+import { WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useCurrentUser } from "@/lib/api/hooks/use-current-user"
 import { useKioskContact } from "@/lib/api/hooks/use-kiosks"
 import { TeamSection } from "./team-section"
@@ -22,9 +23,7 @@ export default function PortalSettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-title">Settings</h2>
-      </div>
+      <WorkspaceHeader title="Settings" />
 
       <div className="grid grid-cols-1 items-start gap-10">
         {isKioskOwner && currentUser?.kioskId && <TeamSection kioskId={currentUser.kioskId} />}
