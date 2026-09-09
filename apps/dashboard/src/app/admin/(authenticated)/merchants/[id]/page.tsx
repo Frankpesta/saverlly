@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
@@ -63,7 +65,7 @@ type CheckoutRecipeFormOutput = z.output<typeof checkoutRecipeSchema>
 export default function MerchantDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { data: merchant, isLoading, isError } = useMerchant(id)
+  const { data: merchant, isLoading, isError, refetch } = useMerchant(id)
   const deleteMerchant = useDeleteMerchant()
 
   function handleDelete() {
@@ -105,15 +107,15 @@ export default function MerchantDetailPage() {
         )}
       </div>
 
-      {isError && <p className="text-sm text-destructive">Could not load this merchant.</p>}
+      {isError && <InlineQueryError message="Could not load this merchant." onRetry={refetch} />}
       {isLoading && <Skeleton className="h-64 w-full max-w-2xl" />}
 
       {merchant && (
-        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div className="detail-layout">
           <MerchantEditForm key={merchant.id} merchant={merchant} />
           <CheckoutRecipeForm key={`${merchant.id}-recipe`} merchant={merchant} />
-          <MerchantCouponsSection merchantId={merchant.id} />
-          <MerchantScrapeSourcesSection merchantId={merchant.id} />
+          <div className="@min-[64rem]/workspace:col-span-2"><MerchantCouponsSection merchantId={merchant.id} /></div>
+          <div className="@min-[64rem]/workspace:col-span-2"><MerchantScrapeSourcesSection merchantId={merchant.id} /></div>
         </div>
       )}
     </div>
@@ -206,8 +208,8 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
           />
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving…" : "Save changes"}
+          <Button type="submit" disabled={isSubmitting || updateMerchant.isPending}>
+            {isSubmitting || updateMerchant.isPending ? "Saving…" : "Save changes"}
           </Button>
         </CardFooter>
       </form>
@@ -311,8 +313,8 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
           </FormField>
         </CardContent>
         <CardFooter>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving…" : "Save recipe"}
+          <Button type="submit" disabled={isSubmitting || updateMerchant.isPending}>
+            {isSubmitting || updateMerchant.isPending ? "Saving…" : "Save recipe"}
           </Button>
         </CardFooter>
       </form>

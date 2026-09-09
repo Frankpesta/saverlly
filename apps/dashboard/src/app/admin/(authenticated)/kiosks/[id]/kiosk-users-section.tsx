@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import Link from "next/link"
 import { toast } from "sonner"
 import { CrownIcon, PencilIcon, UserPlusIcon } from "lucide-react"
@@ -17,7 +19,7 @@ import type { KioskUser } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
 
 export function KioskUsersSection({ kioskId }: { kioskId: string }) {
-  const { data: users, isLoading, isError } = useKioskUsers(kioskId)
+  const { data: users, isLoading, isError, refetch } = useKioskUsers(kioskId)
   const updateUser = useUpdateKioskUser(kioskId)
   const deleteUser = useDeleteKioskUser(kioskId)
 
@@ -69,7 +71,7 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
             <AvatarFallback
               className={cn(
                 "text-xs font-semibold",
-                isOwner && "bg-[var(--brand-teal-tint)] text-[var(--brand-teal)]",
+                isOwner && "bg-[var(--brand-teal-tint)] text-[var(--brand-ink)]",
               )}
             >
               {profileInitials(user.name, user.email)}
@@ -78,7 +80,7 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="flex items-center gap-1.5 truncate text-sm font-medium">
               {user.name || user.email}
-              {isOwner && <CrownIcon className="size-3.5 shrink-0 text-[var(--brand-teal)]" />}
+              {isOwner && <CrownIcon className="size-3.5 shrink-0 text-[var(--brand-ink)]" />}
             </span>
             {user.name && <span className="truncate text-xs text-muted-foreground">{user.email}</span>}
             {!isOwner && user.managedLocationIds.length > 0 && (
@@ -123,7 +125,7 @@ export function KioskUsersSection({ kioskId }: { kioskId: string }) {
         </Link>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        {isError && <p className="text-sm text-destructive">Could not load users.</p>}
+        {isError && <InlineQueryError message="Could not load users." onRetry={refetch} />}
         {isLoading && <Skeleton className="h-10 w-full" />}
         {!isLoading && users?.length === 0 && (
           <p className="text-sm text-muted-foreground">No users on this kiosk yet.</p>

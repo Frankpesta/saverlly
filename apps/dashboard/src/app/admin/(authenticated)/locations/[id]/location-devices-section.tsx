@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,7 +12,7 @@ import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
 
 export function LocationDevicesSection({ locationId }: { locationId: string }) {
-  const { data: devices, isLoading, isError } = useDevices()
+  const { data: devices, isLoading, isError, refetch } = useDevices()
   const updateDevice = useUpdateDevice()
 
   const atThisLocation = devices?.filter((d) => d.locationId === locationId) ?? []
@@ -31,7 +33,7 @@ export function LocationDevicesSection({ locationId }: { locationId: string }) {
         <CardTitle>Devices</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {isError && <p className="text-sm text-destructive">Could not load devices.</p>}
+        {isError && <InlineQueryError message="Could not load devices." onRetry={refetch} />}
         {isLoading && <Skeleton className="h-10 w-full" />}
         {!isLoading && atThisLocation.length === 0 && (
           <p className="text-sm text-muted-foreground">

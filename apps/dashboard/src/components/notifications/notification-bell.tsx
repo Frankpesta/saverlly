@@ -22,12 +22,14 @@ import {
   useUnreadCount,
 } from "@/lib/api/hooks/use-notifications"
 import type { Notification } from "@/lib/api/types"
+import { QueryBoundary } from "@/components/dashboard/query-state"
 
 export function NotificationBell() {
   const pathname = usePathname()
   const basePath = pathname.startsWith("/admin") ? "/admin" : "/portal"
 
-  const { data: notifications } = useNotifications()
+  const notificationsQuery = useNotifications()
+  const { data: notifications } = notificationsQuery
   const { data: unread } = useUnreadCount()
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead()
@@ -73,6 +75,7 @@ export function NotificationBell() {
             <SheetTitle>Notifications</SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto p-2">
+            <QueryBoundary queries={[notificationsQuery]} label="notifications">
             {items.length === 0 && (
               <p className="px-2 py-10 text-center text-body text-muted-foreground">
                 Nothing new right now.
@@ -115,6 +118,7 @@ export function NotificationBell() {
                 </button>
               ))}
             </div>
+            </QueryBoundary>
           </div>
           {/* Rendered whether or not anything is unread. Previously the whole footer unmounted
               once everything was read, so the panel lost its bottom padding and the last row

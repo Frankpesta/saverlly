@@ -1,9 +1,11 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { TagIcon, PencilIcon, PercentIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,24 +33,24 @@ import {
   TableRow,
   TableRowActions,
 } from "@/components/ui/table"
-import { BentoGrid } from "@/components/dashboard/bento-grid"
-import { StatTile } from "@/components/dashboard/stat-tile"
+import { CollectionSummary } from "@/components/dashboard/page-layout"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { TableSelectionToolbar } from "@/components/dashboard/table-selection-toolbar"
 import { useCoupons, useDeleteCoupon } from "@/lib/api/hooks/use-coupons"
 import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
+import { useCollectionView } from "@/hooks/use-collection-view"
+import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 import { useTableSelection } from "@/hooks/use-table-selection"
-import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
 
 const ALL_MERCHANTS = "all"
 
 export default function CouponsPage() {
   const [merchantFilter, setMerchantFilter] = React.useState(ALL_MERCHANTS)
   const { data: merchants } = useMerchants()
-  const { data: allCoupons, isLoading, isError } = useCoupons()
+  const { data: allCoupons, isLoading, isError, refetch } = useCoupons()
   const deleteCoupon = useDeleteCoupon()
   const [bulkDeleting, setBulkDeleting] = React.useState(false)
 
@@ -59,8 +61,13 @@ export default function CouponsPage() {
         : (allCoupons ?? []).filter((c) => c.merchantId === merchantFilter),
     [allCoupons, merchantFilter],
   )
+  const view = useCollectionView(filteredCoupons, {
+    searchText: (item) => [item.code, item.description, merchants?.find((merchant) => merchant.id === item.merchantId)?.name].join(" "),
+    sorts: [{ label: "Code: A to Z", value: "code", compare: (a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }) }, { label: "Newest first", value: "newest", compare: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() }],
+    filters: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !item.active }],
+  })
   const { page, setPage, pageCount, pageItems: coupons, totalItems, pageSize } =
-    usePagination(filteredCoupons)
+    usePagination(view.items, undefined, `${merchantFilter}:${view.resetKey}`)
   const selection = useTableSelection(coupons, (c) => c.id)
 
   const merchantNameById = React.useMemo(() => {
@@ -69,10 +76,6 @@ export default function CouponsPage() {
     return map
   }, [merchants])
 
-  const totalGrowth = React.useMemo(
-    () => monthOverMonthGrowth(filteredCoupons, (c) => c.createdAt, () => 1),
-    [filteredCoupons],
-  )
 
   const stats = React.useMemo(() => {
     const success = filteredCoupons.reduce((sum, c) => sum + c.successCount, 0)
@@ -106,9 +109,9 @@ export default function CouponsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h2 className="text-title">Coupons</h2>
+          <h1 className="text-title">Coupons</h1>
           <p className="text-sm text-muted-foreground">
             Every coupon code across every merchant, and how well it&apos;s converting.
           </p>
@@ -119,21 +122,7 @@ export default function CouponsPage() {
         </Link>
       </div>
 
-      <BentoGrid>
-        <StatTile
-          label="Coupons"
-          value={stats.total}
-          icon={<TagIcon />}
-          delta={totalGrowth}
-          subtext={totalGrowth !== null ? "vs last month" : undefined}
-        />
-        <StatTile
-          label="Success rate"
-          value={stats.rate}
-          icon={<PercentIcon />}
-          format={(n) => `${n.toFixed(1)}%`}
-        />
-      </BentoGrid>
+      <CollectionSummary isLoading={isLoading} isError={isError} items={[{ label: "Coupons", value: stats.total, detail: "For the selected merchant" }, { label: "Success rate", value: `${stats.rate.toFixed(1)}%`, detail: "Across recorded attempts" }]} />
 
       <div className="flex items-center gap-2">
         <Combobox
@@ -149,7 +138,9 @@ export default function CouponsPage() {
         />
       </div>
 
-      {isError && <p className="text-sm text-destructive">Could not load coupons.</p>}
+      <CollectionToolbar view={view} label="Coupons" />
+
+      {isError && <InlineQueryError message="Could not load coupons." onRetry={refetch} />}
 
       <div className="flex flex-col gap-2">
         <Table>
@@ -180,10 +171,10 @@ export default function CouponsPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && coupons.length === 0 && (
+            {!isLoading && !isError && coupons.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  No coupons yet.
+                  {view.hasFilters || merchantFilter !== ALL_MERCHANTS ? "No coupons match these filters." : "No coupons yet."}
                 </TableCell>
               </TableRow>
             )}

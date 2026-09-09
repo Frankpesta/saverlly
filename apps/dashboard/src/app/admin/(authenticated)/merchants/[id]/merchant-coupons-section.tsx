@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -40,7 +42,7 @@ import { cn } from "@/lib/utils"
 import { usePagination } from "@/hooks/use-pagination"
 
 export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
-  const { data: allCoupons, isLoading, isError } = useCoupons()
+  const { data: allCoupons, isLoading, isError, refetch } = useCoupons()
   const deleteCoupon = useDeleteCoupon()
 
   const merchantCoupons = React.useMemo(
@@ -71,7 +73,7 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
         </Link>
       </CardHeader>
       <CardContent>
-        {isError && <p className="text-sm text-destructive">Could not load coupons.</p>}
+        {isError && <InlineQueryError message="Could not load coupons." onRetry={refetch} />}
 
         <Table>
           <TableHeader>

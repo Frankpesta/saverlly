@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import { toast } from "sonner"
 import { CopyIcon, RefreshCwIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +19,7 @@ import { ApiError } from "@/lib/api/client"
 /** Every location has at most one setup code. Regenerating replaces it in place rather than
  * adding another, so there's never a list of old/stale codes to manage. */
 export function SetupCodesSection({ locationId }: { locationId: string }) {
-  const { data: code, isLoading, isError } = useSetupCode(locationId)
+  const { data: code, isLoading, isError, refetch } = useSetupCode(locationId)
   const createCode = useCreateSetupCode(locationId)
   const updateCode = useUpdateSetupCode(locationId)
 
@@ -65,7 +67,7 @@ export function SetupCodesSection({ locationId }: { locationId: string }) {
         )}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {isError && <p className="text-sm text-destructive">Could not load the setup code.</p>}
+        {isError && <InlineQueryError message="Could not load the setup code." onRetry={refetch} />}
         {isLoading && <Skeleton className="h-10 w-full" />}
         {!isLoading && !code && (
           <div className="flex flex-col items-start gap-3">

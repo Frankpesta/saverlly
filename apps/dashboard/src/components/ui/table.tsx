@@ -7,7 +7,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto rounded-xl border border-black/[0.07] bg-card shadow-[0_8px_24px_rgba(17,27,24,0.035)] dark:border-white/10"
+      className="relative w-full overflow-x-auto rounded-xl border border-border bg-card"
     >
       <table
         data-slot="table"
@@ -22,7 +22,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("bg-[#f8faf9] [&_tr]:border-b [&_tr]:border-black/[0.06] dark:bg-white/[0.03] dark:[&_tr]:border-white/10", className)}
+      className={cn("bg-muted/60 [&_tr]:border-b [&_tr]:border-border", className)}
       {...props}
     />
   )
@@ -78,7 +78,7 @@ function TableRow({ className, index, ...props }: TableRowProps) {
     <motion.tr
       data-slot="table-row"
       className={rowClassName}
-      initial={{ opacity: 0, y: 6 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.03 }}
       {...props}
@@ -103,7 +103,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-11 px-5 text-left align-middle text-[11px] font-semibold tracking-[0.075em] text-muted-foreground uppercase whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "h-11 px-4 text-left align-middle text-label font-medium text-muted-foreground whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -115,7 +115,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
-      className={cn("px-5 py-4 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0", className)}
+      className={cn("px-4 py-3 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0", className)}
       {...props}
     />
   )

@@ -1,7 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DateRangePicker } from "@/components/dashboard/date-picker"
 import { formatCurrency } from "@/lib/format-currency"
@@ -64,6 +72,7 @@ export function TrendChart({
   data: { date: string; value: number }[]
   valueLabel?: string
 }) {
+  const gradientId = React.useId().replace(/:/g, "")
   const [range, setRange] = React.useState<RangeLabel>("30D")
   const lastDate = data.at(-1)?.date
   const [customFrom, setCustomFrom] = React.useState("")
@@ -77,23 +86,23 @@ export function TrendChart({
           (!customFrom || point.date >= customFrom) && (!customTo || point.date <= customTo)
       : null
 
-  const display = (days != null ? data.slice(-days) : inCustomRange ? data.filter(inCustomRange) : data).map(
-    (point) => ({
-      ...point,
-      label: new Date(point.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-    }),
-  )
+  const display = (
+    days != null ? data.slice(-days) : inCustomRange ? data.filter(inCustomRange) : data
+  ).map((point) => ({
+    ...point,
+    label: new Date(point.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+  }))
 
   // The readout falls back to the most recent point, so the header carries a real number even
   // before the cursor enters the chart, rather than appearing and disappearing on hover.
-  const readout = hovered ?? display.at(-1)
+  const readout = display.find((point) => point.date === hovered?.date) ?? display.at(-1)
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Tabs value={range} onValueChange={(v) => setRange(v as RangeLabel)}>
-            <TabsList>
+            <TabsList aria-label="Chart date range">
               {RANGES.map((r) => (
                 <TabsTrigger key={r.label} value={r.label}>
                   {r.label}
@@ -117,7 +126,7 @@ export function TrendChart({
             The client flagged that twice. Parking the values here removes the positioning
             problem entirely instead of tuning it, and the chart keeps only a cursor line. */}
         {readout && (
-          <div className="flex flex-col items-end leading-tight" aria-live="polite">
+          <div className="flex flex-col items-end leading-tight">
             <span className="text-heading tabular-nums">{formatCurrency(readout.value)}</span>
             <span className="text-meta text-muted-foreground">
               {valueLabel} on {READOUT_DATE.format(new Date(readout.date))}
@@ -126,6 +135,12 @@ export function TrendChart({
         )}
       </div>
 
+      <p className="text-meta text-muted-foreground">
+        {display.length
+          ? `${display[0].date} to ${display.at(-1)!.date}`
+          : "No activity in this range"}{" "}
+        · Date range applies to this chart.
+      </p>
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart
           data={display}
@@ -133,7 +148,7 @@ export function TrendChart({
           onMouseLeave={() => setHovered(null)}
         >
           <defs>
-            <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--brand-teal)" stopOpacity={0.25} />
               <stop offset="100%" stopColor="var(--brand-teal)" stopOpacity={0} />
             </linearGradient>
@@ -167,7 +182,7 @@ export function TrendChart({
             dataKey="value"
             stroke="var(--brand-teal)"
             strokeWidth={2}
-            fill="url(#trend-fill)"
+            fill={`url(#${gradientId})`}
             isAnimationActive={false}
             activeDot={{ r: 4, fill: "var(--brand-teal)", stroke: "var(--card)", strokeWidth: 2 }}
           />

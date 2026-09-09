@@ -8,12 +8,12 @@ import { cn } from "@/lib/utils"
  * 3 + 1 and left two orphan columns. Deriving the column count from the child count removes
  * the whole class of bug rather than asking every call site to do the arithmetic. */
 const COLUMNS_FOR_COUNT: Record<number, string> = {
-  1: "lg:grid-cols-1",
-  2: "lg:grid-cols-2",
-  3: "lg:grid-cols-3",
-  4: "lg:grid-cols-4",
-  5: "lg:grid-cols-5",
-  6: "lg:grid-cols-3",
+  1: "@min-[62rem]/workspace:grid-cols-1",
+  2: "@min-[62rem]/workspace:grid-cols-2",
+  3: "@min-[62rem]/workspace:grid-cols-3",
+  4: "@min-[62rem]/workspace:grid-cols-4",
+  5: "@min-[62rem]/workspace:grid-cols-5",
+  6: "@min-[62rem]/workspace:grid-cols-3",
 }
 
 export function BentoGrid({
@@ -30,12 +30,12 @@ export function BentoGrid({
   const count = React.Children.toArray(children).length
   const columnClass = columns
     ? COLUMNS_FOR_COUNT[columns]
-    : (COLUMNS_FOR_COUNT[count] ?? "lg:grid-cols-4")
+    : (COLUMNS_FOR_COUNT[count] ?? "@min-[62rem]/workspace:grid-cols-4")
 
   return (
     <div
       className={cn(
-        "dashboard-bento-grid grid grid-cols-1 gap-6 sm:grid-cols-2",
+        "dashboard-bento-grid grid grid-cols-1 gap-4 @min-[30rem]/workspace:grid-cols-2",
         columnClass,
         className,
       )}
@@ -72,8 +72,8 @@ export function BentoCard({
       data-slot="dashboard-surface"
       className={cn(
         variant === "metric"
-          ? "col-span-1 overflow-hidden rounded-2xl border border-black/6 bg-card shadow-xs dark:border-white/10"
-          : "col-span-1 border-t border-black/9 py-5 dark:border-white/10",
+          ? "col-span-1 overflow-hidden rounded-xl border border-border bg-card"
+          : "col-span-1 border-t border-border py-5",
         SPAN_CLASS[span],
         className,
       )}

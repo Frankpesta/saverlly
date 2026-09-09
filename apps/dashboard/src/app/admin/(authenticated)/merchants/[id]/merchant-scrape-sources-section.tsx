@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -30,7 +32,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import { cn } from "@/lib/utils"
 
 export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: string }) {
-  const { data: allSources, isLoading, isError } = useScrapeSources()
+  const { data: allSources, isLoading, isError, refetch } = useScrapeSources()
   const runNow = useRunScrapeSourceNow()
 
   const sources = React.useMemo(
@@ -60,7 +62,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
         </Link>
       </CardHeader>
       <CardContent>
-        {isError && <p className="text-sm text-destructive">Could not load scrape sources.</p>}
+        {isError && <InlineQueryError message="Could not load scrape sources." onRetry={refetch} />}
 
         <Table>
           <TableHeader>

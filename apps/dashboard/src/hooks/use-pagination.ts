@@ -9,15 +9,17 @@ export const DEFAULT_PAGE_SIZE = 25
  * an out-of-range page silently showing stale rows. Resets during render (React's documented
  * "adjusting state when a prop changes" pattern) rather than in an effect, since setting
  * state synchronously inside an effect just to re-render immediately is redundant work. */
-export function usePagination<T>(items: T[] | undefined, pageSize: number = DEFAULT_PAGE_SIZE) {
+export function usePagination<T>(items: T[] | undefined, pageSize: number = DEFAULT_PAGE_SIZE, resetKey?: string) {
   const totalItems = items?.length ?? 0
   const pageCount = Math.max(1, Math.ceil(totalItems / pageSize))
 
   const [page, setPage] = React.useState(1)
   const [prevTotalItems, setPrevTotalItems] = React.useState(totalItems)
+  const [previousResetKey, setPreviousResetKey] = React.useState(resetKey)
 
-  if (totalItems !== prevTotalItems) {
+  if (totalItems !== prevTotalItems || previousResetKey !== resetKey) {
     setPrevTotalItems(totalItems)
+    setPreviousResetKey(resetKey)
     setPage(1)
   }
 

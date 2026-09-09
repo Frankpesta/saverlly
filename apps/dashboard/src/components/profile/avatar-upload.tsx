@@ -117,7 +117,7 @@ export function AvatarUpload({
             onError={() => setFailed(true)}
           />
         ) : (
-          <span className="flex size-full items-center justify-center bg-[var(--brand-teal-tint)] text-2xl font-semibold tracking-tight text-[var(--brand-teal)]">
+          <span className="flex size-full items-center justify-center bg-[var(--brand-teal-tint)] text-2xl font-semibold tracking-tight text-[var(--brand-ink)]">
             {profileInitials(name, email)}
           </span>
         )}

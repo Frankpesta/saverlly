@@ -76,7 +76,7 @@ export function ChangePasswordForm({ homeUrl, tagline }: { homeUrl: string; tagl
         className="w-full max-w-sm"
       >
         <div className="mb-10 flex flex-col gap-2">
-          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-teal)] uppercase">Secure your account</p>
+          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-ink)] uppercase">Secure your account</p>
           <h1 className="text-3xl font-semibold tracking-[-0.045em]">Set a new password</h1>
           <p className="text-sm leading-6 text-muted-foreground">You&apos;re using a temporary password. Create one only you know before continuing.</p>
         </div>

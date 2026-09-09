@@ -72,7 +72,7 @@ export function NotificationDetailDialog({
                 slot. It now sits in the footer meta row. */}
             <DialogHeader className="gap-2.5">
               <div className="flex items-center gap-2">
-                <Badge className="bg-[var(--brand-teal-tint)] text-[var(--brand-teal)] hover:bg-[var(--brand-teal-tint)]">
+                <Badge className="bg-[var(--brand-teal-tint)] text-[var(--brand-ink)] hover:bg-[var(--brand-teal-tint)]">
                   {TYPE_LABEL[notification.type]}
                 </Badge>
                 {!notification.readAt && (

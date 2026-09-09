@@ -55,13 +55,13 @@ describe("NewMerchantPage", () => {
     expect(screen.getByLabelText("Name")).toBeInTheDocument()
     expect(screen.getByLabelText("Domain")).toBeInTheDocument()
     // "Tracking method" is both this section's label and a field label inside
-    // AttributionFields, so match the uppercase section eyebrow specifically.
-    expect(screen.getByText("Tracking method", { selector: "span" })).toBeInTheDocument()
-    expect(screen.getByText("Coupon sourcing", { selector: "span" })).toBeInTheDocument()
+    // AttributionFields, so match the section heading specifically.
+    expect(screen.getByRole("heading", { name: "Tracking method" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Coupon sourcing" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /continue/i })).not.toBeInTheDocument()
   })
 
-  it("creates the store and routes to its detail page", async () => {
+  it("creates the merchant and routes to its detail page", async () => {
     const user = userEvent.setup()
     renderWithClient(<NewMerchantPage />)
 
@@ -71,7 +71,7 @@ describe("NewMerchantPage", () => {
       screen.getByLabelText("Affiliate tracking URL"),
       "https://track.target.com",
     )
-    await user.click(screen.getByRole("button", { name: /add store/i }))
+    await user.click(screen.getByRole("button", { name: /add merchant/i }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(

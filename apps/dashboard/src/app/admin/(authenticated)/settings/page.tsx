@@ -16,7 +16,7 @@ export default function AdminSettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-title">Settings</h2>
+        <h1 className="text-title">Settings</h1>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-10">

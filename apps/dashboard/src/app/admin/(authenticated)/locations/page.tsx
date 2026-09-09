@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -23,15 +25,21 @@ import { useDeleteLocation, useLocations } from "@/lib/api/hooks/use-locations"
 import { useDevices } from "@/lib/api/hooks/use-devices"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
+import { useCollectionView } from "@/hooks/use-collection-view"
+import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 import { cn } from "@/lib/utils"
 import { SetupCodeCell } from "@/components/dashboard/setup-code-cell"
 
 export default function AdminLocationsPage() {
-  const { data: locations, isLoading, isError } = useLocations()
+  const { data: locations, isLoading, isError, refetch } = useLocations()
   const { data: devices } = useDevices()
   const { data: kiosks } = useKiosks()
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(locations)
+  const view = useCollectionView(locations, {
+    searchText: (item) => [item.name, item.address, item.city, item.state, ...item.tags].join(" "),
+    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }) }],
+  })
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
   const deleteLocation = useDeleteLocation()
 
   function handleDelete(id: string, name: string) {
@@ -74,13 +82,15 @@ export default function AdminLocationsPage() {
         }
       />
 
-      <CollectionSummary items={[
+      <CollectionSummary isLoading={isLoading} isError={isError} items={[
         { label: "Locations", value: stats.total, detail: "Across the platform" },
         { label: "Devices", value: stats.devices, detail: "Registered endpoints" },
         { label: "Kiosks represented", value: stats.kiosks, detail: "With live locations" },
       ]} />
 
-      {isError && <p className="text-sm text-destructive">Could not load locations.</p>}
+      <CollectionToolbar view={view} label="Locations" />
+
+      {isError && <InlineQueryError message="Could not load locations." onRetry={refetch} />}
 
       <CollectionArea title="Location directory" titleHidden count={totalItems}>
       <div className="flex flex-col gap-2">
@@ -106,7 +116,7 @@ export default function AdminLocationsPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && locations?.length === 0 && (
+            {!isLoading && !isError && view.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground">
                   No locations yet.

@@ -146,13 +146,13 @@ export function PromotionForm({
             <ArrowLeftIcon className="size-3.5" />
             Promotions
           </Link>
-          <h2 className="text-title">{heading}</h2>
+          <h1 className="text-title">{heading}</h1>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
       </div>
 
-      <div className="flex flex-col gap-8">
+      <div className="@container/form-card entity-form-sections flex max-w-6xl flex-col gap-8 rounded-xl border border-border bg-card p-5 sm:p-8">
           <FormSection label="Details">
             <FormField
               label="Name"

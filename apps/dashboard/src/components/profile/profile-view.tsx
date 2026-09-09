@@ -22,6 +22,7 @@ import { ApiError } from "@/lib/api/client"
 import { emailSchema, nameSchema } from "@/lib/validation/schemas"
 import type { UserProfile } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
+import { InlineQueryError } from "@/components/dashboard/query-state"
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Admin",
@@ -55,12 +56,14 @@ function memberSince(iso: string | undefined): string | null {
  * console-driven, so branching on the role keeps the two from drifting apart.
  */
 export function ProfileView({ settingsHref }: { settingsHref: string }) {
-  const { data: user, isLoading } = useCurrentUser()
+  const { data: user, isLoading, isError, refetch } = useCurrentUser()
+
+  if (isError) return <InlineQueryError message="Could not load your profile." onRetry={refetch} />
 
   if (isLoading || !user) {
     return (
       <div className="flex flex-col gap-6">
-        <h2 className="text-title">Profile</h2>
+        <h1 className="text-title">Profile</h1>
         <Skeleton className="h-40 w-full rounded-lg" />
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <Skeleton className="h-72 w-full rounded-lg" />
@@ -72,7 +75,7 @@ export function ProfileView({ settingsHref }: { settingsHref: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-title">Profile</h2>
+      <h1 className="text-title">Profile</h1>
 
       <IdentityBand user={user} />
 
@@ -176,8 +179,8 @@ function PersonalDetailsCard({ user }: { user: UserProfile }) {
           <Button type="button" variant="outline" disabled={!isDirty} onClick={() => reset()}>
             Discard
           </Button>
-          <Button type="submit" disabled={isSubmitting || !isDirty}>
-            {isSubmitting ? "Saving…" : "Save changes"}
+          <Button type="submit" disabled={isSubmitting || updateMe.isPending || !isDirty}>
+            {isSubmitting || updateMe.isPending ? "Saving…" : "Save changes"}
           </Button>
         </CardFooter>
       </form>
@@ -238,7 +241,7 @@ function AccessCard({ user }: { user: UserProfile }) {
           <p className="mt-3 border-t border-black/[0.06] pt-3 text-sm text-muted-foreground dark:border-white/10">
             None of this is self-service.{" "}
             {supportEmail ? (
-              <a href={`mailto:${supportEmail}`} className="text-[var(--brand-teal)] hover:underline">
+              <a href={`mailto:${supportEmail}`} className="text-[var(--brand-ink)] hover:underline">
                 Ask your Saverlly admin
               </a>
             ) : (

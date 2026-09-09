@@ -1,8 +1,12 @@
+"use client"
+
 import * as React from "react"
+import { useFieldMessage } from "@/components/ui/field-message-context"
 
 import { cn } from "@/lib/utils"
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  const field = useFieldMessage()
   return (
     <input
       type={type}
@@ -12,6 +16,8 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         className
       )}
       {...props}
+      aria-describedby={props["aria-describedby"] ?? field.messageId}
+      aria-invalid={props["aria-invalid"] ?? field.invalid}
     />
   )
 }

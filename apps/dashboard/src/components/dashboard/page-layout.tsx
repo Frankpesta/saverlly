@@ -32,7 +32,7 @@ export function WorkspaceHeader({
         <h1 className="text-title text-foreground">{title}</h1>
         {description && <p className="mt-1.5 text-body text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>
   )
 }
@@ -40,22 +40,27 @@ export function WorkspaceHeader({
 export function CollectionSummary({
   items,
   className,
+  isLoading = false,
+  isError = false,
 }: {
   items: { label: string; value: React.ReactNode; detail?: string }[]
   className?: string
+  isLoading?: boolean
+  isError?: boolean
 }) {
   return (
     <dl
       className={cn(
-        "grid divide-y divide-black/[0.07] border-y border-black/[0.09] sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-white/10 dark:border-white/10",
+        "grid divide-y divide-border border-y border-border sm:divide-x sm:divide-y-0",
+        items.length === 2 ? "sm:grid-cols-2" : items.length === 1 ? "sm:grid-cols-1" : "sm:grid-cols-3",
         className,
       )}
     >
       {items.map((item) => (
         <div key={item.label} className="min-w-0 py-4 sm:px-5 sm:first:pl-0 sm:last:pr-0">
           <dt className="text-eyebrow text-muted-foreground uppercase">{item.label}</dt>
-          <dd className="mt-1.5 text-title tabular-nums text-foreground">{item.value}</dd>
-          {item.detail && <p className="mt-0.5 text-meta text-muted-foreground">{item.detail}</p>}
+          <dd className="mt-1.5 text-title tabular-nums text-foreground" aria-busy={isLoading}>{isLoading ? "…" : isError ? "Unavailable" : item.value}</dd>
+          {!isLoading && !isError && item.detail && <p className="mt-0.5 text-meta text-muted-foreground">{item.detail}</p>}
         </div>
       ))}
     </dl>
@@ -71,44 +76,32 @@ export function CollectionSummary({
 export function CollectionArea({
   title,
   description,
-  count,
   titleHidden = false,
   children,
   className,
 }: {
   title: string
   description?: string
+  /** Kept for callers that still pass a count from a previous layout; no longer rendered here
+   * (the card stat tiles above the table are the one source of truth for totals now). */
   count?: number
   /** Keep the heading for screen readers but drop it visually. Use this on a list page whose
    * WorkspaceHeader already names the same collection: rendering "Kiosks" in the top bar,
    * again as the h1, and a third time as "Kiosk directory" above the table is the clutter the
-   * client called confusing. The count still renders, since that is the row's real content. */
+   * client called confusing. */
   titleHidden?: boolean
   children: React.ReactNode
   className?: string
 }) {
   const headingId = `${title.toLowerCase().replace(/\s+/g, "-")}-heading`
-  const bare = titleHidden && !description
 
   return (
     <section className={cn("flex flex-col gap-4", className)} aria-labelledby={headingId}>
-      <div
-        className={cn(
-          "flex items-end justify-between gap-4",
-          // With nothing visible on the left the row is just a right-aligned count, so it
-          // should not also claim a heading's worth of vertical space.
-          bare && "min-h-0",
-        )}
-      >
-        <div className={cn(titleHidden && "sr-only")}>
-          <h2 id={headingId} className="text-heading">
-            {title}
-          </h2>
-          {description && <p className="mt-1 text-body text-muted-foreground">{description}</p>}
-        </div>
-        {count !== undefined && (
-          <span className="shrink-0 text-meta tabular-nums text-muted-foreground">{count} total</span>
-        )}
+      <div className={cn(titleHidden && "sr-only")}>
+        <h2 id={headingId} className="text-heading">
+          {title}
+        </h2>
+        {description && <p className="mt-1 text-body text-muted-foreground">{description}</p>}
       </div>
       {children}
     </section>

@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -21,14 +23,21 @@ import { TablePagination } from "@/components/dashboard/table-pagination"
 import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useKiosks, useUpdateKioskStatus } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
+import { useCollectionView } from "@/hooks/use-collection-view"
+import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 import { KIOSK_STATUS_BADGE_VARIANT, KIOSK_STATUS_LABEL } from "@/lib/dashboard/status-labels"
 import { cn } from "@/lib/utils"
 
 export default function KiosksPage() {
-  const { data: kiosks, isLoading, isError } = useKiosks()
+  const { data: kiosks, isLoading, isError, refetch } = useKiosks()
   const updateStatus = useUpdateKioskStatus()
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(kiosks)
+  const view = useCollectionView(kiosks, {
+    searchText: (item) => item.name,
+    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }) }, { label: "Revenue share: highest", value: "share", compare: (a, b) => Number(b.revenueSharePct) - Number(a.revenueSharePct) }],
+    filters: [{ label: "Active", value: "active", matches: (item) => item.status === "ACTIVE" }, { label: "Inactive", value: "inactive", matches: (item) => !(item.status === "ACTIVE") }],
+  })
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
   const stats = React.useMemo(() => {
     const list = kiosks ?? []
@@ -65,13 +74,15 @@ export default function KiosksPage() {
         }
       />
 
-      <CollectionSummary items={[
+      <CollectionSummary isLoading={isLoading} isError={isError} items={[
         { label: "Kiosks", value: stats.total, detail: "Registered businesses" },
         { label: "Active", value: stats.active, detail: `${stats.active} of ${stats.total} kiosks active` },
         { label: "Avg. revenue share", value: `${stats.avgShare.toFixed(1)}%`, detail: "Across all kiosks" },
       ]} />
 
-      {isError && <p className="text-sm text-destructive">Could not load kiosks.</p>}
+      <CollectionToolbar view={view} label="Kiosks" />
+
+      {isError && <InlineQueryError message="Could not load kiosks." onRetry={refetch} />}
 
       <CollectionArea title="Kiosk directory" titleHidden count={totalItems}>
         <div className="flex flex-col gap-2">
@@ -94,10 +105,10 @@ export default function KiosksPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && kiosks?.length === 0 && (
+            {!isLoading && !isError && view.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  No kiosks yet.
+                  {view.hasFilters ? "No records match your search or filters." : "No kiosks yet."}
                 </TableCell>
               </TableRow>
             )}

@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
@@ -45,7 +47,7 @@ type KioskEditFormValues = z.infer<typeof kioskEditSchema>
 export default function KioskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { data: kiosk, isLoading, isError } = useKiosk(id)
+  const { data: kiosk, isLoading, isError, refetch } = useKiosk(id)
   const updateStatus = useUpdateKioskStatus()
 
   function toggleStatus() {
@@ -72,7 +74,7 @@ export default function KioskDetailPage() {
           </Link>
           {/* No "Kiosk profile" eyebrow above the name: the back link already says Kiosks and
               the heading already names this one, so it was a third rendering of the same idea. */}
-          <h2 className="text-title">{kiosk?.name ?? "Kiosk"}</h2>
+          <h1 className="text-title">{kiosk?.name ?? "Kiosk"}</h1>
         </div>
         {kiosk && (
           <div className="flex items-center gap-3">
@@ -82,7 +84,7 @@ export default function KioskDetailPage() {
         )}
       </div>
 
-      {isError && <p className="text-sm text-destructive">Could not load this kiosk.</p>}
+      {isError && <InlineQueryError message="Could not load this kiosk." onRetry={refetch} />}
 
       {isLoading && <Skeleton className="h-64 w-full max-w-lg" />}
 
@@ -91,7 +93,7 @@ export default function KioskDetailPage() {
         // is a list of addresses with their own tag editors, so it was the widest content on the
         // page crammed into the narrowest column, wrapping every address over two lines while
         // the left column ran out of content well above it.
-        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div className="detail-layout">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Business details</CardTitle>
@@ -113,7 +115,7 @@ export default function KioskDetailPage() {
 
           <KioskUsersSection kioskId={kiosk.id} />
 
-          <div className="lg:col-span-2">
+          <div className="@min-[64rem]/workspace:col-span-2">
             <KioskLocationsSection kioskId={kiosk.id} />
           </div>
         </div>
@@ -169,8 +171,8 @@ function KioskEditForm({ kiosk }: { kiosk: Kiosk }) {
         </FormGrid>
       </CardContent>
       <CardFooter>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving…" : "Save changes"}
+        <Button type="submit" disabled={isSubmitting || updateKiosk.isPending}>
+          {isSubmitting || updateKiosk.isPending ? "Saving…" : "Save changes"}
         </Button>
       </CardFooter>
     </form>

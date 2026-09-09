@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 export function PromotionsEmptyState() {
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl border border-black/8 bg-card px-6 py-16 text-center shadow-xs dark:border-white/10">
-      <span className="flex size-12 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-[var(--brand-teal)]">
+      <span className="flex size-12 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-[var(--brand-ink)]">
         <MegaphoneIcon className="size-5" />
       </span>
       <div className="flex flex-col gap-1.5">

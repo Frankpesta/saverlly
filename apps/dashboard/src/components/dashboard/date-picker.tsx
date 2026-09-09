@@ -148,7 +148,7 @@ export function DateRangePicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <div className={cn("flex items-center gap-1.5", className)}>
+      <div className={cn("grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 sm:w-auto", className)}>
         <DateField
           id={id}
           value={fromDigits}
@@ -157,7 +157,7 @@ export function DateRangePicker({
           aria-label="From"
           aria-invalid={ariaInvalid}
           disabled={disabled}
-          className="w-40"
+          className="min-w-0 sm:w-40"
         />
         <span className="text-meta text-muted-foreground">to</span>
         <DateField
@@ -167,7 +167,7 @@ export function DateRangePicker({
           aria-label="To"
           aria-invalid={ariaInvalid}
           disabled={disabled}
-          className="w-40"
+          className="min-w-0 sm:w-40"
           trailing={<CalendarToggle disabled={disabled} label="Open calendar" />}
         />
       </div>

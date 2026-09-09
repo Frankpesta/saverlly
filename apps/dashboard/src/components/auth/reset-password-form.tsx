@@ -82,7 +82,7 @@ export function ResetPasswordForm({
         className="w-full max-w-sm"
       >
         <div className="mb-10 flex flex-col gap-2">
-          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-teal)] uppercase">
+          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-ink)] uppercase">
             Reset password
           </p>
           <h1 className="text-3xl font-semibold tracking-[-0.045em]">Choose a new password</h1>

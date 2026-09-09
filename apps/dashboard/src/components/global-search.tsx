@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/command"
 import { useSearch } from "@/lib/api/hooks/use-search"
 import type { SearchResult, SearchResultType } from "@/lib/api/types"
+import { InlineQueryError } from "@/components/dashboard/query-state"
 
 const DEBOUNCE_MS = 200
 const MIN_QUERY_LENGTH = 2
@@ -74,7 +75,18 @@ export function GlobalSearch() {
     return () => clearTimeout(timer)
   }, [rawQuery])
 
-  const { data, isFetching } = useSearch(debouncedQuery)
+  const { data, isFetching, isError, refetch } = useSearch(debouncedQuery)
+
+  React.useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        setOpen((current) => !current)
+      }
+    }
+    window.addEventListener("keydown", handleShortcut)
+    return () => window.removeEventListener("keydown", handleShortcut)
+  }, [])
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
@@ -129,7 +141,7 @@ export function GlobalSearch() {
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                   effectiveActiveType === type
-                    ? "border-transparent bg-(--brand-teal) text-white"
+                    ? "border-transparent bg-primary text-primary-foreground"
                     : "border-border text-muted-foreground hover:border-(--brand-teal-soft) hover:text-foreground",
                 )}
               >
@@ -147,7 +159,8 @@ export function GlobalSearch() {
           {hasQuery && isFetching && (
             <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
           )}
-          {hasQuery && !isFetching && results.length === 0 && (
+          {hasQuery && isError && <InlineQueryError message="Could not search. Please try again." onRetry={refetch} />}
+          {hasQuery && !isError && !isFetching && results.length === 0 && (
             <CommandEmpty>No results for &ldquo;{trimmed}&rdquo;.</CommandEmpty>
           )}
           {hasQuery &&

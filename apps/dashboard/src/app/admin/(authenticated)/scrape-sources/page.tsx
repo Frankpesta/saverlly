@@ -1,9 +1,11 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { DatabaseIcon, CircleCheckIcon, PencilIcon, PlayIcon, PlusIcon } from "lucide-react"
+import { PencilIcon, PlayIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,9 +19,8 @@ import {
   TableRow,
   TableRowActions,
 } from "@/components/ui/table"
-import { BentoGrid } from "@/components/dashboard/bento-grid"
+import { CollectionSummary } from "@/components/dashboard/page-layout"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
-import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import {
   useDeleteScrapeSource,
@@ -30,14 +31,21 @@ import {
 import { useMerchants } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
+import { useCollectionView } from "@/hooks/use-collection-view"
+import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 import type { ScrapeSource } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
 
 export default function ScrapeSourcesPage() {
-  const { data: sources, isLoading, isError } = useScrapeSources()
+  const { data: sources, isLoading, isError, refetch } = useScrapeSources()
   const { data: merchants } = useMerchants()
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(sources)
+  const view = useCollectionView(sources, {
+    searchText: (item) => item.url,
+    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.url.localeCompare(b.url, undefined, { numeric: true }) }],
+    filters: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !(item.active) }],
+  })
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
   const merchantNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -52,9 +60,9 @@ export default function ScrapeSourcesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h2 className="text-title">Scrape Sources</h2>
+          <h1 className="text-title">Scrape Sources</h1>
           <p className="text-sm text-muted-foreground">
             Pages the scraper checks on a schedule for new coupon codes.
           </p>
@@ -65,12 +73,11 @@ export default function ScrapeSourcesPage() {
         </Link>
       </div>
 
-      <BentoGrid>
-        <StatTile label="Total sources" value={stats.total} icon={<DatabaseIcon />} />
-        <StatTile label="Active" value={stats.active} icon={<CircleCheckIcon />} />
-      </BentoGrid>
+      <CollectionSummary isLoading={isLoading} isError={isError} items={[{ label: "Sources", value: stats.total }, { label: "Active", value: stats.active }]} />
 
-      {isError && <p className="text-sm text-destructive">Could not load scrape sources.</p>}
+      <CollectionToolbar view={view} label="Scrape sources" />
+
+      {isError && <InlineQueryError message="Could not load scrape sources." onRetry={refetch} />}
 
       <div className="flex flex-col gap-2">
         <Table>
@@ -78,7 +85,7 @@ export default function ScrapeSourcesPage() {
             <TableRow>
               <TableHead>URL</TableHead>
               <TableHead>Merchant</TableHead>
-              <TableHead>Every</TableHead>
+              <TableHead>Run interval</TableHead>
               <TableHead>Last run</TableHead>
               <TableHead>Active</TableHead>
               <TableHead className="w-32" />
@@ -94,10 +101,10 @@ export default function ScrapeSourcesPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && sources?.length === 0 && (
+            {!isLoading && !isError && view.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  No scrape sources yet.
+                  {view.hasFilters ? "No records match your search or filters." : "No scrape sources yet."}
                 </TableCell>
               </TableRow>
             )}

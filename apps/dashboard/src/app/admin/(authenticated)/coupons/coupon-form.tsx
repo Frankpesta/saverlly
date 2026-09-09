@@ -1,5 +1,7 @@
 "use client"
 
+import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
+
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useForm, Controller } from "react-hook-form"
@@ -138,6 +140,7 @@ export function CouponForm({
         pendingLabel="Saving…"
         isPending={isPending}
       >
+          <FormErrorSummary errors={errors} />
         <FormSection label="Coupon">
           {!lockedMerchantId && !isEdit && (
             <FormField label="Merchant" htmlFor="coupon-merchant" error={errors.merchantId?.message}>

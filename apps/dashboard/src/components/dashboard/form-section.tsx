@@ -1,9 +1,11 @@
-import { isValidElement, cloneElement, type ReactElement, type ReactNode } from "react"
+"use client"
+
+import { isValidElement, cloneElement, useId, type ReactElement, type ReactNode } from "react"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { FieldMessageContext } from "@/components/ui/field-message-context"
 
-/** A labeled group of fields within a wizard step or edit form. The small uppercase eyebrow
- *  ("PROJECT DETAILS"-style) groups related fields visually, matching the forms reference. */
+/** Related fields with a heading that moves beside the controls when the form is wide enough. */
 export function FormSection({
   label,
   description,
@@ -16,19 +18,15 @@ export function FormSection({
   className?: string
 }) {
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <section className={cn("form-section flex min-w-0 flex-col gap-5", className)}>
       {(label || description) && (
-        <div className="flex flex-col gap-0.5">
-          {label && (
-            <span className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-              {label}
-            </span>
-          )}
+        <div className="form-section-heading flex flex-col gap-1.5">
+          {label && <h2 className="text-heading">{label}</h2>}
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
       )}
-      {children}
-    </div>
+      <div className="form-section-fields flex min-w-0 flex-col gap-5">{children}</div>
+    </section>
   )
 }
 
@@ -36,7 +34,13 @@ export function FormSection({
  *  the reference pairs related fields (Project Name / Client) side by side rather than
  *  stacking every field full-width. */
 export function FormGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("grid grid-cols-1 gap-5 sm:grid-cols-2", className)}>{children}</div>
+  return (
+    <div className="@container/fields min-w-0">
+      <div className={cn("grid grid-cols-1 gap-5 @min-[30rem]/fields:grid-cols-2", className)}>
+        {children}
+      </div>
+    </div>
+  )
 }
 
 /** Label + control stack. The repeated shape every field in a form already had, pulled into
@@ -59,23 +63,46 @@ export function FormField({
   children: ReactNode
   className?: string
 }) {
-  // Single-element children (the overwhelming common case. One Input/Combobox/etc. per field)
-  // get `aria-invalid` injected automatically so the red-border styling built into those
-  // components picks it up without every call site having to wire it by hand. Controller-wrapped
-  // fields ignore the extra prop harmlessly and set it themselves via `fieldState.error` instead.
-  const content =
-    error && isValidElement(children)
-      ? cloneElement(children as ReactElement<{ "aria-invalid"?: boolean }>, { "aria-invalid": true })
-      : children
+  const generatedId = useId()
+  const messageId = `${htmlFor ?? generatedId}-message`
+  // Direct children receive ARIA props; context carries them through Controller wrappers.
+  const content = isValidElement(children)
+    ? cloneElement(
+        children as ReactElement<{ "aria-invalid"?: boolean; "aria-describedby"?: string }>,
+        {
+          ...(error ? { "aria-invalid": true } : {}),
+          ...(error || hint
+            ? {
+                "aria-describedby": [
+                  (children.props as { "aria-describedby"?: string })["aria-describedby"],
+                  messageId,
+                ]
+                  .filter(Boolean)
+                  .join(" "),
+              }
+            : {}),
+        },
+      )
+    : children
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
-      {content}
+      <FieldMessageContext.Provider
+        value={{ messageId: error || hint ? messageId : undefined, invalid: !!error }}
+      >
+        {content}
+      </FieldMessageContext.Provider>
       {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+        <p id={messageId} className="text-xs text-destructive">
+          {error}
+        </p>
       ) : (
-        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+        hint && (
+          <p id={messageId} className="text-xs text-muted-foreground">
+            {hint}
+          </p>
+        )
       )}
     </div>
   )

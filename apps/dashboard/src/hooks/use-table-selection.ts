@@ -6,19 +6,13 @@ import * as React from "react"
 export function useTableSelection<T>(items: T[], getId: (item: T) => string) {
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
 
-  React.useEffect(() => {
-    setSelectedIds((prev) => {
-      const validIds = new Set(items.map(getId))
-      let changed = false
-      const next = new Set<string>()
-      for (const id of prev) {
-        if (validIds.has(id)) next.add(id)
-        else changed = true
-      }
-      return changed ? next : prev
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- getId is expected to be stable per call site
-  }, [items])
+  const visibleKey = JSON.stringify(items.map(getId))
+  const [previousVisibleKey, setPreviousVisibleKey] = React.useState(visibleKey)
+  if (previousVisibleKey !== visibleKey) {
+    setPreviousVisibleKey(visibleKey)
+    const validIds = new Set(items.map(getId))
+    setSelectedIds(new Set([...selectedIds].filter((id) => validIds.has(id))))
+  }
 
   const allSelected = items.length > 0 && items.every((item) => selectedIds.has(getId(item)))
   const someSelected = selectedIds.size > 0 && !allSelected

@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -24,6 +26,8 @@ import { useDeleteMerchant, useMerchants, useUpdateMerchant } from "@/lib/api/ho
 import { useCoupons } from "@/lib/api/hooks/use-coupons"
 import { ApiError } from "@/lib/api/client"
 import type { AttributionMethod } from "@/lib/api/types"
+import { useCollectionView } from "@/hooks/use-collection-view"
+import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 import { cn } from "@/lib/utils"
 
@@ -34,9 +38,14 @@ const METHOD_LABEL: Record<AttributionMethod, string> = {
 }
 
 export default function MerchantsPage() {
-  const { data: merchants, isLoading, isError } = useMerchants()
+  const { data: merchants, isLoading, isError, refetch } = useMerchants()
   const { data: coupons } = useCoupons()
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(merchants)
+  const view = useCollectionView(merchants, {
+    searchText: (item) => [item.name, item.domain].join(" "),
+    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }) }],
+    filters: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !(item.active) }],
+  })
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
   const couponCountByMerchant = React.useMemo(() => {
     const counts = new Map<string, number>()
@@ -67,13 +76,15 @@ export default function MerchantsPage() {
         }
       />
 
-      <CollectionSummary items={[
+      <CollectionSummary isLoading={isLoading} isError={isError} items={[
         { label: "Merchants", value: stats.total, detail: "Tracked stores" },
         { label: "Active", value: stats.active, detail: "Currently enabled" },
         { label: "With programme", value: stats.withProgram, detail: "Affiliate-linked" },
       ]} />
 
-      {isError && <p className="text-sm text-destructive">Could not load merchants.</p>}
+      <CollectionToolbar view={view} label="Merchants" />
+
+      {isError && <InlineQueryError message="Could not load merchants." onRetry={refetch} />}
 
       <CollectionArea title="Merchant directory" titleHidden count={totalItems}>
       <div className="flex flex-col gap-2">
@@ -98,10 +109,10 @@ export default function MerchantsPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && merchants?.length === 0 && (
+            {!isLoading && !isError && view.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  No merchants yet.
+                  {view.hasFilters ? "No records match your search or filters." : "No merchants yet."}
                 </TableCell>
               </TableRow>
             )}

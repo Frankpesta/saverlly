@@ -1,5 +1,7 @@
 "use client"
 
+import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
+
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -105,8 +107,8 @@ export default function NewMerchantPage() {
             } catch (error) {
               toast.error(
                 error instanceof ApiError
-                  ? `Store created, but the scrape source failed: ${error.message}`
-                  : "Store created, but the scrape source failed.",
+                  ? `Merchant created, but the scrape source failed: ${error.message}`
+                  : "Merchant created, but the scrape source failed.",
               )
               router.push(`/admin/merchants/${merchant.id}`)
               return
@@ -116,7 +118,7 @@ export default function NewMerchantPage() {
           router.push(`/admin/merchants/${merchant.id}`)
         },
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not add store."),
+          toast.error(error instanceof ApiError ? error.message : "Could not add merchant."),
       },
     )
   }
@@ -125,14 +127,15 @@ export default function NewMerchantPage() {
 
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)} noValidate>
-      <EntityFormHeader backHref="/admin/merchants" backLabel="Merchants" heading="Add store" />
+      <EntityFormHeader backHref="/admin/merchants" backLabel="Merchants" heading="Add merchant" />
 
       <EntityFormCard
         cancelHref="/admin/merchants"
-        submitLabel="Add store"
+        submitLabel="Add merchant"
         pendingLabel="Adding…"
         isPending={isPending}
       >
+          <FormErrorSummary errors={errors} />
         <FormSection label="Basic info">
           <FormGrid>
             <FormField label="Name" htmlFor="new-merchant-name" error={errors.name?.message}>

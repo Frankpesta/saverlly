@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
+import { MotionConfig } from "motion/react";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(
@@ -23,10 +24,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
+        <MotionConfig reducedMotion="user"><TooltipProvider>
           {children}
           <Toaster />
-        </TooltipProvider>
+        </TooltipProvider></MotionConfig>
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
     </ThemeProvider>

@@ -8,7 +8,7 @@ import { XIcon } from "lucide-react"
  *  callers can mount it unconditionally right after their <Table>. */
 export function TableSelectionToolbar({
   count,
-  label = "selected",
+  label = "selected on this page",
   onClear,
   children,
 }: {
@@ -20,8 +20,8 @@ export function TableSelectionToolbar({
   if (count === 0) return null
 
   return (
-    <div className="sticky bottom-4 z-10 flex justify-center py-2">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-[var(--brand-black)] px-4 py-2 text-sm text-white shadow-[0_12px_32px_rgba(0,0,0,0.28)]">
+    <div role="region" aria-label="Selected rows" className="sticky bottom-0 z-10 py-2">
+      <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-lg bg-[var(--brand-black)] px-4 py-3 text-sm text-white shadow-sm">
         <span className="font-medium whitespace-nowrap">
           {count} {label}
         </span>

@@ -35,7 +35,7 @@ export default function PortalSettingsPage() {
               {kioskContact?.email ? (
                 <a
                   href={`mailto:${kioskContact.email}`}
-                  className="text-[var(--brand-teal)] hover:underline"
+                  className="text-[var(--brand-ink)] hover:underline"
                 >
                   {kioskContact.name || "your kiosk owner"}
                 </a>
@@ -43,7 +43,7 @@ export default function PortalSettingsPage() {
                 "your kiosk owner"
               )}{" "}
               to change your locations or team access. Your own name, email and photo are on your{" "}
-              <Link href="/portal/profile" className="text-[var(--brand-teal)] hover:underline">
+              <Link href="/portal/profile" className="text-[var(--brand-ink)] hover:underline">
                 profile
               </Link>
               .

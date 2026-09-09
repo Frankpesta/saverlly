@@ -1,5 +1,7 @@
 "use client"
 
+import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
+
 import * as React from "react"
 import { toast } from "sonner"
 import { useForm, Controller } from "react-hook-form"
@@ -108,6 +110,7 @@ export default function NewTeamMemberPage() {
         isPending={isSubmitting}
         submitDisabled={!kioskId}
       >
+          <FormErrorSummary errors={errors} />
         <FormSection label="Who are they?">
           <FormGrid>
             <FormField label="Name" htmlFor="team-member-name" error={errors.name?.message}>
