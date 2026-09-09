@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import { toast } from "sonner"
 import { HandCoinsIcon, CircleCheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react"
@@ -56,7 +58,7 @@ export default function AdminCommissionsPage() {
     dateTo: dateTo ? new Date(dateTo).toISOString() : undefined,
   }
 
-  const { data: events, isLoading, isError } = useCommissionEvents(filter)
+  const { data: events, isLoading, isError, refetch } = useCommissionEvents(filter)
   // Ticks every minute so the growth stats below recompute across a calendar-month boundary
   // even if `events` itself hasn't changed (mirrors announcements/page.tsx).
   const [now, setNow] = React.useState(() => Date.now())
@@ -64,7 +66,7 @@ export default function AdminCommissionsPage() {
     const interval = setInterval(() => setNow(Date.now()), 60_000)
     return () => clearInterval(interval)
   }, [])
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(events)
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(events, undefined, JSON.stringify(filter))
   const { data: kiosks } = useKiosks()
   const { data: merchants } = useMerchants()
   const { data: locations } = useLocations()
@@ -123,9 +125,9 @@ export default function AdminCommissionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-title">Commissions</h2>
+          <h1 className="text-title">Commissions</h1>
           <p className="text-sm text-muted-foreground">
             Every commission event platform-wide, pending vs. confirmed clearly distinguished.
           </p>
@@ -136,15 +138,16 @@ export default function AdminCommissionsPage() {
         </Button>
       </div>
 
+      <p className="text-meta text-muted-foreground">Summary of the filtered results. Monthly comparisons use this same scope.</p>
       <BentoGrid>
-        <StatTile
+        <StatTile isLoading={isLoading} isError={isError}
           label="Total events"
           value={events?.length ?? 0}
           icon={<HandCoinsIcon />}
           delta={totalGrowth}
           subtext={totalGrowth !== null ? "vs last month" : undefined}
         />
-        <StatTile
+        <StatTile isLoading={isLoading} isError={isError}
           label="Confirmed"
           value={byStatus.CONFIRMED}
           format={formatCurrency}
@@ -152,7 +155,7 @@ export default function AdminCommissionsPage() {
           delta={confirmedGrowth}
           subtext={confirmedGrowth !== null ? "vs last month" : undefined}
         />
-        <StatTile
+        <StatTile isLoading={isLoading} isError={isError}
           label="Pending"
           value={byStatus.PENDING}
           format={formatCurrency}
@@ -160,7 +163,9 @@ export default function AdminCommissionsPage() {
         />
       </BentoGrid>
 
-      <div className="flex flex-wrap items-end gap-3">
+      {isError && <InlineQueryError message="Could not load commission events." onRetry={refetch} />}
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-status">Status</Label>
           <Combobox
@@ -215,9 +220,9 @@ export default function AdminCommissionsPage() {
             }}
           />
         </div>
-      </div>
+        <Button type="button" variant="ghost" onClick={() => { setStatus(ALL); setKioskId(ALL); setMerchantId(ALL); setDateFrom(""); setDateTo("") }}>Clear filters</Button>
 
-      {isError && <p className="text-sm text-destructive">Could not load commission events.</p>}
+      </div>
 
       <div className="flex flex-col gap-2">
         <Table>
@@ -225,7 +230,7 @@ export default function AdminCommissionsPage() {
             <TableRow>
               <TableHead>Merchant</TableHead>
               <TableHead>Kiosk</TableHead>
-              <TableHead>Amount</TableHead>
+              <TableHead className="text-right">Total commission</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Reported</TableHead>
             </TableRow>
@@ -256,7 +261,7 @@ export default function AdminCommissionsPage() {
                 <TableCell>
                   {kioskNameById.get(deviceKioskMap.get(event.deviceId) ?? "") ?? "Unknown kiosk"}
                 </TableCell>
-                <TableCell>{formatCurrency(event.commissionAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatCurrency(event.commissionAmount)}</TableCell>
                 <TableCell>
                   <Badge variant={COMMISSION_STATUS_BADGE_VARIANT[event.status]}>
                     {COMMISSION_STATUS_LABEL[event.status]}

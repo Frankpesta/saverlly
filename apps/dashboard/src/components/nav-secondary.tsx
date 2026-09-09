@@ -38,7 +38,7 @@ export function NavSecondary({
                   isActive={active}
                   className={navItemClassName(active)}
                 >
-                  <Link href={item.url} onClick={() => setOpenMobile(false)}>
+                  <Link aria-current={active ? "page" : undefined} href={item.url} onClick={() => setOpenMobile(false)}>
                     {item.icon}
                     <span>{item.title}</span>
                   </Link>

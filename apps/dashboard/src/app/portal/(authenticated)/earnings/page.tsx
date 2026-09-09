@@ -1,5 +1,7 @@
 "use client"
 
+import { QueryBoundary } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import { toast } from "sonner"
 import { WalletIcon, ClockIcon, TrendingUpIcon, CreditCardIcon, ExternalLinkIcon } from "lucide-react"
@@ -35,13 +37,19 @@ import {
 import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
 
 export default function PortalEarningsPage() {
-  const { data: currentUser } = useCurrentUser()
+  const currentUserQuery = useCurrentUser()
+  const { data: currentUser } = currentUserQuery
   const kioskId = currentUser?.kioskId ?? ""
-  const { data: kiosk } = useKiosk(kioskId)
-  const { data: balance } = useMyBalance()
-  const { data: events, isLoading: eventsLoading } = useMyCommissionEvents()
-  const { data: payouts, isLoading: payoutsLoading } = useMyPayouts()
-  const { data: devices } = useDevices()
+  const kioskQuery = useKiosk(kioskId)
+  const { data: kiosk } = kioskQuery
+  const balanceQuery = useMyBalance()
+  const { data: balance } = balanceQuery
+  const eventsQuery = useMyCommissionEvents()
+  const { data: events, isLoading: eventsLoading } = eventsQuery
+  const payoutsQuery = useMyPayouts()
+  const { data: payouts, isLoading: payoutsLoading } = payoutsQuery
+  const devicesQuery = useDevices()
+  const { data: devices } = devicesQuery
   const stripeOnboard = useStripeOnboard()
 
   const confirmedEvents = React.useMemo(
@@ -94,9 +102,10 @@ export default function PortalEarningsPage() {
   const stripePayoutsEnabled = kiosk?.stripePayoutsEnabled ?? false
 
   return (
+    <QueryBoundary queries={[currentUserQuery, balanceQuery, eventsQuery, payoutsQuery, devicesQuery, kioskQuery]} label="earnings">
     <div className="flex flex-col gap-8">
       <div>
-        <h2 className="text-title">Earnings</h2>
+        <h1 className="text-title">Earnings</h1>
         <p className="text-sm text-muted-foreground">
           Your balance, payout history, and account connection.
         </p>
@@ -122,7 +131,7 @@ export default function PortalEarningsPage() {
           format={formatCurrency}
           icon={<TrendingUpIcon />}
           delta={earningsGrowth}
-          subtext="Lifetime"
+          subtext="Lifetime · change vs last month"
         />
         <StatTile
           label="Total paid out"
@@ -176,7 +185,7 @@ export default function PortalEarningsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Device</TableHead>
-                <TableHead>Amount</TableHead>
+                <TableHead>Your share / total commission</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Reported</TableHead>
               </TableRow>
@@ -204,7 +213,7 @@ export default function PortalEarningsPage() {
                   <TableCell className="font-medium">
                     {deviceLabelById.get(event.deviceId) ?? "Unknown device"}
                   </TableCell>
-                  <TableCell>{formatCurrency(event.commissionAmount)}</TableCell>
+                  <TableCell className="tabular-nums"><span className="block font-medium">{formatCurrency(event.kioskShareAmount)}</span><span className="text-meta text-muted-foreground">{formatCurrency(event.commissionAmount)} total</span></TableCell>
                   <TableCell>
                     <Badge variant={COMMISSION_STATUS_BADGE_VARIANT[event.status]}>
                       {COMMISSION_STATUS_LABEL[event.status]}
@@ -284,5 +293,6 @@ export default function PortalEarningsPage() {
         </CardContent>
       </Card>
     </div>
+    </QueryBoundary>
   )
 }

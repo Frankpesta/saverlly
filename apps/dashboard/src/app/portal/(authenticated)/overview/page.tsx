@@ -1,5 +1,7 @@
 "use client"
 
+import { QueryBoundary } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import {
@@ -54,15 +56,22 @@ function greeting(): string {
 }
 
 export default function PortalOverviewPage() {
-  const { data: currentUser } = useCurrentUser()
+  const currentUserQuery = useCurrentUser()
+  const { data: currentUser } = currentUserQuery
   const isKioskOwner = currentUser?.role === "KIOSK_OWNER"
   const kioskId = currentUser?.kioskId ?? ""
-  const { data: kiosk, isLoading: kioskLoading } = useKiosk(kioskId)
-  const { data: events, isLoading: eventsLoading } = useMyCommissionEvents({ enabled: isKioskOwner })
-  const { data: payouts, isLoading: payoutsLoading } = useMyPayouts({ enabled: isKioskOwner })
-  const { data: locations, isLoading: locationsLoading } = useLocations()
-  const { data: devices, isLoading: devicesLoading } = useDevices()
-  const { data: announcements, isLoading: announcementsLoading } = useAnnouncements()
+  const kioskQuery = useKiosk(isKioskOwner ? kioskId : "")
+  const { data: kiosk, isLoading: kioskLoading } = kioskQuery
+  const eventsQuery = useMyCommissionEvents({ enabled: isKioskOwner })
+  const { data: events, isLoading: eventsLoading } = eventsQuery
+  const payoutsQuery = useMyPayouts({ enabled: isKioskOwner })
+  const { data: payouts, isLoading: payoutsLoading } = payoutsQuery
+  const locationsQuery = useLocations()
+  const { data: locations, isLoading: locationsLoading } = locationsQuery
+  const devicesQuery = useDevices()
+  const { data: devices, isLoading: devicesLoading } = devicesQuery
+  const announcementsQuery = useAnnouncements()
+  const { data: announcements, isLoading: announcementsLoading } = announcementsQuery
 
   const confirmedEvents = React.useMemo(
     () => (events ?? []).filter((e) => e.status === "CONFIRMED"),
@@ -134,12 +143,13 @@ export default function PortalOverviewPage() {
   const displayName = currentUser?.name || currentUser?.email.split("@")[0] || "there"
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="flex items-center justify-between">
+    <QueryBoundary queries={[currentUserQuery, locationsQuery, devicesQuery, eventsQuery, payoutsQuery, announcementsQuery, ...(isKioskOwner ? [kioskQuery] : [])]} label="overview">
+    <div className="overview-layout flex flex-col gap-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-title">
+          <h1 className="text-title">
             {greeting()}, {displayName}
-          </h2>
+          </h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             {kioskLoading ? (
               <Skeleton className="h-5 w-16" />
@@ -229,7 +239,7 @@ export default function PortalOverviewPage() {
                 <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   {entry.total} device{entry.total === 1 ? "" : "s"}
                   {entry.total > 0 && entry.active === entry.total ? (
-                    <CircleCheckIcon className="size-3.5 text-[var(--brand-teal)]" />
+                    <CircleCheckIcon className="size-3.5 text-[var(--brand-ink)]" />
                   ) : (
                     <CirclePauseIcon className="size-3.5 text-muted-foreground" />
                   )}
@@ -278,7 +288,7 @@ export default function PortalOverviewPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Device</TableHead>
-              <TableHead>Amount</TableHead>
+              <TableHead>Your share / total commission</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -303,7 +313,7 @@ export default function PortalOverviewPage() {
                 <TableCell className="font-medium">
                   {deviceLabelById.get(event.deviceId) ?? "Unknown device"}
                 </TableCell>
-                <TableCell>{formatCurrency(event.commissionAmount)}</TableCell>
+                <TableCell className="tabular-nums"><span className="block font-medium">{formatCurrency(event.kioskShareAmount)}</span><span className="text-meta text-muted-foreground">{formatCurrency(event.commissionAmount)} total</span></TableCell>
                 <TableCell>
                   <Badge variant={COMMISSION_STATUS_BADGE_VARIANT[event.status]}>
                     {COMMISSION_STATUS_LABEL[event.status]}
@@ -372,7 +382,7 @@ export default function PortalOverviewPage() {
               const body = (
                 <>
                   <span className="flex items-center gap-1.5 text-sm font-medium">
-                    <MegaphoneIcon className="size-3.5 text-[var(--brand-teal)]" />
+                    <MegaphoneIcon className="size-3.5 text-[var(--brand-ink)]" />
                     {announcement.title}
                   </span>
                   <span className="text-xs text-muted-foreground">
@@ -399,5 +409,6 @@ export default function PortalOverviewPage() {
         </BentoCard>
       </div>
     </div>
+    </QueryBoundary>
   )
 }

@@ -38,7 +38,7 @@ export function EntityFormHeader({
           {backLabel}
         </Link>
         <div>
-          <h2 className="text-title">{heading}</h2>
+          <h1 className="text-title">{heading}</h1>
           {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
         </div>
       </div>
@@ -78,15 +78,20 @@ export function EntityFormCard({
   className?: string
 }) {
   return (
-    <Card className={cn("w-full [--card-spacing:--spacing(8)]", className)}>
+    <Card
+      className={cn(
+        "entity-form-card @container/form-card w-full max-w-6xl self-start [--card-spacing:--spacing(5)] sm:[--card-spacing:--spacing(8)]",
+        className,
+      )}
+    >
       {title && (
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>{title}</CardTitle>
           {headerExtra}
         </CardHeader>
       )}
-      <CardContent className="flex flex-col gap-8">{children}</CardContent>
-      <CardFooter className="justify-end gap-2">
+      <CardContent className="entity-form-sections flex flex-col gap-8">{children}</CardContent>
+      <CardFooter className="flex-wrap justify-end gap-2">
         <Link href={cancelHref} className={cn(buttonVariants({ variant: "outline" }))}>
           Cancel
         </Link>
@@ -118,9 +123,9 @@ export function EntityCreatedPanel({
   doneLabel: string
 }) {
   return (
-    <div className="flex flex-col items-center gap-6 rounded-2xl border border-black/8 bg-card p-10 text-center shadow-xs dark:border-white/10">
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 rounded-xl border border-border bg-card p-6 text-center shadow-xs sm:p-10">
       {icon && (
-        <span className="flex size-12 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-[var(--brand-teal)]">
+        <span className="flex size-12 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-[var(--brand-ink)]">
           {icon}
         </span>
       )}

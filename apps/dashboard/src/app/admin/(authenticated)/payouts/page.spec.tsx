@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import AdminPayoutsPage from "./page"
@@ -92,5 +92,31 @@ describe("AdminPayoutsPage", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     )
+  })
+
+  it("keeps confirmation open and prevents duplicate submits until a failed request settles", async () => {
+    let finishRequest!: (response: Response) => void
+    global.fetch = jest.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        return new Promise<Response>((resolve) => { finishRequest = resolve })
+      }
+      return { ok: true, status: 200, json: async () => payouts } as Response
+    }) as jest.Mock
+    const user = userEvent.setup()
+    renderWithClient(<AdminPayoutsPage />)
+    await screen.findByText("Kiosk One")
+    await user.click(screen.getAllByRole("button", { name: "Process" })[0])
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "Process" }))
+    expect(await within(dialog).findByRole("button", { name: "Processing…" })).toBeDisabled()
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled()
+    await user.keyboard("{Escape}")
+    expect(dialog).toBeInTheDocument()
+    await act(async () => finishRequest({
+      ok: false, status: 503, json: async () => ({ message: "Transfer service unavailable" }),
+    } as Response))
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Transfer service unavailable")
+    expect(within(dialog).getByRole("button", { name: "Process" })).toBeEnabled()
+    expect((global.fetch as jest.Mock).mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1)
   })
 })

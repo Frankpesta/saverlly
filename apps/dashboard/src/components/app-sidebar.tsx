@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/sidebar"
 
 export type NavItem = {
+  group?: string
   title: string
   url: string
   icon?: React.ReactNode

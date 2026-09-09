@@ -30,6 +30,7 @@ const STATUS_STYLE: Record<PromotionStatus, { dot: string; text: string }> = {
 }
 
 export function PromotionCard({ promotion, now }: { promotion: Promotion; now: number }) {
+  const [failedImageUrl, setFailedImageUrl] = React.useState<string | null>(null)
   const status = promotionStatus(promotion, now)
   const style = STATUS_STYLE[status]
   const updatePromotion = useUpdatePromotion(promotion.id)
@@ -73,15 +74,13 @@ export function PromotionCard({ promotion, now }: { promotion: Promotion; now: n
         aria-label={`Edit ${promotion.name}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- proxied, arbitrary-origin image */}
-        <img
+        {failedImageUrl !== promotion.imageSmallUrl ? <img
           src={proxiedImageUrl(promotion.imageSmallUrl)}
           alt=""
           className="block w-full object-cover"
           style={{ aspectRatio: "320 / 100" }}
-          onError={(e) => {
-            e.currentTarget.style.visibility = "hidden"
-          }}
-        />
+          onError={() => setFailedImageUrl(promotion.imageSmallUrl)}
+        /> : <div className="flex aspect-[320/100] items-center justify-center text-meta text-muted-foreground">Creative preview unavailable</div>}
         {/* bg-card/90, not a literal white, because the pill sits over arbitrary artwork in both themes. */}
         <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-card/90 px-2.5 py-1 text-[11px] font-medium shadow-sm backdrop-blur-sm">
           <span className={cn("size-1.5 rounded-full", style.dot)} />
@@ -117,7 +116,7 @@ export function PromotionCard({ promotion, now }: { promotion: Promotion; now: n
 
         {/* Actions stay out of the way until the card is hovered or something inside it is
             focused, so the gallery reads as artwork rather than as a toolbar grid. */}
-        <div className="mt-3 flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+        <div data-slot="promotion-actions" className="mt-3 flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           <Link
             href={`/admin/promotions/${promotion.id}`}
             className={cn(

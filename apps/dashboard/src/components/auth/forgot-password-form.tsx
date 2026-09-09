@@ -56,7 +56,7 @@ export function ForgotPasswordForm({
         className="w-full max-w-sm"
       >
         <div className="mb-10 flex flex-col gap-2">
-          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-teal)] uppercase">
+          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-ink)] uppercase">
             Reset password
           </p>
           <h1 className="text-3xl font-semibold tracking-[-0.045em]">Forgot your password?</h1>
@@ -73,7 +73,7 @@ export function ForgotPasswordForm({
             </p>
             <Link
               href={`/${portal}/login`}
-              className="flex items-center gap-1.5 text-sm font-medium text-[var(--brand-teal)] hover:underline"
+              className="flex items-center gap-1.5 text-sm font-medium text-[var(--brand-ink)] hover:underline"
             >
               <ArrowLeftIcon className="size-4" />
               Back to sign in

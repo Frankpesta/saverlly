@@ -1,5 +1,9 @@
 "use client"
 
+import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
+
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -41,12 +45,12 @@ export default function EditTeamMemberPage() {
   const { id } = useParams<{ id: string }>()
   const { data: currentUser } = useCurrentUser()
   const kioskId = currentUser?.kioskId ?? ""
-  const { data: users, isLoading, isError } = useKioskUsers(kioskId)
+  const { data: users, isLoading, isError, refetch } = useKioskUsers(kioskId)
   const member = users?.find((user) => user.id === id)
 
   return (
     <div className="flex flex-col gap-6">
-      {isError && <p className="text-sm text-destructive">Could not load this team member.</p>}
+      {isError && <InlineQueryError message="Could not load this team member." onRetry={refetch} />}
       {isLoading && (
         <>
           <Skeleton className="h-16 w-64" />
@@ -183,6 +187,7 @@ function TeamMemberEditor({ kioskId, member }: { kioskId: string; member: KioskU
           pendingLabel="Saving…"
           isPending={isSubmitting}
         >
+          <FormErrorSummary errors={errors} />
           <FormSection label="Details">
             <FormGrid>
               <FormField label="Name" htmlFor="team-member-name" error={errors.name?.message}>

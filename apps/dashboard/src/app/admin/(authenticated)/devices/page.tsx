@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -23,17 +25,24 @@ import { useLocations } from "@/lib/api/hooks/use-locations"
 import { useKiosks } from "@/lib/api/hooks/use-kiosks"
 import { ApiError } from "@/lib/api/client"
 import { relativeTime } from "@/lib/relative-time"
+import { useCollectionView } from "@/hooks/use-collection-view"
+import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 
 const ONLINE_THRESHOLD_MS = 60 * 60 * 1000 // 1 hour, matching the extension's own grace window
 
 export default function AdminDevicesPage() {
-  const { data: devices, isLoading, isError } = useDevices()
+  const { data: devices, isLoading, isError, refetch } = useDevices()
   const { data: locations } = useLocations()
   const { data: kiosks } = useKiosks()
   const updateDevice = useUpdateDevice()
   const deleteDevice = useDeleteDevice()
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(devices)
+  const view = useCollectionView(devices, {
+    searchText: (item) => [item.label, locations?.find((location) => location.id === item.locationId)?.name].join(" "),
+    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }) }, { label: "Last seen: newest", value: "seen", compare: (a, b) => new Date(b.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime() }],
+    filters: [{ label: "Enabled", value: "active", matches: (item) => item.active }, { label: "Disabled", value: "inactive", matches: (item) => !(item.active) }],
+  })
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
   const kioskNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -87,13 +96,15 @@ export default function AdminDevicesPage() {
         title="Devices"
       />
 
-      <CollectionSummary items={[
+      <CollectionSummary isLoading={isLoading} isError={isError} items={[
         { label: "Devices", value: stats.total, detail: "Registered endpoints" },
         { label: "Active", value: stats.active, detail: "Available to report" },
         { label: "Seen in the last hour", value: stats.online, detail: "Currently responsive" },
       ]} />
 
-      {isError && <p className="text-sm text-destructive">Could not load devices.</p>}
+      <CollectionToolbar view={view} label="Devices" />
+
+      {isError && <InlineQueryError message="Could not load devices." onRetry={refetch} />}
 
       <CollectionArea title="Device directory" titleHidden count={totalItems}>
       <div className="flex flex-col gap-2">
@@ -118,12 +129,12 @@ export default function AdminDevicesPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && devices?.length === 0 && (
+            {!isLoading && !isError && view.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
                   {/* Devices register themselves using a location's setup code, so an empty
                       table is exactly the moment someone needs to find one. */}
-                  No devices registered yet. A device joins by entering its location&apos;s{" "}
+                  {view.hasFilters ? "No records match your search or filters." : "No devices registered yet."} A device joins by entering its location&apos;s{" "}
                   <Link href="/admin/locations" className="text-foreground underline underline-offset-2">
                     setup code
                   </Link>

@@ -59,7 +59,11 @@ describe("NewPortalLocationPage", () => {
 
     await user.click(screen.getByRole("button", { name: /create location/i }))
 
-    expect(await screen.findByText("Address is required")).toBeInTheDocument()
+    const errorLink = await screen.findByRole("button", { name: "Address is required" })
+    await user.click(errorLink)
+    expect(screen.getByLabelText("Address")).toHaveFocus()
+    expect(screen.getByLabelText("Address")).toHaveAccessibleDescription("Address is required")
+    expect(screen.getByLabelText("Address")).toHaveAttribute("aria-invalid", "true")
     expect(global.fetch).not.toHaveBeenCalled()
   })
 

@@ -76,8 +76,8 @@ export function PlatformSection() {
               {...register("supportEmail")}
             />
           </FormField>
-          <Button type="submit" className="w-fit" disabled={isSubmitting || !isDirty}>
-            {isSubmitting ? "Saving…" : "Save"}
+          <Button type="submit" className="w-fit" disabled={isSubmitting || updateSettings.isPending || !isDirty}>
+            {isSubmitting || updateSettings.isPending ? "Saving…" : "Save"}
           </Button>
         </form>
       )}

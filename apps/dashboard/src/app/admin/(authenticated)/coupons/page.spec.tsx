@@ -102,17 +102,17 @@ describe("CouponsPage", () => {
     renderWithClient(<CouponsPage />)
 
     await screen.findByText("SAVE10")
-    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Selected rows" })).not.toBeInTheDocument()
 
     const rowCheckboxes = screen.getAllByRole("checkbox", { name: /^Select SAVE/ })
     await user.click(rowCheckboxes[0])
-    expect(await screen.findByText("1 selected")).toBeInTheDocument()
+    expect(await screen.findByText("1 selected on this page")).toBeInTheDocument()
 
     await user.click(rowCheckboxes[1])
-    expect(await screen.findByText("2 selected")).toBeInTheDocument()
+    expect(await screen.findByText("2 selected on this page")).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /clear selection/i }))
-    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "Selected rows" })).not.toBeInTheDocument()
   })
 
   it("bulk-deletes every selected coupon and clears the selection afterward", async () => {
@@ -139,13 +139,13 @@ describe("CouponsPage", () => {
     const rowCheckboxes = screen.getAllByRole("checkbox", { name: /^Select SAVE/ })
     await user.click(rowCheckboxes[0])
     await user.click(rowCheckboxes[1])
-    await screen.findByText("2 selected")
+    await screen.findByText("2 selected on this page")
 
     await user.click(screen.getByRole("button", { name: /^Delete$/ }))
     const dialog = await screen.findByRole("alertdialog")
     await user.click(within(dialog).getByRole("button", { name: /^Delete$/ }))
 
     await waitFor(() => expect(deletedIds.sort()).toEqual(["c-1", "c-2"]))
-    await waitFor(() => expect(screen.queryByText(/selected/)).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Selected rows" })).not.toBeInTheDocument())
   })
 })

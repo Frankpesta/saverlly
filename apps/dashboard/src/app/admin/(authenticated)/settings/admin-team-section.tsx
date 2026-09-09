@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { profileInitials } from "@/components/profile/avatar-upload"
@@ -18,7 +20,7 @@ import { ApiError } from "@/lib/api/client"
 
 export function AdminTeamSection() {
   const { data: currentUser } = useCurrentUser()
-  const { data: admins, isLoading, isError } = useAdminUsers()
+  const { data: admins, isLoading, isError, refetch } = useAdminUsers()
   const updateAdmin = useUpdateAdminUser()
   const deleteAdmin = useDeleteAdminUser()
 
@@ -42,7 +44,7 @@ export function AdminTeamSection() {
 
   return (
     <div className="flex flex-col gap-3">
-      {isError && <p className="text-sm text-destructive">Could not load employees.</p>}
+      {isError && <InlineQueryError message="Could not load employees." onRetry={refetch} />}
       {isLoading && <Skeleton className="h-10 w-full" />}
       {!isLoading &&
         admins?.map((admin) => {

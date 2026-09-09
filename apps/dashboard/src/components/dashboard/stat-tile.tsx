@@ -1,28 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { animate, useMotionValue, useTransform } from "motion/react"
 import { ArrowDownRightIcon, ArrowUpRightIcon } from "lucide-react"
 import { BentoCard } from "@/components/dashboard/bento-grid"
 import { cn } from "@/lib/utils"
-
-function useAnimatedNumber(target: number, duration = 0.8) {
-  const motionValue = useMotionValue(0)
-  const rounded = useTransform(motionValue, (latest) => latest)
-  const [display, setDisplay] = React.useState(0)
-
-  React.useEffect(() => {
-    const controls = animate(motionValue, target, { duration, ease: "easeOut" })
-    const unsubscribe = rounded.on("change", (latest) => setDisplay(latest))
-    return () => {
-      controls.stop()
-      unsubscribe()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- motionValue/rounded are stable refs from useMotionValue/useTransform
-  }, [target, duration])
-
-  return display
-}
 
 const defaultFormat = (n: number) =>
   Intl.NumberFormat(undefined, { notation: n >= 1000 ? "compact" : "standard" }).format(
@@ -37,6 +18,8 @@ export function StatTile({
   delta,
   subtext,
   className,
+  isLoading = false,
+  isError = false,
 }: {
   label: string
   value: number
@@ -48,33 +31,34 @@ export function StatTile({
   /** Small muted line under the value, e.g. "this month" or "12 payouts". */
   subtext?: React.ReactNode
   className?: string
+  isLoading?: boolean
+  isError?: boolean
 }) {
-  const animated = useAnimatedNumber(value)
-  const hasDelta = delta !== undefined && delta !== null
+  const hasDelta = !isLoading && !isError && delta !== undefined && delta !== null
 
   return (
     <BentoCard
       variant="metric"
-      className={cn("dashboard-metric-card flex flex-col gap-4 p-5", className)}
+      className={cn("dashboard-metric-card flex flex-col gap-3 p-4 sm:p-5", className)}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className="text-eyebrow text-muted-foreground uppercase">{label}</span>
+        <span className="text-label text-muted-foreground">{label}</span>
         {icon && (
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--brand-teal-tint)] text-[var(--brand-teal)] [&_svg]:size-5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-teal-tint)] text-[var(--brand-ink)] [&_svg]:size-4">
             {icon}
           </span>
         )}
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-display tabular-nums">{format(animated)}</span>
+        <span className="text-title break-words tabular-nums sm:text-display" aria-busy={isLoading}>{isLoading ? "…" : isError ? "Unavailable" : format(value)}</span>
         {(hasDelta || subtext) && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-meta">
             {hasDelta && (
               <span
                 className={cn(
                   "inline-flex items-center gap-0.5 font-semibold",
-                  delta >= 0 ? "text-[var(--success)]" : "text-destructive",
+                  delta >= 0 ? "text-[var(--success-foreground)]" : "text-destructive",
                 )}
               >
                 {delta >= 0 ? (

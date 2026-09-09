@@ -233,11 +233,11 @@ export function Calendar(props: CalendarProps) {
 
   return (
     <div
-      className={cn("flex gap-3 p-3", className)}
+      className={cn("flex max-w-[calc(100vw-2rem)] flex-col gap-3 p-3 sm:flex-row", className)}
       onPointerLeave={() => { if (!dragAnchor) setHoverDate(null) }}
     >
       {isRange && (props as RangeProps).presets && (
-        <div className="flex w-32 shrink-0 flex-col gap-0.5 border-r border-border pr-3">
+        <div className="flex max-w-64 flex-wrap gap-0.5 border-b border-border pb-3 sm:w-32 sm:flex-col sm:border-r sm:border-b-0 sm:pr-3 sm:pb-0">
           {(props as RangeProps).presets!.map((preset) => (
             <Button
               key={preset.label}

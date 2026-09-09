@@ -5,6 +5,7 @@ import { CheckIcon, ChevronDownIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useFieldMessage } from "@/components/ui/field-message-context"
 import {
   Command,
   CommandEmpty,
@@ -36,6 +37,8 @@ interface ComboboxProps {
   className?: string
   size?: "sm" | "default"
   "aria-invalid"?: boolean
+  "aria-label"?: string
+  "aria-describedby"?: string
   /** Free-typed text that doesn't match any option is discarded on blur/close (default combobox
    * behavior). Set true to also call onValueChange with the raw typed text when the popover
    * closes without a selected match. Useful for fields that accept an option list as
@@ -56,7 +59,10 @@ function Combobox({
   size = "default",
   allowCustomValue = false,
   "aria-invalid": ariaInvalid,
+  "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
 }: ComboboxProps) {
+  const field = useFieldMessage()
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
 
@@ -82,7 +88,9 @@ function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-invalid={ariaInvalid}
+          aria-invalid={ariaInvalid ?? field.invalid}
+          aria-label={ariaLabel}
+          aria-describedby={ariaDescribedBy ?? field.messageId}
           disabled={disabled}
           data-slot="select-trigger"
           data-size={size}

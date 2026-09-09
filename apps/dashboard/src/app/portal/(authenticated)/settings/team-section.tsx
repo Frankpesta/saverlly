@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -19,7 +21,7 @@ import type { KioskUser } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
 
 export function TeamSection({ kioskId }: { kioskId: string }) {
-  const { data: users, isLoading, isError } = useKioskUsers(kioskId)
+  const { data: users, isLoading, isError, refetch } = useKioskUsers(kioskId)
   const { data: locations } = useLocations()
   const updateUser = useUpdateKioskUser(kioskId)
 
@@ -65,7 +67,7 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
           <AvatarFallback
             className={
               isOwner
-                ? "bg-[var(--brand-teal-tint)] text-xs font-semibold text-[var(--brand-teal)]"
+                ? "bg-[var(--brand-teal-tint)] text-xs font-semibold text-[var(--brand-ink)]"
                 : "text-xs"
             }
           >
@@ -76,7 +78,7 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex items-center gap-1.5 truncate text-sm font-medium">
             {user.name || user.email}
-            {isOwner && <CrownIcon className="size-3.5 shrink-0 text-[var(--brand-teal)]" />}
+            {isOwner && <CrownIcon className="size-3.5 shrink-0 text-[var(--brand-ink)]" />}
           </span>
           {user.name && (
             <span className="truncate text-xs text-muted-foreground">{user.email}</span>
@@ -116,7 +118,7 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
   return (
     <SettingsSection title="Team">
       <div className="flex flex-col gap-5">
-        {isError && <p className="text-sm text-destructive">Could not load team members.</p>}
+        {isError && <InlineQueryError message="Could not load team members." onRetry={refetch} />}
         {isLoading && <Skeleton className="h-16 w-full" />}
 
         {owners.length > 0 && (

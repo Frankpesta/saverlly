@@ -79,7 +79,7 @@ export function LoginForm({
         className="w-full max-w-sm"
       >
         <div className="mb-10 flex flex-col gap-2">
-          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-teal)] uppercase">Secure sign in</p>
+          <p className="text-xs font-semibold tracking-[0.12em] text-[var(--brand-ink)] uppercase">Secure sign in</p>
           <h1 className="text-3xl font-semibold tracking-[-0.045em]">{title}</h1>
           <p className="text-sm leading-6 text-muted-foreground">Sign in to continue to your workspace.</p>
         </div>

@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { PlusIcon } from "lucide-react"
@@ -15,7 +17,7 @@ const FILTERS = ["All", "Live", "Scheduled", "Paused", "Ended"] as const
 type Filter = (typeof FILTERS)[number]
 
 export default function AdminPromotionsPage() {
-  const { data: promotions, isLoading, isError } = usePromotions()
+  const { data: promotions, isLoading, isError, refetch } = usePromotions()
   const [filter, setFilter] = React.useState<Filter>("All")
 
   // Status is time-derived, so it has to be recomputed as the clock crosses a start/end
@@ -50,7 +52,7 @@ export default function AdminPromotionsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-title">Promotions</h2>
+          <h1 className="text-title">Promotions</h1>
           <p className="text-sm text-muted-foreground">
             Sponsored creatives shown inside the Saverlly Chrome extension.
           </p>
@@ -94,7 +96,7 @@ export default function AdminPromotionsPage() {
         })}
       </div>
 
-      {isError && <p className="text-sm text-destructive">Could not load promotions.</p>}
+      {isError && <InlineQueryError message="Could not load promotions." onRetry={refetch} />}
 
       {isLoading && (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -110,9 +112,9 @@ export default function AdminPromotionsPage() {
         </div>
       )}
 
-      {!isLoading && withStatus.length === 0 && <PromotionsEmptyState />}
+      {!isLoading && !isError && withStatus.length === 0 && <PromotionsEmptyState />}
 
-      {!isLoading && withStatus.length > 0 && visible.length === 0 && (
+      {!isLoading && !isError && withStatus.length > 0 && visible.length === 0 && (
         <p className="py-12 text-center text-sm text-muted-foreground">
           No {filter.toLowerCase()} promotions right now.
         </p>

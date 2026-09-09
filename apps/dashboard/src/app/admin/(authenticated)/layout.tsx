@@ -19,18 +19,18 @@ import { getCurrentUser } from "@/lib/auth/session"
 // not a flat cross-kiosk list, so it lives on each kiosk's own detail page instead.
 const navMain = [
   { title: "Overview", url: "/admin/overview", icon: <LayoutDashboardIcon /> },
-  { title: "Kiosks", url: "/admin/kiosks", icon: <StoreIcon /> },
-  { title: "Locations", url: "/admin/locations", icon: <MapPinIcon /> },
-  { title: "Devices", url: "/admin/devices", icon: <MonitorIcon /> },
+  { group: "Network", title: "Kiosks", url: "/admin/kiosks", icon: <StoreIcon /> },
+  { group: "Network", title: "Locations", url: "/admin/locations", icon: <MapPinIcon /> },
+  { group: "Network", title: "Devices", url: "/admin/devices", icon: <MonitorIcon /> },
   // Promotions replaced admin-side Announcements outright, announcements are now a kiosk-owner
   // feature in the portal only. See apps/dashboard/src/app/portal/(authenticated)/announcements.
-  { title: "Promotions", url: "/admin/promotions", icon: <MegaphoneIcon /> },
-  { title: "Merchants", url: "/admin/merchants", icon: <ShoppingBagIcon /> },
-  { title: "Coupons", url: "/admin/coupons", icon: <TagIcon /> },
-  { title: "Scrape Sources", url: "/admin/scrape-sources", icon: <DatabaseIcon /> },
-  { title: "Affiliate Programs", url: "/admin/affiliate-programs", icon: <LinkIcon /> },
-  { title: "Commissions", url: "/admin/commissions", icon: <PercentIcon /> },
-  { title: "Payouts", url: "/admin/payouts", icon: <CreditCardIcon /> },
+  { group: "Commerce", title: "Merchants", url: "/admin/merchants", icon: <ShoppingBagIcon /> },
+  { group: "Commerce", title: "Coupons", url: "/admin/coupons", icon: <TagIcon /> },
+  { group: "Commerce", title: "Scrape Sources", url: "/admin/scrape-sources", icon: <DatabaseIcon /> },
+  { group: "Commerce", title: "Affiliate Programs", url: "/admin/affiliate-programs", icon: <LinkIcon /> },
+  { group: "Content", title: "Promotions", url: "/admin/promotions", icon: <MegaphoneIcon /> },
+  { group: "Finance", title: "Commissions", url: "/admin/commissions", icon: <PercentIcon /> },
+  { group: "Finance", title: "Payouts", url: "/admin/payouts", icon: <CreditCardIcon /> },
 ]
 
 const navSecondary = [

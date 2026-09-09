@@ -1,5 +1,7 @@
 "use client"
 
+import { QueryBoundary } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import {
@@ -60,13 +62,20 @@ const MIN_ATTEMPTS_FOR_RATE = 5
 const LOW_SUCCESS_RATE_THRESHOLD = 0.5
 
 export default function AdminOverviewPage() {
-  const { data: kiosks, isLoading: kiosksLoading } = useKiosks()
-  const { data: locations } = useLocations()
-  const { data: devices } = useDevices()
-  const { data: events, isLoading: eventsLoading } = useCommissionEvents()
-  const { data: payouts } = usePayouts()
-  const { data: merchants } = useMerchants()
-  const { data: coupons } = useCoupons()
+  const kiosksQuery = useKiosks()
+  const { data: kiosks, isLoading: kiosksLoading } = kiosksQuery
+  const locationsQuery = useLocations()
+  const { data: locations } = locationsQuery
+  const devicesQuery = useDevices()
+  const { data: devices } = devicesQuery
+  const eventsQuery = useCommissionEvents()
+  const { data: events, isLoading: eventsLoading } = eventsQuery
+  const payoutsQuery = usePayouts()
+  const { data: payouts } = payoutsQuery
+  const merchantsQuery = useMerchants()
+  const { data: merchants } = merchantsQuery
+  const couponsQuery = useCoupons()
+  const { data: coupons } = couponsQuery
   const { data: dismissedAlertKeys } = useDismissedAlerts()
   const dismissAlert = useDismissAlert()
   const undismissAlert = useUndismissAlert()
@@ -259,7 +268,9 @@ export default function AdminOverviewPage() {
   }, [kiosks])
 
   return (
-    <div className="flex flex-col gap-10">
+    <QueryBoundary queries={[kiosksQuery, locationsQuery, devicesQuery, eventsQuery, payoutsQuery, merchantsQuery, couponsQuery]} label="overview">
+    <div className="overview-layout flex flex-col gap-8">
+      <h1 className="text-title">Overview</h1>
       <section className="flex flex-col gap-4">
         <BentoGrid>
           <StatTile
@@ -276,12 +287,12 @@ export default function AdminOverviewPage() {
             subtext={`${deviceStats.active} active, ${deviceStats.disabled} disabled`}
           />
           <StatTile
-            label="Total commissions"
+            label="All commission statuses"
             value={totalCommission}
             format={formatCurrency}
             icon={<BanknoteIcon />}
             delta={totalGrowth}
-            subtext={totalGrowth !== null ? "vs last month" : undefined}
+            subtext={totalGrowth !== null ? "All time · change vs last month" : "All time"}
           />
         </BentoGrid>
       </section>
@@ -372,7 +383,7 @@ export default function AdminOverviewPage() {
               {topKiosks.map((row, i) => (
                 <TableRow key={row.key} index={i} className="border-0">
                   <TableCell className="w-10 pr-0">
-                    <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-xs font-semibold text-[var(--brand-teal)]">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-[var(--brand-teal-tint)] text-xs font-semibold text-[var(--brand-ink)]">
                       {i + 1}
                     </span>
                   </TableCell>
@@ -477,7 +488,7 @@ export default function AdminOverviewPage() {
         <BentoCard>
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <TriangleAlertIcon className="size-4 text-[var(--warning)]" />
+              <TriangleAlertIcon className="size-4 text-[var(--warning-foreground)]" />
               <h3 className="text-heading">Needs attention</h3>
             </div>
             {dismissedAttentionItems.length > 0 && (
@@ -514,7 +525,7 @@ export default function AdminOverviewPage() {
                   onClick={() => dismissAlert.mutate(item.key)}
                   disabled={dismissAlert.isPending}
                   aria-label={`Dismiss: ${item.title}`}
-                  className="shrink-0 rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                  data-slot="attention-dismiss" className="shrink-0 rounded-md p-2 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
                 >
                   <XIcon className="size-3.5" />
                 </button>
@@ -596,7 +607,7 @@ export default function AdminOverviewPage() {
       </BentoCard>
 
       <BentoCard>
-        <h3 className="mb-3 text-sm font-semibold">Recent platform activity</h3>
+        <h3 className="mb-3 text-sm font-semibold">Recent kiosk changes</h3>
         <div className="flex flex-col gap-3">
           {kiosksLoading &&
             Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
@@ -632,5 +643,6 @@ export default function AdminOverviewPage() {
         </div>
       </BentoCard>
     </div>
+    </QueryBoundary>
   )
 }

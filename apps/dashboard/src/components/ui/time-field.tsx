@@ -1,5 +1,7 @@
 "use client"
 
+import { useFieldMessage } from "@/components/ui/field-message-context"
+
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
@@ -77,6 +79,7 @@ export function TimeField({
   "aria-invalid"?: boolean
   "aria-label"?: string
 }) {
+  const fieldMessage = useFieldMessage()
   const inputRef = React.useRef<HTMLInputElement>(null)
   const caretDigit = React.useRef<number | null>(null)
   const text = formatTimeDigits(digits, period)
@@ -184,7 +187,8 @@ export function TimeField({
         autoComplete="off"
         placeholder={placeholder}
         aria-label={ariaLabel}
-        aria-invalid={ariaInvalid}
+        aria-describedby={fieldMessage.messageId}
+        aria-invalid={ariaInvalid ?? fieldMessage.invalid}
         required={required}
         disabled={disabled}
         value={text}

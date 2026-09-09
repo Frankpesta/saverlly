@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -17,7 +19,7 @@ import type { Location } from "@/lib/api/types"
 /** Every location under this kiosk, editable (name + tags) inline without leaving the page
  * full address/city/state editing still lives on the location's own detail page, linked here. */
 export function KioskLocationsSection({ kioskId }: { kioskId: string }) {
-  const { data: locations, isLoading, isError } = useLocations()
+  const { data: locations, isLoading, isError, refetch } = useLocations()
   const kioskLocations = React.useMemo(
     () => (locations ?? []).filter((l) => l.kioskId === kioskId),
     [locations, kioskId],
@@ -29,7 +31,7 @@ export function KioskLocationsSection({ kioskId }: { kioskId: string }) {
         <CardTitle>Locations</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {isError && <p className="text-sm text-destructive">Could not load locations.</p>}
+        {isError && <InlineQueryError message="Could not load locations." onRetry={refetch} />}
         {isLoading && <Skeleton className="h-10 w-full" />}
         {!isLoading && kioskLocations.length === 0 && (
           <p className="text-sm text-muted-foreground">No locations on this kiosk yet.</p>

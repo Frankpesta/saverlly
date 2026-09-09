@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import { toast } from "sonner"
 import { CreditCardIcon, ClockIcon, CircleCheckIcon } from "lucide-react"
@@ -33,12 +35,38 @@ import { ApiError } from "@/lib/api/client"
 import { formatCurrency } from "@/lib/format-currency"
 import { PAYOUT_STATUS_BADGE_VARIANT, PAYOUT_STATUS_LABEL } from "@/lib/dashboard/status-labels"
 import { monthOverMonthGrowth } from "@/lib/dashboard/aggregate"
+import { useCollectionView } from "@/hooks/use-collection-view"
+import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 import type { Payout } from "@/lib/api/types"
 
 export default function AdminPayoutsPage() {
-  const { data: payouts, isLoading, isError } = usePayouts()
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(payouts)
+  const { data: payouts, isLoading, isError, refetch } = usePayouts()
+  const view = useCollectionView(payouts, {
+    searchText: (item) => item.kiosk?.name ?? "Unassigned",
+    sorts: [
+      {
+        label: "Newest first",
+        value: "newest",
+        compare: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      },
+      {
+        label: "Amount: highest",
+        value: "amount",
+        compare: (a, b) => b.totalAmount - a.totalAmount,
+      },
+    ],
+    filters: ["PENDING", "PROCESSING", "PAID", "FAILED"].map((status) => ({
+      label: PAYOUT_STATUS_LABEL[status as Payout["status"]],
+      value: status,
+      matches: (item: Payout) => item.status === status,
+    })),
+  })
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(
+    view.items,
+    undefined,
+    view.resetKey,
+  )
 
   const stats = React.useMemo(() => {
     const list = payouts ?? []
@@ -52,7 +80,12 @@ export default function AdminPayoutsPage() {
   }, [payouts])
 
   const totalGrowth = React.useMemo(
-    () => monthOverMonthGrowth(payouts ?? [], (p) => p.createdAt, () => 1),
+    () =>
+      monthOverMonthGrowth(
+        payouts ?? [],
+        (p) => p.createdAt,
+        () => 1,
+      ),
     [payouts],
   )
   const paidGrowth = React.useMemo(
@@ -68,7 +101,7 @@ export default function AdminPayoutsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-title">Payouts</h2>
+        <h1 className="text-title">Payouts</h1>
         <p className="text-sm text-muted-foreground">
           Review pending payouts and trigger the real Stripe transfer when ready.
         </p>
@@ -76,6 +109,8 @@ export default function AdminPayoutsPage() {
 
       <BentoGrid>
         <StatTile
+          isLoading={isLoading}
+          isError={isError}
           label="Total payouts"
           value={stats.total}
           icon={<CreditCardIcon />}
@@ -83,12 +118,16 @@ export default function AdminPayoutsPage() {
           subtext={totalGrowth !== null ? "vs last month" : undefined}
         />
         <StatTile
+          isLoading={isLoading}
+          isError={isError}
           label="Awaiting processing"
           value={stats.pendingAmount}
           format={formatCurrency}
           icon={<ClockIcon />}
         />
         <StatTile
+          isLoading={isLoading}
+          isError={isError}
           label="Paid"
           value={stats.paidAmount}
           format={formatCurrency}
@@ -98,7 +137,9 @@ export default function AdminPayoutsPage() {
         />
       </BentoGrid>
 
-      {isError && <p className="text-sm text-destructive">Could not load payouts.</p>}
+      <CollectionToolbar view={view} label="Payouts" />
+
+      {isError && <InlineQueryError message="Could not load payouts." onRetry={refetch} />}
 
       <div className="flex flex-col gap-2">
         <Table>
@@ -106,7 +147,7 @@ export default function AdminPayoutsPage() {
             <TableRow>
               <TableHead>Kiosk</TableHead>
               <TableHead>Period</TableHead>
-              <TableHead>Amount</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Stripe</TableHead>
               <TableHead className="w-32" />
@@ -122,10 +163,10 @@ export default function AdminPayoutsPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && payouts?.length === 0 && (
+            {!isLoading && !isError && view.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  No payouts yet.
+                  {view.hasFilters ? "No payouts match these filters." : "No payouts yet."}
                 </TableCell>
               </TableRow>
             )}
@@ -149,12 +190,18 @@ export default function AdminPayoutsPage() {
 
 function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
   const processPayout = useProcessPayout()
+  const [confirmOpen, setConfirmOpen] = React.useState(false)
+  const [processError, setProcessError] = React.useState<string | null>(null)
 
   function handleProcess() {
+    setProcessError(null)
     processPayout.mutate(payout.id, {
-      onSuccess: () => toast.success("Payout is now processing."),
+      onSuccess: () => {
+        toast.success("Payout is now processing.")
+        setConfirmOpen(false)
+      },
       onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Could not process payout."),
+        setProcessError(error instanceof ApiError ? error.message : "Could not process payout."),
     })
   }
 
@@ -167,7 +214,9 @@ function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
         {new Date(payout.periodStart).toLocaleDateString()} -{" "}
         {new Date(payout.periodEnd).toLocaleDateString()}
       </TableCell>
-      <TableCell>{formatCurrency(payout.totalAmount)}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {formatCurrency(payout.totalAmount)}
+      </TableCell>
       <TableCell>
         <Badge variant={PAYOUT_STATUS_BADGE_VARIANT[payout.status]}>
           {PAYOUT_STATUS_LABEL[payout.status]}
@@ -180,9 +229,21 @@ function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
       </TableCell>
       <TableCell>
         {payout.status === "PENDING" && (
-          <AlertDialog>
+          <AlertDialog
+            open={confirmOpen}
+            onOpenChange={(open) => {
+              if (!processPayout.isPending) {
+                setConfirmOpen(open)
+                setProcessError(null)
+              }
+            }}
+          >
             <AlertDialogTrigger asChild>
-              <Button type="button" size="sm" disabled={!stripeConnected}>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!stripeConnected || processPayout.isPending}
+              >
                 Process
               </Button>
             </AlertDialogTrigger>
@@ -194,9 +255,22 @@ function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
                   {payout.kiosk?.name ?? "this kiosk"}. This can&apos;t be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              {processError && (
+                <div className="px-6">
+                  <InlineQueryError message={processError} />
+                </div>
+              )}
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleProcess}>Process</AlertDialogAction>
+                <AlertDialogCancel disabled={processPayout.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={processPayout.isPending}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    handleProcess()
+                  }}
+                >
+                  {processPayout.isPending ? "Processing…" : "Process"}
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

@@ -45,8 +45,8 @@
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
@@ -117,6 +117,10 @@
  */
 :root {
   --brand-teal: #58c3b7;
+  --brand-ink: #176b62;
+  --success-foreground: #116b48;
+  --warning-foreground: #80530b;
+  --info-foreground: #2457b9;
   --brand-teal-tint: #e8f6f4;
   --brand-teal-soft: #bfe6e1;
   --brand-black: #1c1c1c;
@@ -185,6 +189,10 @@
    cards one step up) instead of a flat single dark gray, and brighter status hues since the
    light palette's status colors are tuned for contrast on white, not on a dark surface. */
 .dark {
+  --brand-ink: #58c3b7;
+  --success-foreground: #34d399;
+  --warning-foreground: #f2b84b;
+  --info-foreground: #6ea8ff;
   --background: #17191a;
   --page-plane: #0f1110;
   --foreground: #f2f4f2;
@@ -300,4 +308,31 @@
   .dark .auth-submit { background: var(--foreground); color: var(--brand-black); }
   .dark .auth-submit:hover:not(:disabled) { background: #d7dcda; box-shadow: var(--elevation-lg); }
   @media (max-width: 767px) { .auth-page { grid-template-columns: 1fr; } .auth-brand-pane { display: none; } .auth-form-pane { padding: 6.5rem 1.5rem 3rem; } .auth-mobile-logo { display: block; left: 1.5rem; } }
+}
+
+/* Layout decisions follow the available content width, including beside the sidebar. */
+@layer components {
+  .workspace-content { container: workspace / inline-size; width: 100%; min-width: 0; }
+  .workspace-content > * { min-width: 0; }
+  .detail-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 2rem; }
+  .detail-layout > * { min-width: 0; }
+  .editor-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 2rem; }
+  .editor-properties { min-width: 0; }
+  .overview-layout { margin-inline: auto; width: 100%; max-width: 90rem; }
+  .entity-form-sections > .form-section + .form-section { border-top: 1px solid var(--border); padding-top: 2rem; }
+  .auth-brand-pane { --brand-ink: var(--brand-teal); }
+  @container form-card (min-width: 48rem) {
+    .entity-form-sections > .form-section:has(> .form-section-heading) { display: grid; grid-template-columns: minmax(10rem, 0.65fr) minmax(0, 1.6fr); gap: 2.5rem; }
+  }
+  @container workspace (min-width: 64rem) {
+    .detail-layout { grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 1fr); }
+    .editor-layout { grid-template-columns: minmax(0, 1fr) 22rem; }
+    .editor-properties { position: sticky; top: calc(var(--header-height) + 1.5rem); max-height: calc(100svh - var(--header-height) - 3rem); overflow-y: auto; }
+  }
+  @media (hover: none) {
+    [data-slot="promotion-actions"], [data-slot="attention-dismiss"] { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
 }

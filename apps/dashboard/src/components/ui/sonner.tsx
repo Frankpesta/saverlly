@@ -27,17 +27,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       closeButton
       icons={{
         success: (
-          <ToastIcon className="bg-[var(--success-tint)] text-[var(--success)]">
+          <ToastIcon className="bg-[var(--success-tint)] text-[var(--success-foreground)]">
             <CircleCheckIcon className="size-4" />
           </ToastIcon>
         ),
         info: (
-          <ToastIcon className="bg-[var(--info-tint)] text-[var(--info)]">
+          <ToastIcon className="bg-[var(--info-tint)] text-[var(--info-foreground)]">
             <InfoIcon className="size-4" />
           </ToastIcon>
         ),
         warning: (
-          <ToastIcon className="bg-[var(--warning-tint)] text-[var(--warning)]">
+          <ToastIcon className="bg-[var(--warning-tint)] text-[var(--warning-foreground)]">
             <TriangleAlertIcon className="size-4" />
           </ToastIcon>
         ),

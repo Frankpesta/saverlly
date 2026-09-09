@@ -95,7 +95,7 @@ export function AddEmployeeDialog() {
         {result ? (
           <>
             <DialogHeader>
-              <div className="flex items-center gap-2 text-[var(--brand-teal)]">
+              <div className="flex items-center gap-2 text-[var(--brand-ink)]">
                 <UserPlusIcon className="size-5" />
                 <DialogTitle>{result.user.name || result.user.email} was added</DialogTitle>
               </div>

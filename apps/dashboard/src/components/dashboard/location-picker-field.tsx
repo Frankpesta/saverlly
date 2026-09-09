@@ -46,7 +46,7 @@ export function LocationPickerField({
         {newLocationHref && (
           <>
             {" "}
-            <Link href={newLocationHref} className="text-[var(--brand-teal)] hover:underline">
+            <Link href={newLocationHref} className="text-[var(--brand-ink)] hover:underline">
               Add one
             </Link>{" "}
             first.

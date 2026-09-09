@@ -12,7 +12,7 @@ export function AuthShell({ tagline, children }: { tagline: string; children: Re
       <aside className="auth-brand-pane">
         <BrandLogo dark height={40} className="relative z-10" />
         <div className="relative z-10 mt-auto max-w-sm">
-          <p className="text-xs font-semibold tracking-[0.14em] text-[var(--brand-teal)] uppercase">Saverlly workspace</p>
+          <p className="text-xs font-semibold tracking-[0.14em] text-[var(--brand-ink)] uppercase">Saverlly workspace</p>
           <p className="mt-4 text-4xl font-medium leading-[1.08] tracking-[-0.045em] text-white">{tagline}</p>
         </div>
         <div className="auth-brand-orbit auth-brand-orbit-one" aria-hidden />

@@ -1,5 +1,7 @@
 "use client"
 
+import { InlineQueryError } from "@/components/dashboard/query-state"
+
 import * as React from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
@@ -45,7 +47,7 @@ type LocationEditFormValues = z.infer<typeof locationEditSchema>
 export default function LocationDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { data: location, isLoading, isError } = useLocation(id)
+  const { data: location, isLoading, isError, refetch } = useLocation(id)
   const { data: currentUser } = useCurrentUser()
   const isKioskOwner = currentUser?.role === "KIOSK_OWNER"
   const deleteLocation = useDeleteLocation()
@@ -71,7 +73,7 @@ export default function LocationDetailPage() {
           </Link>
           {/* No "Location profile" eyebrow above the name. It restated the heading below it,
               which is the pattern the client kept reading as filler. */}
-          <h2 className="mt-4 text-title">{location?.name ?? "Location"}</h2>
+          <h1 className="mt-4 text-title">{location?.name ?? "Location"}</h1>
         </div>
         {location && isKioskOwner && (
           <DeleteRowButton
@@ -85,11 +87,11 @@ export default function LocationDetailPage() {
         )}
       </div>
 
-      {isError && <p className="text-sm text-destructive">Could not load this location.</p>}
+      {isError && <InlineQueryError message="Could not load this location." onRetry={refetch} />}
       {isLoading && <Skeleton className="h-64 w-full max-w-lg" />}
 
       {location && (
-        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div className="detail-layout">
           <Card>
             <CardHeader>
               <CardTitle>Location details</CardTitle>
@@ -184,8 +186,8 @@ function LocationEditForm({ location }: { location: Location }) {
         </FormField>
       </CardContent>
       <CardFooter>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving…" : "Save changes"}
+        <Button type="submit" disabled={isSubmitting || updateLocation.isPending}>
+          {isSubmitting || updateLocation.isPending ? "Saving…" : "Save changes"}
         </Button>
       </CardFooter>
     </form>

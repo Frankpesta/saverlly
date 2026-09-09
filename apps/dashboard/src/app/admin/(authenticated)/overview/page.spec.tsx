@@ -345,7 +345,7 @@ describe("AdminOverviewPage", () => {
   it("lists the most recently updated kiosk first in recent activity", async () => {
     renderWithClient(<AdminOverviewPage />)
 
-    const heading = await screen.findByText("Recent platform activity")
+    const heading = await screen.findByText("Recent kiosk changes")
     const card = heading.closest('[data-slot="dashboard-surface"]') as HTMLElement
     expect(card).not.toBeNull()
 
