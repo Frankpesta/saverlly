@@ -20,6 +20,18 @@ interface SelectorConfig {
 // large offer list can't turn one scheduled job into an unbounded run.
 const MAX_REVEALS_PER_RUN = 25;
 const REVEAL_CLICK_DELAY_MS = 300;
+const POPUP_LOAD_TIMEOUT_MS = 8_000;
+
+// A best-effort shape check, not a guarantee: real coupon codes are near-universally uppercase
+// alphanumeric with no spaces, which filters out prose-like junk (button labels, nav items) that
+// can otherwise slip through a codeSelector match -- especially after a reveal click, where sites
+// that open a popup tend to reload their whole page rather than just the one revealed offer (see
+// the popup-handling comment below). It can't distinguish a real code from an unrelated word that
+// happens to already be all-caps (e.g. a "STYLE" category label) -- selector precision still does
+// most of the real work; this only catches what selectors can't.
+function looksLikeCouponCode(text: string): boolean {
+  return /^[A-Z0-9-]{3,20}$/.test(text);
+}
 
 @Processor(QUEUE_NAMES.SCRAPE_COUPONS)
 export class ScrapeCouponsProcessor extends WorkerHost {
@@ -48,12 +60,30 @@ export class ScrapeCouponsProcessor extends WorkerHost {
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage();
-      // "Get code" buttons on sites needing revealSelector often open the merchant site (or an
-      // affiliate redirect) in a new tab on click. That tab isn't wanted — the code should reveal
-      // itself in the original page — so close anything that pops up rather than let it sit open
-      // or steal focus.
+      // "Get code" buttons on sites needing revealSelector sometimes open a new tab on click
+      // rather than revealing in place -- occasionally the merchant site or an affiliate
+      // redirect (not wanted, closed unread), but sometimes the code itself, reloaded onto a
+      // permalink of the same listing page (e.g. "?outclicked=true&u=<offerId>"). Since we can't
+      // tell which case we're in ahead of time, read the popup's own codeSelector matches before
+      // closing it -- a redirect/ad popup just won't have anything matching, so it's a no-op for
+      // that case and a real capture for the reveal-via-new-tab case.
+      const popupCodes: string[] = [];
       page.context().on('page', (popup) => {
-        popup.close().catch(() => {});
+        void (async () => {
+          try {
+            await popup.waitForLoadState('domcontentloaded', { timeout: POPUP_LOAD_TIMEOUT_MS });
+            const found = await popup.$$eval(config.codeSelector, (elements) =>
+              elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
+            );
+            popupCodes.push(...found);
+          } catch (error) {
+            this.logger.warn(
+              `Popup read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
+            );
+          } finally {
+            await popup.close().catch(() => {});
+          }
+        })();
       });
       await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
@@ -71,11 +101,13 @@ export class ScrapeCouponsProcessor extends WorkerHost {
         }
       }
 
-      const codes = await page.$$eval(config.codeSelector, (elements) =>
+      const pageCodes = await page.$$eval(config.codeSelector, (elements) =>
         elements
           .map((el) => el.textContent?.trim())
           .filter((text): text is string => !!text),
       );
+
+      const codes = [...new Set([...pageCodes, ...popupCodes])].filter(looksLikeCouponCode);
 
       for (const code of codes) {
         await this.prisma.coupon.upsert({
