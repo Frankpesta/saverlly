@@ -22,6 +22,15 @@ const MAX_REVEALS_PER_RUN = 25;
 const REVEAL_CLICK_DELAY_MS = 300;
 const POPUP_LOAD_TIMEOUT_MS = 8_000;
 
+// Coupon aggregator sites (RetailMeNot, etc.) put pages behind bot-detection challenges that key
+// off Playwright/Puppeteer's default headless fingerprint (an explicit "HeadlessChrome" UA and a
+// telltale default viewport). Presenting an ordinary desktop-Chrome UA/viewport/locale -- the same
+// thing every real visitor's browser sends -- is enough to pass; this isn't fingerprint spoofing
+// beyond that, and we don't attempt to solve the interactive challenge itself.
+const SCRAPE_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+const SCRAPE_VIEWPORT = { width: 1366, height: 900 };
+
 // A best-effort shape check, not a guarantee: real coupon codes are near-universally uppercase
 // alphanumeric with no spaces, which filters out prose-like junk (button labels, nav items) that
 // can otherwise slip through a codeSelector match -- especially after a reveal click, where sites
@@ -59,31 +68,43 @@ export class ScrapeCouponsProcessor extends WorkerHost {
     const config = source.selectorConfig as unknown as SelectorConfig;
     const browser = await chromium.launch();
     try {
-      const page = await browser.newPage();
+      const context = await browser.newContext({
+        userAgent: SCRAPE_USER_AGENT,
+        viewport: SCRAPE_VIEWPORT,
+        locale: 'en-US',
+        extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+      });
+      const page = await context.newPage();
       // "Get code" buttons on sites needing revealSelector sometimes open a new tab on click
       // rather than revealing in place -- occasionally the merchant site or an affiliate
       // redirect (not wanted, closed unread), but sometimes the code itself, reloaded onto a
       // permalink of the same listing page (e.g. "?outclicked=true&u=<offerId>"). Since we can't
       // tell which case we're in ahead of time, read the popup's own codeSelector matches before
       // closing it -- a redirect/ad popup just won't have anything matching, so it's a no-op for
-      // that case and a real capture for the reveal-via-new-tab case.
+      // that case and a real capture for the reveal-via-new-tab case. Each read runs in the
+      // background (a popup can open mid-reveal-loop), so its promise is collected in
+      // popupReads and awaited below -- otherwise the codes array gets finalized before any
+      // popup has finished loading, and every popup-only code is silently lost.
       const popupCodes: string[] = [];
-      page.context().on('page', (popup) => {
-        void (async () => {
-          try {
-            await popup.waitForLoadState('domcontentloaded', { timeout: POPUP_LOAD_TIMEOUT_MS });
-            const found = await popup.$$eval(config.codeSelector, (elements) =>
-              elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
-            );
-            popupCodes.push(...found);
-          } catch (error) {
-            this.logger.warn(
-              `Popup read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
-            );
-          } finally {
-            await popup.close().catch(() => {});
-          }
-        })();
+      const popupReads: Promise<void>[] = [];
+      context.on('page', (popup) => {
+        popupReads.push(
+          (async () => {
+            try {
+              await popup.waitForLoadState('domcontentloaded', { timeout: POPUP_LOAD_TIMEOUT_MS });
+              const found = await popup.$$eval(config.codeSelector, (elements) =>
+                elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
+              );
+              popupCodes.push(...found);
+            } catch (error) {
+              this.logger.warn(
+                `Popup read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
+              );
+            } finally {
+              await popup.close().catch(() => {});
+            }
+          })(),
+        );
       });
       await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
@@ -101,11 +122,22 @@ export class ScrapeCouponsProcessor extends WorkerHost {
         }
       }
 
-      const pageCodes = await page.$$eval(config.codeSelector, (elements) =>
-        elements
-          .map((el) => el.textContent?.trim())
-          .filter((text): text is string => !!text),
-      );
+      await Promise.all(popupReads);
+
+      // A reveal click can navigate the original page itself (not just open a popup, e.g. an
+      // affiliate redirect firing on both), so this read races that navigation. Falling back to
+      // an empty list on failure keeps popup-sourced codes intact rather than losing the whole
+      // run to an "execution context destroyed" error.
+      const pageCodes = await page
+        .$$eval(config.codeSelector, (elements) =>
+          elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
+        )
+        .catch((error) => {
+          this.logger.warn(
+            `Main page read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
+          );
+          return [];
+        });
 
       const codes = [...new Set([...pageCodes, ...popupCodes])].filter(looksLikeCouponCode);
 
