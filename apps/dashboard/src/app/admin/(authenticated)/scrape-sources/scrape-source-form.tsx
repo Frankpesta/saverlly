@@ -1,7 +1,5 @@
 "use client"
 
-import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
-
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useForm, Controller } from "react-hook-form"
@@ -193,7 +191,6 @@ export function ScrapeSourceForm({
         pendingLabel="Saving…"
         isPending={isPending}
       >
-          <FormErrorSummary errors={errors} />
         <FormSection label="Source">
           <FormField label="Page URL" htmlFor="scrape-url" error={errors.url?.message}>
             <Input id="scrape-url" type="url" placeholder="https://…" {...register("url")} />

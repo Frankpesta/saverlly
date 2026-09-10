@@ -1,7 +1,5 @@
 "use client"
 
-import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
-
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -116,7 +114,6 @@ export function AffiliateProgramForm({ program }: { program?: AffiliateProgram }
         pendingLabel="Saving…"
         isPending={isPending}
       >
-          <FormErrorSummary errors={errors} />
         <FormSection label="Network">
           <FormGrid>
             <FormField label="Network name" htmlFor="program-network-name" error={errors.networkName?.message}>

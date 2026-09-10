@@ -1,7 +1,5 @@
 "use client"
 
-import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
-
 import * as React from "react"
 import { useParams } from "next/navigation"
 import { toast } from "sonner"
@@ -118,7 +116,6 @@ export default function NewKioskUserPage() {
         pendingLabel="Adding…"
         isPending={isSubmitting}
       >
-          <FormErrorSummary errors={errors} />
         <FormSection>
           <FormGrid>
             <FormField label="Name" htmlFor="add-user-name" error={errors.name?.message}>

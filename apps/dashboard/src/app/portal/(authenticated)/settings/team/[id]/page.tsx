@@ -1,7 +1,5 @@
 "use client"
 
-import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
-
 import { InlineQueryError } from "@/components/dashboard/query-state"
 
 import * as React from "react"
@@ -187,7 +185,6 @@ function TeamMemberEditor({ kioskId, member }: { kioskId: string; member: KioskU
           pendingLabel="Saving…"
           isPending={isSubmitting}
         >
-          <FormErrorSummary errors={errors} />
           <FormSection label="Details">
             <FormGrid>
               <FormField label="Name" htmlFor="team-member-name" error={errors.name?.message}>

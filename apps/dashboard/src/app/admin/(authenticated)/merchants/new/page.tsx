@@ -1,7 +1,5 @@
 "use client"
 
-import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
-
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -135,7 +133,6 @@ export default function NewMerchantPage() {
         pendingLabel="Adding…"
         isPending={isPending}
       >
-          <FormErrorSummary errors={errors} />
         <FormSection label="Basic info">
           <FormGrid>
             <FormField label="Name" htmlFor="new-merchant-name" error={errors.name?.message}>

@@ -1,7 +1,5 @@
 "use client"
 
-import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
-
 import * as React from "react"
 import { toast } from "sonner"
 import { CopyIcon, StoreIcon } from "lucide-react"
@@ -125,7 +123,6 @@ export default function NewKioskPage() {
         pendingLabel="Creating…"
         isPending={isSubmitting}
       >
-          <FormErrorSummary errors={errors} />
         <FormSection label="Business">
           <FormField label="Kiosk name" htmlFor="new-kiosk-name" error={errors.name?.message}>
             <Input id="new-kiosk-name" {...register("name")} />

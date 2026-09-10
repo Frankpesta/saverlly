@@ -1,8 +1,9 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { CouponSource } from '@prisma/client';
+import * as Sentry from '@sentry/node';
 import { Job } from 'bullmq';
-import { chromium } from 'playwright';
+import { Page, Response, chromium } from 'playwright';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES } from '../queue-names';
 
@@ -21,11 +22,14 @@ interface SelectorConfig {
 const MAX_REVEALS_PER_RUN = 25;
 const REVEAL_CLICK_DELAY_MS = 300;
 const POPUP_LOAD_TIMEOUT_MS = 8_000;
-// domcontentloaded fires before a popup's own client-side JS has rendered the revealed offer
-// content -- reading codeSelector right after it, as this used to, raced that render and came
-// back empty on a majority of runs in production testing even though the popup had genuinely
-// loaded the right page. This settle delay lets the render finish first.
-const POPUP_RENDER_SETTLE_MS = 1_800;
+// domcontentloaded fires before client-side JS has rendered the real content -- reading a
+// codeSelector right after it, as this used to (both for popups and the main page), raced that
+// render and came back empty on a majority of runs in production testing even though the page had
+// genuinely loaded. This settle delay lets the render finish before any read is trusted. Used
+// after every navigation (main page and popups) and again after the reveal-click loop, since a
+// reveal can update the DOM in place with the same render lag.
+const RENDER_SETTLE_MS = 1_800;
+const CONSENT_WAIT_TIMEOUT_MS = 6_000;
 
 // Coupon aggregator sites (RetailMeNot, etc.) put pages behind bot-detection challenges that key
 // off Playwright/Puppeteer's default headless fingerprint (an explicit "HeadlessChrome" UA and a
@@ -36,13 +40,76 @@ const SCRAPE_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const SCRAPE_VIEWPORT = { width: 1366, height: 900 };
 
+// Every consent-management platform with meaningful market share, as one combined CSS selector --
+// a plain comma-separated selector already matches "any of these", so no per-vendor branching is
+// needed. Covers OneTrust (confirmed live on RetailMeNot), Cookiebot, TrustArc, Quantcast/
+// Sourcepoint's IAB TCF widget, Didomi, and Osano. Absent entirely on sites that don't run one of
+// these, so this is a no-op there, not a maybe-broken guess.
+const CONSENT_ACCEPT_SELECTOR = [
+  '#onetrust-accept-btn-handler',
+  '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+  '#CybotCookiebotDialogBodyButtonAccept',
+  '#truste-consent-button',
+  '.qc-cmp2-summary-buttons button[mode="primary"]',
+  '#didomi-notice-agree-button',
+  '.osano-cm-accept-all',
+].join(', ');
+
+// Phrases that show up in the *title or body text* of a bot-detection interstitial (Cloudflare,
+// PerimeterX, DataDome, and generic "prove you're human" pages) rather than the site's real
+// content. This is intentionally limited to recognizing that we're blocked, not solving the
+// challenge -- there is no attempt here to defeat Turnstile, PerimeterX, DataDome, or a CAPTCHA;
+// doing that would mean spoofing browser fingerprints or automating challenge-solving, which is
+// out of scope. Detecting the wall turns a silent, misleading "Scraped 0 code(s)" into a real
+// failure that surfaces (Sentry + a failed BullMQ job) and gets the existing retry/backoff, rather
+// than looking identical to "this merchant genuinely has no active codes right now."
+const BOT_WALL_MARKERS = [
+  'checking your browser',
+  'just a moment',
+  'attention required',
+  'verify you are human',
+  'verify you are a human',
+  'unusual traffic',
+  'access denied',
+  'request blocked',
+  'are you a robot',
+  'complete the security check',
+  'enable javascript and cookies',
+];
+
+async function detectBotWall(page: Page, response: Response | null): Promise<string | null> {
+  const title = await page.title().catch(() => '');
+  const bodyText = await page
+    .evaluate(() => document.body?.innerText?.slice(0, 1_000) ?? '')
+    .catch(() => '');
+  const haystack = `${title}\n${bodyText}`.toLowerCase();
+  const marker = BOT_WALL_MARKERS.find((m) => haystack.includes(m));
+  if (marker) return `page text matched "${marker}"`;
+
+  const hasChallengeFrame = await page
+    .$$eval('iframe', (frames) =>
+      frames.some((frame) => /captcha|turnstile|challenges\.cloudflare/i.test(frame.src || '')),
+    )
+    .catch(() => false);
+  if (hasChallengeFrame) return 'challenge iframe present';
+
+  const status = response?.status() ?? 0;
+  if (status === 403 || status === 429 || status === 503) return `HTTP ${status}`;
+
+  return null;
+}
+
 // A best-effort shape check, not a guarantee: real coupon codes are near-universally uppercase
 // alphanumeric with no spaces, which filters out prose-like junk (button labels, nav items) that
 // can otherwise slip through a codeSelector match -- especially after a reveal click, where sites
 // that open a popup tend to reload their whole page rather than just the one revealed offer (see
 // the popup-handling comment below). It can't distinguish a real code from an unrelated word that
 // happens to already be all-caps (e.g. a "STYLE" category label) -- selector precision still does
-// most of the real work; this only catches what selectors can't.
+// most of the real work; this only catches what selectors can't. Deliberately left case-sensitive:
+// loosening it to accept lowercase/mixed-case would let through exactly the junk labels
+// (descriptive text is almost never all-uppercase) this exists to filter, in exchange for
+// supporting mixed-case codes no configured source currently uses -- not a trade worth making
+// speculatively. Revisit if a real source needs a lowercase/mixed-case code.
 function looksLikeCouponCode(text: string): boolean {
   return /^[A-Z0-9-]{3,20}$/.test(text);
 }
@@ -97,7 +164,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
           (async () => {
             try {
               await popup.waitForLoadState('domcontentloaded', { timeout: POPUP_LOAD_TIMEOUT_MS });
-              await popup.waitForTimeout(POPUP_RENDER_SETTLE_MS);
+              await popup.waitForTimeout(RENDER_SETTLE_MS);
               const found = await popup.$$eval(config.codeSelector, (elements) =>
                 elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
               );
@@ -112,20 +179,33 @@ export class ScrapeCouponsProcessor extends WorkerHost {
           })(),
         );
       });
-      await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      // A real navigation failure (DNS, timeout, connection refused) is left to throw and
+      // propagate to the existing attempts/backoff below, same as before this change -- only a
+      // page that *did* load is worth inspecting for a bot-detection interstitial.
+      const response = await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.waitForTimeout(RENDER_SETTLE_MS);
 
-      // Sites running the OneTrust consent manager (RetailMeNot among them) show a full-page
-      // backdrop until it's dismissed, which sits on top of everything else and silently times
-      // out any click underneath it -- including reveal buttons, with no error indicating why.
-      // OneTrust injects the banner asynchronously well after domcontentloaded (confirmed: an
-      // immediate page.$() check for it always comes back null), so a one-shot lookup here is
-      // a lost race -- it must be that the check ran before the banner showed, so the reveal
-      // click below runs unprotected right as it appears. waitForSelector actively waits for it
-      // instead; the short timeout is just "give up and proceed" for sites that never show one.
-      // Its accept button id is a OneTrust-wide constant, not something we can page-config: dismiss
-      // it opportunistically for every source; it's simply absent on sites that don't run OneTrust.
+      const botWall = await detectBotWall(page, response);
+      if (botWall) {
+        const message = `Blocked by bot-detection (${botWall}) for source ${source.id} (${source.url})`;
+        this.logger.error(message);
+        Sentry.captureException(new Error(message));
+        // Throwing here (rather than logging "Scraped 0" and moving on) hands this to the
+        // queue's existing attempts/backoff (see ScrapeSourcesModule) -- a real chance of getting
+        // through on retry if the block was IP/session-transient, and a job BullMQ marks failed
+        // -- rather than a result indistinguishable from "this merchant has no active codes".
+        throw new Error(message);
+      }
+
+      // A consent-manager backdrop (OneTrust confirmed live on RetailMeNot; the combined selector
+      // above also covers Cookiebot/TrustArc/Quantcast/Didomi/Osano) sits on top of everything and
+      // silently times out any click underneath it -- including reveal buttons, with no error
+      // indicating why. These all inject asynchronously well after domcontentloaded (confirmed for
+      // OneTrust: an immediate page.$() check always came back null), so a one-shot lookup is a
+      // lost race -- waitForSelector actively waits instead; the short timeout is just "give up
+      // and proceed" for sites that never show one at all.
       const consentButton = await page
-        .waitForSelector('#onetrust-accept-btn-handler', { timeout: 6_000, state: 'visible' })
+        .waitForSelector(CONSENT_ACCEPT_SELECTOR, { timeout: CONSENT_WAIT_TIMEOUT_MS, state: 'visible' })
         .catch(() => null);
       if (consentButton) {
         await consentButton.click({ timeout: 5_000 }).catch(() => {});
@@ -147,6 +227,10 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       }
 
       await Promise.all(popupReads);
+      // Mirrors the popup settle wait: a reveal click that updates codes in place (no popup, no
+      // navigation) is client-rendered too, and this read raced that the same way the popup read
+      // used to before RENDER_SETTLE_MS was added there.
+      await page.waitForTimeout(RENDER_SETTLE_MS);
 
       // A reveal click can navigate the original page itself (not just open a popup, e.g. an
       // affiliate redirect firing on both), so this read races that navigation. Falling back to
