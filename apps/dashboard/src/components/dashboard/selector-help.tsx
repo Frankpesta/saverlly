@@ -64,12 +64,12 @@ export function SelectorHelp({
         ) : (
           <>
             <p className="font-medium text-foreground">Only needed for "click to reveal" codes</p>
-            <p className="text-muted-foreground">
+            {/* <p className="text-muted-foreground">
               Some sites hide the coupon code until you click a button like "Get Code" or "Reveal
               Code". If the code selector above isn't finding anything, this is usually why — the
               scraper loads the page exactly as it is, without clicking anything, so a hidden code
               is invisible to it.
-            </p>
+            </p> */}
             <p className="text-muted-foreground">
               Give it a selector for that button (same method as the code selector — Inspect →
               Copy → Copy selector) and the scraper will click it first, then read the code.
