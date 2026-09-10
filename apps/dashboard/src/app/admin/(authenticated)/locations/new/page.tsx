@@ -1,7 +1,5 @@
 "use client"
 
-import { FormErrorSummary } from "@/components/dashboard/form-error-summary"
-
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useForm, Controller } from "react-hook-form"
@@ -71,7 +69,6 @@ export default function NewLocationPage() {
         pendingLabel="Creating…"
         isPending={isSubmitting}
       >
-          <FormErrorSummary errors={errors} />
         <FormSection label="Where is it?" description="Which kiosk, and the business address.">
           <FormGrid>
             <FormField label="Kiosk" htmlFor="new-location-kiosk" error={errors.kioskId?.message}>
