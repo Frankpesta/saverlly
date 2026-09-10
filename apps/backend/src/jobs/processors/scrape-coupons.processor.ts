@@ -21,6 +21,11 @@ interface SelectorConfig {
 const MAX_REVEALS_PER_RUN = 25;
 const REVEAL_CLICK_DELAY_MS = 300;
 const POPUP_LOAD_TIMEOUT_MS = 8_000;
+// domcontentloaded fires before a popup's own client-side JS has rendered the revealed offer
+// content -- reading codeSelector right after it, as this used to, raced that render and came
+// back empty on a majority of runs in production testing even though the popup had genuinely
+// loaded the right page. This settle delay lets the render finish first.
+const POPUP_RENDER_SETTLE_MS = 1_800;
 
 // Coupon aggregator sites (RetailMeNot, etc.) put pages behind bot-detection challenges that key
 // off Playwright/Puppeteer's default headless fingerprint (an explicit "HeadlessChrome" UA and a
@@ -92,6 +97,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
           (async () => {
             try {
               await popup.waitForLoadState('domcontentloaded', { timeout: POPUP_LOAD_TIMEOUT_MS });
+              await popup.waitForTimeout(POPUP_RENDER_SETTLE_MS);
               const found = await popup.$$eval(config.codeSelector, (elements) =>
                 elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
               );
@@ -111,9 +117,16 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       // Sites running the OneTrust consent manager (RetailMeNot among them) show a full-page
       // backdrop until it's dismissed, which sits on top of everything else and silently times
       // out any click underneath it -- including reveal buttons, with no error indicating why.
+      // OneTrust injects the banner asynchronously well after domcontentloaded (confirmed: an
+      // immediate page.$() check for it always comes back null), so a one-shot lookup here is
+      // a lost race -- it must be that the check ran before the banner showed, so the reveal
+      // click below runs unprotected right as it appears. waitForSelector actively waits for it
+      // instead; the short timeout is just "give up and proceed" for sites that never show one.
       // Its accept button id is a OneTrust-wide constant, not something we can page-config: dismiss
       // it opportunistically for every source; it's simply absent on sites that don't run OneTrust.
-      const consentButton = await page.$('#onetrust-accept-btn-handler');
+      const consentButton = await page
+        .waitForSelector('#onetrust-accept-btn-handler', { timeout: 6_000, state: 'visible' })
+        .catch(() => null);
       if (consentButton) {
         await consentButton.click({ timeout: 5_000 }).catch(() => {});
         await page.waitForTimeout(500);
