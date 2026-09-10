@@ -54,24 +54,22 @@ export function SelectorHelp({
               or <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">#promo span</code>.
               It is a one-time setup per store.
             </p>
-            <p className="text-muted-foreground">
-              Some sites — RetailMeNot and most other coupon aggregators, in particular — don't
-              put the code in the page at all until you click a "Get Code" button. Inspecting the
-              page there won't find anything to select, because there's nothing there yet. If
+            {/* <p className="text-muted-foreground">
+              Some sites don&apos;t put the code in the page at all until you click a "Get Code" button. Inspecting the page there won&apos;t find anything to select, because there&apos;s nothing there yet. If
               that's what you're looking at, use the reveal-button selector below instead of (or
               alongside) this one. The most reliable source for a selector here is a merchant's
               own site — a sitewide promo banner has no reason to hide its own code.
-            </p>
+            </p> */}
           </>
         ) : (
           <>
             <p className="font-medium text-foreground">Only needed for "click to reveal" codes</p>
-            <p className="text-muted-foreground">
+            {/* <p className="text-muted-foreground">
               Some sites hide the coupon code until you click a button like "Get Code" or "Reveal
               Code". If the code selector above isn't finding anything, this is usually why — the
               scraper loads the page exactly as it is, without clicking anything, so a hidden code
               is invisible to it.
-            </p>
+            </p> */}
             <p className="text-muted-foreground">
               Give it a selector for that button (same method as the code selector — Inspect →
               Copy → Copy selector) and the scraper will click it first, then read the code.
