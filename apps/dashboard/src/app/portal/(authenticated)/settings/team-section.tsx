@@ -5,10 +5,11 @@ import { InlineQueryError } from "@/components/dashboard/query-state"
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { CrownIcon, PencilIcon, UserPlusIcon } from "lucide-react"
+import { CrownIcon, PencilIcon, SearchIcon, UserPlusIcon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { SettingsSection } from "@/components/settings/settings-section"
@@ -24,6 +25,7 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
   const { data: users, isLoading, isError, refetch } = useKioskUsers(kioskId)
   const { data: locations } = useLocations()
   const updateUser = useUpdateKioskUser(kioskId)
+  const [query, setQuery] = React.useState("")
 
   const locationNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -31,10 +33,25 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
     return map
   }, [locations])
 
+  const matchesQuery = React.useCallback(
+    (user: KioskUser) => {
+      const needle = query.trim().toLowerCase()
+      if (!needle) return true
+      const managedNames = user.managedLocationIds.map((id) => locationNameById.get(id) ?? "")
+      return [user.name, user.email, ...managedNames].some((value) =>
+        value?.toLowerCase().includes(needle),
+      )
+    },
+    [query, locationNameById],
+  )
+
   // Owner first, then managers. They used to differ only by the word inside a badge, which is
   // not a difference you can see across a list.
-  const owners = users?.filter((user) => user.role === "KIOSK_OWNER") ?? []
-  const managers = users?.filter((user) => user.role === "LOCATION_MANAGER") ?? []
+  const rawManagers = users?.filter((user) => user.role === "LOCATION_MANAGER") ?? []
+  const owners = (users?.filter((user) => user.role === "KIOSK_OWNER") ?? []).filter(matchesQuery)
+  const managers = rawManagers.filter(matchesQuery)
+  const totalTeamSize = users?.length ?? 0
+  const noSearchResults = query.trim() !== "" && owners.length === 0 && managers.length === 0
 
   function toggleDisabled(user: KioskUser) {
     updateUser.mutate(
@@ -121,6 +138,29 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
         {isError && <InlineQueryError message="Could not load team members." onRetry={refetch} />}
         {isLoading && <Skeleton className="h-16 w-full" />}
 
+        {!isLoading && totalTeamSize > 0 && (
+          <div className="relative">
+            <SearchIcon
+              aria-hidden
+              className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              aria-label="Search team"
+              placeholder="Search by name, email, or location…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="pl-9"
+            />
+          </div>
+        )}
+
+        {!isLoading && noSearchResults && (
+          <p className="rounded-lg border border-dashed border-black/12 px-4 py-6 text-center text-sm text-muted-foreground dark:border-white/12">
+            No team members match your search.
+          </p>
+        )}
+
         {owners.length > 0 && (
           <div className="flex flex-col gap-2">
             <span className="text-eyebrow text-muted-foreground uppercase">Owner</span>
@@ -141,9 +181,9 @@ export function TeamSection({ kioskId }: { kioskId: string }) {
               Add team member
             </Link>
           </div>
-          {!isLoading && managers.length === 0 && (
+          {!isLoading && managers.length === 0 && !noSearchResults && (
             <p className="rounded-lg border border-dashed border-black/12 px-4 py-6 text-center text-sm text-muted-foreground dark:border-white/12">
-              No location managers yet.
+              {rawManagers.length === 0 ? "No location managers yet." : "No location managers match your search."}
             </p>
           )}
           {managers.map(renderRow)}

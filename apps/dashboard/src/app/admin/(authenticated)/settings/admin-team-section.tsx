@@ -2,10 +2,13 @@
 
 import { InlineQueryError } from "@/components/dashboard/query-state"
 
+import * as React from "react"
+import { SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { profileInitials } from "@/components/profile/avatar-upload"
 import { proxiedImageUrl } from "@/lib/image-proxy"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
@@ -23,6 +26,15 @@ export function AdminTeamSection() {
   const { data: admins, isLoading, isError, refetch } = useAdminUsers()
   const updateAdmin = useUpdateAdminUser()
   const deleteAdmin = useDeleteAdminUser()
+  const [query, setQuery] = React.useState("")
+
+  const visible = React.useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return admins ?? []
+    return (admins ?? []).filter((admin) =>
+      [admin.name, admin.email].some((value) => value?.toLowerCase().includes(needle)),
+    )
+  }, [admins, query])
 
   function toggleDisabled(userId: string, disabled: boolean) {
     updateAdmin.mutate(
@@ -46,8 +58,27 @@ export function AdminTeamSection() {
     <div className="flex flex-col gap-3">
       {isError && <InlineQueryError message="Could not load employees." onRetry={refetch} />}
       {isLoading && <Skeleton className="h-10 w-full" />}
+      {!isLoading && admins && admins.length > 0 && (
+        <div className="relative">
+          <SearchIcon
+            aria-hidden
+            className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
+          />
+          <Input
+            type="search"
+            aria-label="Search employees"
+            placeholder="Search employees…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="pl-9"
+          />
+        </div>
+      )}
+      {!isLoading && admins && admins.length > 0 && visible.length === 0 && (
+        <p className="text-center text-sm text-muted-foreground">No employees match your search.</p>
+      )}
       {!isLoading &&
-        admins?.map((admin) => {
+        visible.map((admin) => {
           const isSelf = admin.id === currentUser?.id
           return (
             <div

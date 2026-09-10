@@ -67,7 +67,7 @@ describe("NewPortalLocationPage", () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  // More interaction steps than the default 5000ms budget covers, since State and City are
+  // More interaction steps than the default 5000ms budget covers, since City and State are
   // each their own combobox popover (open, search, pick), not plain text inputs.
   it("fills the form and posts without a kioskId, which the backend infers from the owner", async () => {
     const user = userEvent.setup()
@@ -76,12 +76,14 @@ describe("NewPortalLocationPage", () => {
     await user.type(screen.getByLabelText("Name"), "Uptown")
     await user.type(screen.getByLabelText("Address"), "2 Elm St")
 
-    await user.click(screen.getByRole("combobox", { name: "State" }))
-    await user.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
-
     await user.click(screen.getByRole("combobox", { name: "City" }))
     await user.type(screen.getByPlaceholderText("Type a city..."), "Springfield")
     await user.click(await screen.findByRole("option", { name: "Springfield" }))
+
+    // "Springfield" exists in dozens of states, so it can't auto-fill one — the State dropdown
+    // narrows to just those matching states instead, and the user picks among them.
+    await user.click(screen.getByRole("combobox", { name: "State" }))
+    await user.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
 
     await user.type(screen.getByLabelText("Zip"), "62701")
     await user.click(screen.getByRole("button", { name: /create location/i }))

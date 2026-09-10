@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar, DEFAULT_RANGE_PRESETS, type DateRange } from "@/components/ui/calendar"
 import { DateField, digitsFromDate, digitsOf, parseDigits } from "@/components/ui/date-field"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { formatDateValue, parseDateValue } from "@/lib/format-date"
 
 /** The calendar toggle, rendered inside the field rather than as a separate button beside it.
@@ -148,29 +148,32 @@ export function DateRangePicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <div className={cn("grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 sm:w-auto", className)}>
-        <DateField
-          id={id}
-          value={fromDigits}
-          onChange={setFromDigits}
-          onCommit={(date) => onChange({ ...value, from: date ? formatDateValue(date) : "" })}
-          aria-label="From"
-          aria-invalid={ariaInvalid}
-          disabled={disabled}
-          className="min-w-0 sm:w-40"
-        />
-        <span className="text-meta text-muted-foreground">to</span>
-        <DateField
-          value={toDigits}
-          onChange={setToDigits}
-          onCommit={(date) => onChange({ ...value, to: date ? formatDateValue(date) : "" })}
-          aria-label="To"
-          aria-invalid={ariaInvalid}
-          disabled={disabled}
-          className="min-w-0 sm:w-40"
-          trailing={<CalendarToggle disabled={disabled} label="Open calendar" />}
-        />
-      </div>
+      <PopoverAnchor asChild>
+        <div className={cn("grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 sm:w-auto", className)}>
+          <DateField
+            id={id}
+            value={fromDigits}
+            onChange={setFromDigits}
+            onCommit={(date) => onChange({ ...value, from: date ? formatDateValue(date) : "" })}
+            aria-label="From"
+            aria-invalid={ariaInvalid}
+            disabled={disabled}
+            className="min-w-0 sm:w-40"
+            trailing={<CalendarToggle disabled={disabled} label="Open calendar" />}
+          />
+          <span className="text-meta text-muted-foreground">to</span>
+          <DateField
+            value={toDigits}
+            onChange={setToDigits}
+            onCommit={(date) => onChange({ ...value, to: date ? formatDateValue(date) : "" })}
+            aria-label="To"
+            aria-invalid={ariaInvalid}
+            disabled={disabled}
+            className="min-w-0 sm:w-40"
+            trailing={<CalendarToggle disabled={disabled} label="Open calendar" />}
+          />
+        </div>
+      </PopoverAnchor>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="range"

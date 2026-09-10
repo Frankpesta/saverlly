@@ -46,6 +46,9 @@ export async function deleteLocationsCascade(tx: Tx, locationIds: string[]) {
   await tx.locationSetupCode.deleteMany({
     where: { locationId: { in: locationIds } },
   });
+  await tx.locationEmployee.deleteMany({
+    where: { locationId: { in: locationIds } },
+  });
   await tx.location.deleteMany({ where: { id: { in: locationIds } } });
 }
 

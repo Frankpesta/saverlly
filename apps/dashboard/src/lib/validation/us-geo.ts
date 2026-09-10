@@ -1,18 +1,12 @@
-import { usaCities, usaStates } from "typed-usa-states"
+import usGeoData from "./us-geo-data.json"
 
-/** 50 states + DC. Territories (American Samoa, Guam, Northern Mariana Islands, Puerto Rico,
- * US Virgin Islands) are excluded, matching the scope of every US-only field in this app
- * (Location.state, ZIP validation, etc.). */
-export const US_STATES: { code: string; name: string }[] = usaStates
-  .filter((state) => !state.territory)
-  .map((state) => ({ code: state.abbreviation, name: state.name }))
+/** 50 states + DC, generated from `zipcodes-us`'s GeoNames/USPS postal-code data — see
+ * `scripts/generate-us-geo-data.mjs` (run via `npm run generate:us-geo` to refresh). Territories
+ * and the Compact-of-Free-Association Pacific states are excluded there, matching the scope of
+ * every US-only field in this app (Location.state, ZIP validation, etc.). */
+export const US_STATES: { code: string; name: string }[] = usGeoData.states
 
-/** `typed-usa-states` stores each city's state as a full name ("California"), but every state
- * field in this app is the 2-letter code ("CA"). This is the lookup that bridges the two. */
-const STATE_NAME_TO_CODE = new Map(US_STATES.map((state) => [state.name, state.code]))
-
-/** Every US city from `typed-usa-states` (~5,800 rows), with state normalized to its 2-letter
- * code. Cities in a filtered-out territory are dropped along with it. */
-export const US_CITIES: { city: string; state: string }[] = usaCities
-  .map((city) => ({ city: city.name, state: STATE_NAME_TO_CODE.get(city.state) }))
-  .filter((city): city is { city: string; state: string } => city.state !== undefined)
+/** Every US city from the same generator (~29,500 rows) — about 5x `typed-usa-states`'
+ * ~5,800-city list this replaced, since USPS assigns ZIPs down to small unincorporated
+ * communities, not just incorporated cities. */
+export const US_CITIES: { city: string; state: string }[] = usGeoData.cities

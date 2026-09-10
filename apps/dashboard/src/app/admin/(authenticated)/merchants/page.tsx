@@ -14,6 +14,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -43,7 +44,7 @@ export default function MerchantsPage() {
   const view = useCollectionView(merchants, {
     searchText: (item) => [item.name, item.domain].join(" "),
     sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }) }],
-    filters: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !(item.active) }],
+    filters: [{ key: "status", label: "Status", options: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !(item.active) }] }],
   })
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
@@ -110,11 +111,9 @@ export default function MerchantsPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  {view.hasFilters ? "No records match your search or filters." : "No merchants yet."}
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={6} hasFilters={view.hasFilters}>
+                No merchants yet.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((merchant, index) => (

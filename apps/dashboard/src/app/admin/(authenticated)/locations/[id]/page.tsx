@@ -147,22 +147,18 @@ function LocationEditForm({ location }: { location: Location }) {
           </FormField>
         </FormGrid>
         <CityStateFields idPrefix="loc" control={control} cityName="city" stateName="state" />
-        <FormField
-          label="Zip"
-          htmlFor="loc-zip"
-          hint="US ZIP, ZIP+4, or a postal code with letters and dashes."
-          error={errors.zip?.message}
-        >
+        <FormField label="Zip" htmlFor="loc-zip" hint="5-digit US ZIP code." error={errors.zip?.message}>
           <Controller
             name="zip"
             control={control}
             render={({ field, fieldState }) => (
               <Input
                 id="loc-zip"
+                inputMode="numeric"
                 value={field.value}
-                onChange={(e) => field.onChange(e.target.value.toUpperCase().slice(0, 10))}
+                onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 5))}
                 onBlur={field.onBlur}
-                maxLength={10}
+                maxLength={5}
                 aria-invalid={!!fieldState.error}
               />
             )}

@@ -4,9 +4,10 @@ import { InlineQueryError } from "@/components/dashboard/query-state"
 
 import * as React from "react"
 import { toast } from "sonner"
-import { HandCoinsIcon, CircleCheckIcon, ClockIcon, RefreshCwIcon } from "lucide-react"
+import { HandCoinsIcon, CircleCheckIcon, ClockIcon, RefreshCwIcon, SearchIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Combobox,
@@ -16,6 +17,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -45,18 +47,29 @@ const STATUSES: CommissionEventStatus[] = ["CONFIRMED", "PENDING", "REVERSED"]
 
 export default function AdminCommissionsPage() {
   const [status, setStatus] = React.useState<string>(ALL)
-  const [kioskId, setKioskId] = React.useState<string>(ALL)
-  const [merchantId, setMerchantId] = React.useState<string>(ALL)
   const [dateFrom, setDateFrom] = React.useState("")
   const [dateTo, setDateTo] = React.useState("")
+  const [search, setSearch] = React.useState("")
+  // Client-side refinement on top of the server-side filter below (merchant/kiosk name isn't
+  // something the events endpoint can search on), so it's debounced the same way
+  // useCollectionView debounces every other list page's search box.
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  React.useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250)
+    return () => clearTimeout(timer)
+  }, [search])
 
-  const filter: CommissionEventFilter = {
-    status: status === ALL ? undefined : (status as CommissionEventStatus),
-    kioskId: kioskId === ALL ? undefined : kioskId,
-    merchantId: merchantId === ALL ? undefined : merchantId,
-    dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
-    dateTo: dateTo ? new Date(dateTo).toISOString() : undefined,
-  }
+  // Recreating this object every render (it used to be an inline literal, not memoized) gave
+  // useCommissionEvents a new identity each time and refired the query far more than the actual
+  // filter values changed.
+  const filter: CommissionEventFilter = React.useMemo(
+    () => ({
+      status: status === ALL ? undefined : (status as CommissionEventStatus),
+      dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+      dateTo: dateTo ? new Date(dateTo).toISOString() : undefined,
+    }),
+    [status, dateFrom, dateTo],
+  )
 
   const { data: events, isLoading, isError, refetch } = useCommissionEvents(filter)
   // Ticks every minute so the growth stats below recompute across a calendar-month boundary
@@ -66,7 +79,6 @@ export default function AdminCommissionsPage() {
     const interval = setInterval(() => setNow(Date.now()), 60_000)
     return () => clearInterval(interval)
   }, [])
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(events, undefined, JSON.stringify(filter))
   const { data: kiosks } = useKiosks()
   const { data: merchants } = useMerchants()
   const { data: locations } = useLocations()
@@ -87,6 +99,27 @@ export default function AdminCommissionsPage() {
     for (const m of merchants ?? []) map.set(m.id, m.name)
     return map
   }, [merchants])
+
+  // Stat tiles above stay scoped to the server-side filters only (status/kiosk/merchant/date),
+  // matching how every other list page's summary tiles ignore the free-text search box — search
+  // narrows what's visible in the table, not "how many exist" under the current filters.
+  const searchedEvents = React.useMemo(() => {
+    const needle = debouncedSearch.trim().toLowerCase()
+    if (!needle) return events ?? []
+    return (events ?? []).filter((event) => {
+      const merchantName = merchantNameById.get(event.merchantId) ?? ""
+      const kioskName = kioskNameById.get(deviceKioskMap.get(event.deviceId) ?? "") ?? ""
+      return merchantName.toLowerCase().includes(needle) || kioskName.toLowerCase().includes(needle)
+    })
+  }, [events, debouncedSearch, merchantNameById, kioskNameById, deviceKioskMap])
+
+  const hasFilters = status !== ALL || !!dateFrom || !!dateTo || !!search
+
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(
+    searchedEvents,
+    undefined,
+    `${debouncedSearch}:${JSON.stringify(filter)}`,
+  )
 
   const byStatus = React.useMemo(
     () => sumByStatus(events ?? [], (e) => e.status, (e) => e.commissionAmount, STATUSES),
@@ -167,6 +200,23 @@ export default function AdminCommissionsPage() {
 
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
+          <Label htmlFor="filter-search">Search</Label>
+          <div className="relative w-56">
+            <SearchIcon
+              aria-hidden
+              className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
+            />
+            <Input
+              id="filter-search"
+              type="search"
+              placeholder="Search by merchant or kiosk…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="filter-status">Status</Label>
           <Combobox
             id="filter-status"
@@ -176,34 +226,6 @@ export default function AdminCommissionsPage() {
             options={[
               { value: ALL, label: "All statuses" },
               ...STATUSES.map((s) => ({ value: s, label: COMMISSION_STATUS_LABEL[s] })),
-            ]}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="filter-kiosk">Kiosk</Label>
-          <Combobox
-            id="filter-kiosk"
-            value={kioskId}
-            onValueChange={setKioskId}
-            className="w-48"
-            searchPlaceholder="Search kiosks..."
-            options={[
-              { value: ALL, label: "All kiosks" },
-              ...(kiosks?.map((k) => ({ value: k.id, label: k.name })) ?? []),
-            ]}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="filter-merchant">Merchant</Label>
-          <Combobox
-            id="filter-merchant"
-            value={merchantId}
-            onValueChange={setMerchantId}
-            className="w-48"
-            searchPlaceholder="Search merchants..."
-            options={[
-              { value: ALL, label: "All merchants" },
-              ...(merchants?.map((m) => ({ value: m.id, label: m.name })) ?? []),
             ]}
           />
         </div>
@@ -220,7 +242,7 @@ export default function AdminCommissionsPage() {
             }}
           />
         </div>
-        <Button type="button" variant="ghost" onClick={() => { setStatus(ALL); setKioskId(ALL); setMerchantId(ALL); setDateFrom(""); setDateTo("") }}>Clear filters</Button>
+        <Button type="button" variant="ghost" onClick={() => { setStatus(ALL); setDateFrom(""); setDateTo(""); setSearch("") }}>Clear filters</Button>
 
       </div>
 
@@ -245,12 +267,10 @@ export default function AdminCommissionsPage() {
                 </TableRow>
               ))}
 
-            {!isLoading && events?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  No commission events match these filters.
-                </TableCell>
-              </TableRow>
+            {!isLoading && searchedEvents.length === 0 && (
+              <TableEmptyRow colSpan={5} hasFilters={hasFilters}>
+                No commission events yet.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((event, index) => (

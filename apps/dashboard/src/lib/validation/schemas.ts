@@ -31,17 +31,16 @@ export function passwordMismatchIssue(confirmKey: string, message = "Passwords d
 }
 
 /** Mirrors the backend's `ZIP_PATTERN` (`apps/backend/src/locations/dto/create-location.dto.ts`)
- * byte-for-byte. Was 5-digit-US-only; widened per the client's request to also accept ZIP+4
- * ("12345-6789") and letter-and-dash postal codes like Canada's ("A1A 1A1"): letters, digits,
- * spaces, and dashes, 3 to 10 characters, first and last character alphanumeric. The
- * `Location.zip` DB column was already a nullable string for exactly this reason, so this is a
- * validation-only change, no migration involved. */
-export const ZIP_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 -]{1,8}[A-Za-z0-9]$/
+ * byte-for-byte. US 5-digit ZIP only — a prior round briefly widened this to also accept ZIP+4
+ * and letter/dash postal codes, which reversed what was actually asked for. May come back later
+ * if the client asks for it again; `Location.zip` is a nullable string column either way, so no
+ * migration is involved. */
+export const ZIP_PATTERN = /^\d{5}$/
 
 export const zipSchema = z
   .string()
   .trim()
-  .regex(ZIP_PATTERN, "Enter a valid postal code (letters, numbers, spaces, and dashes, 3-10 characters)")
+  .regex(ZIP_PATTERN, "Enter a valid 5-digit ZIP code")
 
 /** Mirrors the backend's `IsMultipleOf(5)` validator applied to `Kiosk.revenueSharePct`
  * (`apps/backend/src/common/validators/is-multiple-of.decorator.ts`), 0-100 in steps of 5. */

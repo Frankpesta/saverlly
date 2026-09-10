@@ -13,7 +13,13 @@ interface ScrapeCouponsJobData {
 interface SelectorConfig {
   codeSelector: string;
   descriptionSelector?: string;
+  revealSelector?: string;
 }
+
+// Bounds how many reveal buttons a single scrape run will click, so a page with an unexpectedly
+// large offer list can't turn one scheduled job into an unbounded run.
+const MAX_REVEALS_PER_RUN = 25;
+const REVEAL_CLICK_DELAY_MS = 300;
 
 @Processor(QUEUE_NAMES.SCRAPE_COUPONS)
 export class ScrapeCouponsProcessor extends WorkerHost {
@@ -42,7 +48,28 @@ export class ScrapeCouponsProcessor extends WorkerHost {
     const browser = await chromium.launch();
     try {
       const page = await browser.newPage();
+      // "Get code" buttons on sites needing revealSelector often open the merchant site (or an
+      // affiliate redirect) in a new tab on click. That tab isn't wanted — the code should reveal
+      // itself in the original page — so close anything that pops up rather than let it sit open
+      // or steal focus.
+      page.context().on('page', (popup) => {
+        popup.close().catch(() => {});
+      });
       await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+      if (config.revealSelector) {
+        const revealButtons = await page.$$(config.revealSelector);
+        for (const button of revealButtons.slice(0, MAX_REVEALS_PER_RUN)) {
+          try {
+            await button.click({ timeout: 5_000 });
+            await page.waitForTimeout(REVEAL_CLICK_DELAY_MS);
+          } catch (error) {
+            this.logger.warn(
+              `Reveal click failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
+            );
+          }
+        }
+      }
 
       const codes = await page.$$eval(config.codeSelector, (elements) =>
         elements

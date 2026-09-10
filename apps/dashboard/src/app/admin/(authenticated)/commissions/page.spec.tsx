@@ -121,19 +121,60 @@ describe("AdminCommissionsPage", () => {
     expect(within(row).getByText("Confirmed")).toBeInTheDocument()
   })
 
-  it("refetches with a kiosk filter applied", async () => {
+  it("refetches with a status filter applied", async () => {
     const user = userEvent.setup()
     renderWithClient(<AdminCommissionsPage />)
 
     await screen.findByText("Amazon")
-    await user.click(screen.getByLabelText("Kiosk"))
-    await user.click(await screen.findByRole("option", { name: "Kiosk One" }))
+    await user.click(screen.getByLabelText("Status"))
+    await user.click(await screen.findByRole("option", { name: "Confirmed" }))
 
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining("kioskId=kiosk-1"),
+        expect.stringContaining("status=CONFIRMED"),
         expect.anything(),
       ),
+    )
+  })
+
+  it("narrows to matching rows by merchant name typed into search, client-side", async () => {
+    const user = userEvent.setup()
+    const secondEvent: CommissionEvent = {
+      ...events[0],
+      id: "ev-2",
+      merchantId: "m-2",
+    }
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? "GET"
+      if (url.startsWith("/api/proxy/commission-events") && method === "GET") {
+        return { ok: true, status: 200, json: async () => [events[0], secondEvent] } as Response
+      }
+      if (url === "/api/proxy/kiosks") return { ok: true, status: 200, json: async () => kiosks } as Response
+      if (url === "/api/proxy/locations") return { ok: true, status: 200, json: async () => locations } as Response
+      if (url === "/api/proxy/devices") return { ok: true, status: 200, json: async () => devices } as Response
+      if (url === "/api/proxy/merchants") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [...merchants, { ...merchants[0], id: "m-2", name: "Walmart" }],
+        } as Response
+      }
+      throw new Error(`Unhandled fetch in test: ${method} ${url}`)
+    }) as jest.Mock
+    renderWithClient(<AdminCommissionsPage />)
+
+    await screen.findByText("Amazon")
+    expect(screen.getByText("Walmart")).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText("Search"), "Amazon")
+
+    await waitFor(() => expect(screen.queryByText("Walmart")).not.toBeInTheDocument())
+    expect(screen.getByText("Amazon")).toBeInTheDocument()
+    // Client-side only -- typing a search term never re-hits the server-filtered endpoint.
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      expect.stringContaining("merchantId="),
+      expect.anything(),
     )
   })
 

@@ -121,6 +121,28 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   )
 }
 
+/** The row shown in place of data when a list is empty. Standardizes the "search/filter turned
+ * up nothing" copy across every table (it used to be hand-written per page, and drifted:
+ * "No X match these filters." on some, missing the check entirely on others). `children` is the
+ * genuinely-empty-collection message — shown only when no search or filter is active. */
+function TableEmptyRow({
+  colSpan,
+  hasFilters,
+  children,
+}: {
+  colSpan: number
+  hasFilters: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <TableRow>
+      <TableCell colSpan={colSpan} className="text-center text-muted-foreground">
+        {hasFilters ? "No records match your search or filters." : children}
+      </TableCell>
+    </TableRow>
+  )
+}
+
 function TableCaption({
   className,
   ...props
@@ -143,5 +165,6 @@ export {
   TableRow,
   TableRowActions,
   TableCell,
+  TableEmptyRow,
   TableCaption,
 }

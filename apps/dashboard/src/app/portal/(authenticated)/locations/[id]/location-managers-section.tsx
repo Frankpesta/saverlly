@@ -3,11 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { UserPlusIcon, XIcon } from "lucide-react"
+import { SearchIcon, UserPlusIcon, XIcon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox } from "@/components/ui/combobox"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { profileInitials } from "@/components/profile/avatar-upload"
@@ -39,10 +40,18 @@ export function LocationManagersSection({
   const { data: users, isLoading } = useKioskUsers(isKioskOwner ? kioskId : "")
   const updateUser = useUpdateKioskUser(kioskId)
   const [pendingId, setPendingId] = React.useState("")
+  const [query, setQuery] = React.useState("")
 
   const managers = users?.filter((user) => user.role === "LOCATION_MANAGER") ?? []
-  const assigned = managers.filter((user) => user.managedLocationIds.includes(locationId))
+  const rawAssigned = managers.filter((user) => user.managedLocationIds.includes(locationId))
   const unassigned = managers.filter((user) => !user.managedLocationIds.includes(locationId))
+  const assigned = React.useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return rawAssigned
+    return rawAssigned.filter((user) =>
+      [user.name, user.email].some((value) => value?.toLowerCase().includes(needle)),
+    )
+  }, [rawAssigned, query])
 
   if (!isKioskOwner) return null
 
@@ -91,10 +100,31 @@ export function LocationManagersSection({
       <CardContent className="flex flex-col gap-4">
         {isLoading && <Skeleton className="h-10 w-full" />}
 
-        {!isLoading && assigned.length === 0 && (
+        {!isLoading && rawAssigned.length > 5 && (
+          <div className="relative">
+            <SearchIcon
+              aria-hidden
+              className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              aria-label="Search assigned managers"
+              placeholder="Search assigned managers…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="pl-9"
+            />
+          </div>
+        )}
+
+        {!isLoading && rawAssigned.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Nobody is assigned to this location yet. You can still see it as the owner.
           </p>
+        )}
+
+        {!isLoading && rawAssigned.length > 0 && assigned.length === 0 && (
+          <p className="text-sm text-muted-foreground">No assigned managers match your search.</p>
         )}
 
         {assigned.length > 0 && (

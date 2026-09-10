@@ -28,6 +28,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -64,7 +65,7 @@ export default function CouponsPage() {
   const view = useCollectionView(filteredCoupons, {
     searchText: (item) => [item.code, item.description, merchants?.find((merchant) => merchant.id === item.merchantId)?.name].join(" "),
     sorts: [{ label: "Code: A to Z", value: "code", compare: (a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }) }, { label: "Newest first", value: "newest", compare: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() }],
-    filters: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !item.active }],
+    filters: [{ key: "status", label: "Status", options: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !item.active }] }],
   })
   const { page, setPage, pageCount, pageItems: coupons, totalItems, pageSize } =
     usePagination(view.items, undefined, `${merchantFilter}:${view.resetKey}`)
@@ -172,11 +173,9 @@ export default function CouponsPage() {
               ))}
 
             {!isLoading && !isError && coupons.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  {view.hasFilters || merchantFilter !== ALL_MERCHANTS ? "No coupons match these filters." : "No coupons yet."}
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={7} hasFilters={view.hasFilters || merchantFilter !== ALL_MERCHANTS}>
+                No coupons yet.
+              </TableEmptyRow>
             )}
 
             {coupons.map((coupon, index) => (

@@ -41,11 +41,16 @@ export function AvatarUpload({
   email,
   avatarUrl,
   className,
+  readOnly = false,
 }: {
   name: string | null
   email: string
   avatarUrl: string | null
   className?: string
+  /** A location manager's photo always mirrors their kiosk owner's (server-enforced: the
+   *  backend rejects their own upload/remove calls), so there's nothing for a click here to do.
+   *  Renders the same circle with no click/drag/hover-to-change affordance at all. */
+  readOnly?: boolean
 }) {
   const uploadAvatar = useUploadAvatar()
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -76,6 +81,31 @@ export function AvatarUpload({
   }
 
   const showImage = !!avatarUrl && !failed
+  const circleClassName = cn(
+    "group relative size-28 shrink-0 overflow-hidden rounded-full outline-none transition-shadow",
+    "ring-1 ring-black/8 dark:ring-white/12",
+    "focus-visible:ring-2 focus-visible:ring-[var(--brand-teal)] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+    isDragging && "ring-2 ring-[var(--brand-teal)]",
+    className,
+  )
+
+  const photo = showImage ? (
+    // eslint-disable-next-line @next/next/no-img-element -- proxied, arbitrary-origin image
+    <img
+      src={proxiedImageUrl(avatarUrl)}
+      alt={name ?? email}
+      className="size-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  ) : (
+    <span className="flex size-full items-center justify-center bg-[var(--brand-teal-tint)] text-2xl font-semibold tracking-tight text-[var(--brand-ink)]">
+      {profileInitials(name, email)}
+    </span>
+  )
+
+  if (readOnly) {
+    return <div className={circleClassName}>{photo}</div>
+  }
 
   return (
     <>
@@ -100,27 +130,9 @@ export function AvatarUpload({
           setIsDragging(false)
           handleFile(e.dataTransfer.files?.[0])
         }}
-        className={cn(
-          "group relative size-28 shrink-0 overflow-hidden rounded-full outline-none transition-shadow",
-          "ring-1 ring-black/8 dark:ring-white/12",
-          "focus-visible:ring-2 focus-visible:ring-[var(--brand-teal)] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          isDragging && "ring-2 ring-[var(--brand-teal)]",
-          className,
-        )}
+        className={circleClassName}
       >
-        {showImage ? (
-          // eslint-disable-next-line @next/next/no-img-element -- proxied, arbitrary-origin image
-          <img
-            src={proxiedImageUrl(avatarUrl)}
-            alt={name ?? email}
-            className="size-full object-cover"
-            onError={() => setFailed(true)}
-          />
-        ) : (
-          <span className="flex size-full items-center justify-center bg-[var(--brand-teal-tint)] text-2xl font-semibold tracking-tight text-[var(--brand-ink)]">
-            {profileInitials(name, email)}
-          </span>
-        )}
+        {photo}
 
         {/* The change affordance stays hidden until hover/focus so the photo is the photo at
             rest, rather than permanently wearing a button over someone's face. */}
@@ -155,7 +167,6 @@ export function AvatarUpload({
           e.target.value = ""
         }}
       />
-
     </>
   )
 }

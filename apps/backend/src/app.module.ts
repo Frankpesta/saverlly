@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { KiosksModule } from './kiosks/kiosks.module';
 import { KioskUsersModule } from './kiosk-users/kiosk-users.module';
 import { LocationsModule } from './locations/locations.module';
+import { LocationEmployeesModule } from './location-employees/location-employees.module';
 import { DevicesModule } from './devices/devices.module';
 import { BullmqConfigModule } from './jobs/bullmq-config.module';
 import { AffiliateProgramsModule } from './affiliate-programs/affiliate-programs.module';
@@ -60,6 +61,7 @@ import { ReleasesModule } from './releases/releases.module';
     KiosksModule,
     KioskUsersModule,
     LocationsModule,
+    LocationEmployeesModule,
     DevicesModule,
     AffiliateProgramsModule,
     MerchantsModule,

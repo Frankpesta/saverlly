@@ -11,26 +11,27 @@ const ALL_CITY_OPTIONS = Array.from(new Set(US_CITIES.map((c) => c.city)))
   .sort()
   .map((city) => ({ value: city, label: city }))
 
-const CITY_OPTIONS_BY_STATE = new Map<string, { value: string; label: string }[]>()
-for (const state of US_STATES) {
-  const cities = Array.from(
-    new Set(US_CITIES.filter((c) => c.state === state.code).map((c) => c.city)),
-  ).sort()
-  CITY_OPTIONS_BY_STATE.set(state.code, cities.map((city) => ({ value: city, label: city })))
+const ALL_STATE_OPTIONS = US_STATES.map((s) => ({ value: s.code, label: `${s.name} (${s.code})` }))
+
+const STATE_OPTIONS_BY_CITY = new Map<string, { value: string; label: string }[]>()
+for (const [city, group] of Map.groupBy(US_CITIES, (c) => c.city.toLowerCase())) {
+  const codes = new Set(group.map((c) => c.state))
+  STATE_OPTIONS_BY_CITY.set(
+    city,
+    ALL_STATE_OPTIONS.filter((option) => codes.has(option.value)),
+  )
 }
 
-const STATE_OPTIONS = US_STATES.map((s) => ({ value: s.code, label: `${s.name} (${s.code})` }))
-
-/** State + City fields, US-only, wired directly to a react-hook-form `control`. Registers both
+/** City + State fields, US-only, wired directly to a react-hook-form `control`. Registers both
  * sub-fields itself via `useController` so callers don't need two `<Controller>` wrappers.
  *
- * State first, then City: picking a state narrows the ~5,800-entry `typed-usa-states` city list
- * to that state, which is the direction the client asked for ("the states don't update
- * according to the state selected" — the previous city-first layout derived state *from* city
- * and never filtered city by state at all). City still accepts any typed value
- * (`allowCustomValue`), since even the full list isn't every incorporated place, and still
- * auto-fills the state when a typed city has exactly one unambiguous match, for the case where
- * someone types a city before picking a state. */
+ * Rendered State-first, City-second per the client's layout preference, but the *dependency*
+ * still runs City -> State underneath: typing/selecting a city narrows the State dropdown to
+ * just the state(s) that city actually exists in (a name like "Springfield" spans dozens of
+ * states), and auto-fills State outright when the city has exactly one match. City itself always
+ * searches the full ~29,500-city list and accepts any typed value (`allowCustomValue`), since
+ * even that list isn't every unincorporated place. Visual order and data dependency are
+ * independent here on purpose -- don't assume swapping one implies swapping the other. */
 export function CityStateFields<TFieldValues extends FieldValues>({
   idPrefix,
   control,
@@ -47,15 +48,14 @@ export function CityStateFields<TFieldValues extends FieldValues>({
   const state = String(stateField.field.value ?? "")
   const city = String(cityField.field.value ?? "")
 
-  const cityOptions = state ? (CITY_OPTIONS_BY_STATE.get(state) ?? []) : ALL_CITY_OPTIONS
+  const stateOptionsForCity = city ? STATE_OPTIONS_BY_CITY.get(city.trim().toLowerCase()) : undefined
+  const stateOptions = stateOptionsForCity ?? ALL_STATE_OPTIONS
 
   function handleCityChange(nextCity: string) {
     cityField.field.onChange(nextCity)
-    if (state) return // already scoped, nothing to infer
-    const normalized = nextCity.trim().toLowerCase()
-    const matches = US_CITIES.filter((c) => c.city.toLowerCase() === normalized)
-    if (matches.length === 1) {
-      stateField.field.onChange(matches[0].state)
+    const matches = STATE_OPTIONS_BY_CITY.get(nextCity.trim().toLowerCase())
+    if (matches?.length === 1) {
+      stateField.field.onChange(matches[0].value)
     }
   }
 
@@ -66,8 +66,8 @@ export function CityStateFields<TFieldValues extends FieldValues>({
           id={`${idPrefix}-state`}
           value={state}
           onValueChange={stateField.field.onChange}
-          options={STATE_OPTIONS}
-          placeholder="Select a state"
+          options={stateOptions}
+          placeholder={stateOptionsForCity ? "Select the matching state" : "Select a state"}
           searchPlaceholder="Search states..."
           aria-invalid={!!stateField.fieldState.error}
         />
@@ -77,8 +77,8 @@ export function CityStateFields<TFieldValues extends FieldValues>({
           id={`${idPrefix}-city`}
           value={city}
           onValueChange={handleCityChange}
-          options={cityOptions}
-          placeholder={state ? "Select or type a city" : "Select a state first"}
+          options={ALL_CITY_OPTIONS}
+          placeholder="Select or type a city"
           searchPlaceholder="Type a city..."
           allowCustomValue
           aria-invalid={!!cityField.fieldState.error}

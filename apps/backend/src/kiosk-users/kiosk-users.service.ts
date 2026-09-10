@@ -76,11 +76,32 @@ export class KioskUsersService {
 
   async findAllForKiosk(kioskId: string) {
     await this.assertKioskExists(kioskId);
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: { kioskId },
       select: KIOSK_USER_SAFE_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+    return users.map((user) => ({
+      ...user,
+      avatarUrl: this.effectiveAvatarUrl(user, users),
+    }));
+  }
+
+  /**
+   * A LOCATION_MANAGER's photo is always the KIOSK_OWNER's for the same kiosk -- managers no
+   * longer have an independent one (POST/DELETE .../avatar reject their own role entirely, see
+   * UsersController). The owner is always in the same `kioskId`-scoped result set this is called
+   * against, so no extra query is needed to find them.
+   */
+  private effectiveAvatarUrl(
+    user: { role: UserRole; avatarUrl: string | null },
+    kioskUsers: { role: UserRole; avatarUrl: string | null }[],
+  ): string | null {
+    if (user.role !== UserRole.LOCATION_MANAGER) {
+      return user.avatarUrl;
+    }
+    const owner = kioskUsers.find((candidate) => candidate.role === UserRole.KIOSK_OWNER);
+    return owner?.avatarUrl ?? user.avatarUrl;
   }
 
   async update(

@@ -195,6 +195,23 @@ describe("ProfileView", () => {
     expect(global.fetch).not.toHaveBeenCalledWith("/api/proxy/kiosks/kiosk-1", expect.anything())
   })
 
+  // A manager's photo is always the kiosk owner's (server-enforced), so there's nothing for a
+  // click here to do -- unlike the owner's own circle, this one isn't a button at all.
+  it("shows a location manager's avatar as read-only, with no upload or remove affordance", async () => {
+    mockFetch({
+      ...owner,
+      role: "LOCATION_MANAGER",
+      name: "Max Manager",
+      managedLocationIds: ["loc-1"],
+    })
+    renderWithClient(<ProfileView settingsHref="/portal/settings" />)
+
+    await screen.findByRole("heading", { name: "Max Manager" })
+    expect(screen.queryByRole("button", { name: /profile photo/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /remove photo/i })).not.toBeInTheDocument()
+    expect(screen.getByText("Matches your kiosk owner's photo.")).toBeInTheDocument()
+  })
+
   it("points an admin at the whole platform rather than one kiosk", async () => {
     mockFetch({ ...owner, role: "ADMIN", kioskId: null, name: "Ada Admin" })
     renderWithClient(<ProfileView settingsHref="/admin/settings" />)
