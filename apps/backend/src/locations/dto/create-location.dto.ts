@@ -10,12 +10,13 @@ import {
   MinLength,
 } from 'class-validator';
 
-// Was US 5-digit-only. Widened per the client's request to also accept ZIP+4 ("12345-6789")
-// and letter/dash postal codes like Canada's ("A1A 1A1"): letters, digits, spaces, and dashes,
-// 3 to 10 characters, first and last character alphanumeric. Mirrors the frontend's
-// ZIP_PATTERN (apps/dashboard/src/lib/validation/schemas.ts) byte-for-byte. Location.zip was
-// already a nullable string column for exactly this reason, so no migration is involved.
-export const ZIP_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 -]{1,8}[A-Za-z0-9]$/;
+// US 5-digit ZIP only. A prior round briefly widened this to also accept ZIP+4 and
+// letter/dash postal codes (e.g. Canadian), but that reversed what was actually asked for —
+// back to plain 5-digit-numeric. Letters/dashes/ZIP+4 may come back later if the client asks
+// for it again; Location.zip is a nullable string column either way, so no migration is
+// involved in either direction. Mirrors the frontend's ZIP_PATTERN
+// (apps/dashboard/src/lib/validation/schemas.ts) byte-for-byte.
+export const ZIP_PATTERN = /^\d{5}$/;
 
 export class CreateLocationDto {
   @ApiPropertyOptional({
@@ -45,9 +46,9 @@ export class CreateLocationDto {
   @MinLength(1)
   state: string;
 
-  @ApiProperty({ example: '78701', description: 'US ZIP, ZIP+4, or a letter/dash postal code (e.g. Canadian)' })
+  @ApiProperty({ example: '78701', description: 'US 5-digit ZIP code' })
   @IsString()
-  @Matches(ZIP_PATTERN, { message: 'zip must be 3-10 characters: letters, numbers, spaces, and dashes' })
+  @Matches(ZIP_PATTERN, { message: 'zip must be exactly 5 digits' })
   zip: string;
 
   @ApiPropertyOptional()

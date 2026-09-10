@@ -36,32 +36,30 @@ const READOUT_DATE = new Intl.DateTimeFormat(undefined, {
 
 type Point = { date: string; value: number; label: string }
 
-/** Rendered as the Tooltip's content, draws nothing, and reports the hovered point upward.
- *
- * Recharts only tells you what is under the cursor through the tooltip's own render path.
- * The chart-level onMouseMove does not carry activeTooltipIndex in recharts 3.x, which is why
- * an earlier attempt left the readout stuck on the last point. Reporting from an effect keeps
- * the parent's setState out of this component's render. */
-function ReadoutProbe({
+/** Rendered as the Tooltip's content. Recharts measures this box and positions the wrapper
+ * itself (`getTooltipTranslate`), flipping to whichever side of the cursor keeps the whole box
+ * inside the chart's viewBox — so it follows the mouse without ever covering the hovered point
+ * or spilling past an edge. We only need to render the box; recharts owns placement. */
+function ChartTooltip({
   active,
   payload,
-  onPoint,
+  valueLabel,
 }: {
   active?: boolean
   payload?: { payload: Point }[]
-  onPoint: (point: Point | null) => void
+  valueLabel: string
 }) {
-  const point = active && payload?.length ? payload[0].payload : null
-  const key = point ? point.date : null
+  if (!active || !payload?.length) return null
+  const point = payload[0].payload
 
-  React.useEffect(() => {
-    onPoint(point)
-    // Keyed on the date rather than the object, which recharts recreates every mousemove and
-    // would otherwise re-fire this effect on every pixel of travel.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key])
-
-  return null
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md">
+      <div className="text-heading tabular-nums">{formatCurrency(point.value)}</div>
+      <div className="text-meta text-muted-foreground">
+        {valueLabel} on {READOUT_DATE.format(new Date(point.date))}
+      </div>
+    </div>
+  )
 }
 
 export function TrendChart({
@@ -77,7 +75,6 @@ export function TrendChart({
   const lastDate = data.at(-1)?.date
   const [customFrom, setCustomFrom] = React.useState("")
   const [customTo, setCustomTo] = React.useState(lastDate ?? "")
-  const [hovered, setHovered] = React.useState<Point | null>(null)
 
   const days = RANGES.find((r) => r.label === range)?.days
   const inCustomRange =
@@ -92,10 +89,6 @@ export function TrendChart({
     ...point,
     label: new Date(point.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
   }))
-
-  // The readout falls back to the most recent point, so the header carries a real number even
-  // before the cursor enters the chart, rather than appearing and disappearing on hover.
-  const readout = display.find((point) => point.date === hovered?.date) ?? display.at(-1)
 
   return (
     <div className="flex flex-col gap-4">
@@ -120,19 +113,6 @@ export function TrendChart({
             />
           )}
         </div>
-
-        {/* Pinned readout. The recharts default tooltip is a box that tracks the cursor, which
-            jitters, covers the point being inspected, and re-anchors when it nears an edge.
-            The client flagged that twice. Parking the values here removes the positioning
-            problem entirely instead of tuning it, and the chart keeps only a cursor line. */}
-        {readout && (
-          <div className="flex flex-col items-end leading-tight">
-            <span className="text-heading tabular-nums">{formatCurrency(readout.value)}</span>
-            <span className="text-meta text-muted-foreground">
-              {valueLabel} on {READOUT_DATE.format(new Date(readout.date))}
-            </span>
-          </div>
-        )}
       </div>
 
       <p className="text-meta text-muted-foreground">
@@ -142,11 +122,7 @@ export function TrendChart({
         · Date range applies to this chart.
       </p>
       <ResponsiveContainer width="100%" height={260}>
-        <AreaChart
-          data={display}
-          margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-          onMouseLeave={() => setHovered(null)}
-        >
+        <AreaChart data={display} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--brand-teal)" stopOpacity={0.25} />
@@ -168,13 +144,14 @@ export function TrendChart({
             tickFormatter={compactCurrency}
             width={56}
           />
-          {/* Kept only for its cursor line. Rendering null content means recharts draws the
-              vertical rule and positions nothing, so there is no floating box at all.
-              isAnimationActive off stops the line easing in from its last position when the
-              pointer re-enters the plot. */}
+          {/* Recharts measures ChartTooltip's rendered box and positions the wrapper itself,
+              flipping sides as needed to stay inside the chart and never cover the hovered
+              point (see getTooltipTranslate) — isAnimationActive off avoids transition lag
+              reading as jitter when the cursor moves quickly. */}
           <Tooltip
-            content={<ReadoutProbe onPoint={setHovered} />}
+            content={<ChartTooltip valueLabel={valueLabel} />}
             isAnimationActive={false}
+            offset={12}
             cursor={{ stroke: "var(--brand-teal)", strokeWidth: 1 }}
           />
           <Area

@@ -23,6 +23,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -56,11 +57,17 @@ export default function AdminPayoutsPage() {
         compare: (a, b) => b.totalAmount - a.totalAmount,
       },
     ],
-    filters: ["PENDING", "PROCESSING", "PAID", "FAILED"].map((status) => ({
-      label: PAYOUT_STATUS_LABEL[status as Payout["status"]],
-      value: status,
-      matches: (item: Payout) => item.status === status,
-    })),
+    filters: [
+      {
+        key: "status",
+        label: "Status",
+        options: ["PENDING", "PROCESSING", "PAID", "FAILED"].map((status) => ({
+          label: PAYOUT_STATUS_LABEL[status as Payout["status"]],
+          value: status,
+          matches: (item: Payout) => item.status === status,
+        })),
+      },
+    ],
   })
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(
     view.items,
@@ -164,11 +171,9 @@ export default function AdminPayoutsPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  {view.hasFilters ? "No payouts match these filters." : "No payouts yet."}
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={6} hasFilters={view.hasFilters}>
+                No payouts yet.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((payout, index) => (

@@ -12,6 +12,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -42,7 +43,7 @@ export default function DevicesPage() {
   const view = useCollectionView(devices, {
     searchText: (item) => [item.label, locations?.find((location) => location.id === item.locationId)?.name].join(" "),
     sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }) }, { label: "Last seen: newest", value: "seen", compare: (a, b) => new Date(b.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime() }],
-    filters: [{ label: "Enabled", value: "active", matches: (item) => item.active }, { label: "Disabled", value: "inactive", matches: (item) => !(item.active) }],
+    filters: [{ key: "status", label: "Status", options: [{ label: "Enabled", value: "active", matches: (item) => item.active }, { label: "Disabled", value: "inactive", matches: (item) => !(item.active) }] }],
   })
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
@@ -122,17 +123,16 @@ export default function DevicesPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={isKioskOwner ? 5 : 4} className="text-center text-muted-foreground">
-                  {/* A device joins by running the agent installer and entering its location's
-                      setup code, so an empty table is exactly when someone needs both. */}
-                  {view.hasFilters ? "No records match your search or filters." : <>No devices yet. Download the agent above, then enter a location&apos;s{" "}
-                  <Link href="/portal/locations" className="text-foreground underline underline-offset-2">
-                    setup code
-                  </Link>{" "}
-                  during install.</>}
-                </TableCell>
-              </TableRow>
+              // A device joins by running the agent installer and entering its location's setup
+              // code, so an empty table is exactly when someone needs both — but only when it's
+              // genuinely empty, not when a search/filter just turned up nothing.
+              <TableEmptyRow colSpan={isKioskOwner ? 5 : 4} hasFilters={view.hasFilters}>
+                No devices yet. Download the agent above, then enter a location&apos;s{" "}
+                <Link href="/portal/locations" className="text-foreground underline underline-offset-2">
+                  setup code
+                </Link>{" "}
+                during install.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((device, index) => (

@@ -66,7 +66,7 @@ model Location {
   address            String
   city               String
   state              String
-  zip                String? // US ZIP, ZIP+4, or a letter/dash postal code (e.g. Canadian). Validated by ZIP_PATTERN in create-location.dto.ts, deliberately a plain nullable string here so widening the accepted formats stays a validation-only change
+  zip                String? // US 5-digit ZIP. Validated by ZIP_PATTERN in create-location.dto.ts, deliberately a plain nullable string here so widening the accepted formats later stays a validation-only change
   latitude           Float?
   longitude          Float?
   tags               String[] // e.g. ["mall", "downtown", "high-traffic"]. Used for future ad targeting
@@ -74,8 +74,26 @@ model Location {
   updatedAt          DateTime            @updatedAt
   devices           Device[]
   locationSetupCode LocationSetupCode?
+  employees         LocationEmployee[]
 
   @@index([kioskId])
+}
+
+// The on-site staff roster the client asked for ("see and manage all employees"). Deliberately
+// no auth fields at all -- per the client's own framing this is a contact directory (name, role,
+// how to reach them), not another tier of portal login alongside LOCATION_MANAGER.
+model LocationEmployee {
+  id         String   @id @default(uuid())
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+  name       String
+  title      String?
+  phone      String?
+  email      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([locationId])
 }
 
 // One setup code per location. Regenerating replaces the existing code in place rather than

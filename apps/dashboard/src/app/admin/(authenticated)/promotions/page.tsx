@@ -4,8 +4,9 @@ import { InlineQueryError } from "@/components/dashboard/query-state"
 
 import * as React from "react"
 import Link from "next/link"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon, SearchIcon } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { usePromotions } from "@/lib/api/hooks/use-promotions"
 import { cn } from "@/lib/utils"
@@ -19,6 +20,7 @@ type Filter = (typeof FILTERS)[number]
 export default function AdminPromotionsPage() {
   const { data: promotions, isLoading, isError, refetch } = usePromotions()
   const [filter, setFilter] = React.useState<Filter>("All")
+  const [query, setQuery] = React.useState("")
 
   // Status is time-derived, so it has to be recomputed as the clock crosses a start/end
   // boundary. Not just when the query refetches.
@@ -39,10 +41,11 @@ export default function AdminPromotionsPage() {
     return tally
   }, [withStatus])
 
-  const visible = React.useMemo(
-    () => (filter === "All" ? withStatus : withStatus.filter((p) => p.status === filter)),
-    [withStatus, filter],
-  )
+  const visible = React.useMemo(() => {
+    const byStatus = filter === "All" ? withStatus : withStatus.filter((p) => p.status === filter)
+    const needle = query.trim().toLowerCase()
+    return needle ? byStatus.filter((p) => p.promotion.name.toLowerCase().includes(needle)) : byStatus
+  }, [withStatus, filter, query])
 
   function countFor(f: Filter): number {
     return f === "All" ? withStatus.length : counts[f]
@@ -62,6 +65,23 @@ export default function AdminPromotionsPage() {
           New Promotion
         </Link>
       </div>
+
+      {!isLoading && !isError && withStatus.length > 0 && (
+        <div className="relative max-w-sm">
+          <SearchIcon
+            aria-hidden
+            className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground"
+          />
+          <Input
+            type="search"
+            aria-label="Search promotions"
+            placeholder="Search promotions…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="pl-9"
+          />
+        </div>
+      )}
 
       {/* A single quiet filter rail instead of a row of stat tiles. The counts and the filtering
           are the same information, so they're the same control rather than two stacked bands. */}
@@ -116,7 +136,9 @@ export default function AdminPromotionsPage() {
 
       {!isLoading && !isError && withStatus.length > 0 && visible.length === 0 && (
         <p className="py-12 text-center text-sm text-muted-foreground">
-          No {filter.toLowerCase()} promotions right now.
+          {query.trim()
+            ? "No records match your search or filters."
+            : `No ${filter.toLowerCase()} promotions right now.`}
         </p>
       )}
 

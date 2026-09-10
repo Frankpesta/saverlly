@@ -205,7 +205,7 @@ export function AnnouncementForm({
   // on an upload, not on a keystroke, so this costs nothing in typing responsiveness.
   const mediaUrl = watch("mediaUrl") ?? ""
 
-  const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
 
   function setLayout(next: AnnouncementLayout) {
     setValue("layout", next, { shouldDirty: true })
@@ -238,7 +238,7 @@ export function AnnouncementForm({
   function addImage(url: string) {
     const element = imageElementFor(url)
     setLayout({ ...layout, elements: [...layout.elements, element] })
-    setSelectedId(element.id)
+    setSelectedIds([element.id])
   }
 
   /** Uploading from the canvas toolbar drops the image straight onto the canvas. `mediaUrl` is
@@ -263,20 +263,20 @@ export function AnnouncementForm({
     const element = createElement(type, layout)
     if (!element) return
     setLayout({ ...layout, elements: [...layout.elements, element] })
-    setSelectedId(element.id)
+    setSelectedIds([element.id])
   }
 
   function handleAddShape(kind: ShapeKind) {
     const element = createElement("shape", layout, kind)
     if (!element) return
     setLayout({ ...layout, elements: [...layout.elements, element] })
-    setSelectedId(element.id)
+    setSelectedIds([element.id])
   }
 
   function handleResetLayout() {
     const { title, body, mediaUrl } = getValues()
     setLayout(createDefaultLayout({ title, body, mediaUrl }))
-    setSelectedId(null)
+    setSelectedIds([])
   }
 
   /** Distinct from "Reset": reset rebuilds a title/body/button arrangement, this leaves nothing
@@ -290,32 +290,21 @@ export function AnnouncementForm({
         height: layout.height,
       }),
     )
-    setSelectedId(null)
+    setSelectedIds([])
   }
 
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit(onSubmit)} noValidate>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <Link
-            href="/portal/announcements"
-            className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeftIcon className="size-3.5" />
-            Announcements
-          </Link>
-          <h2 className="text-title">{heading}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {headerActions}
-          <Link href="/portal/announcements" className={cn(buttonVariants({ variant: "outline" }))}>
-            Cancel
-          </Link>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? pendingLabel : submitLabel}
-          </Button>
-        </div>
+      <div className="flex flex-col gap-1">
+        <Link
+          href="/portal/announcements"
+          className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeftIcon className="size-3.5" />
+          Announcements
+        </Link>
+        <h2 className="text-title">{heading}</h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
@@ -327,8 +316,8 @@ export function AnnouncementForm({
             <AnnouncementCanvas
               layout={layout}
               onChange={setLayout}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
             />
             <div className="flex items-center justify-between gap-3">
               <CanvasToolbar
@@ -484,9 +473,9 @@ export function AnnouncementForm({
           <div className="rounded-xl border border-black/8 bg-card p-4 dark:border-white/10">
             <ElementInspector
               layout={layout}
-              selectedId={selectedId}
+              selectedIds={selectedIds}
               onChange={setLayout}
-              onSelect={setSelectedId}
+              onSelectionChange={setSelectedIds}
             />
           </div>
 
@@ -494,11 +483,22 @@ export function AnnouncementForm({
             <p className="mb-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
               Layers
             </p>
-            <LayerList layout={layout} selectedId={selectedId} onSelect={setSelectedId} />
+            <LayerList layout={layout} selectedIds={selectedIds} onSelect={(id) => setSelectedIds([id])} />
           </div>
 
           <AnnouncementLayoutPreview layout={layout} />
         </div>
+      </div>
+
+      {/* Actions live at the bottom, after the form, rather than pinned in the header above it. */}
+      <div className="flex items-center justify-end gap-2 border-t border-black/8 pt-6 dark:border-white/10">
+        {headerActions}
+        <Link href="/portal/announcements" className={cn(buttonVariants({ variant: "outline" }))}>
+          Cancel
+        </Link>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? pendingLabel : submitLabel}
+        </Button>
       </div>
     </form>
   )

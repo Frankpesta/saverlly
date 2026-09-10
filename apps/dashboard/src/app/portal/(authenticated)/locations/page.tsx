@@ -13,6 +13,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -122,31 +123,30 @@ export default function LocationsPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  {/* A manager with an empty managedLocationIds saw a blank table with no
-                      explanation and nobody to ask. They can't fix it themselves, so the least
-                      this can do is name the person who can. */}
-                  {view.hasFilters ? "No records match your search or filters." : isOwner ? (
-                    "No locations yet."
-                  ) : (
-                    <>
-                      You have not been assigned to any locations yet. Ask{" "}
-                      {kioskContact?.email ? (
-                        <a
-                          href={`mailto:${kioskContact.email}`}
-                          className="text-[var(--brand-ink)] hover:underline"
-                        >
-                          {kioskContact.name || "your kiosk owner"}
-                        </a>
-                      ) : (
-                        "your kiosk owner"
-                      )}{" "}
-                      to add you to one.
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>
+              // A manager with an empty managedLocationIds saw a blank table with no
+              // explanation and nobody to ask. They can't fix it themselves, so the least this
+              // can do is name the person who can — but only when it's genuinely empty, not
+              // when a search/filter just turned up nothing.
+              <TableEmptyRow colSpan={6} hasFilters={view.hasFilters}>
+                {isOwner ? (
+                  "No locations yet."
+                ) : (
+                  <>
+                    You have not been assigned to any locations yet. Ask{" "}
+                    {kioskContact?.email ? (
+                      <a
+                        href={`mailto:${kioskContact.email}`}
+                        className="text-[var(--brand-ink)] hover:underline"
+                      >
+                        {kioskContact.name || "your kiosk owner"}
+                      </a>
+                    ) : (
+                      "your kiosk owner"
+                    )}{" "}
+                    to add you to one.
+                  </>
+                )}
+              </TableEmptyRow>
             )}
 
             {pageItems.map((location, index) => (

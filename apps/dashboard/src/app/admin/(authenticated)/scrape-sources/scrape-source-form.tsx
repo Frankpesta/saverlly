@@ -42,6 +42,7 @@ const scrapeSourceSchema = z
     url: z.string().trim().min(1, "Page URL is required"),
     codeSelector: z.string().trim().min(1, "Coupon code selector is required"),
     descriptionSelector: z.string().trim(),
+    revealSelector: z.string().trim(),
     intervalAmount: z
       .string()
       .trim()
@@ -133,6 +134,7 @@ export function ScrapeSourceForm({
       url: source?.url ?? "",
       codeSelector: source?.selectorConfig.codeSelector ?? "",
       descriptionSelector: source?.selectorConfig.descriptionSelector ?? "",
+      revealSelector: source?.selectorConfig.revealSelector ?? "",
       intervalAmount: initialInterval.amount,
       intervalUnit: initialInterval.unit,
     },
@@ -149,6 +151,7 @@ export function ScrapeSourceForm({
       selectorConfig: {
         codeSelector: values.codeSelector,
         descriptionSelector: values.descriptionSelector || undefined,
+        revealSelector: values.revealSelector || undefined,
       },
       intervalMinutes: Number(values.intervalAmount) * UNIT_MINUTES[values.intervalUnit],
     }
@@ -230,6 +233,14 @@ export function ScrapeSourceForm({
               />
             </FormField>
           </FormGrid>
+          <FormField label="Reveal button selector (optional)" htmlFor="scrape-reveal-selector">
+            <Input
+              id="scrape-reveal-selector"
+              placeholder=".reveal-code-button"
+              {...register("revealSelector")}
+            />
+            <SelectorHelp label="When do I need this?" variant="reveal" />
+          </FormField>
         </FormSection>
 
         <FormSection label="Schedule">

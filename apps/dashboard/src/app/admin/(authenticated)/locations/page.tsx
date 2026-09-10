@@ -13,6 +13,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -117,11 +118,9 @@ export default function AdminLocationsPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  No locations yet.
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={7} hasFilters={view.hasFilters}>
+                No locations yet.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((location, index) => (

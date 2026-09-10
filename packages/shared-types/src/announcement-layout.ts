@@ -159,6 +159,9 @@ export function resolveActionHref(action: LayoutAction | null | undefined): stri
   return null;
 }
 
+export const TEXT_TRANSFORMS = ['none', 'uppercase', 'lowercase', 'capitalize'] as const;
+export type TextTransform = (typeof TEXT_TRANSFORMS)[number];
+
 export interface TextLayoutElement extends LayoutElementBox {
   type: 'text';
   text: string;
@@ -168,6 +171,13 @@ export interface TextLayoutElement extends LayoutElementBox {
   color: string;
   align: 'left' | 'center' | 'right';
   italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  overline: boolean;
+  textTransform: TextTransform;
+  /** Extra space between letters, in canvas-space pixels. Negative values are allowed (a tighter
+   *  headline), clamped in `parseElement` well short of anything that would make text unreadable. */
+  letterSpacing: number;
   /** Set to make the text clickable. Null (the default) leaves it as plain type. */
   action: LayoutAction | null;
 }
@@ -199,8 +209,13 @@ export interface ButtonLayoutElement extends LayoutElementBox {
  * There was no discriminator here at all before, only `fill` and `radius`, so the single way to
  * get a circle was to crank `radius` to 999 on a square and the other shapes were simply
  * unreachable. `rectangle` is the default so an existing shape element keeps its appearance.
+ *
+ * `circle` renders identically to `ellipse` (see `shapeStyle` below) -- the distinction lives in
+ * the editor, which locks a circle's resize handles to a 1:1 aspect ratio instead of letting it
+ * stretch freely. Kept as its own kind rather than an `ellipse` option so the toolbar/inspector
+ * can offer "draw a true circle" as a one-click affordance instead of a manual width/height match.
  */
-export const SHAPE_KINDS = ['rectangle', 'ellipse', 'line', 'triangle'] as const;
+export const SHAPE_KINDS = ['rectangle', 'ellipse', 'circle', 'line', 'triangle'] as const;
 export type ShapeKind = (typeof SHAPE_KINDS)[number];
 
 export interface ShapeLayoutElement extends LayoutElementBox {
@@ -407,6 +422,11 @@ function parseElement(
         color: safeColor(input.color, '#111111'),
         align: safeEnum(input.align, ['left', 'center', 'right'] as const, 'left'),
         italic: input.italic === true,
+        underline: input.underline === true,
+        strikethrough: input.strikethrough === true,
+        overline: input.overline === true,
+        textTransform: safeEnum(input.textTransform, TEXT_TRANSFORMS, 'none'),
+        letterSpacing: safeNumber(input.letterSpacing, 0, -10, 100),
         // Null, not dismiss: text is plain type unless the owner deliberately links it.
         action: safeAction(input.action, null),
       };
@@ -509,6 +529,11 @@ export function createDefaultLayout(source: {
     color: '#111111',
     align: 'center',
     italic: false,
+    underline: false,
+    strikethrough: false,
+    overline: false,
+    textTransform: 'none',
+    letterSpacing: 0,
     action: null,
   });
 
@@ -526,6 +551,11 @@ export function createDefaultLayout(source: {
     color: '#444444',
     align: 'center',
     italic: false,
+    underline: false,
+    strikethrough: false,
+    overline: false,
+    textTransform: 'none',
+    letterSpacing: 0,
     action: null,
   });
 
@@ -606,7 +636,15 @@ export function resizeLayout(
         width: Math.max(8, scaleTo(element.width)),
         height: Math.max(8, scaleTo(element.height)),
       };
-      if (element.type === 'text' || element.type === 'button') {
+      if (element.type === 'text') {
+        return {
+          ...element,
+          ...box,
+          fontSize: Math.min(200, Math.max(8, scaleTo(element.fontSize))),
+          letterSpacing: Math.min(100, Math.max(-10, scaleTo(element.letterSpacing))),
+        };
+      }
+      if (element.type === 'button') {
         return {
           ...element,
           ...box,
@@ -662,7 +700,17 @@ export function layoutElementStyle(
   };
 
   switch (element.type) {
-    case 'text':
+    case 'text': {
+      // Was hardcoded to 'none' (a linked text element renders as an <a>, which would otherwise
+      // pick up the browser's default blue-and-underlined; the owner's colour is meant to win).
+      // Underline/strikethrough/overline are real style choices now, so build the property from
+      // whichever of them are on instead of always suppressing it -- they compose in one
+      // text-decoration-line value, same as a word processor's B/I/U/S toolbar.
+      const decorations = [
+        element.underline && 'underline',
+        element.overline && 'overline',
+        element.strikethrough && 'line-through',
+      ].filter(Boolean);
       return {
         ...base,
         display: 'flex',
@@ -675,15 +723,16 @@ export function layoutElementStyle(
         fontStyle: element.italic ? 'italic' : 'normal',
         color: element.color,
         textAlign: element.align,
+        textTransform: element.textTransform,
+        letterSpacing: `${element.letterSpacing}px`,
         lineHeight: '1.3',
         whiteSpace: 'pre-wrap',
         overflow: 'hidden',
         wordBreak: 'break-word',
-        // Linked text renders as an <a>, which would otherwise pick up the browser's default
-        // blue-and-underlined. The owner chose a colour; that colour wins.
-        textDecoration: 'none',
+        textDecoration: decorations.length > 0 ? decorations.join(' ') : 'none',
         ...(element.action ? { cursor: 'pointer' } : {}),
       };
+    }
     case 'image':
       return {
         ...base,
@@ -720,6 +769,7 @@ export function layoutElementStyle(
 function shapeStyle(element: ShapeLayoutElement): StyleMap {
   switch (element.kind) {
     case 'ellipse':
+    case 'circle':
       return { backgroundColor: element.fill, borderRadius: '50%' };
     case 'line':
       // A line is its box's full width at the box's height as thickness, rounded to a cap. Drawn

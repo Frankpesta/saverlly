@@ -13,11 +13,25 @@ import {
   CopyIcon,
   ArrowUpIcon,
   ArrowDownIcon,
+  BoldIcon,
+  ItalicIcon,
+  UnderlineIcon,
+  StrikethroughIcon,
+  AlignHorizontalJustifyStartIcon,
+  AlignHorizontalJustifyCenterIcon,
+  AlignHorizontalJustifyEndIcon,
+  AlignVerticalJustifyStartIcon,
+  AlignVerticalJustifyCenterIcon,
+  AlignVerticalJustifyEndIcon,
+  AlignHorizontalDistributeCenterIcon,
+  AlignVerticalDistributeCenterIcon,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   ANNOUNCEMENT_CANVAS_PRESETS,
   KIOSK_SAFE_FONTS,
   SHAPE_KINDS,
+  TEXT_TRANSFORMS,
   canvasPresetFor,
   createElementId,
   resizeLayout,
@@ -32,6 +46,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
+import { Toggle } from "@/components/ui/toggle"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import { ImageUploadField } from "@/components/dashboard/image-upload-field"
 
@@ -52,6 +67,17 @@ const ALIGN_OPTIONS = [
   { value: "right", label: "Right" },
 ]
 
+const TEXT_TRANSFORM_LABEL: Record<(typeof TEXT_TRANSFORMS)[number], string> = {
+  none: "Normal",
+  uppercase: "UPPERCASE",
+  lowercase: "lowercase",
+  capitalize: "Capitalize",
+}
+const TEXT_TRANSFORM_OPTIONS = TEXT_TRANSFORMS.map((value) => ({
+  value,
+  label: TEXT_TRANSFORM_LABEL[value],
+}))
+
 const FIT_OPTIONS = [
   { value: "cover", label: "Fill the box (crop)" },
   { value: "contain", label: "Fit inside (letterbox)" },
@@ -62,15 +88,32 @@ export type CanvasSize = { width: number; height: number }
 export const SHAPE_KIND_LABEL: Record<ShapeKind, string> = {
   rectangle: "Rectangle",
   ellipse: "Ellipse",
+  circle: "Circle",
   line: "Line",
   triangle: "Triangle",
 }
 
-const SHAPE_KIND_ICON: Record<ShapeKind, typeof SquareIcon> = {
+/** Stretched horizontally so it doesn't sit in the toolbar looking identical to Circle's icon --
+ *  the two are otherwise the same glyph (`CircleIcon`), which is exactly the confusion a
+ *  dedicated Circle shape is meant to resolve. */
+function EllipseIcon(props: React.ComponentProps<typeof CircleIcon>) {
+  return <CircleIcon {...props} className={cn(props.className, "scale-x-150")} />
+}
+
+const SHAPE_KIND_ICON: Record<ShapeKind, React.ComponentType<React.ComponentProps<typeof CircleIcon>>> = {
   rectangle: SquareIcon,
-  ellipse: CircleIcon,
+  ellipse: EllipseIcon,
+  circle: CircleIcon,
   line: MinusIcon,
   triangle: TriangleIcon,
+}
+
+/** Canvas presets are stored in CSS pixels (96 per inch, the device-independent-pixel mapping
+ *  this codebase uses everywhere -- see ANNOUNCEMENT_CANVAS_WIDTH's own comment), but the client
+ *  thinks and asked for this in inches ("8.5 x 11"), not "816×1056". */
+function formatInches(px: number): string {
+  const inches = px / 96
+  return Number.isInteger(inches) ? String(inches) : inches.toFixed(1)
 }
 
 /** A new element's size, clamped so it still fits a canvas smaller than the size it assumes. */
@@ -117,6 +160,11 @@ export function createElement(
         color: "#111111",
         align: "center",
         italic: false,
+        underline: false,
+        strikethrough: false,
+        overline: false,
+        textTransform: "none",
+        letterSpacing: 0,
         action: null,
       }
     case "button":
@@ -137,7 +185,11 @@ export function createElement(
       return {
         id,
         type: "shape",
-        ...(shapeKind === "line" ? fittedLine(canvas) : fitted(canvas, 240, 160)),
+        ...(shapeKind === "line"
+          ? fittedLine(canvas)
+          : shapeKind === "circle"
+            ? fitted(canvas, 160, 160)
+            : fitted(canvas, 240, 160)),
         kind: shapeKind,
         fill: "#e2e8f0",
         radius: shapeKind === "rectangle" ? 12 : 0,
@@ -365,6 +417,137 @@ function NumberField({
   )
 }
 
+type AlignOp = "left" | "centerH" | "right" | "top" | "centerV" | "bottom" | "distributeH" | "distributeV"
+
+function boundingBoxOf(elements: AnnouncementLayoutElement[]) {
+  return {
+    left: Math.min(...elements.map((el) => el.x)),
+    top: Math.min(...elements.map((el) => el.y)),
+    right: Math.max(...elements.map((el) => el.x + el.width)),
+    bottom: Math.max(...elements.map((el) => el.y + el.height)),
+  }
+}
+
+/**
+ * Moves every selected element per `op`, then returns the updated layout. A single element
+ * aligns to the canvas bounds (there's nothing else to align it to); two or more align to their
+ * own bounding box instead, matching every other design tool's convention. Distribute needs a
+ * middle to space out, so it's a no-op below three elements -- the toolbar disables those buttons
+ * for exactly that reason rather than silently doing nothing.
+ */
+function alignElements(layout: AnnouncementLayout, selectedIds: string[], op: AlignOp): AnnouncementLayout {
+  const selected = layout.elements.filter((element) => selectedIds.includes(element.id))
+  if (selected.length === 0) return layout
+
+  const box =
+    selected.length === 1
+      ? { left: 0, top: 0, right: layout.width, bottom: layout.height }
+      : boundingBoxOf(selected)
+
+  const patches = new Map<string, Partial<AnnouncementLayoutElement>>()
+
+  if (op === "distributeH" || op === "distributeV") {
+    if (selected.length < 3) return layout
+    const axis = op === "distributeH" ? "x" : "y"
+    const size = op === "distributeH" ? "width" : "height"
+    const centerOf = (el: AnnouncementLayoutElement) => el[axis] + el[size] / 2
+    const sorted = [...selected].sort((a, b) => centerOf(a) - centerOf(b))
+    const firstCenter = centerOf(sorted[0])
+    const lastCenter = centerOf(sorted[sorted.length - 1])
+    const step = (lastCenter - firstCenter) / (sorted.length - 1)
+    // Only the interior elements move; the two endpoints anchor the span being distributed
+    // across, the same way the first and last stops on a ruler don't move either.
+    sorted.slice(1, -1).forEach((element, index) => {
+      const center = firstCenter + step * (index + 1)
+      patches.set(element.id, { [axis]: Math.round(center - element[size] / 2) } as Partial<AnnouncementLayoutElement>)
+    })
+  } else {
+    for (const element of selected) {
+      switch (op) {
+        case "left":
+          patches.set(element.id, { x: box.left })
+          break
+        case "centerH":
+          patches.set(element.id, { x: Math.round(box.left + (box.right - box.left) / 2 - element.width / 2) })
+          break
+        case "right":
+          patches.set(element.id, { x: box.right - element.width })
+          break
+        case "top":
+          patches.set(element.id, { y: box.top })
+          break
+        case "centerV":
+          patches.set(element.id, { y: Math.round(box.top + (box.bottom - box.top) / 2 - element.height / 2) })
+          break
+        case "bottom":
+          patches.set(element.id, { y: box.bottom - element.height })
+          break
+      }
+    }
+  }
+
+  return {
+    ...layout,
+    elements: layout.elements.map((element) =>
+      patches.has(element.id) ? ({ ...element, ...patches.get(element.id) } as AnnouncementLayoutElement) : element,
+    ),
+  }
+}
+
+function AlignmentToolbar({
+  onAlign,
+  canDistribute,
+}: {
+  onAlign: (op: AlignOp) => void
+  canDistribute: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs text-muted-foreground">Align</span>
+      <div className="flex flex-wrap gap-1">
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => onAlign("left")} aria-label="Align left">
+          <AlignHorizontalJustifyStartIcon className="size-3.5" />
+        </Button>
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => onAlign("centerH")} aria-label="Align center horizontally">
+          <AlignHorizontalJustifyCenterIcon className="size-3.5" />
+        </Button>
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => onAlign("right")} aria-label="Align right">
+          <AlignHorizontalJustifyEndIcon className="size-3.5" />
+        </Button>
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => onAlign("top")} aria-label="Align top">
+          <AlignVerticalJustifyStartIcon className="size-3.5" />
+        </Button>
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => onAlign("centerV")} aria-label="Align middle vertically">
+          <AlignVerticalJustifyCenterIcon className="size-3.5" />
+        </Button>
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => onAlign("bottom")} aria-label="Align bottom">
+          <AlignVerticalJustifyEndIcon className="size-3.5" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={() => onAlign("distributeH")}
+          disabled={!canDistribute}
+          aria-label="Distribute horizontally"
+        >
+          <AlignHorizontalDistributeCenterIcon className="size-3.5" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={() => onAlign("distributeV")}
+          disabled={!canDistribute}
+          aria-label="Distribute vertically"
+        >
+          <AlignVerticalDistributeCenterIcon className="size-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Properties of whatever is selected on the canvas. Deliberately shows only what the kiosk
  * renderer can actually honour. The font list is the Windows-stock set, because a webfont would
@@ -372,16 +555,17 @@ function NumberField({
  */
 export function ElementInspector({
   layout,
-  selectedId,
+  selectedIds,
   onChange,
-  onSelect,
+  onSelectionChange,
 }: {
   layout: AnnouncementLayout
-  selectedId: string | null
+  selectedIds: string[]
   onChange: (layout: AnnouncementLayout) => void
-  onSelect: (id: string | null) => void
+  onSelectionChange: (ids: string[]) => void
 }) {
-  const element = layout.elements.find((candidate) => candidate.id === selectedId) ?? null
+  const element =
+    selectedIds.length === 1 ? (layout.elements.find((candidate) => candidate.id === selectedIds[0]) ?? null) : null
 
   function update(patch: Partial<AnnouncementLayoutElement>) {
     if (!element) return
@@ -401,7 +585,7 @@ export function ElementInspector({
       ...layout,
       elements: layout.elements.filter((candidate) => candidate.id !== element.id),
     })
-    onSelect(null)
+    onSelectionChange([])
   }
 
   function duplicate() {
@@ -413,7 +597,7 @@ export function ElementInspector({
       y: element.y + 16,
     } as AnnouncementLayoutElement
     onChange({ ...layout, elements: [...layout.elements, copy] })
-    onSelect(copy.id)
+    onSelectionChange([copy.id])
   }
 
   /** Array order is z-order (later = on top), so reordering the array is the whole operation. */
@@ -425,6 +609,64 @@ export function ElementInspector({
     const elements = [...layout.elements]
     ;[elements[index], elements[target]] = [elements[target], elements[index]]
     onChange({ ...layout, elements })
+  }
+
+  function removeMany() {
+    const idSet = new Set(selectedIds)
+    onChange({ ...layout, elements: layout.elements.filter((candidate) => !idSet.has(candidate.id)) })
+    onSelectionChange([])
+  }
+
+  function duplicateMany() {
+    const idSet = new Set(selectedIds)
+    const copies = layout.elements
+      .filter((candidate) => idSet.has(candidate.id))
+      .map(
+        (candidate) =>
+          ({
+            ...candidate,
+            id: createElementId(candidate.type),
+            x: candidate.x + 16,
+            y: candidate.y + 16,
+          }) as AnnouncementLayoutElement,
+      )
+    onChange({ ...layout, elements: [...layout.elements, ...copies] })
+    onSelectionChange(copies.map((copy) => copy.id))
+  }
+
+  if (selectedIds.length > 1) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            {selectedIds.length} selected
+          </span>
+          <div className="flex items-center gap-1">
+            <Button type="button" variant="ghost" size="icon-sm" onClick={duplicateMany} aria-label="Duplicate selection">
+              <CopyIcon className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={removeMany}
+              aria-label="Delete selection"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2Icon className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Drag any of them to move the group together, press Delete to remove all {selectedIds.length}, or
+          shift-click one to remove it from the selection.
+        </p>
+        <AlignmentToolbar
+          onAlign={(op) => onChange(alignElements(layout, selectedIds, op))}
+          canDistribute={selectedIds.length >= 3}
+        />
+      </div>
+    )
   }
 
   if (!element) {
@@ -449,7 +691,7 @@ export function ElementInspector({
             placeholder="Custom size"
             options={ANNOUNCEMENT_CANVAS_PRESETS.map((candidate) => ({
               value: candidate.id,
-              label: `${candidate.label} (${candidate.width}×${candidate.height})`,
+              label: `${candidate.label} (${formatInches(candidate.width)} × ${formatInches(candidate.height)}")`,
             }))}
           />
         </FormField>
@@ -533,6 +775,76 @@ export function ElementInspector({
                 options={WEIGHT_OPTIONS}
               />
             </FormField>
+          </FormGrid>
+          <FormField label="Style" htmlFor="ann-el-style-bold">
+            <div className="flex items-center gap-1">
+              <Toggle
+                id="ann-el-style-bold"
+                size="sm"
+                variant="outline"
+                pressed={element.fontWeight >= 700}
+                onPressedChange={(pressed) => update({ fontWeight: pressed ? 700 : 400 })}
+                aria-label="Bold"
+              >
+                <BoldIcon />
+              </Toggle>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={element.italic}
+                onPressedChange={(italic) => update({ italic })}
+                aria-label="Italic"
+              >
+                <ItalicIcon />
+              </Toggle>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={element.underline}
+                onPressedChange={(underline) => update({ underline })}
+                aria-label="Underline"
+              >
+                <UnderlineIcon />
+              </Toggle>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={element.strikethrough}
+                onPressedChange={(strikethrough) => update({ strikethrough })}
+                aria-label="Strikethrough"
+              >
+                <StrikethroughIcon />
+              </Toggle>
+              <Toggle
+                size="sm"
+                variant="outline"
+                pressed={element.overline}
+                onPressedChange={(overline) => update({ overline })}
+                aria-label="Overline"
+              >
+                <span style={{ textDecoration: "overline" }}>O</span>
+              </Toggle>
+            </div>
+          </FormField>
+          <FormGrid>
+            <FormField label="Text case" htmlFor="ann-el-transform">
+              <Combobox
+                id="ann-el-transform"
+                value={element.textTransform}
+                onValueChange={(textTransform) =>
+                  update({ textTransform: textTransform as (typeof TEXT_TRANSFORMS)[number] })
+                }
+                options={TEXT_TRANSFORM_OPTIONS}
+              />
+            </FormField>
+            <NumberField
+              label="Letter spacing"
+              id="ann-el-letter-spacing"
+              value={element.letterSpacing}
+              onChange={(letterSpacing) => update({ letterSpacing })}
+              min={-10}
+              max={100}
+            />
           </FormGrid>
           <FormField label="Alignment" htmlFor="ann-el-align">
             <Combobox
@@ -684,6 +996,10 @@ export function ElementInspector({
           min={16}
         />
       </FormGrid>
+
+      {/* A single element has nothing else to align to, so this aligns it to the canvas bounds
+          instead -- centering it, or snapping it to an edge, without hand-typing X/Y. */}
+      <AlignmentToolbar onAlign={(op) => onChange(alignElements(layout, selectedIds, op))} canDistribute={false} />
     </div>
   )
 }

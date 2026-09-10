@@ -105,6 +105,7 @@ function IdentityBand({ user }: { user: UserProfile }) {
           email={user.email}
           avatarUrl={user.avatarUrl}
           className="-mt-14 ring-4 ring-card dark:ring-card"
+          readOnly={user.role === "LOCATION_MANAGER"}
         />
         <div className="flex min-w-0 flex-1 flex-col gap-1 pb-1">
           <div className="flex flex-wrap items-center gap-3">
@@ -115,7 +116,9 @@ function IdentityBand({ user }: { user: UserProfile }) {
           {since && <p className="text-meta text-muted-foreground">On Saverlly since {since}</p>}
         </div>
         <div className="shrink-0 pb-1">
-          {user.avatarUrl ? (
+          {user.role === "LOCATION_MANAGER" ? (
+            <p className="text-meta text-muted-foreground">Matches your kiosk owner&apos;s photo.</p>
+          ) : user.avatarUrl ? (
             <RemoveAvatarButton />
           ) : (
             <p className="text-meta text-muted-foreground">

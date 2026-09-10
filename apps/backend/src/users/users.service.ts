@@ -94,6 +94,27 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  /**
+   * A LOCATION_MANAGER's photo is always the KIOSK_OWNER's for the same kiosk -- managers no
+   * longer have an independent one (POST/DELETE .../avatar reject their own role entirely, see
+   * UsersController). Falls back to the manager's own (already-null, in practice) avatarUrl if
+   * the kiosk somehow has no owner on record.
+   */
+  async resolveEffectiveAvatarUrl(user: {
+    role: UserRole;
+    kioskId: string | null;
+    avatarUrl: string | null;
+  }): Promise<string | null> {
+    if (user.role !== UserRole.LOCATION_MANAGER || !user.kioskId) {
+      return user.avatarUrl;
+    }
+    const owner = await this.prisma.user.findFirst({
+      where: { kioskId: user.kioskId, role: UserRole.KIOSK_OWNER },
+      select: { avatarUrl: true },
+    });
+    return owner?.avatarUrl ?? user.avatarUrl;
+  }
+
   setRefreshTokenHash(userId: string, refreshTokenHash: string | null) {
     return this.prisma.user.update({
       where: { id: userId },

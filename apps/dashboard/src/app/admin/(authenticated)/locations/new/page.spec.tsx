@@ -98,8 +98,8 @@ describe("NewLocationPage", () => {
   })
 
   // More interaction steps than the default 5000ms budget comfortably covers, since Kiosk/
-  // State/City are each their own combobox popover (open, search, pick), not plain text inputs.
-  it("fills the form, picks a state to filter city options, and submits", async () => {
+  // City/State are each their own combobox popover (open, search, pick), not plain text inputs.
+  it("fills the form, picks a city to narrow the matching states, and submits", async () => {
     const user = userEvent.setup()
     renderWithClient(<NewLocationPage />)
 
@@ -109,12 +109,14 @@ describe("NewLocationPage", () => {
     await user.type(screen.getByLabelText("Name"), "Uptown")
     await user.type(screen.getByLabelText("Address"), "2 Elm St")
 
-    await user.click(screen.getByRole("combobox", { name: "State" }))
-    await user.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
-
     await user.click(screen.getByRole("combobox", { name: "City" }))
     await user.type(screen.getByPlaceholderText("Type a city..."), "Springfield")
     await user.click(await screen.findByRole("option", { name: "Springfield" }))
+
+    // "Springfield" exists in dozens of states, so it can't auto-fill one — the State dropdown
+    // narrows to just those matching states instead, and the user picks among them.
+    await user.click(screen.getByRole("combobox", { name: "State" }))
+    await user.click(await screen.findByRole("option", { name: "Illinois (IL)" }))
 
     await user.type(screen.getByLabelText("Zip"), "00000")
     await user.click(screen.getByRole("button", { name: /create location/i }))
@@ -138,12 +140,12 @@ describe("NewLocationPage", () => {
     expect(mockPush).toHaveBeenCalledWith("/admin/locations/loc-2")
   }, 20000)
 
-  it("accepts a ZIP+4 or a letter/dash postal code", async () => {
+  it("strips non-digits and caps the zip field at 5 digits", async () => {
     const user = userEvent.setup()
     renderWithClient(<NewLocationPage />)
 
     const zip = screen.getByLabelText("Zip")
-    await user.type(zip, "a1a 1a1")
-    expect(zip).toHaveValue("A1A 1A1")
+    await user.type(zip, "a1a2-3456")
+    expect(zip).toHaveValue("12345")
   })
 })

@@ -14,6 +14,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -35,7 +36,7 @@ export default function KiosksPage() {
   const view = useCollectionView(kiosks, {
     searchText: (item) => item.name,
     sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }) }, { label: "Revenue share: highest", value: "share", compare: (a, b) => Number(b.revenueSharePct) - Number(a.revenueSharePct) }],
-    filters: [{ label: "Active", value: "active", matches: (item) => item.status === "ACTIVE" }, { label: "Inactive", value: "inactive", matches: (item) => !(item.status === "ACTIVE") }],
+    filters: [{ key: "status", label: "Status", options: [{ label: "Active", value: "active", matches: (item) => item.status === "ACTIVE" }, { label: "Inactive", value: "inactive", matches: (item) => !(item.status === "ACTIVE") }] }],
   })
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
@@ -106,11 +107,9 @@ export default function KiosksPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
-                  {view.hasFilters ? "No records match your search or filters." : "No kiosks yet."}
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={4} hasFilters={view.hasFilters}>
+                No kiosks yet.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((kiosk, index) => (

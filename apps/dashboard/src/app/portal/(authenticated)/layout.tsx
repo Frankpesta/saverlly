@@ -3,6 +3,7 @@ import {
   MapPinIcon,
   MonitorIcon,
   MegaphoneIcon,
+  UsersIcon,
   WalletIcon,
   SettingsIcon,
 } from "lucide-react"
@@ -14,8 +15,10 @@ const navMain = [
   { title: "Locations", url: "/portal/locations", icon: <MapPinIcon /> },
   { title: "Devices", url: "/portal/devices", icon: <MonitorIcon /> },
   { title: "Announcements", url: "/portal/announcements", icon: <MegaphoneIcon /> },
-  // Earnings (commissions/payouts) is a KIOSK_OWNER-only concept server-side, a location
-  // manager hitting it would just get 403s throughout, so it's excluded below for that role.
+  // Both Employees and Earnings are KIOSK_OWNER-only concepts server-side (GET /my/employees,
+  // /my/payouts, etc. are all @Roles(KIOSK_OWNER)) -- a location manager hitting either would
+  // just get 403s throughout, so both are excluded below for that role.
+  { title: "Employees", url: "/portal/employees", icon: <UsersIcon />, ownerOnly: true },
   { title: "Earnings", url: "/portal/earnings", icon: <WalletIcon />, ownerOnly: true },
 ]
 

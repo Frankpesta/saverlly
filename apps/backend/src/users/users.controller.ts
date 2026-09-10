@@ -6,6 +6,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -69,7 +70,10 @@ export class UsersController {
       throw new NotFoundException('User not found');
     }
     const { passwordHash: _passwordHash, refreshTokenHash: _refreshTokenHash, ...safeUser } = user;
-    return safeUser;
+    return {
+      ...safeUser,
+      avatarUrl: await this.usersService.resolveEffectiveAvatarUrl(safeUser),
+    };
   }
 
   @Patch('me')
@@ -98,6 +102,10 @@ export class UsersController {
   })
   @ApiResponse({ status: 201, description: 'Avatar uploaded, updated user returned' })
   @ApiResponse({ status: 400, description: 'Missing file, or not a PNG/JPEG/WebP' })
+  @ApiResponse({
+    status: 403,
+    description: "A location manager's photo always mirrors their kiosk owner's",
+  })
   @ApiResponse({ status: 413, description: 'File exceeds the 2MB limit' })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -120,6 +128,11 @@ export class UsersController {
     @CurrentUser() currentUser: JwtPayload,
     @UploadedFile() file: Express.Multer.File | undefined,
   ) {
+    if (currentUser.role === UserRole.LOCATION_MANAGER) {
+      throw new ForbiddenException(
+        "Location managers share the kiosk owner's photo and can't set their own",
+      );
+    }
     if (!file) {
       throw new BadRequestException(
         'No file uploaded, or it was rejected. Only PNG/JPEG/WebP up to 2MB are accepted',
@@ -144,7 +157,16 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Remove the current user's profile photo" })
   @ApiResponse({ status: 200, description: 'Avatar removed, updated user returned' })
+  @ApiResponse({
+    status: 403,
+    description: "A location manager's photo always mirrors their kiosk owner's",
+  })
   async removeAvatar(@CurrentUser() currentUser: JwtPayload) {
+    if (currentUser.role === UserRole.LOCATION_MANAGER) {
+      throw new ForbiddenException(
+        "Location managers share the kiosk owner's photo and can't remove their own",
+      );
+    }
     const user = await this.usersService.setAvatar(currentUser.sub, null);
     const {
       passwordHash: _passwordHash,

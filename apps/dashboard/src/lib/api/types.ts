@@ -105,6 +105,25 @@ export type LocationSetupCode = {
   createdAt: string
 }
 
+/** An on-site staff contact, not a portal login -- deliberately has no auth fields. */
+export type LocationEmployee = {
+  id: string
+  locationId: string
+  name: string
+  title: string | null
+  phone: string | null
+  email: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** The shape `GET /my/employees` returns: the same employee, plus which location it's at, since
+ *  that page spans every location under the kiosk rather than being reached from one location's
+ *  own page. */
+export type LocationEmployeeWithLocation = LocationEmployee & {
+  location: Pick<Location, "id" | "name">
+}
+
 export type Device = {
   id: string
   locationId: string
@@ -208,6 +227,7 @@ export type Coupon = {
 export type SelectorConfig = {
   codeSelector: string
   descriptionSelector?: string
+  revealSelector?: string
 }
 
 export type ScrapeSource = {

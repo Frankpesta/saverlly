@@ -14,6 +14,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -40,18 +41,19 @@ import { cn } from "@/lib/utils"
 export default function ScrapeSourcesPage() {
   const { data: sources, isLoading, isError, refetch } = useScrapeSources()
   const { data: merchants } = useMerchants()
-  const view = useCollectionView(sources, {
-    searchText: (item) => item.url,
-    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.url.localeCompare(b.url, undefined, { numeric: true }) }],
-    filters: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !(item.active) }],
-  })
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
   const merchantNameById = React.useMemo(() => {
     const map = new Map<string, string>()
     for (const merchant of merchants ?? []) map.set(merchant.id, merchant.name)
     return map
   }, [merchants])
+
+  const view = useCollectionView(sources, {
+    searchText: (item) => [item.url, item.merchantId ? merchantNameById.get(item.merchantId) : undefined].join(" "),
+    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.url.localeCompare(b.url, undefined, { numeric: true }) }],
+    filters: [{ key: "status", label: "Status", options: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !(item.active) }] }],
+  })
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
   const stats = React.useMemo(() => {
     const list = sources ?? []
@@ -102,11 +104,9 @@ export default function ScrapeSourcesPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  {view.hasFilters ? "No records match your search or filters." : "No scrape sources yet."}
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={6} hasFilters={view.hasFilters}>
+                No scrape sources yet.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((source, index) => (

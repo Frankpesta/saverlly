@@ -13,15 +13,15 @@ export function CollectionToolbar({
   view: {
     query: string
     setQuery: (value: string) => void
-    filter: string
-    setFilter: (value: string) => void
+    filterValues: Record<string, string>
+    setFilterValue: (key: string, value: string) => void
     sort: string
     setSort: (value: string) => void
     hasFilters: boolean
     clear: () => void
     items: unknown[]
     sortOptions: { label: string; value: string }[]
-    filterOptions: { label: string; value: string }[]
+    filterGroups: { key: string; label: string; options: { label: string; value: string }[] }[]
   }
 }) {
   return (
@@ -44,15 +44,16 @@ export function CollectionToolbar({
           className="pl-9"
         />
       </div>
-      {view.filterOptions.length > 0 && (
+      {view.filterGroups.map((group) => (
         <Combobox
-          aria-label={`Filter ${label}`}
+          key={group.key}
+          aria-label={`Filter ${label} by ${group.label}`}
           className="w-full sm:w-44"
-          value={view.filter}
-          onValueChange={view.setFilter}
-          options={[{ label: "All statuses", value: "all" }, ...view.filterOptions]}
+          value={view.filterValues[group.key] ?? "all"}
+          onValueChange={(value) => view.setFilterValue(group.key, value)}
+          options={[{ label: `All ${group.label.toLowerCase()}`, value: "all" }, ...group.options]}
         />
-      )}
+      ))}
       {view.sortOptions.length > 0 && (
         <Combobox
           aria-label={`Sort ${label}`}

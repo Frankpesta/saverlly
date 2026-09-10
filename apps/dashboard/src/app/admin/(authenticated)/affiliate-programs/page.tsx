@@ -13,6 +13,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -33,7 +34,7 @@ export default function AffiliateProgramsPage() {
   const view = useCollectionView(programs, {
     searchText: (item) => [item.networkName, item.programId].join(" "),
     sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.networkName.localeCompare(b.networkName, undefined, { numeric: true }) }],
-    filters: [{ label: "With coupon API", value: "active", matches: (item) => item.hasCouponApi }, { label: "Without coupon API", value: "inactive", matches: (item) => !(item.hasCouponApi) }],
+    filters: [{ key: "couponApi", label: "Coupon API", options: [{ label: "With coupon API", value: "active", matches: (item) => item.hasCouponApi }, { label: "Without coupon API", value: "inactive", matches: (item) => !(item.hasCouponApi) }] }],
   })
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
   const deleteProgram = useDeleteAffiliateProgram()
@@ -94,11 +95,9 @@ export default function AffiliateProgramsPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  {view.hasFilters ? "No records match your search or filters." : "No affiliate programs yet."}
-                </TableCell>
-              </TableRow>
+              <TableEmptyRow colSpan={5} hasFilters={view.hasFilters}>
+                No affiliate programs yet.
+              </TableEmptyRow>
             )}
 
             {pageItems.map((program, index) => (

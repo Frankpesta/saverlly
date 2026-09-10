@@ -12,6 +12,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableEmptyRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -40,7 +41,7 @@ export default function AdminDevicesPage() {
   const view = useCollectionView(devices, {
     searchText: (item) => [item.label, locations?.find((location) => location.id === item.locationId)?.name].join(" "),
     sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }) }, { label: "Last seen: newest", value: "seen", compare: (a, b) => new Date(b.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime() }],
-    filters: [{ label: "Enabled", value: "active", matches: (item) => item.active }, { label: "Disabled", value: "inactive", matches: (item) => !(item.active) }],
+    filters: [{ key: "status", label: "Status", options: [{ label: "Enabled", value: "active", matches: (item) => item.active }, { label: "Disabled", value: "inactive", matches: (item) => !(item.active) }] }],
   })
   const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
 
@@ -130,17 +131,16 @@ export default function AdminDevicesPage() {
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  {/* Devices register themselves using a location's setup code, so an empty
-                      table is exactly the moment someone needs to find one. */}
-                  {view.hasFilters ? "No records match your search or filters." : "No devices registered yet."} A device joins by entering its location&apos;s{" "}
-                  <Link href="/admin/locations" className="text-foreground underline underline-offset-2">
-                    setup code
-                  </Link>
-                  .
-                </TableCell>
-              </TableRow>
+              // Devices register themselves using a location's setup code, so an empty table is
+              // exactly the moment someone needs to find one — but only when it's genuinely
+              // empty, not when a search/filter just turned up nothing.
+              <TableEmptyRow colSpan={6} hasFilters={view.hasFilters}>
+                No devices registered yet. A device joins by entering its location&apos;s{" "}
+                <Link href="/admin/locations" className="text-foreground underline underline-offset-2">
+                  setup code
+                </Link>
+                .
+              </TableEmptyRow>
             )}
 
             {pageItems.map((device, index) => {

@@ -22,11 +22,7 @@ export function FormErrorSummary({ errors }: { errors: unknown }) {
         {items.map((item) => (
           <li key={item.path}>
             {item.focus ? (
-              <button
-                type="button"
-                onClick={item.focus}
-                className="text-left underline underline-offset-4"
-              >
+              <button type="button" onClick={item.focus} className="text-left text-destructive">
                 {item.message}
               </button>
             ) : (
