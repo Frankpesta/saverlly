@@ -108,6 +108,17 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       });
       await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
+      // Sites running the OneTrust consent manager (RetailMeNot among them) show a full-page
+      // backdrop until it's dismissed, which sits on top of everything else and silently times
+      // out any click underneath it -- including reveal buttons, with no error indicating why.
+      // Its accept button id is a OneTrust-wide constant, not something we can page-config: dismiss
+      // it opportunistically for every source; it's simply absent on sites that don't run OneTrust.
+      const consentButton = await page.$('#onetrust-accept-btn-handler');
+      if (consentButton) {
+        await consentButton.click({ timeout: 5_000 }).catch(() => {});
+        await page.waitForTimeout(500);
+      }
+
       if (config.revealSelector) {
         const revealButtons = await page.$$(config.revealSelector);
         for (const button of revealButtons.slice(0, MAX_REVEALS_PER_RUN)) {
