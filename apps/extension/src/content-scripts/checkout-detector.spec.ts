@@ -116,4 +116,37 @@ describe('checkout-detector content script', () => {
 
     expect(sendMessage).not.toHaveBeenCalled();
   });
+
+  // Regression test for a live Target checkout bug: its coupon field/apply button don't exist
+  // in the DOM at all until a "+ Add promo code" button is clicked. Waiting on
+  // couponFieldSelector directly (as above) never resolves. couponFieldRevealSelector lets the
+  // recipe declare that trigger so detection can confirm without needing to click anything.
+  it('confirms when only the reveal trigger is present, not the coupon field itself', () => {
+    const recipeWithReveal = { ...RECIPE, couponFieldRevealSelector: '#add-promo-code-btn' };
+    window.__SAVERLLY__ = { merchantId: 'merchant-1', recipe: recipeWithReveal };
+    setPath('/checkouts/abc');
+    document.body.innerHTML = '<button id="add-promo-code-btn"></button><div id="cart-total"></div>';
+
+    loadContentScript();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: 'CHECKOUT_CONFIRMED',
+      merchantId: 'merchant-1',
+      referrer: document.referrer,
+    });
+  });
+
+  it('does not confirm on reveal-trigger presence alone if the cart total is still missing', () => {
+    jest.useFakeTimers();
+    const recipeWithReveal = { ...RECIPE, couponFieldRevealSelector: '#add-promo-code-btn' };
+    window.__SAVERLLY__ = { merchantId: 'merchant-1', recipe: recipeWithReveal };
+    setPath('/checkouts/abc');
+    document.body.innerHTML = '<button id="add-promo-code-btn"></button>';
+
+    loadContentScript();
+    jest.advanceTimersByTime(10_000); // let the observer give up and disconnect within the test
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
 });
