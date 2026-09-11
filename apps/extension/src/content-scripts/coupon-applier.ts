@@ -3,9 +3,25 @@ import type { CouponApplyProgressMessage, CouponApplyResultMessage } from '../li
 
 const POLL_INTERVAL_MS = 250;
 const POLL_TIMEOUT_MS = 4000;
+const REVEAL_TIMEOUT_MS = 3000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Some checkouts (e.g. Target) hide the coupon field behind a click-to-reveal button. If the
+// field isn't already present, click the trigger once and wait for it to render before the
+// apply loop starts looking for couponFieldSelector/applyButtonSelector.
+async function revealCouponField(couponFieldSelector: string, revealSelector?: string): Promise<void> {
+  if (!revealSelector || document.querySelector(couponFieldSelector)) return;
+  const trigger = document.querySelector<HTMLElement>(revealSelector);
+  if (!trigger) return;
+  trigger.click();
+  const deadline = Date.now() + REVEAL_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (document.querySelector(couponFieldSelector)) return;
+    await sleep(POLL_INTERVAL_MS);
+  }
 }
 
 function readTotal(selector: string): number | null {
@@ -44,6 +60,8 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
   if (!context?.coupons?.length) return;
 
   const { merchantId, recipe, coupons } = context;
+  await revealCouponField(recipe.couponFieldSelector, recipe.couponFieldRevealSelector);
+
   const ordered = sortCouponsBySuccessLikelihood(coupons);
   const total = ordered.length;
 

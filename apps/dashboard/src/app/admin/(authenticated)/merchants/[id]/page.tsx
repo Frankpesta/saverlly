@@ -57,6 +57,7 @@ const checkoutRecipeSchema = z.object({
       .map((p) => p.trim())
       .filter(Boolean),
   ),
+  couponFieldRevealSelector: z.string().trim(),
 })
 
 type CheckoutRecipeFormInput = z.input<typeof checkoutRecipeSchema>
@@ -235,6 +236,7 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
       failureIndicatorSelector: recipe?.failureIndicatorSelector ?? "",
       cartTotalSelector: recipe?.cartTotalSelector ?? "",
       checkoutUrlPatterns: (recipe?.checkoutUrlPatterns ?? []).join(", "),
+      couponFieldRevealSelector: recipe?.couponFieldRevealSelector ?? "",
     },
   })
 
@@ -248,6 +250,7 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
           failureIndicatorSelector: values.failureIndicatorSelector || undefined,
           cartTotalSelector: values.cartTotalSelector || undefined,
           checkoutUrlPatterns: values.checkoutUrlPatterns.length > 0 ? values.checkoutUrlPatterns : undefined,
+          couponFieldRevealSelector: values.couponFieldRevealSelector || undefined,
         },
       },
       {
@@ -309,6 +312,17 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
               id="recipe-url-patterns"
               placeholder="/checkout, /cart/checkout"
               {...register("checkoutUrlPatterns")}
+            />
+          </FormField>
+          <FormField
+            label="Coupon field reveal selector"
+            htmlFor="recipe-coupon-reveal"
+            hint="Optional. Only needed when the coupon field is hidden behind a click-to-reveal button (e.g. Target's 'Add' promo link) rather than visible on page load."
+          >
+            <Input
+              id="recipe-coupon-reveal"
+              placeholder="button#add-promo-code-btn"
+              {...register("couponFieldRevealSelector")}
             />
           </FormField>
         </CardContent>

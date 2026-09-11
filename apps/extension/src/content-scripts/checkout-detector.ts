@@ -18,10 +18,15 @@ const DETECTION_TIMEOUT_MS = 10_000;
   if (!matchesCheckoutUrl(window.location.href, recipe.checkoutUrlPatterns)) return;
 
   function checkoutElementsPresent(): boolean {
-    return (
-      document.querySelector(recipe.couponFieldSelector) !== null &&
-      document.querySelector(recipe.cartTotalSelector) !== null
-    );
+    // Some checkouts (e.g. Target) hide the coupon field behind a click-to-reveal button that
+    // never appears in the DOM on its own — waiting on couponFieldSelector directly would time
+    // out forever. When a reveal trigger is configured, its presence alone is enough evidence
+    // of a coupon mechanism; the apply flow is what actually clicks it open.
+    const hasCouponField =
+      document.querySelector(recipe.couponFieldSelector) !== null ||
+      (recipe.couponFieldRevealSelector !== undefined &&
+        document.querySelector(recipe.couponFieldRevealSelector) !== null);
+    return hasCouponField && document.querySelector(recipe.cartTotalSelector) !== null;
   }
 
   function confirmCheckout(): void {

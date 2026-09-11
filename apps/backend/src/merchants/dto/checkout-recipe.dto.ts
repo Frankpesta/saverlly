@@ -34,4 +34,11 @@ export class CheckoutRecipeDto {
   @IsArray()
   @IsString({ each: true })
   checkoutUrlPatterns?: string[];
+
+  // Some checkouts (e.g. Target) hide the coupon field behind a click-to-reveal button that
+  // isn't in the DOM until clicked. See packages/shared-types' CheckoutRecipe for full context.
+  @ApiPropertyOptional({ example: "button#add-promo-code-btn" })
+  @IsOptional()
+  @IsString()
+  couponFieldRevealSelector?: string;
 }

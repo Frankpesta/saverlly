@@ -189,6 +189,7 @@ export type CheckoutRecipe = {
   failureIndicatorSelector?: string
   cartTotalSelector?: string
   checkoutUrlPatterns?: string[]
+  couponFieldRevealSelector?: string
 }
 
 export type Merchant = {
