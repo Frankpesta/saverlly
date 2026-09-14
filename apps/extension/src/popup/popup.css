@@ -489,3 +489,18 @@ button {
   width: 100%;
   height: auto;
 }
+
+/* ---------- Disclosure ---------- */
+
+.popup__disclosure {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.popup__disclosure a {
+  color: var(--muted);
+  text-decoration: underline;
+}

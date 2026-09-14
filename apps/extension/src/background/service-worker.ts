@@ -26,10 +26,17 @@ const BADGE_SUPPRESSED = { text: '!', color: '#9CA3AF' };
 // so losing it just means the popup shows "no offer detected" until next navigation.
 const tabState = new Map<number, TabCheckoutState>();
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.alarms.create(STATUS_ALARM, { periodInMinutes: STATUS_CHECK_INTERVAL_MINUTES });
   connectToAgentAndReceiveToken();
   void checkDeviceStatus();
+  // Chrome Web Store policy requires affiliate-program use to be disclosed in the product's
+  // UI, not just the store listing -- opening this on first install (not on every update) is
+  // the earliest point an extension itself can show anything, since nothing in its own UI can
+  // render before the user has actually installed it.
+  if (details.reason === 'install') {
+    void chrome.tabs.create({ url: chrome.runtime.getURL('disclosure/disclosure.html') });
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {

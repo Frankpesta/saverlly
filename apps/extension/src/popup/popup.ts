@@ -31,6 +31,10 @@ function send(message: ExtensionMessage): Promise<unknown> {
   return chrome.runtime.sendMessage(message);
 }
 
+function openDisclosurePage(): void {
+  void chrome.tabs.create({ url: chrome.runtime.getURL('disclosure/disclosure.html') });
+}
+
 function orderedCoupons(): TabCheckoutState['coupons'] {
   return tabState ? sortCouponsBySuccessLikelihood(tabState.coupons) : [];
 }
@@ -108,10 +112,18 @@ function renderSuppressed(): void {
     <p class="popup__subtext popup__subtext--dark">Saverlly is paused because a referral link is already active.</p>
     <button class="popup__button" id="apply-btn" type="button">Activate Your Savings ${buttonArrow()}</button>
     <p class="popup__subtext popup__subtext--dark" style="margin-top: 14px; margin-bottom: 0;">
-      Save money by applying the best coupons. <strong><u>Terms</u></strong> and <strong><u>exclusions</u></strong> apply.
+      Save money by applying the best coupons. <a href="#" id="terms-link"><strong><u>Terms</u></strong></a> and <a href="#" id="exclusions-link"><strong><u>exclusions</u></strong></a> apply.
     </p>
   `;
   document.getElementById('apply-btn')?.addEventListener('click', onApplyClicked);
+  document.getElementById('terms-link')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    openDisclosurePage();
+  });
+  document.getElementById('exclusions-link')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    openDisclosurePage();
+  });
 }
 
 function pillStatus(position: number, code: string): PillStatus {
@@ -320,6 +332,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage) => {
 });
 
 document.getElementById('close-btn')?.addEventListener('click', () => window.close());
+document.getElementById('disclosure-link')?.addEventListener('click', (event) => {
+  event.preventDefault();
+  openDisclosurePage();
+});
 
 async function init(): Promise<void> {
   void refreshLifetimeSaved();
