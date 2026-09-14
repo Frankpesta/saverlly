@@ -50,4 +50,11 @@ RUN npm run build
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["npm", "run", "start:prod"]
+# The in-process scraping job (ScrapeCouponsProcessor) launches Chromium headed, not headless --
+# confirmed live against simplycodes.com that some aggregator sites silently withhold the coupon
+# code from their own DOM under a real headless browser even after every navigator.* stealth
+# patch is applied, and only render it under a headed one. A server has no real display, so
+# xvfb-run (a virtual framebuffer X server, already present in this mcr.microsoft.com/playwright
+# base image) wraps the whole process here -- Chromium launches into that virtual display exactly
+# like it would a real one, with no per-launch code needing to know it's not real.
+CMD ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1366x900x24", "npm", "run", "start:prod"]

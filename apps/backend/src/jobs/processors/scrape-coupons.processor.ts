@@ -40,6 +40,66 @@ const SCRAPE_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const SCRAPE_VIEWPORT = { width: 1366, height: 900 };
 
+// Confirmed live against simplycodes.com (a coupon aggregator, same category as RetailMeNot):
+// the page loads normally, the reveal button clicks fine, and a popup even navigates to the
+// correct code permalink -- but the code element silently never renders, with none of
+// detectBotWall's markers present (no challenge text, no bad status, no challenge iframe). This
+// is a *silent* automation feature-gate, not a visible interstitial. Isolated testing traced it
+// to `navigator.webdriver` (true by default under Playwright/Puppeteer): patching it to `false`
+// fixed rendering under a headed browser. Also patched here are the other automation tells a
+// real Chrome window never exhibits -- empty `navigator.plugins`/`mimeTypes`, a missing
+// `window.chrome` runtime object, and a `Notification.permission`/`permissions.query()`
+// mismatch -- since any one of them is a known, commonly-checked signal and there's no way to
+// know in advance which a given source's anti-bot script actually reads. Applied unconditionally
+// to every scrape source (not just simplycodes.com) since it's a no-op on sites that don't check
+// any of this and we have no general way to predict which future source will.
+const STEALTH_INIT_SCRIPT = () => {
+  Object.defineProperty(navigator, 'webdriver', { get: () => false });
+
+  // @ts-expect-error -- window.chrome doesn't exist in Playwright's TS lib types
+  if (!window.chrome) {
+    // @ts-expect-error -- same as above
+    window.chrome = { runtime: {} };
+  }
+
+  Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+
+  const fakePlugin = {
+    name: 'Chrome PDF Plugin',
+    filename: 'internal-pdf-viewer',
+    description: 'Portable Document Format',
+  };
+  Object.defineProperty(navigator, 'plugins', {
+    get: () => [fakePlugin, { ...fakePlugin, name: 'Chrome PDF Viewer' }],
+  });
+  Object.defineProperty(navigator, 'mimeTypes', {
+    get: () => [{ type: 'application/pdf', suffixes: 'pdf' }],
+  });
+
+  const originalQuery = window.navigator.permissions.query.bind(
+    window.navigator.permissions,
+  ) as (parameters: PermissionDescriptor) => Promise<PermissionStatus>;
+  window.navigator.permissions.query = (parameters: PermissionDescriptor) =>
+    parameters.name === 'notifications'
+      ? Promise.resolve({
+          state: Notification.permission,
+          name: 'notifications',
+        } as PermissionStatus)
+      : originalQuery(parameters);
+};
+
+// Confirmed empirically: even with every STEALTH_INIT_SCRIPT patch applied, simplycodes.com's
+// code modal *still* never rendered under Playwright's default headless Chromium -- only a real
+// headed browser window rendered it, meaning headless Chromium trips at least one more signal
+// beyond what's patched above (browsers differ internally between headless/headed beyond what
+// userland JS can fully paper over). Headed obviously needs a display to run against, which a
+// server doesn't have -- Xvfb (a virtual framebuffer X server) is the standard fix and is
+// already present in this project's `mcr.microsoft.com/playwright` base image; the container's
+// CMD wraps the whole process in `xvfb-run` so this launches into a real virtual display in
+// production exactly like it does on a real desktop. Same reasoning as STEALTH_INIT_SCRIPT for
+// applying this to every source rather than gating it to simplycodes.com specifically.
+const LAUNCH_HEADLESS = false;
+
 // Every consent-management platform with meaningful market share, as one combined CSS selector --
 // a plain comma-separated selector already matches "any of these", so no per-vendor branching is
 // needed. Covers OneTrust (confirmed live on RetailMeNot), Cookiebot, TrustArc, Quantcast/
@@ -138,7 +198,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
     }
 
     const config = source.selectorConfig as unknown as SelectorConfig;
-    const browser = await chromium.launch();
+    const browser = await chromium.launch({ headless: LAUNCH_HEADLESS });
     try {
       const context = await browser.newContext({
         userAgent: SCRAPE_USER_AGENT,
@@ -146,6 +206,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
         locale: 'en-US',
         extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
       });
+      await context.addInitScript(STEALTH_INIT_SCRIPT);
       const page = await context.newPage();
       // "Get code" buttons on sites needing revealSelector sometimes open a new tab on click
       // rather than revealing in place -- occasionally the merchant site or an affiliate
@@ -213,9 +274,22 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       }
 
       if (config.revealSelector) {
-        const revealButtons = await page.$$(config.revealSelector);
-        for (const button of revealButtons.slice(0, MAX_REVEALS_PER_RUN)) {
+        const revealCount = Math.min(
+          (await page.$$(config.revealSelector)).length,
+          MAX_REVEALS_PER_RUN,
+        );
+        for (let i = 0; i < revealCount; i++) {
           try {
+            // Re-queried fresh on every iteration rather than reusing a single upfront page.$$()
+            // array of handles -- confirmed live (simplycodes.com/allbirds.com) that a reveal
+            // click which updates the list DOM (a "verified" badge, a use-count bump, anything
+            // React re-renders) detaches every handle grabbed before it, not just the one
+            // clicked: all handles from one upfront grab failed as "not attached to DOM",
+            // including the very first. Matching by index assumes reveals don't reorder the
+            // list, which holds for every source configured so far.
+            const buttons = await page.$$(config.revealSelector);
+            const button = buttons[i];
+            if (!button) break;
             await button.click({ timeout: 5_000 });
             await page.waitForTimeout(REVEAL_CLICK_DELAY_MS);
           } catch (error) {

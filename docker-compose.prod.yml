@@ -14,6 +14,12 @@ services:
       dockerfile: apps/backend/Dockerfile
     container_name: saverlly-prod-backend
     restart: unless-stopped
+    # Required for the scraping job's headed-under-Xvfb Chromium launch (see the Dockerfile CMD
+    # comment): xvfb-run's own wrapper script blocks in a `wait` for a SIGUSR1 "ready" signal from
+    # Xvfb, and that signal is never delivered when xvfb-run runs as the container's real PID 1 --
+    # confirmed live, it hangs forever with Xvfb up but the wrapped command never launched. `init:
+    # true` runs Tini as PID 1 instead, which has correct signal semantics and fixes this.
+    init: true
     env_file:
       - apps/backend/.env.production
     ports:
