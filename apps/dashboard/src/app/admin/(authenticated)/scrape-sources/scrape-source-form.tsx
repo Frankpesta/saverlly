@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EntityFormCard, EntityFormHeader } from "@/components/dashboard/entity-form-page"
 import { FormField, FormGrid, FormSection } from "@/components/dashboard/form-section"
 import { SelectorHelp } from "@/components/dashboard/selector-help"
@@ -36,11 +37,14 @@ const UNIT_MAX: Record<IntervalUnit, number> = {
 
 const scrapeSourceSchema = z
   .object({
+    sourceMode: z.enum(["single", "multi"]),
     merchantId: z.string(),
     url: z.string().trim().min(1, "Page URL is required"),
     codeSelector: z.string().trim().min(1, "Coupon code selector is required"),
     descriptionSelector: z.string().trim(),
     revealSelector: z.string().trim(),
+    rowSelector: z.string().trim(),
+    merchantSelector: z.string().trim(),
     intervalAmount: z
       .string()
       .trim()
@@ -49,8 +53,20 @@ const scrapeSourceSchema = z
     intervalUnit: z.enum(["minutes", "hours", "days", "weeks"]),
   })
   .superRefine((data, ctx) => {
-    if (!data.merchantId) {
+    if (data.sourceMode === "single" && !data.merchantId) {
       ctx.addIssue({ code: "custom", message: "Choose a merchant", path: ["merchantId"] })
+    }
+    if (data.sourceMode === "multi") {
+      if (!data.rowSelector) {
+        ctx.addIssue({ code: "custom", message: "Row selector is required", path: ["rowSelector"] })
+      }
+      if (!data.merchantSelector) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Store name selector is required",
+          path: ["merchantSelector"],
+        })
+      }
     }
     const max = UNIT_MAX[data.intervalUnit]
     if (Number(data.intervalAmount) > max) {
@@ -128,11 +144,24 @@ export function ScrapeSourceForm({
     mode: "onTouched",
     reValidateMode: "onChange",
     defaultValues: {
+      // A locked flow (started from a merchant's own page) is always single-merchant — a fixed
+      // merchantId and a per-row-resolved merchant are mutually exclusive. Otherwise infer from
+      // what's already there when editing: a merchant-less source only exists because it was
+      // deliberately set up with a rowSelector (see the processor's own merchantId/rowSelector
+      // guard), so that combination is what distinguishes "multi-merchant" from "never finished
+      // setup".
+      sourceMode: lockedMerchantId
+        ? "single"
+        : source && !source.merchantId && source.selectorConfig.rowSelector
+          ? "multi"
+          : "single",
       merchantId: lockedMerchantId ?? source?.merchantId ?? "",
       url: source?.url ?? "",
       codeSelector: source?.selectorConfig.codeSelector ?? "",
       descriptionSelector: source?.selectorConfig.descriptionSelector ?? "",
       revealSelector: source?.selectorConfig.revealSelector ?? "",
+      rowSelector: source?.selectorConfig.rowSelector ?? "",
+      merchantSelector: source?.selectorConfig.merchantSelector ?? "",
       intervalAmount: initialInterval.amount,
       intervalUnit: initialInterval.unit,
     },
@@ -141,16 +170,28 @@ export function ScrapeSourceForm({
   const intervalAmount = watch("intervalAmount")
   const intervalUnit = watch("intervalUnit")
   const cadence = errors.intervalAmount ? null : describeCadence(intervalAmount, intervalUnit)
+  const sourceMode = watch("sourceMode")
+  const isMulti = sourceMode === "multi"
 
   function onSubmit(values: ScrapeSourceFormValues) {
     const shared = {
       url: values.url,
-      merchantId: values.merchantId,
-      selectorConfig: {
-        codeSelector: values.codeSelector,
-        descriptionSelector: values.descriptionSelector || undefined,
-        revealSelector: values.revealSelector || undefined,
-      },
+      // Explicit null (not omitted) in multi mode -- an edit that switches an existing
+      // single-merchant source over needs to actually clear its old fixed merchantId, not just
+      // leave the PATCH body silent about it.
+      merchantId: values.sourceMode === "multi" ? null : values.merchantId,
+      selectorConfig:
+        values.sourceMode === "multi"
+          ? {
+              codeSelector: values.codeSelector,
+              rowSelector: values.rowSelector,
+              merchantSelector: values.merchantSelector,
+            }
+          : {
+              codeSelector: values.codeSelector,
+              descriptionSelector: values.descriptionSelector || undefined,
+              revealSelector: values.revealSelector || undefined,
+            },
       intervalMinutes: Number(values.intervalAmount) * UNIT_MINUTES[values.intervalUnit],
     }
 
@@ -196,6 +237,22 @@ export function ScrapeSourceForm({
             <Input id="scrape-url" type="url" placeholder="https://…" {...register("url")} />
           </FormField>
           {!lockedMerchantId && (
+            <FormField label="Source type" htmlFor="scrape-source-mode">
+              <Controller
+                name="sourceMode"
+                control={control}
+                render={({ field }) => (
+                  <Tabs value={field.value} onValueChange={field.onChange}>
+                    <TabsList id="scrape-source-mode" className="w-fit">
+                      <TabsTrigger value="single">One store</TabsTrigger>
+                      <TabsTrigger value="multi">Multi-merchant feed</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
+              />
+            </FormField>
+          )}
+          {!lockedMerchantId && !isMulti && (
             <FormField label="Merchant" htmlFor="scrape-merchant" error={errors.merchantId?.message}>
               <Controller
                 name="merchantId"
@@ -214,30 +271,60 @@ export function ScrapeSourceForm({
               />
             </FormField>
           )}
+          {isMulti && (
+            <FormField
+              label="Row selector"
+              htmlFor="scrape-row-selector"
+              error={errors.rowSelector?.message}
+            >
+              <Input id="scrape-row-selector" placeholder=".feed-entry" {...register("rowSelector")} />
+              <SelectorHelp label="What's this?" variant="multi" />
+            </FormField>
+          )}
         </FormSection>
 
         <FormSection label="Selectors">
           <FormGrid>
-            <FormField label="Coupon code selector" htmlFor="scrape-code-selector" error={errors.codeSelector?.message}>
+            <FormField
+              label={isMulti ? "Coupon code selector (within a row)" : "Coupon code selector"}
+              htmlFor="scrape-code-selector"
+              error={errors.codeSelector?.message}
+            >
               <Input id="scrape-code-selector" placeholder=".coupon-code" {...register("codeSelector")} />
               <SelectorHelp />
             </FormField>
-            <FormField label="Description selector (optional)" htmlFor="scrape-description-selector">
-              <Input
-                id="scrape-description-selector"
-                placeholder=".coupon-description"
-                {...register("descriptionSelector")}
-              />
-            </FormField>
+            {isMulti ? (
+              <FormField
+                label="Store name selector (within a row)"
+                htmlFor="scrape-merchant-selector"
+                error={errors.merchantSelector?.message}
+              >
+                <Input
+                  id="scrape-merchant-selector"
+                  placeholder=".feed-merchant"
+                  {...register("merchantSelector")}
+                />
+              </FormField>
+            ) : (
+              <FormField label="Description selector (optional)" htmlFor="scrape-description-selector">
+                <Input
+                  id="scrape-description-selector"
+                  placeholder=".coupon-description"
+                  {...register("descriptionSelector")}
+                />
+              </FormField>
+            )}
           </FormGrid>
-          <FormField label="Reveal button selector (optional)" htmlFor="scrape-reveal-selector">
-            <Input
-              id="scrape-reveal-selector"
-              placeholder=".reveal-code-button"
-              {...register("revealSelector")}
-            />
-            <SelectorHelp label="When do I need this?" variant="reveal" />
-          </FormField>
+          {!isMulti && (
+            <FormField label="Reveal button selector (optional)" htmlFor="scrape-reveal-selector">
+              <Input
+                id="scrape-reveal-selector"
+                placeholder=".reveal-code-button"
+                {...register("revealSelector")}
+              />
+              <SelectorHelp label="When do I need this?" variant="reveal" />
+            </FormField>
+          )}
         </FormSection>
 
         <FormSection label="Schedule">

@@ -3,7 +3,11 @@ import { Logger } from '@nestjs/common';
 import { CouponSource } from '@prisma/client';
 import * as Sentry from '@sentry/node';
 import { Job } from 'bullmq';
-import { Page, Response, chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Browser, Page, Response, chromium } from 'playwright';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES } from '../queue-names';
 
@@ -15,6 +19,8 @@ interface SelectorConfig {
   codeSelector: string;
   descriptionSelector?: string;
   revealSelector?: string;
+  rowSelector?: string;
+  merchantSelector?: string;
 }
 
 // Bounds how many reveal buttons a single scrape run will click, so a page with an unexpectedly
@@ -88,17 +94,92 @@ const STEALTH_INIT_SCRIPT = () => {
       : originalQuery(parameters);
 };
 
-// Confirmed empirically: even with every STEALTH_INIT_SCRIPT patch applied, simplycodes.com's
-// code modal *still* never rendered under Playwright's default headless Chromium -- only a real
-// headed browser window rendered it, meaning headless Chromium trips at least one more signal
-// beyond what's patched above (browsers differ internally between headless/headed beyond what
-// userland JS can fully paper over). Headed obviously needs a display to run against, which a
-// server doesn't have -- Xvfb (a virtual framebuffer X server) is the standard fix and is
-// already present in this project's `mcr.microsoft.com/playwright` base image; the container's
-// CMD wraps the whole process in `xvfb-run` so this launches into a real virtual display in
-// production exactly like it does on a real desktop. Same reasoning as STEALTH_INIT_SCRIPT for
-// applying this to every source rather than gating it to simplycodes.com specifically.
-const LAUNCH_HEADLESS = false;
+// Confirmed empirically, in this order: (1) even with every STEALTH_INIT_SCRIPT patch applied,
+// simplycodes.com's code modal still never rendered under Playwright's default headless
+// Chromium -- only a real headed browser window rendered it. (2) Headed obviously needs a
+// display to run against, which a server doesn't have -- Xvfb (a virtual framebuffer X server,
+// already present in this project's `mcr.microsoft.com/playwright` base image) is the standard
+// fix, and the container's CMD wraps the whole process in `xvfb-run` for exactly this. (3) Even
+// headed-under-Xvfb *still* failed, and systematically diffing every fingerprint signal between
+// that failing run and the working real-desktop one found nothing different once patched --
+// navigator.platform, WebGL vendor/renderer, canvas output, and even the full TLS/JA4 handshake
+// fingerprint all matched exactly. What actually mattered was *how* Playwright takes control of
+// the browser process, not anything JS- or network-visible: `chromium.launch()` (Playwright
+// spawns and owns the process itself) trips whatever this is; `connectOverCDP()` to a Chrome
+// process spawned independently via `--remote-debugging-port` (the same mechanism real DevTools
+// or a browser extension uses to attach to an already-running browser) does not -- confirmed
+// reproducible across repeated runs. This points at CDP-session-level detection (e.g. the
+// well-documented Runtime.enable side-channel some anti-bot vendors use specifically because
+// it's largely immune to property-spoofing), a fundamentally different category from userland
+// fingerprint patching. `launchDetachedChromium` below replaces the plain `chromium.launch()`
+// call for exactly this reason -- applied to every source, same reasoning as
+// STEALTH_INIT_SCRIPT, since there's no way to predict which future source's anti-bot vendor
+// checks this and which doesn't.
+const REMOTE_DEBUGGING_PORT_MIN = 9200;
+const REMOTE_DEBUGGING_PORT_MAX = 9999;
+const CDP_READY_TIMEOUT_MS = 10_000;
+const CDP_READY_POLL_INTERVAL_MS = 200;
+
+async function launchDetachedChromium(): Promise<{ browser: Browser; cleanup: () => Promise<void> }> {
+  const port =
+    REMOTE_DEBUGGING_PORT_MIN +
+    Math.floor(Math.random() * (REMOTE_DEBUGGING_PORT_MAX - REMOTE_DEBUGGING_PORT_MIN));
+  const userDataDir = await mkdtemp(join(tmpdir(), 'scrape-chrome-'));
+  const chromeProcess = spawn(
+    chromium.executablePath(),
+    [
+      `--remote-debugging-port=${port}`,
+      // Explicit, not the default -- confirmed live on Windows that "localhost" resolves to
+      // ::1 (IPv6) first, which Chromium's debugging port doesn't listen on by default, causing
+      // an ECONNREFUSED that a single connectOverCDP attempt doesn't recover from. Binding and
+      // connecting via the literal IPv4 loopback address on both ends removes the ambiguity
+      // entirely rather than relying on whichever address a given OS's resolver prefers.
+      '--remote-debugging-address=127.0.0.1',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--no-sandbox', // required -- the container runs as root, which Chromium's sandbox refuses
+      '--disable-dev-shm-usage', // Docker's default 64MB /dev/shm is too small for Chromium's own use
+      `--user-data-dir=${userDataDir}`,
+      'about:blank',
+    ],
+    { stdio: 'ignore' },
+  );
+
+  // Poll the DevTools HTTP endpoint rather than trusting a fixed delay or parsing Chromium's own
+  // "DevTools listening on..." stderr log line -- both are less reliable than just asking the
+  // port itself whether it's ready yet.
+  await new Promise<void>((resolve, reject) => {
+    const deadline = Date.now() + CDP_READY_TIMEOUT_MS;
+    const poll = () => {
+      fetch(`http://127.0.0.1:${port}/json/version`)
+        .then((res) => {
+          if (res.ok) {
+            resolve();
+          } else if (Date.now() > deadline) {
+            reject(new Error('Timed out waiting for Chromium DevTools port to become ready'));
+          } else {
+            setTimeout(poll, CDP_READY_POLL_INTERVAL_MS);
+          }
+        })
+        .catch(() => {
+          if (Date.now() > deadline) {
+            reject(new Error('Timed out waiting for Chromium DevTools port to become ready'));
+          } else {
+            setTimeout(poll, CDP_READY_POLL_INTERVAL_MS);
+          }
+        });
+    };
+    poll();
+  });
+
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  const cleanup = async () => {
+    await browser.close().catch(() => {});
+    chromeProcess.kill();
+    await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
+  };
+  return { browser, cleanup };
+}
 
 // Every consent-management platform with meaningful market share, as one combined CSS selector --
 // a plain comma-separated selector already matches "any of these", so no per-vendor branching is
@@ -190,15 +271,20 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       return;
     }
 
-    if (!source.merchantId) {
-      // Multi-merchant scrape pages need a per-extracted-item merchant resolution strategy
-      // that isn't specified. Skip cleanly rather than guess which merchant a code belongs to.
-      this.logger.warn(`Skipping scrape source ${source.id}: no merchantId set`);
+    const config = source.selectorConfig as unknown as SelectorConfig;
+    const isMultiMerchant = !!config.rowSelector;
+
+    if (!source.merchantId && !isMultiMerchant) {
+      // A merchant-less source only makes sense in rowSelector (multi-merchant) mode, which
+      // resolves the merchant per row instead of from a fixed merchantId. Anything else is a
+      // genuinely unresolvable config -- skip cleanly rather than guess which merchant a code
+      // belongs to.
+      this.logger.warn(
+        `Skipping scrape source ${source.id}: no merchantId set and not rowSelector-configured`,
+      );
       return;
     }
-
-    const config = source.selectorConfig as unknown as SelectorConfig;
-    const browser = await chromium.launch({ headless: LAUNCH_HEADLESS });
+    const { browser, cleanup } = await launchDetachedChromium();
     try {
       const context = await browser.newContext({
         userAgent: SCRAPE_USER_AGENT,
@@ -273,67 +359,148 @@ export class ScrapeCouponsProcessor extends WorkerHost {
         await page.waitForTimeout(500);
       }
 
-      if (config.revealSelector) {
-        const revealCount = Math.min(
-          (await page.$$(config.revealSelector)).length,
-          MAX_REVEALS_PER_RUN,
+      let matchedCount = 0;
+      let unmatchedCount = 0;
+
+      if (isMultiMerchant) {
+        // A site-wide feed (many merchants on one page, e.g. a "recently verified" activity
+        // stream) rather than one store's own page -- no revealSelector/click needed since the
+        // code is already plain text per row, but each row belongs to a *different* merchant, so
+        // codeSelector/merchantSelector are evaluated scoped to each row (row.$eval, not
+        // page.$$eval) rather than once for the whole page.
+        //
+        // waitForSelector rather than trusting RENDER_SETTLE_MS here -- confirmed live
+        // (simplycodes.com's own feed) that this kind of widget can hydrate meaningfully slower
+        // than a normal page's main content: a 2s wait produced 0 rows 3 of 5 times, a 5s wait
+        // was reliable across repeated tries. Rather than raise the shared constant (which would
+        // needlessly slow down every other source), wait for this source's own rowSelector to
+        // actually appear, with its own longer budget -- a genuinely empty feed (0 rows at
+        // timeout) is indistinguishable from a slow one here, so this degrades to "scraped 0",
+        // not a thrown error.
+        await page
+          .waitForSelector(config.rowSelector as string, { timeout: 10_000 })
+          .catch(() => {});
+        const rows = await page.$$(config.rowSelector as string);
+        for (const row of rows) {
+          const rawCode = await row
+            .$eval(config.codeSelector, (el) => el.textContent?.trim())
+            .catch(() => null);
+          const rawMerchantName = await row
+            .$eval(config.merchantSelector as string, (el) =>
+              el.textContent?.trim(),
+            )
+            .catch(() => null);
+          if (!rawCode || !rawMerchantName || !looksLikeCouponCode(rawCode)) {
+            continue;
+          }
+
+          // Feed rows prefix the name with a status-dot glyph (e.g. "●Sanity Jewelry") that's a
+          // real text character here, not CSS-generated content, so it has to be stripped before
+          // matching rather than relying on textContent alone.
+          const merchantName = rawMerchantName.replace(/^[^\w]+/, '').trim();
+          const merchant = await this.prisma.merchant.findFirst({
+            where: { name: { equals: merchantName, mode: 'insensitive' } },
+          });
+          if (!merchant) {
+            unmatchedCount++;
+            continue;
+          }
+
+          matchedCount++;
+          await this.prisma.coupon.upsert({
+            where: {
+              merchantId_code: { merchantId: merchant.id, code: rawCode },
+            },
+            update: { source: CouponSource.SCRAPE, active: true },
+            create: {
+              merchantId: merchant.id,
+              code: rawCode,
+              source: CouponSource.SCRAPE,
+            },
+          });
+        }
+
+        this.logger.log(
+          `Scraped ${matchedCount} code(s) from source ${source.id} (${unmatchedCount} row(s) skipped, no matching merchant)`,
         );
-        for (let i = 0; i < revealCount; i++) {
-          try {
-            // Re-queried fresh on every iteration rather than reusing a single upfront page.$$()
-            // array of handles -- confirmed live (simplycodes.com/allbirds.com) that a reveal
-            // click which updates the list DOM (a "verified" badge, a use-count bump, anything
-            // React re-renders) detaches every handle grabbed before it, not just the one
-            // clicked: all handles from one upfront grab failed as "not attached to DOM",
-            // including the very first. Matching by index assumes reveals don't reorder the
-            // list, which holds for every source configured so far.
-            const buttons = await page.$$(config.revealSelector);
-            const button = buttons[i];
-            if (!button) break;
-            await button.click({ timeout: 5_000 });
-            await page.waitForTimeout(REVEAL_CLICK_DELAY_MS);
-          } catch (error) {
-            this.logger.warn(
-              `Reveal click failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
-            );
+      } else {
+        if (config.revealSelector) {
+          const revealCount = Math.min(
+            (await page.$$(config.revealSelector)).length,
+            MAX_REVEALS_PER_RUN,
+          );
+          for (let i = 0; i < revealCount; i++) {
+            try {
+              // Re-queried fresh on every iteration rather than reusing a single upfront
+              // page.$$() array of handles -- confirmed live (simplycodes.com/allbirds.com) that
+              // a reveal click which updates the list DOM (a "verified" badge, a use-count bump,
+              // anything React re-renders) detaches every handle grabbed before it, not just the
+              // one clicked: all handles from one upfront grab failed as "not attached to DOM",
+              // including the very first. Matching by index assumes reveals don't reorder the
+              // list, which holds for every source configured so far.
+              const buttons = await page.$$(config.revealSelector);
+              const button = buttons[i];
+              if (!button) break;
+              await button.click({ timeout: 5_000 });
+              await page.waitForTimeout(REVEAL_CLICK_DELAY_MS);
+            } catch (error) {
+              this.logger.warn(
+                `Reveal click failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
+              );
+            }
           }
         }
+
+        await Promise.all(popupReads);
+        // Mirrors the popup settle wait: a reveal click that updates codes in place (no popup, no
+        // navigation) is client-rendered too, and this read raced that the same way the popup
+        // read used to before RENDER_SETTLE_MS was added there.
+        await page.waitForTimeout(RENDER_SETTLE_MS);
+
+        // A reveal click can navigate the original page itself (not just open a popup, e.g. an
+        // affiliate redirect firing on both), so this read races that navigation. Falling back to
+        // an empty list on failure keeps popup-sourced codes intact rather than losing the whole
+        // run to an "execution context destroyed" error.
+        const pageCodes = await page
+          .$$eval(config.codeSelector, (elements) =>
+            elements
+              .map((el) => el.textContent?.trim())
+              .filter((text): text is string => !!text),
+          )
+          .catch((error) => {
+            this.logger.warn(
+              `Main page read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
+            );
+            return [];
+          });
+
+        const codes = [...new Set([...pageCodes, ...popupCodes])].filter(
+          looksLikeCouponCode,
+        );
+
+        for (const code of codes) {
+          await this.prisma.coupon.upsert({
+            where: {
+              merchantId_code: {
+                merchantId: source.merchantId as string,
+                code,
+              },
+            },
+            update: { source: CouponSource.SCRAPE, active: true },
+            create: {
+              merchantId: source.merchantId as string,
+              code,
+              source: CouponSource.SCRAPE,
+            },
+          });
+        }
+
+        this.logger.log(
+          `Scraped ${codes.length} code(s) from source ${source.id}`,
+        );
       }
-
-      await Promise.all(popupReads);
-      // Mirrors the popup settle wait: a reveal click that updates codes in place (no popup, no
-      // navigation) is client-rendered too, and this read raced that the same way the popup read
-      // used to before RENDER_SETTLE_MS was added there.
-      await page.waitForTimeout(RENDER_SETTLE_MS);
-
-      // A reveal click can navigate the original page itself (not just open a popup, e.g. an
-      // affiliate redirect firing on both), so this read races that navigation. Falling back to
-      // an empty list on failure keeps popup-sourced codes intact rather than losing the whole
-      // run to an "execution context destroyed" error.
-      const pageCodes = await page
-        .$$eval(config.codeSelector, (elements) =>
-          elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
-        )
-        .catch((error) => {
-          this.logger.warn(
-            `Main page read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
-          );
-          return [];
-        });
-
-      const codes = [...new Set([...pageCodes, ...popupCodes])].filter(looksLikeCouponCode);
-
-      for (const code of codes) {
-        await this.prisma.coupon.upsert({
-          where: { merchantId_code: { merchantId: source.merchantId, code } },
-          update: { source: CouponSource.SCRAPE, active: true },
-          create: { merchantId: source.merchantId, code, source: CouponSource.SCRAPE },
-        });
-      }
-
-      this.logger.log(`Scraped ${codes.length} code(s) from source ${source.id}`);
     } finally {
-      await browser.close();
+      await cleanup();
       await this.prisma.scrapeSource.update({
         where: { id: source.id },
         data: { lastRunAt: new Date() },

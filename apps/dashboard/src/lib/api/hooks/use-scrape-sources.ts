@@ -15,7 +15,10 @@ export function useScrapeSources() {
 
 export type ScrapeSourcePayload = {
   url: string
-  merchantId: string
+  /** Omitted (create) or explicitly null (edit, clearing a previous value) for a multi-merchant
+   * source (selectorConfig.rowSelector set) — the backend resolves the merchant per row instead
+   * of from a fixed id. */
+  merchantId?: string | null
   selectorConfig: SelectorConfig
   intervalMinutes?: number
 }
