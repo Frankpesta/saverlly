@@ -3,13 +3,14 @@ import { Logger } from '@nestjs/common';
 import { CouponSource } from '@prisma/client';
 import * as Sentry from '@sentry/node';
 import { Job } from 'bullmq';
-import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { Browser, Page, Response, chromium } from 'playwright';
+import { Page, Response } from 'playwright';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES } from '../queue-names';
+import { launchDetachedChromium } from './scrape-browser';
+import {
+  collectSimplyCodesReveals,
+  isSimplyCodesStore,
+} from './simplycodes-reveals';
 
 interface ScrapeCouponsJobData {
   scrapeSourceId: string;
@@ -46,19 +47,8 @@ const SCRAPE_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const SCRAPE_VIEWPORT = { width: 1366, height: 900 };
 
-// Confirmed live against simplycodes.com (a coupon aggregator, same category as RetailMeNot):
-// the page loads normally, the reveal button clicks fine, and a popup even navigates to the
-// correct code permalink -- but the code element silently never renders, with none of
-// detectBotWall's markers present (no challenge text, no bad status, no challenge iframe). This
-// is a *silent* automation feature-gate, not a visible interstitial. Isolated testing traced it
-// to `navigator.webdriver` (true by default under Playwright/Puppeteer): patching it to `false`
-// fixed rendering under a headed browser. Also patched here are the other automation tells a
-// real Chrome window never exhibits -- empty `navigator.plugins`/`mimeTypes`, a missing
-// `window.chrome` runtime object, and a `Notification.permission`/`permissions.query()`
-// mismatch -- since any one of them is a known, commonly-checked signal and there's no way to
-// know in advance which a given source's anti-bot script actually reads. Applied unconditionally
-// to every scrape source (not just simplycodes.com) since it's a no-op on sites that don't check
-// any of this and we have no general way to predict which future source will.
+// Retain the existing browser compatibility settings while fixing extraction.
+// Earlier launch experiments did not isolate a specific anti-automation mechanism.
 const STEALTH_INIT_SCRIPT = () => {
   Object.defineProperty(navigator, 'webdriver', { get: () => false });
 
@@ -102,93 +92,6 @@ const STEALTH_INIT_SCRIPT = () => {
       : originalQuery(parameters);
 };
 
-// Confirmed empirically, in this order: (1) even with every STEALTH_INIT_SCRIPT patch applied,
-// simplycodes.com's code modal still never rendered under Playwright's default headless
-// Chromium -- only a real headed browser window rendered it. (2) Headed obviously needs a
-// display to run against, which a server doesn't have -- Xvfb (a virtual framebuffer X server,
-// already present in this project's `mcr.microsoft.com/playwright` base image) is the standard
-// fix, and the container's CMD wraps the whole process in `xvfb-run` for exactly this. (3) Even
-// headed-under-Xvfb *still* failed, and systematically diffing every fingerprint signal between
-// that failing run and the working real-desktop one found nothing different once patched --
-// navigator.platform, WebGL vendor/renderer, canvas output, and even the full TLS/JA4 handshake
-// fingerprint all matched exactly. What actually mattered was *how* Playwright takes control of
-// the browser process, not anything JS- or network-visible: `chromium.launch()` (Playwright
-// spawns and owns the process itself) trips whatever this is; `connectOverCDP()` to a Chrome
-// process spawned independently via `--remote-debugging-port` (the same mechanism real DevTools
-// or a browser extension uses to attach to an already-running browser) does not -- confirmed
-// reproducible across repeated runs. This points at CDP-session-level detection (e.g. the
-// well-documented Runtime.enable side-channel some anti-bot vendors use specifically because
-// it's largely immune to property-spoofing), a fundamentally different category from userland
-// fingerprint patching. `launchDetachedChromium` below replaces the plain `chromium.launch()`
-// call for exactly this reason -- applied to every source, same reasoning as
-// STEALTH_INIT_SCRIPT, since there's no way to predict which future source's anti-bot vendor
-// checks this and which doesn't.
-const REMOTE_DEBUGGING_PORT_MIN = 9200;
-const REMOTE_DEBUGGING_PORT_MAX = 9999;
-const CDP_READY_TIMEOUT_MS = 10_000;
-const CDP_READY_POLL_INTERVAL_MS = 200;
-
-async function launchDetachedChromium(): Promise<{ browser: Browser; cleanup: () => Promise<void> }> {
-  const port =
-    REMOTE_DEBUGGING_PORT_MIN +
-    Math.floor(Math.random() * (REMOTE_DEBUGGING_PORT_MAX - REMOTE_DEBUGGING_PORT_MIN));
-  const userDataDir = await mkdtemp(join(tmpdir(), 'scrape-chrome-'));
-  const chromeProcess = spawn(
-    chromium.executablePath(),
-    [
-      `--remote-debugging-port=${port}`,
-      // Explicit, not the default -- confirmed live on Windows that "localhost" resolves to
-      // ::1 (IPv6) first, which Chromium's debugging port doesn't listen on by default, causing
-      // an ECONNREFUSED that a single connectOverCDP attempt doesn't recover from. Binding and
-      // connecting via the literal IPv4 loopback address on both ends removes the ambiguity
-      // entirely rather than relying on whichever address a given OS's resolver prefers.
-      '--remote-debugging-address=127.0.0.1',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--no-sandbox', // required -- the container runs as root, which Chromium's sandbox refuses
-      '--disable-dev-shm-usage', // Docker's default 64MB /dev/shm is too small for Chromium's own use
-      `--user-data-dir=${userDataDir}`,
-      'about:blank',
-    ],
-    { stdio: 'ignore' },
-  );
-
-  // Poll the DevTools HTTP endpoint rather than trusting a fixed delay or parsing Chromium's own
-  // "DevTools listening on..." stderr log line -- both are less reliable than just asking the
-  // port itself whether it's ready yet.
-  await new Promise<void>((resolve, reject) => {
-    const deadline = Date.now() + CDP_READY_TIMEOUT_MS;
-    const poll = () => {
-      fetch(`http://127.0.0.1:${port}/json/version`)
-        .then((res) => {
-          if (res.ok) {
-            resolve();
-          } else if (Date.now() > deadline) {
-            reject(new Error('Timed out waiting for Chromium DevTools port to become ready'));
-          } else {
-            setTimeout(poll, CDP_READY_POLL_INTERVAL_MS);
-          }
-        })
-        .catch(() => {
-          if (Date.now() > deadline) {
-            reject(new Error('Timed out waiting for Chromium DevTools port to become ready'));
-          } else {
-            setTimeout(poll, CDP_READY_POLL_INTERVAL_MS);
-          }
-        });
-    };
-    poll();
-  });
-
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-  const cleanup = async () => {
-    await browser.close().catch(() => {});
-    chromeProcess.kill();
-    await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
-  };
-  return { browser, cleanup };
-}
-
 // Every consent-management platform with meaningful market share, as one combined CSS selector --
 // a plain comma-separated selector already matches "any of these", so no per-vendor branching is
 // needed. Covers OneTrust (confirmed live on RetailMeNot), Cookiebot, TrustArc, Quantcast/
@@ -226,7 +129,10 @@ const BOT_WALL_MARKERS = [
   'enable javascript and cookies',
 ];
 
-async function detectBotWall(page: Page, response: Response | null): Promise<string | null> {
+async function detectBotWall(
+  page: Page,
+  response: Response | null,
+): Promise<string | null> {
   const title = await page.title().catch(() => '');
   const bodyText = await page
     .evaluate(() => document.body?.innerText?.slice(0, 1_000) ?? '')
@@ -237,13 +143,16 @@ async function detectBotWall(page: Page, response: Response | null): Promise<str
 
   const hasChallengeFrame = await page
     .$$eval('iframe', (frames) =>
-      frames.some((frame) => /captcha|turnstile|challenges\.cloudflare/i.test(frame.src || '')),
+      frames.some((frame) =>
+        /captcha|turnstile|challenges\.cloudflare/i.test(frame.src || ''),
+      ),
     )
     .catch(() => false);
   if (hasChallengeFrame) return 'challenge iframe present';
 
   const status = response?.status() ?? 0;
-  if (status === 403 || status === 429 || status === 503) return `HTTP ${status}`;
+  if (status === 403 || status === 429 || status === 503)
+    return `HTTP ${status}`;
 
   return null;
 }
@@ -281,6 +190,14 @@ export class ScrapeCouponsProcessor extends WorkerHost {
 
     const config = source.selectorConfig as unknown as SelectorConfig;
     const isMultiMerchant = !!config.rowSelector;
+    const simplyCodes =
+      !isMultiMerchant &&
+      !!config.revealSelector &&
+      isSimplyCodesStore(source.url);
+    const started = Date.now();
+    this.logger.log(
+      `Scrape source=${source.id} job=${job.id} attempt=${job.attemptsMade + 1} strategy=${simplyCodes ? 'simplycodes-url-v1' : 'generic'} phase=start`,
+    );
 
     if (!source.merchantId && !isMultiMerchant) {
       // A merchant-less source only makes sense in rowSelector (multi-merchant) mode, which
@@ -292,8 +209,14 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       );
       return;
     }
-    const { browser, cleanup } = await launchDetachedChromium();
+    let cleanup: () => Promise<void> = async () => {};
     try {
+      const launched = await launchDetachedChromium();
+      cleanup = launched.cleanup;
+      const browser = launched.browser;
+      this.logger.log(
+        `Scrape source=${source.id} phase=browser-ready browser=${browser.version()} elapsedMs=${Date.now() - started}`,
+      );
       const context = await browser.newContext({
         userAgent: SCRAPE_USER_AGENT,
         viewport: SCRAPE_VIEWPORT,
@@ -314,32 +237,48 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       // popup has finished loading, and every popup-only code is silently lost.
       const popupCodes: string[] = [];
       const popupReads: Promise<void>[] = [];
-      context.on('page', (popup) => {
-        popupReads.push(
-          (async () => {
-            try {
-              await popup.waitForLoadState('domcontentloaded', { timeout: POPUP_LOAD_TIMEOUT_MS });
-              await popup.waitForTimeout(RENDER_SETTLE_MS);
-              const found = await popup.$$eval(config.codeSelector, (elements) =>
-                elements.map((el) => el.textContent?.trim()).filter((text): text is string => !!text),
-              );
-              popupCodes.push(...found);
-            } catch (error) {
-              this.logger.warn(
-                `Popup read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
-              );
-            } finally {
-              await popup.close().catch(() => {});
-            }
-          })(),
-        );
-      });
+      if (!simplyCodes)
+        context.on('page', (popup) => {
+          popupReads.push(
+            (async () => {
+              try {
+                await popup.waitForLoadState('domcontentloaded', {
+                  timeout: POPUP_LOAD_TIMEOUT_MS,
+                });
+                await popup.waitForTimeout(RENDER_SETTLE_MS);
+                const found = await popup.$$eval(
+                  config.codeSelector,
+                  (elements) =>
+                    elements
+                      .map((el) => el.textContent?.trim())
+                      .filter((text): text is string => !!text),
+                );
+                popupCodes.push(...found);
+              } catch (error) {
+                this.logger.warn(
+                  `Popup read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
+                );
+              } finally {
+                await popup.close().catch(() => {});
+              }
+            })(),
+          );
+        });
       // A real navigation failure (DNS, timeout, connection refused) is left to throw and
       // propagate to the existing attempts/backoff below, same as before this change -- only a
       // page that *did* load is worth inspecting for a bot-detection interstitial.
-      const response = await page.goto(source.url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      this.logger.log(
+        `Scrape source=${source.id} phase=navigation elapsedMs=${Date.now() - started}`,
+      );
+      const response = await page.goto(source.url, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
       await page.waitForTimeout(RENDER_SETTLE_MS);
 
+      this.logger.log(
+        `Scrape source=${source.id} phase=bot-check elapsedMs=${Date.now() - started}`,
+      );
       const botWall = await detectBotWall(page, response);
       if (botWall) {
         const message = `Blocked by bot-detection (${botWall}) for source ${source.id} (${source.url})`;
@@ -359,12 +298,52 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       // OneTrust: an immediate page.$() check always came back null), so a one-shot lookup is a
       // lost race -- waitForSelector actively waits instead; the short timeout is just "give up
       // and proceed" for sites that never show one at all.
+      this.logger.log(
+        `Scrape source=${source.id} phase=consent elapsedMs=${Date.now() - started}`,
+      );
       const consentButton = await page
-        .waitForSelector(CONSENT_ACCEPT_SELECTOR, { timeout: CONSENT_WAIT_TIMEOUT_MS, state: 'visible' })
+        .waitForSelector(CONSENT_ACCEPT_SELECTOR, {
+          timeout: CONSENT_WAIT_TIMEOUT_MS,
+          state: 'visible',
+        })
         .catch(() => null);
       if (consentButton) {
         await consentButton.click({ timeout: 5_000 }).catch(() => {});
         await page.waitForTimeout(500);
+      }
+
+      if (simplyCodes) {
+        const result = await collectSimplyCodesReveals(
+          page,
+          source.url,
+          {
+            revealSelector: config.revealSelector!,
+            codeSelector: config.codeSelector,
+          },
+          (message) => this.logger.log(`Scrape source=${source.id} ${message}`),
+        );
+        for (const code of result.codes) {
+          await this.prisma.coupon.upsert({
+            where: {
+              merchantId_code: { merchantId: source.merchantId!, code },
+            },
+            update: { source: CouponSource.SCRAPE, active: true },
+            create: {
+              merchantId: source.merchantId!,
+              code,
+              source: CouponSource.SCRAPE,
+            },
+          });
+        }
+        if (result.failures.length) {
+          throw new Error(
+            `SimplyCodes scrape incomplete: saved ${result.codes.length} code(s); ${result.failures.join('; ')}`,
+          );
+        }
+        this.logger.log(
+          `Scraped ${result.codes.length} code(s) from source ${source.id}; elapsedMs=${Date.now() - started}`,
+        );
+        return;
       }
 
       let matchedCount = 0;
@@ -507,8 +486,15 @@ export class ScrapeCouponsProcessor extends WorkerHost {
           `Scraped ${codes.length} code(s) from source ${source.id}`,
         );
       }
+    } catch (error) {
+      this.logger.error(
+        `Scrape source=${source.id} phase=failed elapsedMs=${Date.now() - started}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
     } finally {
-      await cleanup();
+      await cleanup().catch((error) =>
+        this.logger.warn(`Browser cleanup failed: ${String(error)}`),
+      );
       await this.prisma.scrapeSource.update({
         where: { id: source.id },
         data: { lastRunAt: new Date() },
