@@ -62,6 +62,14 @@ const SCRAPE_VIEWPORT = { width: 1366, height: 900 };
 const STEALTH_INIT_SCRIPT = () => {
   Object.defineProperty(navigator, 'webdriver', { get: () => false });
 
+  // Confirmed live: navigator.platform reported "Linux x86_64" under this container's Chromium
+  // even while SCRAPE_USER_AGENT above claims Windows -- a blatant UA/platform mismatch that's
+  // among the most common, most basic bot-detection checks there is, and was missing from this
+  // script even after being identified as a real contributing signal (caught by re-diffing a
+  // successful isolated recipe against this shipped one after a live failure, not caught at the
+  // time it was first found). Matches SCRAPE_USER_AGENT's claimed OS.
+  Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+
   // @ts-expect-error -- window.chrome doesn't exist in Playwright's TS lib types
   if (!window.chrome) {
     // @ts-expect-error -- same as above
