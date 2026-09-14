@@ -115,6 +115,7 @@ export default function ScrapeSourcesPage() {
                 source={source}
                 index={index}
                 merchantName={source.merchantId ? merchantNameById.get(source.merchantId) : undefined}
+                isMultiMerchant={!source.merchantId && !!source.selectorConfig.rowSelector}
               />
             ))}
           </TableBody>
@@ -135,10 +136,12 @@ function ScrapeSourceRow({
   source,
   index,
   merchantName,
+  isMultiMerchant,
 }: {
   source: ScrapeSource
   index: number
   merchantName?: string
+  isMultiMerchant: boolean
 }) {
   const updateSource = useUpdateScrapeSource(source.id)
   const runNow = useRunScrapeSourceNow()
@@ -176,7 +179,9 @@ function ScrapeSourceRow({
         {source.url}
       </TableCell>
       <TableCell>
-        {merchantName ?? <Badge variant="secondary">Unassigned</Badge>}
+        {merchantName ?? (
+          <Badge variant="secondary">{isMultiMerchant ? "Multi-merchant feed" : "Unassigned"}</Badge>
+        )}
       </TableCell>
       <TableCell>{source.intervalMinutes} min</TableCell>
       <TableCell>{source.lastRunAt ? relativeTime(source.lastRunAt) : "Never"}</TableCell>

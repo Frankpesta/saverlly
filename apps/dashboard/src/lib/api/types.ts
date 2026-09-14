@@ -229,6 +229,11 @@ export type SelectorConfig = {
   codeSelector: string
   descriptionSelector?: string
   revealSelector?: string
+  /** Set together, only for a multi-merchant source (one page covering many stores, e.g. a
+   * site-wide "recently verified" feed) instead of one store's own page. When set, the
+   * ScrapeSource's own merchantId must be omitted — the merchant is resolved per row instead. */
+  rowSelector?: string
+  merchantSelector?: string
 }
 
 export type ScrapeSource = {

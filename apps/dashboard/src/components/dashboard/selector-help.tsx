@@ -30,7 +30,7 @@ export function SelectorHelp({
   variant = "code",
 }: {
   label?: string
-  variant?: "code" | "reveal"
+  variant?: "code" | "reveal" | "multi"
 }) {
   return (
     <Popover>
@@ -39,7 +39,20 @@ export function SelectorHelp({
         {label}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 gap-2 text-sm">
-        {variant === "code" ? (
+        {variant === "multi" ? (
+          <>
+            <p className="font-medium text-foreground">One row, one store</p>
+            <p className="text-muted-foreground">
+              Point this at the container that repeats once per store on the page, not the whole
+              list. Inspect one row&apos;s wrapper (the smallest element that holds both the store
+              name and its code), then Copy selector on that.
+            </p>
+            <p className="text-muted-foreground">
+              The code and store name selectors below are then read relative to that row, not the
+              whole page. They only need to match within one row, not be unique site-wide.
+            </p>
+          </>
+        ) : variant === "code" ? (
           <>
             <p className="font-medium text-foreground">This is a CSS selector</p>
             <p className="text-muted-foreground">
@@ -63,7 +76,7 @@ export function SelectorHelp({
           </>
         ) : (
           <>
-            <p className="font-medium text-foreground">Only needed for "click to reveal" codes</p>
+            <p className="font-medium text-foreground">Only needed for &quot;click to reveal&quot; codes</p>
             {/* <p className="text-muted-foreground">
               Some sites hide the coupon code until you click a button like "Get Code" or "Reveal
               Code". If the code selector above isn't finding anything, this is usually why — the
@@ -71,8 +84,8 @@ export function SelectorHelp({
               is invisible to it.
             </p> */}
             <p className="text-muted-foreground">
-              Give it a selector for that button (same method as the code selector — Inspect →
-              Copy → Copy selector) and the scraper will click it first, then read the code.
+              Give it a selector for that button (same method as the code selector: Inspect,
+              Copy, Copy selector) and the scraper will click it first, then read the code.
             </p>
             {HOW_TO_INSPECT}
             <p className="text-muted-foreground">Leave this blank if the code is already visible on the page.</p>

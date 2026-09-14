@@ -21,4 +21,28 @@ export class SelectorConfigDto {
   @IsOptional()
   @IsString()
   revealSelector?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'CSS selector matching each row container on a multi-merchant page (e.g. a site-wide ' +
+      '"recently verified" feed covering many stores in one page, rather than one store per ' +
+      'page). When set, this source must omit merchantId on the ScrapeSource itself -- ' +
+      'codeSelector and merchantSelector are then evaluated per-row (scoped to each row element, ' +
+      'not the whole page) and the merchant is resolved by exact case-insensitive name match ' +
+      'against existing merchants; rows with no match are skipped rather than guessed.',
+    example: '.feed-entry',
+  })
+  @IsOptional()
+  @IsString()
+  rowSelector?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'CSS selector for the merchant name within a rowSelector row. Required together with ' +
+      'rowSelector; meaningless without it.',
+    example: '.feed-merchant',
+  })
+  @IsOptional()
+  @IsString()
+  merchantSelector?: string;
 }

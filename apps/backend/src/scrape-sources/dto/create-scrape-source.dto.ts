@@ -8,12 +8,19 @@ export class CreateScrapeSourceDto {
   @IsUrl({ require_tld: false })
   url: string;
 
-  // Required for now: the scrape processor has no per-extracted-item merchant resolution
-  // strategy, so a merchant-less source would be accepted but silently never produce coupons.
-  // Schema/relation stay nullable for when that resolution strategy is actually built.
-  @ApiProperty({ description: 'The merchant this scrape source belongs to' })
+  // Required except for a multi-merchant source (selectorConfig.rowSelector set) -- the
+  // processor now has a per-row merchant resolution strategy (exact case-insensitive name
+  // match) for that case, and a fixed merchantId would be meaningless there since each row
+  // belongs to a different merchant. The processor itself is the real enforcement point for
+  // "one or the other, not neither/both" -- see its merchantId/rowSelector branch.
+  @ApiPropertyOptional({
+    description:
+      'The merchant this scrape source belongs to. Required unless selectorConfig.rowSelector ' +
+      'is set (a multi-merchant source resolves the merchant per row instead).',
+  })
+  @IsOptional()
   @IsUUID()
-  merchantId: string;
+  merchantId?: string;
 
   @ApiProperty({ type: SelectorConfigDto })
   @ValidateNested()
