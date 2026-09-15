@@ -11,6 +11,7 @@ import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
+import { Combobox } from "@/components/ui/combobox"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import {
   Card,
@@ -64,6 +65,12 @@ const checkoutRecipeSchema = z.object({
 
 type CheckoutRecipeFormInput = z.input<typeof checkoutRecipeSchema>
 type CheckoutRecipeFormOutput = z.output<typeof checkoutRecipeSchema>
+
+const COUPON_APPLY_MODE_OPTIONS = [
+  { value: "", label: "Not configured" },
+  { value: "replace", label: "Applying a code replaces the previous code" },
+  { value: "remove", label: "Remove each code before testing the next" },
+]
 
 export default function MerchantDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -225,6 +232,7 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
   const recipe = merchant.checkoutRecipe
   const {
     register,
+    control,
     handleSubmit,
     formState: { isSubmitting },
   } = useForm<CheckoutRecipeFormInput, unknown, CheckoutRecipeFormOutput>({
@@ -310,11 +318,19 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
             <Input id="recipe-cart-total" placeholder=".order-summary-total" {...register("cartTotalSelector")} />
           </FormField>
           <FormField label="Coupon comparison behavior" htmlFor="recipe-apply-mode" hint="Verify this on the merchant checkout before enabling comparison. Codes must not stack during independent tests.">
-            <select id="recipe-apply-mode" className="h-10 rounded-md border border-input bg-background px-3 text-sm" {...register('couponApplyMode')}>
-              <option value="">Not configured</option>
-              <option value="replace">Applying a code replaces the previous code</option>
-              <option value="remove">Remove each code before testing the next</option>
-            </select>
+            <Controller
+              name="couponApplyMode"
+              control={control}
+              render={({ field }) => (
+                <Combobox
+                  id="recipe-apply-mode"
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  options={COUPON_APPLY_MODE_OPTIONS}
+                  placeholder="Not configured"
+                />
+              )}
+            />
           </FormField>
           <FormField label="Remove coupon selector" htmlFor="recipe-remove-coupon" hint="Required for remove mode. Select the checkout control that removes an applied coupon and restores the original total.">
             <Input id="recipe-remove-coupon" placeholder="button.remove-promo" {...register('removeCouponSelector')} />
