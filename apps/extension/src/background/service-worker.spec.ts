@@ -1,5 +1,6 @@
 import { AttributionMethod, CouponSource } from '@saverlly/shared-types';
 import type { PublicMerchant } from '@saverlly/shared-types';
+import type { TabCheckoutState } from '../lib/messages';
 
 const addListenerMocks = {
   onInstalled: jest.fn(),
@@ -54,7 +55,13 @@ jest.mock('../lib/native-messaging');
 
 import { fetchActivePromotions, fetchMerchantByDomain, reportCouponTestEvent } from '../lib/api-client';
 import { runAttribution } from '../lib/attribution';
-import { getCachedMerchant, isDormant, setCachedMerchant } from '../lib/storage';
+import {
+  getCachedMerchant,
+  getPersistedTabState,
+  isDormant,
+  setCachedMerchant,
+  setPersistedTabState,
+} from '../lib/storage';
 
 // Imported after the chrome/module mocks above are in place. The service worker
 // registers its listeners as a side effect of module load.
@@ -67,6 +74,8 @@ const mockSetCachedMerchant = setCachedMerchant as jest.MockedFunction<typeof se
 const mockIsDormant = isDormant as jest.MockedFunction<typeof isDormant>;
 const mockReportCouponTestEvent = reportCouponTestEvent as jest.MockedFunction<typeof reportCouponTestEvent>;
 const mockFetchActivePromotions = fetchActivePromotions as jest.MockedFunction<typeof fetchActivePromotions>;
+const mockGetPersistedTabState = getPersistedTabState as jest.MockedFunction<typeof getPersistedTabState>;
+const mockSetPersistedTabState = setPersistedTabState as jest.MockedFunction<typeof setPersistedTabState>;
 
 const merchant: PublicMerchant = {
   id: 'm1',
@@ -133,9 +142,28 @@ describe('top-frame navigation handling', () => {
     chromeMock.scripting.executeScript.mockClear();
   });
 
-  it('registers the exact same handler for onCommitted and onHistoryStateUpdated', () => {
+  it('registers a handler for both onCommitted and onHistoryStateUpdated', () => {
     expect(registeredOnCommitted).toBeDefined();
-    expect(registeredOnCommitted).toBe(registeredOnHistoryStateUpdated);
+    expect(registeredOnHistoryStateUpdated).toBeDefined();
+    expect(registeredOnCommitted).not.toBe(registeredOnHistoryStateUpdated);
+  });
+
+  it('injects the checkout-detector on a plain onCommitted document load too', async () => {
+    mockIsDormant.mockResolvedValue(false);
+    mockGetCachedMerchant.mockResolvedValue(null);
+    mockSetCachedMerchant.mockResolvedValue(undefined);
+    mockFetchMerchantByDomain.mockResolvedValue(merchant);
+    mockRunAttribution.mockResolvedValue(null);
+
+    await registeredOnCommitted({
+      tabId: 7,
+      frameId: 0,
+      url: 'https://shop.example.com/checkout',
+    });
+
+    expect(chromeMock.scripting.executeScript).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target: { tabId: 7 }, files: ['content-scripts/checkout-detector.js'] }),
+    );
   });
 
   it('injects the checkout-detector on a cart-to-checkout History API route change with no document reload', async () => {
@@ -170,6 +198,34 @@ describe('top-frame navigation handling', () => {
     expect(mockFetchMerchantByDomain).not.toHaveBeenCalled();
   });
 
+  // Regression test for a real reload loop: some merchant sites rewrite their own URL via
+  // history.replaceState shortly after load (a cosmetic "clean URL" step) that strips the
+  // very affiliate query param runAttribution just appended. Before this guard, that site-
+  // initiated rewrite fired onHistoryStateUpdated, which re-ran attribution, which redirected
+  // again via chrome.tabs.update, reloading the page -- which then stripped the param again on
+  // load, forever. Confirmed as the live symptom: the affiliate site keeps reloading, url-param
+  // merchants only (cookie-only merchants have no redirect step to loop on).
+  it('never attributes automatic navigation, including reloads and URL cleanup', async () => {
+    mockIsDormant.mockResolvedValue(false);
+    mockGetCachedMerchant.mockResolvedValue(null);
+    mockSetCachedMerchant.mockResolvedValue(undefined);
+    mockFetchMerchantByDomain.mockResolvedValue(merchant);
+    mockRunAttribution.mockResolvedValue('https://shop.example.com/checkout?aff=123');
+
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: 'https://shop.example.com/checkout' });
+    expect(mockRunAttribution).not.toHaveBeenCalled();
+
+    // The site's own script strips the param via history.replaceState -- same document,
+    // no real navigation, but the URL looks unattributed again.
+    await registeredOnHistoryStateUpdated({ tabId: 7, frameId: 0, url: 'https://shop.example.com/checkout' });
+    expect(mockRunAttribution).not.toHaveBeenCalled();
+
+    // A genuine fresh document load (e.g. the user reloads, or navigates away and back)
+    // legitimately should attribute again.
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: 'https://shop.example.com/checkout' });
+    expect(mockRunAttribution).not.toHaveBeenCalled();
+  });
+
   it('ignores sub-frame navigation events', async () => {
     await registeredOnHistoryStateUpdated({
       tabId: 7,
@@ -184,6 +240,7 @@ describe('top-frame navigation handling', () => {
 
 describe('CHECKOUT_CONFIRMED manual-trigger', () => {
   beforeEach(() => {
+    mockRunAttribution.mockReset().mockResolvedValue(null);
     mockIsDormant.mockReset().mockResolvedValue(false);
     mockGetCachedMerchant.mockReset().mockResolvedValue(null);
     mockSetCachedMerchant.mockReset().mockResolvedValue(undefined);
@@ -217,6 +274,8 @@ describe('CHECKOUT_CONFIRMED manual-trigger', () => {
       { tab: { id: 7 } } as chrome.runtime.MessageSender,
     );
     await sendMessage({ type: 'APPLY_BEST_COUPON' });
+
+    expect(mockRunAttribution).toHaveBeenCalledWith(7, 'https://shop.example.com/checkout', merchant, expect.any(Function));
 
     expect(chromeMock.scripting.executeScript).toHaveBeenLastCalledWith(
       expect.objectContaining({ target: { tabId: 7 }, files: ['content-scripts/coupon-applier.js'] }),
@@ -294,4 +353,101 @@ describe('GET_ACTIVE_PROMOTIONS', () => {
 
     await expect(sendMessage({ type: 'GET_ACTIVE_PROMOTIONS' })).resolves.toEqual([]);
   });
+});
+
+describe('tab state survives an MV3 service-worker recycle', () => {
+  // Regression coverage: tab state used to live only in an in-memory Map, wiped whenever
+  // Chrome recycles the background service worker (idle teardown, sleep, etc). A popup
+  // reopened after that saw GET_TAB_STATE return null and rendered "no offers here yet" --
+  // even right after a real, successful apply. These use a tab id (99) untouched by any
+  // other test in this file, so the in-memory cache genuinely has nothing for it and any
+  // hit has to come from the chrome.storage.session fallback, not leftover Map state.
+  beforeEach(() => {
+    mockIsDormant.mockReset().mockResolvedValue(false);
+    mockGetPersistedTabState.mockReset().mockResolvedValue(null);
+    mockSetPersistedTabState.mockReset().mockResolvedValue(undefined);
+    chromeMock.tabs.query.mockReset();
+  });
+
+  it('GET_TAB_STATE falls back to the persisted copy when the in-memory cache is empty', async () => {
+    chromeMock.tabs.query.mockResolvedValue([{ id: 99 }]);
+    const persisted: TabCheckoutState = {
+      merchantId: 'm1',
+      merchantName: 'Test Merchant',
+      coupons: merchant.coupons,
+      suppressedStepdown: false,
+      applyProgress: null,
+      applyResult: {
+        type: 'COUPON_APPLY_RESULT',
+        merchantId: 'm1',
+        couponId: 'c1',
+        code: 'SAVE10',
+        result: 'applied',
+        isFinal: true,
+      },
+    };
+    mockGetPersistedTabState.mockResolvedValue(persisted);
+
+    const state = await sendMessage({ type: 'GET_TAB_STATE' });
+
+    expect(mockGetPersistedTabState).toHaveBeenCalledWith(99);
+    expect(state).toEqual(persisted);
+  });
+
+  it('writes a final apply result through to chrome.storage.session, not just the in-memory cache', async () => {
+    chromeMock.tabs.query.mockResolvedValue([{ id: 99 }]);
+    chromeMock.tabs.get.mockResolvedValue({ url: 'https://shop.example.com/checkout' });
+    mockGetCachedMerchant.mockResolvedValue(null);
+    mockSetCachedMerchant.mockResolvedValue(undefined);
+    mockFetchMerchantByDomain.mockResolvedValue(merchant);
+    mockReportCouponTestEvent.mockResolvedValue(undefined);
+    chromeMock.cookies.getAll.mockResolvedValue([]);
+
+    await sendMessage(
+      { type: 'CHECKOUT_CONFIRMED', merchantId: 'm1', referrer: '' },
+      { tab: { id: 99 } } as chrome.runtime.MessageSender,
+    );
+    mockSetPersistedTabState.mockClear();
+
+    await sendMessage(
+      {
+        type: 'COUPON_APPLY_RESULT',
+        merchantId: 'm1',
+        couponId: 'c1',
+        code: 'SAVE10',
+        result: 'applied',
+        isFinal: true,
+      },
+      { tab: { id: 99 } } as chrome.runtime.MessageSender,
+    );
+
+    expect(mockSetPersistedTabState).toHaveBeenCalledWith(
+      99,
+      expect.objectContaining({ applyResult: expect.objectContaining({ code: 'SAVE10', result: 'applied' }) }),
+    );
+  });
+});
+
+it('persists and relays a tab-scoped final result even when reporting fails', async () => {
+  mockGetPersistedTabState.mockResolvedValue({ merchantId: 'm1', merchantName: 'Store', coupons: merchant.coupons, suppressedStepdown: false, applyProgress: null, applyResult: null });
+  mockReportCouponTestEvent.mockRejectedValueOnce(new Error('reporting unavailable'));
+  const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const result = { type: 'COUPON_APPLY_RESULT', merchantId: 'm1', couponId: 'c1', code: 'SAVE10', result: 'applied', isFinal: true };
+  await sendMessage(result, { tab: { id: 811 } } as chrome.runtime.MessageSender);
+  expect(mockSetPersistedTabState).toHaveBeenCalledWith(811, expect.objectContaining({ applyResult: result }));
+  expect(chromeMock.runtime.sendMessage).toHaveBeenCalledWith({ type: 'APPLY_DONE', tabId: 811, result });
+  log.mockRestore();
+});
+
+it('returns an explicit start failure when no active checkout exists', async () => {
+  mockIsDormant.mockResolvedValue(false);
+  chromeMock.tabs.query.mockResolvedValue([]);
+  await expect(sendMessage({ type: 'APPLY_BEST_COUPON' })).resolves.toEqual({ started: false });
+});
+
+it('does not report temporary successful trials as saved money', async () => {
+  mockGetPersistedTabState.mockResolvedValue({ merchantId: 'm1', merchantName: 'Store', coupons: merchant.coupons, suppressedStepdown: false, applyProgress: null, applyResult: null });
+  mockReportCouponTestEvent.mockClear();
+  await sendMessage({ type: 'COUPON_APPLY_RESULT', merchantId: 'm1', couponId: 'c1', code: 'SAVE10', result: 'applied', isFinal: false }, { tab: { id: 812 } } as chrome.runtime.MessageSender);
+  expect(mockReportCouponTestEvent).not.toHaveBeenCalled();
 });

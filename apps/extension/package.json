@@ -7,6 +7,7 @@
     "dev": "node scripts/build.js --watch",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
+    "test:browser": "node scripts/verify-browser.js",
     "package": "npm run build && node scripts/package.js"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "esbuild": "^0.24.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
+    "playwright": "^1.62.1",
     "ts-jest": "^29.4.0",
     "typescript": "^5.7.3"
   }

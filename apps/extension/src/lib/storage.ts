@@ -1,4 +1,5 @@
 import type { PublicMerchant } from '@saverlly/shared-types';
+import type { TabCheckoutState } from './messages';
 
 interface MerchantCacheEntry {
   merchant: PublicMerchant | null;
@@ -76,4 +77,37 @@ export async function appendAttributionLog(entry: AttributionLogEntry): Promise<
   log.push(entry);
   const trimmed = log.length > ATTRIBUTION_LOG_MAX_ENTRIES ? log.slice(-ATTRIBUTION_LOG_MAX_ENTRIES) : log;
   await chrome.storage.local.set({ [KEYS.attributionLog]: trimmed });
+}
+
+// chrome.storage.session (not .local): tab checkout state is only ever meaningful for the
+// current browser session -- it should survive the background service worker being recycled
+// by Chrome (the whole point of persisting it), but not linger across a full browser restart
+// the way .local would, since a restarted browser has no in-progress checkout to resume.
+function tabStateKey(tabId: number): string {
+  return `tabState:${tabId}`;
+}
+
+export async function getPersistedTabState(tabId: number): Promise<TabCheckoutState | null> {
+  const key = tabStateKey(tabId);
+  const result = await chrome.storage.session.get(key);
+  return (result[key] as TabCheckoutState | undefined) ?? null;
+}
+
+export async function setPersistedTabState(tabId: number, state: TabCheckoutState): Promise<void> {
+  await chrome.storage.session.set({ [tabStateKey(tabId)]: state });
+}
+
+export async function removePersistedTabState(tabId: number): Promise<void> {
+  await chrome.storage.session.remove(tabStateKey(tabId));
+}
+
+export interface PendingApply { merchantId: string; checkoutPath: string; expiresAt: number }
+export async function setPendingApply(tabId: number, value: PendingApply): Promise<void> {
+  await chrome.storage.session.set({ [`pendingApply:${tabId}`]: value });
+}
+export async function takePendingApply(tabId: number): Promise<PendingApply | null> {
+  const key = `pendingApply:${tabId}`;
+  const stored = await chrome.storage.session.get(key);
+  await chrome.storage.session.remove(key);
+  return stored[key] ?? null;
 }

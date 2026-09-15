@@ -1,468 +1,545 @@
-/* Colors sampled directly from the exported Figma screens (extension_figma_files/)
-   #58C3B7 (buttons/accents) and #FF4649 (alert ring) were confirmed by pixel-sampling
-   the PNG exports, not guessed. */
-
-/* Inter, self-hosted (single variable-font file covers every weight 100-900) so it
-   renders consistently on kiosk PCs that don't have it installed system-wide. */
+/* The supplied 600 x 832 Figma frames are rendered at 60% for the 360px popup.
+   Illustration, logo, close glyph and background are original exported layers. */
 @font-face {
-  font-family: 'Inter';
+  font-family: Rubik;
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 300 900;
   font-display: swap;
-  src: url('fonts/inter.woff2') format('woff2-variations');
+  src: url("fonts/rubik.woff2") format("woff2");
 }
-
 :root {
   --teal: #58c3b7;
   --teal-dark: #43a99d;
-  --teal-tint: #eaf7f5;
-  --green: #00a259;
-  --text: #000000;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-  --track: #f3f4f6;
-  --bg: #ffffff;
+  --teal-tint: #e8f7f6;
+  --text: #000;
+  --muted: #787878;
+  --border: #ededed;
+  --track: #f4f3f3;
+  --bg: #fff;
 }
-
 * {
   box-sizing: border-box;
 }
-
 body {
   margin: 0;
   width: 360px;
-  /* Chrome's own popup window frame is square by default. Rounding + clipping here is
-     what actually gives the popup itself softened corners, not just its inner content. */
-  border-radius: 10px;
-  overflow: hidden;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  max-height: 600px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: Rubik, Arial, sans-serif;
   color: var(--text);
-  background: var(--bg);
+  background: white;
 }
-
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
 button {
   font-family: inherit;
+  cursor: pointer;
 }
-
-/* ---------- Header ---------- */
-
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #247c73;
+  outline-offset: 3px;
+}
 .popup__header {
+  height: 43.8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 0 19.2px;
+  border-bottom: 0.6px solid var(--border);
 }
-
 .popup__brand {
   display: flex;
-  align-items: center;
 }
-
 .popup__logo {
-  height: 22px;
-  width: auto;
   display: block;
+  width: 114.6px;
+  height: 25.2px;
 }
-
 .popup__close {
-  border: none;
+  width: 20px;
+  height: 24px;
+  border: 0;
+  padding: 2.8px;
   background: none;
-  font-size: 18px;
-  line-height: 1;
-  color: var(--text);
-  cursor: pointer;
-  padding: 4px;
 }
-
+.popup__close img {
+  display: block;
+  width: 14.4px;
+  height: 14.4px;
+}
 .popup__lifetime {
+  height: 35.4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  gap: 3px;
+  border-bottom: 0.6px solid var(--border);
+  font-size: 9.6px;
+  font-weight: 500;
+  color: #1b1c1c;
 }
-
 .popup__lifetime-icon {
   width: 20px;
   height: 20px;
-  display: block;
+  object-fit: contain;
+  margin-right: 3px;
 }
-
-.popup__lifetime-label {
-  color: var(--muted);
-}
-
-.popup__lifetime-value {
-  font-weight: 700;
-}
-
-/* ---------- Shared content layout ---------- */
-
 .popup__content {
-  padding: 20px 16px;
+  position: relative;
+  min-height: 420px;
+  padding: 22px 20px;
   text-align: center;
+  background: white url("assets/design-background.svg") center top / 360px 420px
+    no-repeat;
 }
-
-/* celeb.svg is a self-contained illustration. Teal circle, gift/balloon/confetti graphic,
-   AND the "card" mockup (avatar + two line bars) are all baked into the one asset. The only
-   thing added in CSS is the second card peeking out behind/below it. */
-.popup__hero {
-  position: relative;
-  margin: 4px 0 18px;
-}
-
-.popup__hero-illustration {
-  position: relative;
-  z-index: 2;
-  display: block;
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* celeb.svg's own baked-in card occupies roughly the 41%-68% band of the image's height
-   (y 167-277 of its 406-tall viewBox). This sits just behind it, peeking out below. */
-.popup__hero-card-back {
-  position: absolute;
-  left: 18%;
-  right: 18%;
-  top: 60%;
-  height: 14%;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-  z-index: 1;
-}
-
 .popup__heading {
-  margin: 0 0 6px;
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.25;
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
-
-.popup__heading--lg {
-  font-size: 26px;
-}
-
 .popup__accent {
   color: var(--teal);
 }
-
 .popup__subtext {
-  margin: 0 0 18px;
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.popup__subtext--dark {
+  margin: 11px auto 0;
+  max-width: 180px;
+  font-size: 9.6px;
+  font-weight: 400;
+  line-height: 1.05;
   color: var(--text);
 }
-
+.popup__hero {
+  position: absolute;
+  top: 22.2px;
+  left: 0;
+  width: 360px;
+  height: 204px;
+}
+.popup__hero-illustration {
+  display: block;
+  width: 360px;
+  height: 204px;
+  object-fit: contain;
+}
+.popup__hero-icon {
+  position: absolute;
+  left: 49.75%;
+  top: 25%;
+  width: 38px;
+  height: 47px;
+  transform: translate(-50%, -50%);
+}
 .popup__button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 13px 16px;
-  border: none;
-  border-radius: 999px;
+  height: 34.8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 99px;
   background: var(--teal);
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
+  color: white;
+  font-size: 10.8px;
+  font-weight: 500;
+  box-shadow: 0 3px 7px #0003;
 }
-
 .popup__button:hover {
   background: var(--teal-dark);
 }
-
 .popup__button:disabled {
   background: var(--track);
   color: var(--muted);
   cursor: default;
 }
-
-.popup__button--outline {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.popup__button--outline:hover {
-  background: var(--track);
-}
-
 .popup__button-arrow {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: #ffffff;
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
+  border-radius: 50%;
+  background: white;
+  color: #111;
 }
-
-.popup__button--outline .popup__button-arrow {
-  background: var(--track);
+.popup__button-arrow svg {
+  width: 10px;
+  height: 10px;
 }
-
 .popup__link {
   display: inline-block;
-  margin-top: 14px;
-  font-size: 12px;
-  color: var(--text);
-  text-decoration: underline;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.popup__link--strong {
-  font-weight: 700;
-}
-
-.popup__back {
-  display: block;
-  text-align: left;
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: var(--muted);
-  background: none;
-  border: none;
-  cursor: pointer;
+  margin: 12px 0 0;
+  border: 0;
   padding: 0;
+  background: none;
+  text-decoration: underline;
+  color: var(--text);
+  font-size: 9.6px;
+  line-height: 1.3;
 }
-
-/* ---------- Paused / step-down state ----------
-   paused.svg is the same self-contained-illustration pattern as celeb.svg (circle + full
-   card stack baked in). Only the alert icon inside the circle is a separate layer. */
-
-.popup__hero-icon {
-  position: absolute;
-  left: 49.75%;
-  top: 34.5%;
-  width: 9%;
-  transform: translate(-50%, -50%);
-  z-index: 3;
+.popup__link--strong {
+  font-weight: 500;
 }
-
-/* ---------- Applying state ---------- */
-
+.popup__content[data-view="idle"],
+.popup__content[data-view="suppressed"] {
+  padding-top: 232px;
+  padding-bottom: 16px;
+}
+.popup__content[data-view="idle"] .popup__heading {
+  min-height: 58px;
+}
+.popup__content[data-view="idle"] .popup__button {
+  margin-top: 52px;
+}
+.popup__content[data-view="idle"] .popup__link {
+  margin-top: 13px;
+}
+.popup__content[data-view="suppressed"] .popup__hero-illustration,
+.popup__content[data-view="failure"] .popup__hero-illustration {
+  height: 243.6px;
+}
+.popup__content[data-view="suppressed"] .popup__hero-icon,
+.popup__content[data-view="failure"] .popup__hero-icon {
+  top: 61px;
+}
+.popup__content[data-view="suppressed"] .popup__subtext {
+  margin-top: 13px;
+  max-width: 150px;
+}
+.popup__content[data-view="suppressed"] .popup__button {
+  margin-top: 33px;
+}
+.popup__content[data-view="suppressed"] .popup__button + .popup__subtext {
+  max-width: 184px;
+  line-height: 1.35;
+}
+.popup__subtext a {
+  color: inherit;
+}
+.popup__content[data-view="failure"] {
+  padding-top: 232px;
+}
+.popup__content[data-view="failure"] .popup__heading {
+  font-size: 21px;
+}
+.popup__content[data-view="failure"] .popup__subtext {
+  max-width: 270px;
+  line-height: 1.4;
+}
+.popup__content[data-view="failure"] .popup__button {
+  margin-top: 20px;
+}
+.popup__content[data-view="applying"] {
+  padding-top: 50.4px;
+}
+.popup__content[data-view="applying"] .popup__subtext {
+  margin-top: 11px;
+}
+.popup__progress-card,
+.popup__list-card,
+.popup__result-card {
+  position: relative;
+  width: 246px;
+  margin-left: auto;
+  margin-right: auto;
+  border: 0.75px solid #f2f2f2;
+  border-radius: 9px;
+  background: white;
+  box-shadow: 0 2px 4px #00000012;
+}
 .popup__progress-card {
+  height: 190.2px;
+  margin-top: 24px;
+  padding: 13px 17px;
   text-align: left;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
 }
-
+.popup__progress-card::before,
+.popup__progress-card::after,
+.popup__list-card::before,
+.popup__list-card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 17px;
+  right: 17px;
+  height: 30px;
+  bottom: -13px;
+  border: 0.75px solid #f2f2f2;
+  border-radius: 9px;
+  background: white;
+  box-shadow: 0 3px 4px #00000012;
+}
+.popup__progress-card::after,
+.popup__list-card::after {
+  left: 27px;
+  right: 27px;
+  bottom: -21px;
+  z-index: -2;
+}
+.popup__content[data-view="applying"],
+.popup__content[data-view="coupon-list"] {
+  isolation: isolate;
+}
 .popup__progress-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 14px;
-  font-weight: 600;
+  gap: 7px;
+  height: 36px;
+  font-size: 9.6px;
+  font-weight: 500;
+  color: #1b1c1c;
 }
-
 .popup__progress-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  width: 27px;
+  height: 27px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #f4f4f4;
+  box-shadow: 0 2px 2px #0002;
 }
-
-/* --active (RING_SPINNER_ICON) and --pending (PENDING_ICON) draw their own full ring/tick
-   graphic filling the 24px box, so they get no container border. Only --done needs one,
-   framing the smaller checkmark glyph. */
-.popup__progress-icon--active svg {
+.popup__progress-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.popup__progress-icon img {
+  width: 29.4px;
+  height: 29.4px;
+}
+.popup__progress-icon--active,
+.popup__progress-icon--pending {
+  background: none;
+  box-shadow: none;
+}
+.popup__progress-icon--active img {
+  animation: popup-spin 1.8s linear infinite;
+}
+.popup__progress-icon--done svg {
+  width: 15px;
+  height: 15px;
+}
+.popup__progress-icon--active svg,
+.popup__pill--testing svg,
+.popup__pill--applying svg {
   animation: popup-spin 0.9s linear infinite;
 }
-
-.popup__progress-icon--done {
-  border: 2px solid var(--border);
-  background: var(--teal-tint);
-}
-
 @keyframes popup-spin {
   to {
     transform: rotate(360deg);
   }
 }
-
 .popup__pill-row {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
   display: flex;
-  gap: 6px;
-  margin-top: 12px;
-  overflow: hidden;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 6px;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 12%,
+    black 88%,
+    transparent
+  );
 }
-
+.popup__pill-row::-webkit-scrollbar {
+  display: none;
+}
 .popup__pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: var(--track);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 2px;
+  background: #f2f2f2;
+  color: #ccc;
+  font-size: 7.2px;
+  font-weight: 500;
   white-space: nowrap;
 }
-
 .popup__pill svg {
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
 }
-
 .popup__pill--testing,
 .popup__pill--applying,
 .popup__pill--applied {
-  background: var(--teal-tint);
-  color: var(--teal-dark);
+  color: var(--teal);
 }
-
-.popup__pill--testing svg {
-  animation: popup-spin 0.9s linear infinite;
-}
-
 .popup__progress-caption {
-  font-size: 13px;
-  font-weight: 700;
-  margin-top: 4px;
+  margin: 36px 0 0;
+  font-size: 10.8px;
+  font-weight: 500;
 }
-
-/* ---------- Success state ---------- */
-
+.popup__content[data-view="success"],
+.popup__content[data-view="coupon-list"] {
+  padding-top: 21.6px;
+}
+.popup__content[data-view="success"] > .popup__accent,
+.popup__content[data-view="coupon-list"] > .popup__accent {
+  margin-top: 7px;
+}
+.popup__result-card {
+  margin-top: 8px;
+  padding: 6px;
+}
 .popup__savings-box {
   background: var(--teal-tint);
-  border-radius: 12px;
-  padding: 18px;
-  margin-bottom: 16px;
+  border-radius: 7px;
+  height: 61.2px;
+  padding: 7px 0;
 }
-
 .popup__savings-total {
-  font-size: 26px;
-  font-weight: 800;
+  font-size: 26.4px;
+  font-weight: 700;
+  line-height: 1.2;
 }
-
 .popup__savings-label {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 2px;
+  margin-top: 4px;
+  font-size: 9.6px;
 }
-
 .popup__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  font-size: 13px;
+  padding: 10px 0;
   text-align: left;
+  font-size: 9.6px;
 }
-
+.popup__row > span:last-child {
+  font-weight: 500;
+}
+.popup__row + .popup__row {
+  padding: 7px 7px 21px;
+}
 .popup__chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 999px;
+  gap: 3px;
+  padding: 4px 3px;
+  border-radius: 2px;
   background: var(--teal);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
+  color: white;
+  font-size: 7.2px;
+  font-weight: 500;
 }
-
 .popup__chip svg {
+  width: 9px;
+  height: 9px;
   flex-shrink: 0;
 }
-
+.popup__chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
 .popup__discount-value {
-  color: var(--green);
-  font-weight: 700;
+  color: #00a259;
 }
-
 .popup__result-note {
+  border-top: 0.6px solid var(--border);
+  padding: 10px 0 0;
+  margin-bottom: 19px;
   text-align: left;
-  border-top: 1px solid var(--border);
-  margin-top: 6px;
-  padding-top: 16px;
-  margin-bottom: 16px;
+  font-size: 8.4px;
+  line-height: 13.2px;
 }
-
 .popup__result-note strong {
   display: block;
-  font-size: 14px;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 500;
 }
-
 .popup__result-note span {
-  font-size: 12px;
+  display: block;
+  font-size: 8.4px;
+  line-height: 13.2px;
   color: var(--muted);
 }
-
-/* ---------- Coupon list state ---------- */
-
+.popup__button--outline {
+  height: 28.8px;
+  width: 246px;
+  margin: 15px auto 0;
+  background: white;
+  border: 0.6px solid #ddd;
+  color: #545454;
+  box-shadow: none;
+}
+.popup__button--outline:hover {
+  background: var(--track);
+}
+.popup__button--outline .popup__button-arrow {
+  background: #f5f5f5;
+}
 .popup__list-card {
+  padding: 6px;
+  margin-top: 14px;
   text-align: left;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  margin-top: 12px;
 }
-
 .popup__list-card h3 {
-  margin: 0 0 4px;
-  font-size: 15px;
+  margin: 1px 0 7px;
+  font-size: 12px;
+  font-weight: 500;
 }
-
 .popup__list-card p {
-  margin: 0 0 14px;
-  font-size: 12px;
+  margin: 0 0 22px;
+  font-size: 8.4px;
   color: var(--muted);
 }
-
+.popup__list-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
 .popup__coupon-row {
-  padding: 10px 0;
+  padding: 5px;
+  border-radius: 5px;
+  background: #f4f3f3;
 }
-
 .popup__coupon-row + .popup__coupon-row {
-  border-top: 1px solid var(--border);
+  margin-top: 7px;
 }
-
 .popup__coupon-desc {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 4px;
+  font-size: 8.4px;
+  line-height: 1.4;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
-
-/* ---------- Promotion ---------- */
-
-/* The 320x100 creative is sized to fit exactly inside the 360px popup's 16px gutters, so it
-   renders 1:1 with no scaling. [hidden] is honoured explicitly because `display: block` here
-   would otherwise override the browser default and leave an empty bordered strip when there
-   is no active promo. */
+.popup__back {
+  position: absolute;
+  top: 5px;
+  left: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 8px;
+}
 .popup__promo {
   display: block;
+  padding: 12px 20px 14px;
   border-top: 1px solid var(--border);
-  padding: 12px 16px 14px;
 }
-
 .popup__promo[hidden] {
   display: none;
 }
-
 .popup__promo-label {
   display: block;
   margin-bottom: 6px;
@@ -471,36 +548,31 @@ button {
   text-transform: uppercase;
   color: var(--muted);
 }
-
 .popup__promo-link {
   display: block;
   border-radius: 8px;
   overflow: hidden;
-  line-height: 0;
 }
-
-.popup__promo-link:focus-visible {
-  outline: 2px solid var(--teal);
-  outline-offset: 2px;
-}
-
 .popup__promo-image {
   display: block;
-  width: 100%;
-  height: auto;
+  width: 320px;
+  height: 100px;
+  object-fit: contain;
 }
-
-/* ---------- Disclosure ---------- */
-
 .popup__disclosure {
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-top: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 9px;
   color: var(--muted);
   text-align: center;
 }
-
 .popup__disclosure a {
-  color: var(--muted);
-  text-decoration: underline;
+  color: inherit;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+  }
 }
