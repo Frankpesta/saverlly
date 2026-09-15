@@ -14,8 +14,11 @@ export interface CouponApplyResultMessage {
   result: CouponTestResult;
   /** True when this is the last attempt in the sequence (a success, or the final failure after
    *  exhausting every coupon). Only these should flip the popup out of the "applying" view.
-   *  Every attempt is still reported to the backend regardless of this flag. */
+   *  A non-final 'applied' result is a temporary comparison trial, not a real discount, so it
+   *  is not reported to the backend (see COUPON_APPLY_RESULT handling in service-worker.ts). */
   isFinal: boolean;
+  testedCount?: number;
+  failureReason?: 'comparison_unavailable' | 'checkout_changed' | 'restore_failed' | 'unconfirmed';
   /** Only set when result === 'applied'. */
   discountAmount?: number;
   originalTotal?: number;
@@ -24,10 +27,13 @@ export interface CouponApplyResultMessage {
 
 export interface CouponApplyProgressMessage {
   type: 'COUPON_APPLY_PROGRESS';
+  /** Added by the worker when relaying to an extension view. */
+  tabId?: number;
   phase: 'testing' | 'applying';
   code: string;
   index: number;
   total: number;
+  testedCodes?: Array<{ code: string; saved: boolean }>;
 }
 
 export interface GetTabStateMessage {
@@ -40,6 +46,7 @@ export interface ApplyBestCouponMessage {
 
 export interface ApplyDoneMessage {
   type: 'APPLY_DONE';
+  tabId?: number;
   result: CouponApplyResultMessage;
 }
 
@@ -85,6 +92,7 @@ export interface InjectedCheckoutContext {
 
 declare global {
   interface Window {
+    __SAVERLLY_APPLYING__?: boolean;
     __SAVERLLY__?: InjectedCheckoutContext;
   }
 }

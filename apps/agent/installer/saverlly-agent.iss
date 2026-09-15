@@ -4,8 +4,13 @@
 ; setup code into a console window" flow with a single branded installer: one UAC prompt (the
 ; normal ShellExecute-based prompt Explorer shows for a manifest-tagged exe on double-click —
 ; NOT the same non-elevating launch path that broke Chrome's native-messaging spawn earlier),
-; one wizard page asking for the setup code, then done. See apps/agent/scripts/package.js for
-; how this gets compiled (ISCC) as part of `npm run package`.
+; an affiliate-disclosure acceptance page, a wizard page asking for the setup code, then done.
+; See apps/agent/scripts/package.js for how this gets compiled (ISCC) as part of `npm run package`.
+;
+; The disclosure and setup-code pages both only appear on a genuine first connection. Re-running
+; this installer over a machine that's already registered (an upgrade, a repair, or someone
+; double-clicking it again) skips straight past both — see ShouldSkipPage/IsDeviceAlreadyRegistered
+; in [Code] below.
 ;
 ; AppId is a fixed GUID (not regenerated per build) so future installer versions are recognized
 ; as upgrades of the same product in Add/Remove Programs, not a separate install.
@@ -66,9 +71,30 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 
 [Code]
 var
+  TermsPage: TWizardPage;
+  TermsCheckBox: TNewCheckBox;
   SetupCodePage: TInputQueryWizardPage;
   AgentSetupSucceeded: Boolean;
   AgentSetupResultCode: Integer;
+
+const
+  DisclosureUrl = 'https://saverlly.com/affiliate-disclosure/';
+
+// True once this machine already holds a device token -- registration (see
+// apps/agent/src/lib/registration.ts's ensureRegistered) never re-runs while one is on disk, so a
+// reinstall/upgrade/repair over an already-connected kiosk has nothing new to agree to or enter.
+// Path must match apps/agent/src/lib/paths.ts's tokenFilePath() (agentDir() + 'token.enc') exactly.
+function IsDeviceAlreadyRegistered: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{commonappdata}\KioskAgent\token.enc'));
+end;
+
+procedure OpenDisclosureLink(Sender: TObject);
+var
+  ErrorCode: Integer;
+begin
+  ShellExec('open', DisclosureUrl, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+end;
 
 // Microsoft's documented way to detect the Evergreen runtime: a non-empty `pv` under the
 // WebView2 client GUID. A per-machine install writes to HKLM (under WOW6432Node on 64-bit), a
@@ -100,17 +126,78 @@ begin
 end;
 
 procedure InitializeWizard;
+var
+  Memo: TNewMemo;
+  LinkButton: TNewButton;
 begin
-  SetupCodePage := CreateInputQueryPage(wpWelcome,
+  // Shown once, before the setup-code page, on a genuinely new connection only -- see
+  // ShouldSkipPage. The full legal text lives at DisclosureUrl, not copied here, so this page
+  // can never drift out of sync with the real, currently-published disclosure.
+  TermsPage := CreateCustomPage(wpWelcome,
+    'Affiliate Disclosure',
+    'Please review and accept before continuing');
+
+  Memo := TNewMemo.Create(TermsPage);
+  Memo.Parent := TermsPage.Surface;
+  Memo.Left := 0;
+  Memo.Top := 0;
+  Memo.Width := TermsPage.SurfaceWidth;
+  Memo.Height := ScaleY(170);
+  Memo.ScrollBars := ssVertical;
+  Memo.ReadOnly := True;
+  Memo.Text :=
+    'Saverlly may earn an affiliate commission when a customer applies a coupon through this ' +
+    'kiosk and completes a purchase. This never increases the price the customer pays, and ' +
+    'Saverlly is not a public coupon website. Saverlly only participates in affiliate programs ' +
+    'that support extension-based tracking in private kiosk environments, and may share a ' +
+    'portion of commissions with the kiosk owner.' + #13#10 + #13#10 +
+    'By continuing, you agree to Saverlly''s Affiliate Disclosure and Terms of Service. The ' +
+    'full, current version is always available at:' + #13#10 + DisclosureUrl;
+
+  LinkButton := TNewButton.Create(TermsPage);
+  LinkButton.Parent := TermsPage.Surface;
+  LinkButton.Left := 0;
+  LinkButton.Top := Memo.Top + Memo.Height + ScaleY(12);
+  LinkButton.Width := ScaleX(160);
+  LinkButton.Height := ScaleY(23);
+  LinkButton.Caption := 'Open in browser...';
+  LinkButton.OnClick := @OpenDisclosureLink;
+
+  TermsCheckBox := TNewCheckBox.Create(TermsPage);
+  TermsCheckBox.Parent := TermsPage.Surface;
+  TermsCheckBox.Left := 0;
+  TermsCheckBox.Top := LinkButton.Top + LinkButton.Height + ScaleY(16);
+  TermsCheckBox.Width := TermsPage.SurfaceWidth;
+  TermsCheckBox.Height := ScaleY(17);
+  TermsCheckBox.Caption := 'I have read and agree to the Affiliate Disclosure and Terms of Service';
+  TermsCheckBox.Checked := False;
+
+  SetupCodePage := CreateInputQueryPage(TermsPage.ID,
     'Connect Your Location',
     'Enter your Saverlly setup code',
     'You''ll find this in your welcome email, or you can ask your Saverlly admin for it.');
   SetupCodePage.Add('Setup code:', False);
 end;
 
+// A machine that already has a device token is being upgraded/repaired, not connected for the
+// first time -- it has nothing left to agree to or enter. See IsDeviceAlreadyRegistered.
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := ((PageID = TermsPage.ID) or (PageID = SetupCodePage.ID)) and IsDeviceAlreadyRegistered;
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  if CurPageID = TermsPage.ID then
+  begin
+    if not TermsCheckBox.Checked then
+    begin
+      MsgBox('Please confirm you have read and agree to the Affiliate Disclosure and Terms of ' +
+        'Service to continue.', mbError, MB_OK);
+      Result := False;
+    end;
+  end;
   if CurPageID = SetupCodePage.ID then
   begin
     if Trim(SetupCodePage.Values[0]) = '' then

@@ -10,4 +10,8 @@ export interface CheckoutRecipe {
   // When set, its presence alone counts as evidence of a coupon mechanism for detection, and
   // the apply flow clicks it before looking for couponFieldSelector/applyButtonSelector.
   couponFieldRevealSelector?: string;
+  /** Confirmed merchant behavior. Required to compare multiple codes safely. */
+  couponApplyMode?: 'replace' | 'remove';
+  /** Removes the code applied by this run; must not clear unrelated cart items. */
+  removeCouponSelector?: string;
 }

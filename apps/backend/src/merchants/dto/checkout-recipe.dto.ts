@@ -1,9 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
 
 // Structured fields mapping 1:1 to Merchant.checkoutRecipe. The admin console binds a form
 // to exactly these fields rather than exposing raw JSON, per 02-PHASE-2's "Merchant Recipe" spec.
 export class CheckoutRecipeDto {
+  @ApiPropertyOptional({ enum: ['replace', 'remove'] })
+  @IsOptional()
+  @IsIn(['replace', 'remove'])
+  couponApplyMode?: 'replace' | 'remove';
+
+  @ApiPropertyOptional({ example: 'button.remove-promo' })
+  @IsOptional()
+  @IsString()
+  removeCouponSelector?: string;
+
   @ApiPropertyOptional({ example: "input[name='promoCode']" })
   @IsOptional()
   @IsString()

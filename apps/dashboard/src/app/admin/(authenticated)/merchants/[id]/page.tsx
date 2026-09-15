@@ -58,6 +58,8 @@ const checkoutRecipeSchema = z.object({
       .filter(Boolean),
   ),
   couponFieldRevealSelector: z.string().trim(),
+  couponApplyMode: z.enum(['', 'replace', 'remove']),
+  removeCouponSelector: z.string().trim(),
 })
 
 type CheckoutRecipeFormInput = z.input<typeof checkoutRecipeSchema>
@@ -237,6 +239,8 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
       cartTotalSelector: recipe?.cartTotalSelector ?? "",
       checkoutUrlPatterns: (recipe?.checkoutUrlPatterns ?? []).join(", "),
       couponFieldRevealSelector: recipe?.couponFieldRevealSelector ?? "",
+      couponApplyMode: recipe?.couponApplyMode ?? '',
+      removeCouponSelector: recipe?.removeCouponSelector ?? '',
     },
   })
 
@@ -251,6 +255,8 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
           cartTotalSelector: values.cartTotalSelector || undefined,
           checkoutUrlPatterns: values.checkoutUrlPatterns.length > 0 ? values.checkoutUrlPatterns : undefined,
           couponFieldRevealSelector: values.couponFieldRevealSelector || undefined,
+          couponApplyMode: values.couponApplyMode || undefined,
+          removeCouponSelector: values.removeCouponSelector || undefined,
         },
       },
       {
@@ -302,6 +308,16 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
           </FormGrid>
           <FormField label="Cart total selector" htmlFor="recipe-cart-total">
             <Input id="recipe-cart-total" placeholder=".order-summary-total" {...register("cartTotalSelector")} />
+          </FormField>
+          <FormField label="Coupon comparison behavior" htmlFor="recipe-apply-mode" hint="Verify this on the merchant checkout before enabling comparison. Codes must not stack during independent tests.">
+            <select id="recipe-apply-mode" className="h-10 rounded-md border border-input bg-background px-3 text-sm" {...register('couponApplyMode')}>
+              <option value="">Not configured</option>
+              <option value="replace">Applying a code replaces the previous code</option>
+              <option value="remove">Remove each code before testing the next</option>
+            </select>
+          </FormField>
+          <FormField label="Remove coupon selector" htmlFor="recipe-remove-coupon" hint="Required for remove mode. Select the checkout control that removes an applied coupon and restores the original total.">
+            <Input id="recipe-remove-coupon" placeholder="button.remove-promo" {...register('removeCouponSelector')} />
           </FormField>
           <FormField
             label="Checkout URL patterns"

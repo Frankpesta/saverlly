@@ -28,7 +28,7 @@
     <p class="promo-error-message">Invalid promo code.</p>
 
     <script>
-      // WORKS10 is the only "valid" code for this mock page. Everything else fails.
+      // Multiple valid codes replace each other. The best code is deliberately not last.
       // A working discount actually changes the displayed total so coupon-applier.ts's
       // "confirm an actual discount was applied" check has something real to verify.
       document.querySelector('[data-testid="apply-promo"]').addEventListener('click', () => {
@@ -37,8 +37,10 @@
         const failure = document.querySelector('.promo-error-message');
         success.style.display = 'none';
         failure.style.display = 'none';
-        if (code === 'WORKS10') {
-          document.querySelector('.order-summary-total').textContent = 'Total: $90.00';
+        const discounts = { WORKS10: 10, BEST30: 30, LAST20: 20 };
+        window.testedCodes = [...(window.testedCodes || []), code];
+        if (discounts[code]) {
+          document.querySelector('.order-summary-total').textContent = `Total: $${(100 - discounts[code]).toFixed(2)}`;
           success.style.display = 'block';
         } else {
           failure.style.display = 'block';

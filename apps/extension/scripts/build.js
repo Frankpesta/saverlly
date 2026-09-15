@@ -31,8 +31,6 @@ function copyStatic() {
   for (const file of fs.readdirSync(path.join(root, 'src/popup/fonts'))) {
     fs.copyFileSync(path.join(root, 'src/popup/fonts', file), path.join(dist, 'popup/fonts', file));
   }
-  fs.mkdirSync(path.join(dist, 'disclosure'), { recursive: true });
-  fs.copyFileSync(path.join(root, 'src/disclosure/disclosure.html'), path.join(dist, 'disclosure/disclosure.html'));
 }
 
 const buildOptions = {

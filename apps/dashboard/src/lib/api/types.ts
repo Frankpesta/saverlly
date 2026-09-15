@@ -183,6 +183,8 @@ export type Payout = {
 export type AttributionMethod = "COOKIE" | "URL_PARAM" | "BOTH"
 
 export type CheckoutRecipe = {
+  couponApplyMode?: 'replace' | 'remove'
+  removeCouponSelector?: string
   couponFieldSelector?: string
   applyButtonSelector?: string
   successIndicatorSelector?: string

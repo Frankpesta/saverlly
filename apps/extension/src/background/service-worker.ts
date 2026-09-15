@@ -16,15 +16,46 @@ import type {
 import { connectToAgentAndReceiveToken } from '../lib/native-messaging';
 import { checkStepDown } from '../lib/step-down-check';
 import { checkDeviceStatus } from '../lib/status-check';
-import { getCachedMerchant, isDormant, setCachedMerchant } from '../lib/storage';
+import {
+  getCachedMerchant,
+  getPersistedTabState,
+  isDormant,
+  removePersistedTabState,
+  setCachedMerchant,
+  setPersistedTabState,
+  setPendingApply,
+  takePendingApply,
+} from '../lib/storage';
 
 const STATUS_ALARM = 'saverlly-status-check';
 const BADGE_READY = { text: '%', color: '#16A34A' };
 const BADGE_SUPPRESSED = { text: '!', color: '#9CA3AF' };
 
-// In-memory only. Re-derived on demand if the service worker is recycled by Chrome,
-// so losing it just means the popup shows "no offer detected" until next navigation.
+// In-memory cache, mirrored to chrome.storage.session (not .local -- see storage.ts) on every
+// write. Chrome recycles this service worker whenever it's been idle, which previously wiped
+// this Map outright and left the popup showing "no offer detected" even right after a real
+// success. Reads that must survive a mid-run recycle (GET_TAB_STATE, triggerApply,
+// patchTabState) go through loadTabState, which falls back to the persisted copy on a cache
+// miss; the Map still makes the common case (no recycle) synchronous.
 const tabState = new Map<number, TabCheckoutState>();
+
+async function loadTabState(tabId: number): Promise<TabCheckoutState | null> {
+  const cached = tabState.get(tabId);
+  if (cached) return cached;
+  const persisted = await getPersistedTabState(tabId);
+  if (persisted) tabState.set(tabId, persisted);
+  return persisted;
+}
+
+function saveTabState(tabId: number, state: TabCheckoutState): void {
+  tabState.set(tabId, state);
+  void setPersistedTabState(tabId, state);
+}
+
+function clearTabState(tabId: number): void {
+  tabState.delete(tabId);
+  void removePersistedTabState(tabId);
+}
 
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.alarms.create(STATUS_ALARM, { periodInMinutes: STATUS_CHECK_INTERVAL_MINUTES });
@@ -35,7 +66,7 @@ chrome.runtime.onInstalled.addListener((details) => {
   // the earliest point an extension itself can show anything, since nothing in its own UI can
   // render before the user has actually installed it.
   if (details.reason === 'install') {
-    void chrome.tabs.create({ url: chrome.runtime.getURL('disclosure/disclosure.html') });
+    void chrome.tabs.create({ url: 'https://saverlly.com/affiliate-disclosure/' });
   }
 });
 
@@ -48,7 +79,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === STATUS_ALARM) void checkDeviceStatus();
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => tabState.delete(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  clearTabState(tabId);
+  void takePendingApply(tabId);
+});
 
 async function getMerchantCached(domain: string): Promise<PublicMerchant | null> {
   const cached = await getCachedMerchant(domain);
@@ -87,14 +121,16 @@ async function injectWithContext(tabId: number, files: string[], context: Inject
 
 // Shared by onCommitted (full document navigations) and onHistoryStateUpdated (SPA route
 // changes via the History API, e.g. a cart page routing to checkout without a reload)
-// both need the same merchant-resolution, attribution, and checkout-detector injection flow.
-async function handleTopFrameNavigation(details: chrome.webNavigation.WebNavigationTransitionCallbackDetails): Promise<void> {
+// Both only resolve merchants and detect checkout; neither performs attribution.
+async function handleTopFrameNavigation(
+  details: chrome.webNavigation.WebNavigationTransitionCallbackDetails,
+): Promise<void> {
   if (details.frameId !== 0) return;
 
   // Any top-frame navigation invalidates the previous page's checkout state, regardless of
   // whether this new page turns out dormant/non-merchant/coupon-less. Clear it unconditionally
   // rather than only in the branches below, so stale state can't linger past a dormant check.
-  tabState.delete(details.tabId);
+  clearTabState(details.tabId);
   setBadge(details.tabId, null);
 
   if (await isDormant()) return;
@@ -109,9 +145,7 @@ async function handleTopFrameNavigation(details: chrome.webNavigation.WebNavigat
   const merchant = await resolveMerchant(hostname);
   if (!merchant || !merchant.active) return;
 
-  // Attribution fires on every active-merchant visit, independent of coupon availability.
-  const redirectedTo = await runAttribution(details.tabId, details.url, merchant);
-  if (redirectedTo) return; // the redirect re-triggers onCommitted for the param-appended URL
+  // Visiting a merchant only detects checkout. Attribution requires a popup Apply click.
 
   if (!merchant.coupons.length || !merchant.checkoutRecipe) return;
 
@@ -126,8 +160,8 @@ async function handleTopFrameNavigation(details: chrome.webNavigation.WebNavigat
   }
 }
 
-chrome.webNavigation.onCommitted.addListener(handleTopFrameNavigation);
-chrome.webNavigation.onHistoryStateUpdated.addListener(handleTopFrameNavigation);
+chrome.webNavigation.onCommitted.addListener((details) => handleTopFrameNavigation(details));
+chrome.webNavigation.onHistoryStateUpdated.addListener((details) => handleTopFrameNavigation(details));
 
 async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: string): Promise<void> {
   if (await isDormant()) return;
@@ -146,7 +180,7 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
   if (!merchant || merchant.id !== merchantId) return;
 
   const suppressed = await checkStepDown(merchant.domain, tab.url, merchant.affiliateUrlParamKey, referrer);
-  tabState.set(tabId, {
+  saveTabState(tabId, {
     merchantId: merchant.id,
     merchantName: merchant.name,
     coupons: merchant.coupons,
@@ -154,6 +188,13 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
     applyProgress: null,
     applyResult: null,
   });
+
+  const pending = await takePendingApply(tabId);
+  if (pending && pending.merchantId === merchant.id && pending.expiresAt > Date.now() &&
+      pending.checkoutPath === new URL(tab.url).origin + new URL(tab.url).pathname) {
+    await triggerApply(tabId, true);
+    return;
+  }
 
   if (suppressed) {
     // A competing affiliate's tracking is already active. Stay paused and require the
@@ -176,16 +217,17 @@ async function onCheckoutConfirmed(tabId: number, merchantId: string, referrer: 
   // user to click it (APPLY_BEST_COUPON), rather than applying automatically.
 }
 
-async function triggerApply(tabId: number): Promise<void> {
-  if (await isDormant()) return;
+async function triggerApply(tabId: number, continuingAfterRedirect = false): Promise<boolean> {
+  if (await isDormant()) return false;
 
-  const state = tabState.get(tabId);
+  const state = await loadTabState(tabId);
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
-  if (!state || !tab?.url) return;
+  if (!state || !tab?.url) return false;
+  if (state.applyProgress && !state.applyResult) return true;
 
   // Reset any stale progress/result from a prior run (e.g. a manual "Try Coupons Again")
   // so a popup opened mid-run doesn't show the previous attempt's outcome.
-  tabState.set(tabId, { ...state, applyProgress: null, applyResult: null });
+  saveTabState(tabId, { ...state, suppressedStepdown: false, applyProgress: null, applyResult: null });
 
   if (!state.coupons.length) {
     const result: CouponApplyResultMessage = {
@@ -196,27 +238,36 @@ async function triggerApply(tabId: number): Promise<void> {
       result: 'no_coupons_available',
       isFinal: true,
     };
-    await reportCouponTestEvent({ merchantId: state.merchantId, result: 'no_coupons_available' });
-    tabState.set(tabId, { ...state, applyProgress: null, applyResult: result });
-    chrome.runtime.sendMessage({ type: 'APPLY_DONE', result }).catch(() => {});
-    return;
+    saveTabState(tabId, { ...state, applyProgress: null, applyResult: result });
+    chrome.runtime.sendMessage({ type: 'APPLY_DONE', tabId, result }).catch(() => {});
+    void reportCouponTestEvent({ merchantId: state.merchantId, result: 'no_coupons_available' }).catch(() => {});
+    return true;
   }
 
   let hostname: string;
   try {
     hostname = new URL(tab.url).hostname;
   } catch {
-    return;
+    return false;
   }
 
   const merchant = await resolveMerchant(hostname);
-  if (!merchant?.checkoutRecipe) return;
+  if (!merchant?.active || merchant.id !== state.merchantId || !merchant.checkoutRecipe) return false;
+
+  if (!continuingAfterRedirect) {
+    const redirected = await runAttribution(tabId, tab.url, merchant, async url => {
+      const target = new URL(url);
+      await setPendingApply(tabId, { merchantId: merchant.id, checkoutPath: target.origin + target.pathname, expiresAt: Date.now() + 60000 });
+    });
+    if (redirected) return true;
+  }
 
   await injectWithContext(
     tabId,
     ['content-scripts/coupon-applier.js'],
     { merchantId: merchant.id, recipe: merchant.checkoutRecipe, coupons: state.coupons },
   );
+  return true;
 }
 
 async function getActiveTabId(): Promise<number | undefined> {
@@ -227,12 +278,12 @@ async function getActiveTabId(): Promise<number | undefined> {
 // Content scripts (coupon-applier.js) run in the tab, not the popup. Sender.tab.id is how
 // their progress/result messages get attributed back to the right tab's state, so a popup
 // that (re)opens mid-run or after completion can restore the real state instead of "idle".
-function patchTabState(sender: chrome.runtime.MessageSender, patch: Partial<TabCheckoutState>): void {
+async function patchTabState(sender: chrome.runtime.MessageSender, patch: Partial<TabCheckoutState>): Promise<void> {
   const tabId = sender.tab?.id;
   if (tabId === undefined) return;
-  const state = tabState.get(tabId);
+  const state = await loadTabState(tabId);
   if (!state) return;
-  tabState.set(tabId, { ...state, ...patch });
+  saveTabState(tabId, { ...state, ...patch });
 }
 
 async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.MessageSender): Promise<unknown> {
@@ -244,6 +295,17 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
       return;
     }
     case 'COUPON_APPLY_RESULT': {
+      if (sender.tab?.id === undefined) return;
+      const state = await loadTabState(sender.tab.id);
+      if (!state || state.merchantId !== message.merchantId) return;
+      // A successful trial is temporary. Only the final chosen code counts as
+      // applied savings; otherwise testing three valid codes triples lifetime savings.
+      if (!message.isFinal && message.result === 'applied') return;
+      // Checkout completion must not depend on the reporting server being reachable.
+      if (message.isFinal) {
+        await patchTabState(sender, { applyResult: message });
+        chrome.runtime.sendMessage({ type: 'APPLY_DONE', tabId: sender.tab.id, result: message }).catch(() => {});
+      }
       await reportCouponTestEvent({
         merchantId: message.merchantId,
         couponId: message.couponId ?? undefined,
@@ -252,27 +314,23 @@ async function handleMessage(message: ExtensionMessage, sender: chrome.runtime.M
       });
       // Only the last attempt in the sequence should flip the popup out of "applying"
       // intermediate failures keep reporting to the backend but must not surface yet.
-      if (message.isFinal) {
-        patchTabState(sender, { applyResult: message });
-        chrome.runtime.sendMessage({ type: 'APPLY_DONE', result: message }).catch(() => {});
-      }
       return;
     }
     case 'COUPON_APPLY_PROGRESS': {
-      patchTabState(sender, { applyProgress: message });
+      if (sender.tab?.id === undefined) return;
+      await patchTabState(sender, { applyProgress: message });
       // Fire-and-forget relay. Popup listens for this to render live apply progress.
-      chrome.runtime.sendMessage(message).catch(() => {});
+      chrome.runtime.sendMessage({ ...message, tabId: sender.tab.id }).catch(() => {});
       return;
     }
     case 'GET_TAB_STATE': {
       if (await isDormant()) return null;
       const tabId = await getActiveTabId();
-      return tabId !== undefined ? (tabState.get(tabId) ?? null) : null;
+      return tabId !== undefined ? await loadTabState(tabId) : null;
     }
     case 'APPLY_BEST_COUPON': {
       const tabId = await getActiveTabId();
-      if (tabId !== undefined) await triggerApply(tabId);
-      return;
+      return { started: tabId !== undefined ? await triggerApply(tabId) : false };
     }
     case 'GET_LIFETIME_SAVED': {
       try {

@@ -16,12 +16,10 @@ function usesUrlParam(method: AttributionMethod): boolean {
 const TRACKING_FETCH_TIMEOUT_MS = 5_000;
 
 /**
- * Fires attribution tracking for an active-merchant-domain visit. Runs independent of
- * coupon availability, a merchant with zero coupons still needs its tracking cookie/
- * param set so organic purchases generate commission. Returns the URL the tab should be
+ * Runs only after an explicit coupon-application action. Returns the URL the tab should be
  * redirected to if a URL param needed to be appended, otherwise null.
  */
-export async function runAttribution(tabId: number, currentUrl: string, merchant: PublicMerchant): Promise<string | null> {
+export async function runAttribution(tabId: number, currentUrl: string, merchant: PublicMerchant, beforeRedirect?: (url: string) => Promise<void>): Promise<string | null> {
   const {
     id: merchantId,
     attributionMethod,
@@ -79,6 +77,7 @@ export async function runAttribution(tabId: number, currentUrl: string, merchant
   });
 
   if (redirectTo) {
+    await beforeRedirect?.(redirectTo);
     await chrome.tabs.update(tabId, { url: redirectTo });
   }
 
