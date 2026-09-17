@@ -1,5 +1,5 @@
-import type { PublicMerchant } from '@saverlly/shared-types';
-import type { TabCheckoutState } from './messages';
+import type { PublicMerchant } from "@saverlly/shared-types";
+import type { TabCheckoutState } from "./messages";
 
 interface MerchantCacheEntry {
   merchant: PublicMerchant | null;
@@ -9,16 +9,16 @@ interface MerchantCacheEntry {
 interface AttributionLogEntry {
   domain: string;
   merchantId: string;
-  method: 'COOKIE' | 'URL_PARAM' | 'BOTH';
+  method: "COOKIE" | "URL_PARAM" | "BOTH";
   timestamp: number;
 }
 
 const KEYS = {
-  deviceToken: 'deviceToken',
-  dormant: 'dormant',
-  lastStatusOkAt: 'lastStatusOkAt',
-  merchantCache: 'merchantCache',
-  attributionLog: 'attributionLog',
+  deviceToken: "deviceToken",
+  dormant: "dormant",
+  lastStatusOkAt: "lastStatusOkAt",
+  merchantCache: "merchantCache",
+  attributionLog: "attributionLog",
 } as const;
 
 export async function getDeviceToken(): Promise<string | null> {
@@ -36,7 +36,7 @@ export async function setDeviceToken(token: string | null): Promise<void> {
 
 export async function isDormant(): Promise<boolean> {
   const result = await chrome.storage.local.get(KEYS.dormant);
-  return result[KEYS.dormant] === true;
+  return result[KEYS.dormant] !== false;
 }
 
 export async function setDormant(dormant: boolean): Promise<void> {
@@ -52,15 +52,24 @@ export async function setLastStatusOkAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [KEYS.lastStatusOkAt]: timestamp });
 }
 
-export async function getCachedMerchant(domain: string): Promise<MerchantCacheEntry | null> {
+export async function getCachedMerchant(
+  domain: string,
+): Promise<MerchantCacheEntry | null> {
   const result = await chrome.storage.local.get(KEYS.merchantCache);
-  const cache = (result[KEYS.merchantCache] as Record<string, MerchantCacheEntry> | undefined) ?? {};
+  const cache =
+    (result[KEYS.merchantCache] as
+      Record<string, MerchantCacheEntry> | undefined) ?? {};
   return cache[domain] ?? null;
 }
 
-export async function setCachedMerchant(domain: string, entry: MerchantCacheEntry): Promise<void> {
+export async function setCachedMerchant(
+  domain: string,
+  entry: MerchantCacheEntry,
+): Promise<void> {
   const result = await chrome.storage.local.get(KEYS.merchantCache);
-  const cache = (result[KEYS.merchantCache] as Record<string, MerchantCacheEntry> | undefined) ?? {};
+  const cache =
+    (result[KEYS.merchantCache] as
+      Record<string, MerchantCacheEntry> | undefined) ?? {};
   cache[domain] = entry;
   await chrome.storage.local.set({ [KEYS.merchantCache]: cache });
 }
@@ -71,11 +80,17 @@ export async function clearMerchantCache(): Promise<void> {
 
 const ATTRIBUTION_LOG_MAX_ENTRIES = 200;
 
-export async function appendAttributionLog(entry: AttributionLogEntry): Promise<void> {
+export async function appendAttributionLog(
+  entry: AttributionLogEntry,
+): Promise<void> {
   const result = await chrome.storage.local.get(KEYS.attributionLog);
-  const log = (result[KEYS.attributionLog] as AttributionLogEntry[] | undefined) ?? [];
+  const log =
+    (result[KEYS.attributionLog] as AttributionLogEntry[] | undefined) ?? [];
   log.push(entry);
-  const trimmed = log.length > ATTRIBUTION_LOG_MAX_ENTRIES ? log.slice(-ATTRIBUTION_LOG_MAX_ENTRIES) : log;
+  const trimmed =
+    log.length > ATTRIBUTION_LOG_MAX_ENTRIES
+      ? log.slice(-ATTRIBUTION_LOG_MAX_ENTRIES)
+      : log;
   await chrome.storage.local.set({ [KEYS.attributionLog]: trimmed });
 }
 
@@ -87,13 +102,18 @@ function tabStateKey(tabId: number): string {
   return `tabState:${tabId}`;
 }
 
-export async function getPersistedTabState(tabId: number): Promise<TabCheckoutState | null> {
+export async function getPersistedTabState(
+  tabId: number,
+): Promise<TabCheckoutState | null> {
   const key = tabStateKey(tabId);
   const result = await chrome.storage.session.get(key);
   return (result[key] as TabCheckoutState | undefined) ?? null;
 }
 
-export async function setPersistedTabState(tabId: number, state: TabCheckoutState): Promise<void> {
+export async function setPersistedTabState(
+  tabId: number,
+  state: TabCheckoutState,
+): Promise<void> {
   await chrome.storage.session.set({ [tabStateKey(tabId)]: state });
 }
 
@@ -101,11 +121,20 @@ export async function removePersistedTabState(tabId: number): Promise<void> {
   await chrome.storage.session.remove(tabStateKey(tabId));
 }
 
-export interface PendingApply { merchantId: string; checkoutPath: string; expiresAt: number }
-export async function setPendingApply(tabId: number, value: PendingApply): Promise<void> {
+export interface PendingApply {
+  merchantId: string;
+  checkoutPath: string;
+  expiresAt: number;
+}
+export async function setPendingApply(
+  tabId: number,
+  value: PendingApply,
+): Promise<void> {
   await chrome.storage.session.set({ [`pendingApply:${tabId}`]: value });
 }
-export async function takePendingApply(tabId: number): Promise<PendingApply | null> {
+export async function takePendingApply(
+  tabId: number,
+): Promise<PendingApply | null> {
   const key = `pendingApply:${tabId}`;
   const stored = await chrome.storage.session.get(key);
   await chrome.storage.session.remove(key);

@@ -1,56 +1,50 @@
-import { matchesCheckoutUrl } from '../lib/checkout-match';
-import type { CheckoutConfirmedMessage } from '../lib/messages';
-
-// How long to keep watching for the checkout DOM to render before giving up. Real checkout
-// SPAs (e.g. Shopify's client-rendered checkout, confirmed by hand against a live Allbirds
-// checkout) mount the coupon field and cart summary asynchronously, well after this script
-// runs. It's injected on webNavigation.onCommitted, which fires at navigation-commit time,
-// long before hydration completes. 10s comfortably covers real-world hydration time without
-// leaving a dangling observer indefinitely on pages that never turn out to be a real checkout.
-const DETECTION_TIMEOUT_MS = 10_000;
+import { matchesCheckoutUrl } from "../lib/checkout-match";
+import { element } from "../lib/checkout-dom";
+import type { CheckoutConfirmedMessage } from "../lib/messages";
 
 (function main() {
+  window.__SAVERLLY_DETECTOR__?.();
   const context = window.__SAVERLLY__;
   if (!context) return;
-
   const { merchantId, recipe } = context;
-
-  if (!matchesCheckoutUrl(window.location.href, recipe.checkoutUrlPatterns)) return;
-
-  function checkoutElementsPresent(): boolean {
-    // Some checkouts (e.g. Target) hide the coupon field behind a click-to-reveal button that
-    // never appears in the DOM on its own — waiting on couponFieldSelector directly would time
-    // out forever. When a reveal trigger is configured, its presence alone is enough evidence
-    // of a coupon mechanism; the apply flow is what actually clicks it open.
-    const hasCouponField =
-      document.querySelector(recipe.couponFieldSelector) !== null ||
-      (recipe.couponFieldRevealSelector !== undefined &&
-        document.querySelector(recipe.couponFieldRevealSelector) !== null);
-    return hasCouponField && document.querySelector(recipe.cartTotalSelector) !== null;
-  }
-
-  function confirmCheckout(): void {
+  const url = context.checkoutUrl ?? window.location.href;
+  const cart = /\/(?:co-)?cart(?:[/?#]|$)/i.test(new URL(url).pathname);
+  // Some older recipes only list checkout, but expose a configured coupon reveal on cart.
+  if (
+    !matchesCheckoutUrl(url, recipe.checkoutUrlPatterns ?? []) &&
+    !(cart && recipe.couponFieldRevealSelector)
+  )
+    return;
+  let observer: MutationObserver | undefined;
+  let confirmed = false;
+  function check(): void {
+    if (
+      confirmed ||
+      !element(recipe.cartTotalSelector) ||
+      !(
+        element(recipe.couponFieldSelector) ||
+        element(recipe.couponFieldRevealSelector)
+      )
+    )
+      return;
+    confirmed = true;
+    observer?.disconnect();
     const message: CheckoutConfirmedMessage = {
-      type: 'CHECKOUT_CONFIRMED',
+      type: "CHECKOUT_CONFIRMED",
       merchantId,
       referrer: document.referrer,
     };
-    chrome.runtime.sendMessage(message);
+    void Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => {});
   }
-
-  if (checkoutElementsPresent()) {
-    confirmCheckout();
-    return;
-  }
-
-  // Not there yet, a single synchronous check misses any checkout page that renders its
-  // form client-side after initial navigation, so watch for it instead of assuming presence.
-  const observer = new MutationObserver(() => {
-    if (checkoutElementsPresent()) {
-      observer.disconnect();
-      confirmCheckout();
-    }
+  check();
+  if (confirmed) return;
+  observer = new MutationObserver(check);
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), DETECTION_TIMEOUT_MS);
+  // One observer per frame, replaced on re-injection and destroyed with the document.
+  // No arbitrary hydration deadline: slow checkout/auth flows must still be detected.
+  window.__SAVERLLY_DETECTOR__ = () => observer?.disconnect();
 })();

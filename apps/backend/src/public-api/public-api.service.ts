@@ -129,7 +129,10 @@ export class PublicApiService {
       where: { domain: domain.toLowerCase() },
       include: {
         coupons: {
-          where: { active: true },
+          where: {
+            active: true,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
           orderBy: [{ successCount: 'desc' }, { failCount: 'asc' }],
         },
       },
@@ -172,17 +175,64 @@ export class PublicApiService {
 
     let event;
     try {
-      event = await this.prisma.couponTestEvent.create({
-        data: {
-          deviceId,
-          merchantId: dto.merchantId,
-          couponId: dto.couponId,
-          result: dto.result,
-          discountAmount:
-            dto.result === 'applied' ? dto.discountAmount : undefined,
-        },
+      event = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.couponTestEvent.create({
+          data: {
+            id: dto.eventId,
+            deviceId,
+            merchantId: dto.merchantId,
+            couponId: dto.couponId,
+            result: dto.result,
+            discountAmount:
+              dto.result === 'applied' ? dto.discountAmount : undefined,
+          },
+        });
+        if (
+          dto.couponId &&
+          (dto.result === 'valid' ||
+            dto.result === 'failed' ||
+            (dto.result === 'applied' && dto.isFinal !== true))
+        ) {
+          await tx.coupon.update({
+            where: { id: dto.couponId },
+            data: {
+              successCount:
+                dto.result === 'valid' || dto.result === 'applied'
+                  ? { increment: 1 }
+                  : undefined,
+              failCount: dto.result === 'failed' ? { increment: 1 } : undefined,
+              lastTestedAt: new Date(),
+            },
+          });
+        }
+        return created;
       });
     } catch (err) {
+      if (
+        dto.eventId &&
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const previous = await this.prisma.couponTestEvent.findUnique({
+          where: { id: dto.eventId },
+        });
+        if (
+          !previous ||
+          previous.deviceId !== deviceId ||
+          previous.merchantId !== dto.merchantId ||
+          previous.couponId !== (dto.couponId ?? null) ||
+          previous.result !== dto.result ||
+          (previous.discountAmount?.toNumber() ?? null) !==
+            (dto.result === 'applied' ? dto.discountAmount : null)
+        )
+          throw new BadRequestException(
+            'eventId already belongs to a different event',
+          );
+        return {
+          ...previous,
+          discountAmount: previous.discountAmount?.toNumber() ?? null,
+        };
+      }
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2003'
@@ -190,17 +240,6 @@ export class PublicApiService {
         throw new BadRequestException('merchantId or couponId does not exist');
       }
       throw err;
-    }
-
-    if (dto.couponId && (dto.result === 'applied' || dto.result === 'failed')) {
-      await this.prisma.coupon.update({
-        where: { id: dto.couponId },
-        data: {
-          successCount: dto.result === 'applied' ? { increment: 1 } : undefined,
-          failCount: dto.result === 'failed' ? { increment: 1 } : undefined,
-          lastTestedAt: new Date(),
-        },
-      });
     }
 
     return {

@@ -44,7 +44,7 @@ const result = {
   newTotal: 63.99,
 };
 const recipe = {
-  couponApplyMode: 'replace',
+  couponApplyMode: "replace",
   couponFieldSelector: 'input[name="promoCode"]',
   applyButtonSelector: '[data-testid="apply-promo"]',
   successIndicatorSelector: ".promo-success-message",
@@ -63,11 +63,23 @@ const merchant = {
   affiliateUrlParamKey: null,
   affiliateUrlParamValue: null,
   checkoutRecipe: recipe,
-  coupons: [coupon("BAD", 0), coupon("WORKS10", 1), coupon("BEST30", 2), coupon("LAST20", 3)],
+  coupons: [
+    coupon("BAD", 0),
+    coupon("WORKS10", 1),
+    coupon("BEST30", 2),
+    coupon("LAST20", 3),
+  ],
 };
 const events = [];
+let reportingAvailable = false;
 const server = http.createServer((req, res) => {
-  if (req.url.split('?')[0] === "/checkout") {
+  if (req.url.split("?")[0] === "/cart") {
+    res.setHeader("Content-Type", "text/html");
+    return res.end(
+      fs.readFileSync(path.join(root, "src/test/mock-reveal-checkout.html")),
+    );
+  }
+  if (req.url.split("?")[0] === "/checkout") {
     res.setHeader("Content-Type", "text/html");
     return res.end(
       fs.readFileSync(path.join(root, "src/test/mock-checkout.html")),
@@ -88,7 +100,7 @@ const server = http.createServer((req, res) => {
     req.on("data", (chunk) => (body += chunk));
     req.on("end", () => {
       events.push(JSON.parse(body));
-      res.statusCode = 503;
+      res.statusCode = reportingAvailable ? 201 : 503;
       res.end("{}");
     });
     return;
@@ -105,111 +117,243 @@ const server = http.createServer((req, res) => {
   const fixtureRoot = path.join(output, "unpacked-test");
   fs.cpSync(path.join(root, "dist"), fixtureRoot, { recursive: true });
   const workerFile = path.join(fixtureRoot, "background/service-worker.js");
-  fs.writeFileSync(workerFile, `chrome.runtime.connectNative = () => ({ onMessage: { addListener() {} }, onDisconnect: { addListener() {} } });\nconst fixtureFetch = globalThis.fetch; globalThis.fetch = (url, init) => String(url).startsWith(${JSON.stringify(base + '/')}) ? fixtureFetch(url, init) : Promise.reject(new Error('Non-fixture network blocked'));\n` + fs.readFileSync(workerFile, "utf8"));
+  fs.writeFileSync(
+    workerFile,
+    `chrome.runtime.connectNative = () => ({ onMessage: { addListener() {} }, onDisconnect: { addListener() {} } });\nconst fixtureFetch = globalThis.fetch; globalThis.fetch = (url, init) => String(url).startsWith(${JSON.stringify(base + "/")}) ? fixtureFetch(url, init) : Promise.reject(new Error('Non-fixture network blocked'));\n` +
+      fs.readFileSync(workerFile, "utf8"),
+  );
   let browser;
   try {
-    if (!process.argv.includes('--visual-only')) {
-    browser = await chromium.launchPersistentContext("", {
-      channel: "chromium",
-      headless: true,
-      viewport: { width: 800, height: 700 },
-      args: [
-        `--disable-extensions-except=${fixtureRoot}`,
-        `--load-extension=${fixtureRoot}`,
-      ],
-    });
-    const worker =
-      browser.serviceWorkers()[0] ||
-      (await browser.waitForEvent("serviceworker"));
-    const id = new URL(worker.url()).host;
-    await worker.evaluate(async () => {
-      for (let i = 0; i < 100; i++) {
-        if ((await chrome.storage.local.get('dormant')).dormant === true) return;
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-      throw new Error('Initial install status did not settle');
-    });
-    await worker.evaluate(async ({ apiBaseUrl }) => {
-      await chrome.storage.local.set({
-        apiBaseUrl,
-        deviceToken: 'local-test-token',
-        dormant: false,
-        lastStatusOkAt: Date.now(),
+    if (!process.argv.includes("--visual-only")) {
+      browser = await chromium.launchPersistentContext("", {
+        channel: "chromium",
+        headless: true,
+        viewport: { width: 800, height: 700 },
+        args: [
+          `--disable-extensions-except=${fixtureRoot}`,
+          `--load-extension=${fixtureRoot}`,
+        ],
       });
-    }, { apiBaseUrl: base });
-    const checkout = await browser.newPage();
-    const errors = [];
-    checkout.on("pageerror", (error) => errors.push(error.message));
-    await checkout.goto(`${base}/checkout`);
-    await checkout.bringToFront();
-    const tabId = await worker.evaluate(
-      async (url) =>
-        (await chrome.tabs.query({})).find((tab) => tab.url === url).id,
-      `${base}/checkout`,
-    );
-    await checkout.waitForFunction(() => !!document.querySelector("input"));
-    // Wait on persisted state written by the real navigation/detector/message pipeline.
-    for (let i = 0; i < 100; i++) {
-      if (
+      const worker =
+        browser.serviceWorkers()[0] ||
+        (await browser.waitForEvent("serviceworker"));
+      const id = new URL(worker.url()).host;
+      await worker.evaluate(async () => {
+        for (let i = 0; i < 100; i++) {
+          if ((await chrome.storage.local.get("dormant")).dormant === true)
+            return;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error("Initial install status did not settle");
+      });
+      await worker.evaluate(
+        async ({ apiBaseUrl }) => {
+          await chrome.storage.local.set({
+            apiBaseUrl,
+            deviceToken: "local-test-token",
+            dormant: false,
+            lastStatusOkAt: Date.now(),
+          });
+        },
+        { apiBaseUrl: base },
+      );
+      const checkout = await browser.newPage();
+      const errors = [];
+      checkout.on("pageerror", (error) => errors.push(error.message));
+      await checkout.goto(`${base}/checkout`);
+      await checkout.bringToFront();
+      const tabId = await worker.evaluate(
+        async (url) =>
+          (await chrome.tabs.query({})).find((tab) => tab.url === url).id,
+        `${base}/checkout`,
+      );
+      await checkout.waitForFunction(() => !!document.querySelector("input"));
+      // Wait on persisted state written by the real navigation/detector/message pipeline.
+      for (let i = 0; i < 100; i++) {
+        if (
+          await worker.evaluate(
+            async (id) =>
+              !!(await chrome.storage.session.get(`tabState:${id}`))[
+                `tabState:${id}`
+              ],
+            tabId,
+          )
+        )
+          break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      assert(
         await worker.evaluate(
           async (id) =>
             !!(await chrome.storage.session.get(`tabState:${id}`))[
               `tabState:${id}`
             ],
           tabId,
-        )
+        ),
+        "Checkout detection did not persist state",
+      );
+      const popup = await browser.newPage();
+      await checkout.bringToFront();
+      await popup.goto(`chrome-extension://${id}/popup/popup.html`);
+      await popup.locator("#apply-btn").waitFor();
+      assert.equal(
+        await worker.evaluate(
+          async () =>
+            (
+              (await chrome.storage.local.get("attributionLog"))
+                .attributionLog || []
+            ).length,
+        ),
+        0,
+        "Attribution must not happen on page visit",
+      );
+      await popup.locator("#apply-btn").click();
+      await popup.locator("#checkout-btn").waitFor({ timeout: 15000 });
+      assert.match(await popup.locator("#content").innerText(), /\$30.00/);
+      assert.match(
+        await checkout.locator(".order-summary-total").innerText(),
+        /70.00/,
+      );
+      assert.equal(await checkout.locator(".promo-success-message").count(), 1);
+      assert.equal(await checkout.locator(".promo-error-message").count(), 1);
+      assert.deepEqual(errors, []);
+      await popup.reload();
+      await popup.locator("#checkout-btn").waitFor();
+      await popup.locator("#view-coupons-btn").click();
+      assert.equal(await popup.locator(".popup__coupon-row").count(), 4);
+      await popup.locator("#back-btn").click();
+      await popup.locator("#checkout-btn").waitFor();
+      assert(
+        await worker.evaluate(async () =>
+          Object.entries(await chrome.storage.local.get(null)).some(
+            ([key, value]) =>
+              key.startsWith("couponEvent:") &&
+              value.payload.result === "applied",
+          ),
+        ),
+        "Savings must remain queued during outage",
+      );
+      reportingAvailable = true;
+      await worker.evaluate(() =>
+        chrome.alarms.create("saverlly-recovery", { when: Date.now() + 100 }),
+      );
+      for (
+        let i = 0;
+        i < 100 && !events.some((event) => event.result === "applied");
+        i++
       )
-        break;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    assert(await worker.evaluate(async id => !!(await chrome.storage.session.get(`tabState:${id}`))[`tabState:${id}`], tabId), 'Checkout detection did not persist state');
-    const popup = await browser.newPage();
-    await checkout.bringToFront();
-    await popup.goto(`chrome-extension://${id}/popup/popup.html`);
-    await popup.locator("#apply-btn").waitFor();
-    assert.equal(await worker.evaluate(async () => ((await chrome.storage.local.get('attributionLog')).attributionLog || []).length), 0, 'Attribution must not happen on page visit');
-    await popup.locator("#apply-btn").click();
-    await popup.locator("#checkout-btn").waitFor({ timeout: 15000 });
-    assert.match(await popup.locator("#content").innerText(), /\$30.00/);
-    assert.match(
-      await checkout.locator(".order-summary-total").innerText(),
-      /70.00/,
-    );
-    assert.equal(await checkout.locator(".promo-success-message").count(), 1);
-    assert.equal(await checkout.locator(".promo-error-message").count(), 1);
-    assert.deepEqual(errors, []);
-    await popup.reload();
-    await popup.locator("#checkout-btn").waitFor();
-    await popup.locator("#view-coupons-btn").click();
-    assert.equal(await popup.locator(".popup__coupon-row").count(), 4);
-    await popup.locator("#back-btn").click();
-    await popup.locator("#checkout-btn").waitFor();
-    assert(events.some((event) => event.result === "applied"));
-    assert.equal(events.filter(event => event.result === 'applied').length, 1);
-    assert.deepEqual(await checkout.evaluate(() => window.testedCodes), ['BAD', 'WORKS10', 'BEST30', 'LAST20', 'BEST30']);
-    assert.equal(await worker.evaluate(async () => ((await chrome.storage.local.get('attributionLog')).attributionLog || []).length), 1);
-    console.log(
-      "PASS real extension: detection → popup → failed code → successful code → result despite reporting outage → reopen → coupon list → back",
-    );
-    merchant.attributionMethod = 'URL_PARAM'; merchant.affiliateUrlParamKey = 'aff'; merchant.affiliateUrlParamValue = 'review';
-    await worker.evaluate(() => chrome.storage.local.remove('merchantCache'));
-    const redirectCheckout = await browser.newPage();
-    await redirectCheckout.goto(`${base}/checkout`);
-    const redirectTabId = await worker.evaluate(async url => (await chrome.tabs.query({})).filter(tab => tab.url === url).at(-1).id, `${base}/checkout`);
-    for (let i = 0; i < 100; i++) {
-      if (await worker.evaluate(async id => !!(await chrome.storage.session.get(`tabState:${id}`))[`tabState:${id}`], redirectTabId)) break;
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    const redirectPopup = await browser.newPage(); await redirectCheckout.bringToFront();
-    await redirectPopup.goto(`chrome-extension://${id}/popup/popup.html`);
-    await redirectPopup.locator('#apply-btn').click();
-    await redirectPopup.locator('#checkout-btn').waitFor({ timeout: 20000 });
-    assert.equal(new URL(redirectCheckout.url()).searchParams.get('aff'), 'review');
-    assert.match(await redirectCheckout.locator('.order-summary-total').innerText(), /70.00/);
-    assert.deepEqual(await redirectCheckout.evaluate(() => window.testedCodes), ['BAD', 'WORKS10', 'BEST30', 'LAST20', 'BEST30']);
-    console.log('PASS explicit Apply attribution: URL redirect resumes the authorized comparison exactly once');
-    await browser.close();
-    browser = null;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      assert(
+        events.some((event) => event.result === "applied"),
+        "Recovery must report queued savings",
+      );
+      assert.equal(
+        events.filter((event) => event.result === "applied").length,
+        1,
+      );
+      assert.deepEqual(await checkout.evaluate(() => window.testedCodes), [
+        "BAD",
+        "WORKS10",
+        "BEST30",
+        "LAST20",
+        "BEST30",
+      ]);
+      assert.equal(
+        await worker.evaluate(
+          async () =>
+            (
+              (await chrome.storage.local.get("attributionLog"))
+                .attributionLog || []
+            ).length,
+        ),
+        1,
+      );
+      console.log(
+        "PASS real extension: detection → popup → failed code → successful code → result despite reporting outage → reopen → coupon list → back",
+      );
+      merchant.attributionMethod = "URL_PARAM";
+      merchant.affiliateUrlParamKey = "aff";
+      merchant.affiliateUrlParamValue = "review";
+      await worker.evaluate(() => chrome.storage.local.remove("merchantCache"));
+      const redirectCheckout = await browser.newPage();
+      await redirectCheckout.goto(`${base}/checkout`);
+      const redirectTabId = await worker.evaluate(
+        async (url) =>
+          (await chrome.tabs.query({})).filter((tab) => tab.url === url).at(-1)
+            .id,
+        `${base}/checkout`,
+      );
+      for (let i = 0; i < 100; i++) {
+        if (
+          await worker.evaluate(
+            async (id) =>
+              !!(await chrome.storage.session.get(`tabState:${id}`))[
+                `tabState:${id}`
+              ],
+            redirectTabId,
+          )
+        )
+          break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const redirectPopup = await browser.newPage();
+      await redirectCheckout.bringToFront();
+      await redirectPopup.goto(`chrome-extension://${id}/popup/popup.html`);
+      await redirectPopup.locator("#apply-btn").click();
+      await redirectPopup.locator("#checkout-btn").waitFor({ timeout: 20000 });
+      assert.equal(
+        new URL(redirectCheckout.url()).searchParams.get("aff"),
+        "review",
+      );
+      assert.match(
+        await redirectCheckout.locator(".order-summary-total").innerText(),
+        /70.00/,
+      );
+      assert.deepEqual(
+        await redirectCheckout.evaluate(() => window.testedCodes),
+        ["BAD", "WORKS10", "BEST30", "LAST20", "BEST30"],
+      );
+      console.log(
+        "PASS explicit Apply attribution: URL redirect resumes the authorized comparison exactly once",
+      );
+      merchant.attributionMethod = "COOKIE";
+      merchant.affiliateUrlParamKey = null;
+      merchant.affiliateUrlParamValue = null;
+      merchant.checkoutRecipe = {
+        ...recipe,
+        couponFieldSelector: 'input[data-test=\\"promo-code-input\\"]',
+        applyButtonSelector: 'button[data-test=\\"apply-promo-code-button\\"]',
+        cartTotalSelector: '[data-test=\\"cart-summary-total\\"]',
+        couponFieldRevealSelector: "#add-promo-code-btn",
+        successIndicatorSelector: "",
+        failureIndicatorSelector: "#promoCodeEntry--ErrorMessage",
+        checkoutUrlPatterns: ["/cart"],
+        couponApplyMode: undefined,
+      };
+      merchant.coupons = [coupon("BAD", 0), coupon("WORKS10", 1)];
+      await worker.evaluate(() => chrome.storage.local.remove("merchantCache"));
+      const targetCheckout = await browser.newPage();
+      await targetCheckout.goto(`${base}/cart`);
+      await targetCheckout.bringToFront();
+      const targetPopup = await browser.newPage();
+      await targetCheckout.bringToFront();
+      await targetPopup.goto(`chrome-extension://${id}/popup/popup.html`);
+      await targetPopup.locator("#apply-btn").waitFor({ timeout: 15000 });
+      await targetPopup.locator("#apply-btn").click();
+      await targetPopup.locator("#checkout-btn").waitFor({ timeout: 25000 });
+      assert.match(
+        await targetPopup.locator("#content").innerText(),
+        /\$10.00/,
+      );
+      assert.equal(
+        await targetCheckout.locator("input").inputValue(),
+        "WORKS10",
+      );
+      console.log(
+        "PASS Target-style cart: escaped selectors, delayed reveal, no success banner, slow response, and first confirmed saving",
+      );
+      await browser.close();
+      browser = null;
     }
 
     browser = await chromium.launch({ headless: true });

@@ -1,6 +1,9 @@
-import { NATIVE_MESSAGING_HOST_NAME, type NativeHostMessage } from '@saverlly/shared-types';
-import { setApiBaseUrl } from './config';
-import { setDeviceToken } from './storage';
+import {
+  NATIVE_MESSAGING_HOST_NAME,
+  type NativeHostMessage,
+} from "@saverlly/shared-types";
+import { setApiBaseUrl } from "./config";
+import { setDeviceToken } from "./storage";
 
 /**
  * Connects to the desktop agent's native messaging host and applies whatever token +
@@ -14,21 +17,51 @@ import { setDeviceToken } from './storage';
  * default, which only ever works by coincidence in local dev.
  */
 export function connectToAgentAndReceiveToken(
-  connect: typeof chrome.runtime.connectNative = chrome.runtime.connectNative.bind(chrome.runtime),
-): void {
-  const port = connect(NATIVE_MESSAGING_HOST_NAME);
-
-  port.onMessage.addListener((message: NativeHostMessage) => {
-    if (message.type === 'device-token') {
-      void setDeviceToken(message.token);
-      void setApiBaseUrl(message.apiBaseUrl);
+  connect: typeof chrome.runtime.connectNative = chrome.runtime.connectNative.bind(
+    chrome.runtime,
+  ),
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let received = false;
+    const timeout = setTimeout(() => resolve(false), 5000);
+    let port: chrome.runtime.Port;
+    try {
+      port = connect(NATIVE_MESSAGING_HOST_NAME);
+    } catch {
+      clearTimeout(timeout);
+      resolve(false);
+      return;
     }
-    // 'error' (not yet registered on the agent side). Leave any existing stored token/URL as-is;
-    // the regular status-check poll is what decides dormancy, not this handoff channel.
-  });
 
-  // No-op: a disconnect just means no token arrived this cycle (agent not installed/running
-  // yet, or it hasn't finished registering). The regular status-check poll governs dormancy,
-  // not this channel, so there's nothing to react to here beyond not crashing.
-  port.onDisconnect.addListener(() => {});
+    port.onMessage.addListener((message: NativeHostMessage) => {
+      if (message.type === "device-token") {
+        received = true;
+        void Promise.all([
+          setDeviceToken(message.token),
+          setApiBaseUrl(message.apiBaseUrl),
+        ])
+          .then(() => {
+            clearTimeout(timeout);
+            resolve(true);
+          })
+          .catch(() => {
+            clearTimeout(timeout);
+            resolve(false);
+          });
+      }
+      // 'error' (not yet registered on the agent side). Leave any existing stored token/URL as-is;
+      // the regular status-check poll is what decides dormancy, not this handoff channel.
+    });
+
+    // No-op: a disconnect just means no token arrived this cycle (agent not installed/running
+    // yet, or it hasn't finished registering). The regular status-check poll governs dormancy,
+    // not this channel, so there's nothing to react to here beyond not crashing.
+    port.onDisconnect.addListener(() => {
+      if (typeof chrome !== "undefined") void chrome.runtime?.lastError;
+      if (!received) {
+        clearTimeout(timeout);
+        resolve(false);
+      }
+    });
+  });
 }

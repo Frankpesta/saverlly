@@ -1,5 +1,10 @@
 # Saverlly — Phase 3: Chrome Extension
 
+> Current implementation: [Extension reliability and attribution decision](docs/extension-reliability.md)
+> supersedes this original plan's automatic visit-based attribution and first-success-only
+> comparison requirements. Attribution requires an explicit Apply action; configured recipes
+> compare all codes, while unconfigured recipes safely stop at the first confirmed saving.
+
 **Prerequisite reading:** `00-PROJECT-OVERVIEW.md`, `01-PHASE-1-core-platform.md`, `02-PHASE-2-coupon-engine.md` (both complete and passing Definition of Done)
 
 ## Goal

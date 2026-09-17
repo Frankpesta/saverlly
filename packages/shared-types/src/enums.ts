@@ -1,37 +1,38 @@
 export enum UserRole {
-  ADMIN = 'ADMIN',
-  KIOSK_OWNER = 'KIOSK_OWNER',
-  LOCATION_MANAGER = 'LOCATION_MANAGER',
+  ADMIN = "ADMIN",
+  KIOSK_OWNER = "KIOSK_OWNER",
+  LOCATION_MANAGER = "LOCATION_MANAGER",
 }
 
 export enum KioskStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
 }
 
 export enum CouponSource {
-  API = 'API',
-  SCRAPE = 'SCRAPE',
-  MANUAL = 'MANUAL',
+  API = "API",
+  SCRAPE = "SCRAPE",
+  MANUAL = "MANUAL",
 }
 
 export enum AttributionMethod {
-  COOKIE = 'COOKIE',
-  URL_PARAM = 'URL_PARAM',
-  BOTH = 'BOTH',
+  COOKIE = "COOKIE",
+  URL_PARAM = "URL_PARAM",
+  BOTH = "BOTH",
 }
 
 export enum AnnouncementRepeatPolicy {
-  ONCE = 'ONCE',
-  EVERY_LOGIN = 'EVERY_LOGIN',
-  MAX_N_TIMES = 'MAX_N_TIMES',
+  ONCE = "ONCE",
+  EVERY_LOGIN = "EVERY_LOGIN",
+  MAX_N_TIMES = "MAX_N_TIMES",
 }
 
 export const COUPON_TEST_RESULTS = [
-  'applied',
-  'failed',
-  'suppressed_stepdown',
-  'no_coupons_available',
+  "valid",
+  "applied",
+  "failed",
+  "suppressed_stepdown",
+  "no_coupons_available",
 ] as const;
 
 export type CouponTestResult = (typeof COUPON_TEST_RESULTS)[number];
