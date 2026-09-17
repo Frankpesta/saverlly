@@ -25,6 +25,7 @@ const pendingIcon = '<img src="assets/design-pending.svg" alt="" />';
 
 type View =
   | "loading"
+  | "inactive"
   | "no-offer"
   | "idle"
   | "suppressed"
@@ -41,6 +42,8 @@ let previousView: View = "idle";
 let activeTabId: number | undefined;
 let liveUpdateReceived = false;
 let applyError = false;
+let applyRequested = false;
+let deviceDormant = false;
 
 function escapeHtml(value: string): string {
   const div = document.createElement("div");
@@ -69,6 +72,10 @@ function buttonArrow(): string {
 function render(view: View): void {
   content.dataset.view = view;
   switch (view) {
+    case "inactive":
+      content.innerHTML =
+        '<p class="popup__heading">Saverlly is not connected</p><p class="popup__subtext">Checking the desktop agent and device status. Keep the agent running, then reopen Saverlly.</p>';
+      return;
     case "loading":
       content.innerHTML = `<p class="popup__subtext">Checking this page…</p>`;
       return;
@@ -251,7 +258,7 @@ function renderSuccess(): void {
     </div>
     <div class="popup__result-note">
       <strong>Savings applied successfully!</strong>
-      <span>We tried ${triedCount} code${triedCount === 1 ? "" : "s"} and applied the best one saving you ${formatCurrency(discountAmount)}</span>
+      <span>${lastResult.comparisonComplete === false ? "Applied a confirmed discount. Some codes could not be compared." : `We tried ${triedCount} code${triedCount === 1 ? "" : "s"} and applied the best one saving you ${formatCurrency(discountAmount)}`}</span>
     </div>
     <button class="popup__button" id="checkout-btn" type="button">Continue to Checkout ${buttonArrow()}</button>
     </div>
@@ -271,15 +278,16 @@ function renderFailure(): void {
   const noCoupons =
     lastResult?.result === "no_coupons_available" || total === 0;
   const comparisonError = lastResult?.failureReason;
-  const subtext = comparisonError === 'comparison_unavailable'
-    ? 'We cannot safely compare codes on this checkout yet. You can view the available coupons below.'
-    : comparisonError
-    ? 'We could not confirm the best discount. Please check your cart before continuing.'
-    : applyError
-    ? "We could not connect to this checkout. Refresh the store page and try again."
-    : noCoupons
-      ? "No active coupons are available for this store right now."
-      : `We tried ${total} code${total === 1 ? "" : "s"} but couldn't find a discount this time.`;
+  const subtext =
+    comparisonError === "comparison_unavailable"
+      ? "We cannot safely compare codes on this checkout yet. You can view the available coupons below."
+      : comparisonError
+        ? "We could not confirm the best discount. Please check your cart before continuing."
+        : applyError
+          ? "We could not connect to this checkout. Refresh the store page and try again."
+          : noCoupons
+            ? "No active coupons are available for this store right now."
+            : `We tried ${total} code${total === 1 ? "" : "s"} but couldn't find a discount this time.`;
 
   content.innerHTML = `
     <div class="popup__hero">
@@ -339,6 +347,7 @@ function renderCouponList(): void {
 }
 
 async function onApplyClicked(): Promise<void> {
+  applyRequested = true;
   progress = null;
   lastResult = null;
   applyError = false;
@@ -349,6 +358,7 @@ async function onApplyClicked(): Promise<void> {
     if (!response?.started && !lastResult)
       throw new Error("Checkout unavailable");
   } catch {
+    applyRequested = false;
     applyError = true;
     render("failure");
   }
@@ -408,8 +418,42 @@ async function renderPromo(): Promise<void> {
 }
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender) => {
+  if (message.type === "DEVICE_STATUS_CHANGED") {
+    deviceDormant = message.dormant;
+    if (message.dormant) {
+      applyRequested = false;
+      tabState = null;
+      render("inactive");
+    } else {
+      liveUpdateReceived = false;
+      void init();
+    }
+    return;
+  }
+  if (message.type === "SAVINGS_UPDATED") {
+    void refreshLifetimeSaved();
+    return;
+  }
   const sourceTabId = "tabId" in message ? message.tabId : sender.tab?.id;
   if (activeTabId === undefined || sourceTabId !== activeTabId) return;
+  if (message.type === "CHECKOUT_STATE_CHANGED") {
+    liveUpdateReceived = true;
+    tabState = message.state;
+    if (!tabState) {
+      if (!applyRequested) render(deviceDormant ? "inactive" : "no-offer");
+      return;
+    }
+    if (tabState.applyResult) {
+      applyRequested = false;
+      lastResult = tabState.applyResult;
+      render(lastResult.result === "applied" ? "success" : "failure");
+    } else if (tabState.applyProgress) {
+      progress = tabState.applyProgress;
+      render("applying");
+    } else if (!applyRequested)
+      render(tabState.suppressedStepdown ? "suppressed" : "idle");
+    return;
+  }
   if (message.type === "COUPON_APPLY_PROGRESS") {
     liveUpdateReceived = true;
     progress = message;
@@ -417,6 +461,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender) => {
     return;
   }
   if (message.type === "APPLY_DONE") {
+    applyRequested = false;
     liveUpdateReceived = true;
     lastResult = message.result;
     render(message.result.result === "applied" ? "success" : "failure");
@@ -441,6 +486,14 @@ async function init(): Promise<void> {
   void renderPromo();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = tab?.id;
+  const status = (await send({ type: "GET_EXTENSION_STATUS" }).catch(
+    () => null,
+  )) as { dormant?: boolean } | null;
+  deviceDormant = status?.dormant === true;
+  if (deviceDormant) {
+    render("inactive");
+    return;
+  }
   const state = (await send({ type: "GET_TAB_STATE" })) as
     TabCheckoutState | null | undefined;
   tabState = state ?? null;

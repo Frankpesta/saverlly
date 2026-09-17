@@ -11,7 +11,14 @@ export interface CheckoutRecipe {
   // the apply flow clicks it before looking for couponFieldSelector/applyButtonSelector.
   couponFieldRevealSelector?: string;
   /** Confirmed merchant behavior. Required to compare multiple codes safely. */
-  couponApplyMode?: 'replace' | 'remove';
+  couponApplyMode?: "replace" | "remove";
   /** Removes the code applied by this run; must not clear unrelated cart items. */
   removeCouponSelector?: string;
+}
+/** Repair JSON-escaped attribute quotes pasted into a plain CSS selector field. */
+export function normalizeCheckoutSelector(value: string): string {
+  return value
+    .trim()
+    .replace(/=\\"([^"\]]*)\\"\]/g, '="$1"]')
+    .replace(/=\\'([^'\]]*)\\'\]/g, "='$1']");
 }

@@ -1,13 +1,18 @@
-import type { CheckoutRecipe, CouponTestResult, PublicCoupon } from '@saverlly/shared-types';
+import type {
+  CheckoutRecipe,
+  CouponTestResult,
+  PublicCoupon,
+} from "@saverlly/shared-types";
 
 export interface CheckoutConfirmedMessage {
-  type: 'CHECKOUT_CONFIRMED';
+  type: "CHECKOUT_CONFIRMED";
   merchantId: string;
   referrer: string;
 }
 
 export interface CouponApplyResultMessage {
-  type: 'COUPON_APPLY_RESULT';
+  runId?: string;
+  type: "COUPON_APPLY_RESULT";
   merchantId: string;
   couponId: string | null;
   code: string | null;
@@ -18,7 +23,13 @@ export interface CouponApplyResultMessage {
    *  is not reported to the backend (see COUPON_APPLY_RESULT handling in service-worker.ts). */
   isFinal: boolean;
   testedCount?: number;
-  failureReason?: 'comparison_unavailable' | 'checkout_changed' | 'restore_failed' | 'unconfirmed';
+  comparisonComplete?: boolean;
+  failureReason?:
+    | "comparison_unavailable"
+    | "checkout_changed"
+    | "restore_failed"
+    | "unconfirmed"
+    | "cancelled";
   /** Only set when result === 'applied'. */
   discountAmount?: number;
   originalTotal?: number;
@@ -26,10 +37,11 @@ export interface CouponApplyResultMessage {
 }
 
 export interface CouponApplyProgressMessage {
-  type: 'COUPON_APPLY_PROGRESS';
+  runId?: string;
+  type: "COUPON_APPLY_PROGRESS";
   /** Added by the worker when relaying to an extension view. */
   tabId?: number;
-  phase: 'testing' | 'applying';
+  phase: "testing" | "applying";
   code: string;
   index: number;
   total: number;
@@ -37,28 +49,35 @@ export interface CouponApplyProgressMessage {
 }
 
 export interface GetTabStateMessage {
-  type: 'GET_TAB_STATE';
+  type: "GET_TAB_STATE";
 }
 
 export interface ApplyBestCouponMessage {
-  type: 'APPLY_BEST_COUPON';
+  type: "APPLY_BEST_COUPON";
 }
 
 export interface ApplyDoneMessage {
-  type: 'APPLY_DONE';
+  type: "APPLY_DONE";
   tabId?: number;
   result: CouponApplyResultMessage;
 }
 
 export interface GetLifetimeSavedMessage {
-  type: 'GET_LIFETIME_SAVED';
+  type: "GET_LIFETIME_SAVED";
 }
 
 export interface GetActivePromotionsMessage {
-  type: 'GET_ACTIVE_PROMOTIONS';
+  type: "GET_ACTIVE_PROMOTIONS";
 }
 
 export type ExtensionMessage =
+  | { type: "DEVICE_STATUS_CHANGED"; dormant: boolean }
+  | {
+      type: "CHECKOUT_STATE_CHANGED";
+      tabId: number;
+      state: TabCheckoutState | null;
+    }
+  | { type: "GET_EXTENSION_STATUS" | "SAVINGS_UPDATED" }
   | CheckoutConfirmedMessage
   | CouponApplyResultMessage
   | CouponApplyProgressMessage
@@ -69,6 +88,10 @@ export type ExtensionMessage =
   | GetActivePromotionsMessage;
 
 export interface TabCheckoutState {
+  checkoutUrl?: string;
+  frameId?: number;
+  documentId?: string;
+  runId?: string;
   merchantId: string;
   merchantName: string;
   coupons: PublicCoupon[];
@@ -85,6 +108,8 @@ export interface TabCheckoutState {
 // a preliminary chrome.scripting.executeScript `func` call (see background/service-worker.ts)
 // the content script reads it off `window.__SAVERLLY__` once injected.
 export interface InjectedCheckoutContext {
+  runId?: string;
+  checkoutUrl?: string;
   merchantId: string;
   recipe: CheckoutRecipe;
   coupons?: PublicCoupon[];
@@ -93,6 +118,7 @@ export interface InjectedCheckoutContext {
 declare global {
   interface Window {
     __SAVERLLY_APPLYING__?: boolean;
+    __SAVERLLY_DETECTOR__?: () => void;
     __SAVERLLY__?: InjectedCheckoutContext;
   }
 }

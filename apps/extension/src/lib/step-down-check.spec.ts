@@ -1,62 +1,126 @@
-import { detectStepDown } from './step-down-check';
+import { detectStepDown } from "./step-down-check";
 
-describe('detectStepDown', () => {
-  it('detects a known competing affiliate cookie', () => {
-    const cookies = [{ name: 'irclickid' }];
-    expect(detectStepDown(cookies, 'https://shop.example.com/checkout')).toBe(true);
-  });
-
-  it('is case-insensitive on cookie names', () => {
-    const cookies = [{ name: 'CJEVENT' }];
-    expect(detectStepDown(cookies, 'https://shop.example.com/checkout')).toBe(true);
-  });
-
-  it('returns false when no competing signal is present', () => {
-    const cookies = [{ name: 'session_id' }, { name: 'cart_token' }];
-    expect(detectStepDown(cookies, 'https://shop.example.com/checkout')).toBe(false);
-  });
-
-  it('detects a known competing affiliate URL param', () => {
-    const cookies: { name: string }[] = [];
-    expect(detectStepDown(cookies, 'https://shop.example.com/checkout?sscid=abc123')).toBe(true);
-  });
-
-  it('does not treat our own tracking param as a competing signal', () => {
-    const cookies: { name: string }[] = [];
-    // sscid is in the known list. Simulate it being *our own* param for this merchant.
-    expect(detectStepDown(cookies, 'https://shop.example.com/checkout?sscid=ours', 'sscid')).toBe(false);
-  });
-
-  it('returns false for a malformed URL rather than throwing', () => {
-    expect(detectStepDown([], 'not-a-url')).toBe(false);
-  });
-
-  it('detects a competing affiliate URL param carried only in the referrer', () => {
-    const cookies: { name: string }[] = [];
+describe("detectStepDown", () => {
+  it("detects a competitor using the same network parameter key", () => {
     expect(
       detectStepDown(
-        cookies,
-        'https://shop.example.com/checkout',
-        undefined,
-        'https://ref.example.com/?sscid=abc123',
+        [],
+        "https://shop.test/?sscid=competitor",
+        "sscid",
+        "",
+        "ours",
       ),
     ).toBe(true);
   });
+  it("excludes only the exact cookie value set by our own attribution", () => {
+    expect(
+      detectStepDown(
+        [{ name: "sscid", value: "ours" }],
+        "https://shop.test",
+        null,
+        null,
+        null,
+        [{ name: "sscid", value: "ours" }],
+      ),
+    ).toBe(false);
+    expect(
+      detectStepDown(
+        [{ name: "sscid", value: "theirs" }],
+        "https://shop.test",
+        null,
+        null,
+        null,
+        [{ name: "sscid", value: "ours" }],
+      ),
+    ).toBe(true);
+  });
+  it("detects a known competing affiliate cookie", () => {
+    const cookies = [{ name: "irclickid" }];
+    expect(detectStepDown(cookies, "https://shop.example.com/checkout")).toBe(
+      true,
+    );
+  });
 
-  it('does not treat our own tracking param in the referrer as a competing signal', () => {
+  it("is case-insensitive on cookie names", () => {
+    const cookies = [{ name: "CJEVENT" }];
+    expect(detectStepDown(cookies, "https://shop.example.com/checkout")).toBe(
+      true,
+    );
+  });
+
+  it("returns false when no competing signal is present", () => {
+    const cookies = [{ name: "session_id" }, { name: "cart_token" }];
+    expect(detectStepDown(cookies, "https://shop.example.com/checkout")).toBe(
+      false,
+    );
+  });
+
+  it("detects a known competing affiliate URL param", () => {
     const cookies: { name: string }[] = [];
+    expect(
+      detectStepDown(cookies, "https://shop.example.com/checkout?sscid=abc123"),
+    ).toBe(true);
+  });
+
+  it("does not treat our own tracking param as a competing signal", () => {
+    const cookies: { name: string }[] = [];
+    // sscid is in the known list. Simulate it being *our own* param for this merchant.
     expect(
       detectStepDown(
         cookies,
-        'https://shop.example.com/checkout',
-        'sscid',
-        'https://ref.example.com/?sscid=ours',
+        "https://shop.example.com/checkout?sscid=ours",
+        "sscid",
+        "",
+        "ours",
       ),
     ).toBe(false);
   });
 
-  it('ignores a malformed or missing referrer rather than throwing', () => {
-    expect(detectStepDown([], 'https://shop.example.com/checkout', undefined, 'not-a-url')).toBe(false);
-    expect(detectStepDown([], 'https://shop.example.com/checkout', undefined, undefined)).toBe(false);
+  it("returns false for a malformed URL rather than throwing", () => {
+    expect(detectStepDown([], "not-a-url")).toBe(false);
+  });
+
+  it("detects a competing affiliate URL param carried only in the referrer", () => {
+    const cookies: { name: string }[] = [];
+    expect(
+      detectStepDown(
+        cookies,
+        "https://shop.example.com/checkout",
+        undefined,
+        "https://ref.example.com/?sscid=abc123",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not treat our own tracking param in the referrer as a competing signal", () => {
+    const cookies: { name: string }[] = [];
+    expect(
+      detectStepDown(
+        cookies,
+        "https://shop.example.com/checkout",
+        "sscid",
+        "https://ref.example.com/?sscid=ours",
+        "ours",
+      ),
+    ).toBe(false);
+  });
+
+  it("ignores a malformed or missing referrer rather than throwing", () => {
+    expect(
+      detectStepDown(
+        [],
+        "https://shop.example.com/checkout",
+        undefined,
+        "not-a-url",
+      ),
+    ).toBe(false);
+    expect(
+      detectStepDown(
+        [],
+        "https://shop.example.com/checkout",
+        undefined,
+        undefined,
+      ),
+    ).toBe(false);
   });
 });

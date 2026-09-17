@@ -80,6 +80,92 @@
         ]
       }
     },
+    "/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed; a fresh token pair is returned"
+          },
+          "401": {
+            "description": "currentPassword is incorrect"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Change the current user's own password. Required before continuing if mustChangePassword is true",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "If an account exists, a reset email was sent"
+          }
+        },
+        "summary": "Request a password-reset email. Always responds the same way, whether or not the email is registered.",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset"
+          },
+          "401": {
+            "description": "Invalid, expired, or already-used reset link"
+          }
+        },
+        "summary": "Complete a password reset using the token from the reset email",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/users/me": {
       "get": {
         "operationId": "UsersController_me",
@@ -101,6 +187,294 @@
         "tags": [
           "Users"
         ]
+      },
+      "patch": {
+        "operationId": "UsersController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "401": {
+            "description": "Missing or invalid access token"
+          },
+          "409": {
+            "description": "Email already in use"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update the current authenticated user's own profile. Email only, not role/kiosk/managedLocationIds",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/me/avatar": {
+      "post": {
+        "description": "Stores the file under /uploads/avatars and sets avatarUrl on the account. Replacing an existing photo deletes the previous file. Returns the updated user.",
+        "operationId": "UsersController_uploadAvatar",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Avatar uploaded, updated user returned"
+          },
+          "400": {
+            "description": "Missing file, or not a PNG/JPEG/WebP"
+          },
+          "403": {
+            "description": "A location manager's photo always mirrors their kiosk owner's"
+          },
+          "413": {
+            "description": "File exceeds the 2MB limit"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Upload the current user's profile photo",
+        "tags": [
+          "Users"
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_removeAvatar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Avatar removed, updated user returned"
+          },
+          "403": {
+            "description": "A location manager's photo always mirrors their kiosk owner's"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Remove the current user's profile photo",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/me/dismissed-alerts": {
+      "get": {
+        "operationId": "UsersController_myDismissedAlerts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Array of dismissed alertKey strings"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List alertKeys the current user has dismissed from the admin Overview 'Needs attention' panel",
+        "tags": [
+          "Users"
+        ]
+      },
+      "post": {
+        "operationId": "UsersController_dismissAlert",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissAlertDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Dismissed"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Dismiss one 'Needs attention' item for the current user. Idempotent",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/me/dismissed-alerts/{alertKey}": {
+      "delete": {
+        "operationId": "UsersController_undismissAlert",
+        "parameters": [
+          {
+            "name": "alertKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Un-dismissed"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Un-dismiss a previously dismissed 'Needs attention' item. Idempotent",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/admins": {
+      "post": {
+        "operationId": "UsersController_createAdmin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Admin created, generated password returned once"
+          },
+          "409": {
+            "description": "Email already in use"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Create another ADMIN-level teammate. Generates a password server-side",
+        "tags": [
+          "Users"
+        ]
+      },
+      "get": {
+        "operationId": "UsersController_findAdmins",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Admin users"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List every ADMIN-level user",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/users/admins/{id}": {
+      "patch": {
+        "operationId": "UsersController_updateAdmin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "400": {
+            "description": "Cannot disable your own account"
+          },
+          "404": {
+            "description": "Admin not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Rename, disable, or re-enable an admin",
+        "tags": [
+          "Users"
+        ]
+      },
+      "delete": {
+        "operationId": "UsersController_removeAdmin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Cannot delete your own account, or admin not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete an admin, an admin cannot delete their own account this way",
+        "tags": [
+          "Users"
+        ]
       }
     },
     "/kiosks": {
@@ -119,7 +493,7 @@
         },
         "responses": {
           "201": {
-            "description": "Kiosk created"
+            "description": "Kiosk + owner created, generatedPassword present once"
           },
           "403": {
             "description": "Caller is not an admin"
@@ -130,7 +504,7 @@
             "jwt": []
           }
         ],
-        "summary": "Create a kiosk (admin only, defaults to ACTIVE, no approval step)",
+        "summary": "Create a kiosk and its owner account in one atomic step (admin only, defaults to ACTIVE, no approval step). A password is generated server-side, emailed to the owner, and returned once in the response.",
         "tags": [
           "Kiosks"
         ]
@@ -227,6 +601,39 @@
         "tags": [
           "Kiosks"
         ]
+      },
+      "delete": {
+        "operationId": "KiosksController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Kiosk and everything under it deleted"
+          },
+          "403": {
+            "description": "Caller is not an admin"
+          },
+          "404": {
+            "description": "Kiosk not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Permanently delete a kiosk and everything under it. Users, locations, devices, device activity history, kiosk-scoped announcements, and payouts (admin only)",
+        "tags": [
+          "Kiosks"
+        ]
       }
     },
     "/kiosks/{id}/status": {
@@ -254,7 +661,7 @@
         },
         "responses": {
           "200": {
-            "description": "Status updated — takes effect on the kiosk's devices immediately"
+            "description": "Status updated. Takes effect on the kiosk's devices immediately"
           },
           "404": {
             "description": "Kiosk not found"
@@ -271,9 +678,130 @@
         ]
       }
     },
+    "/my/kiosk-contact": {
+      "get": {
+        "operationId": "MyKioskController_findContact",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Owner contact"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "The caller's own kiosk owner's name and email. There's no separate kiosk contact field, the owner's own account is the contact",
+        "tags": [
+          "Kiosks (portal)"
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "operationId": "NotificationsController_findMine",
+        "parameters": [
+          {
+            "name": "unreadOnly",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to the 50 most recent notifications"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List the current user's own notifications, newest first",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/notifications/unread-count": {
+      "get": {
+        "operationId": "NotificationsController_unreadCount",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Unread count"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Count the current user's unread notifications",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/notifications/{id}/read": {
+      "patch": {
+        "operationId": "NotificationsController_markRead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marked read"
+          },
+          "404": {
+            "description": "Not found, or doesn't belong to the caller"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Mark one notification as read",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/notifications/read-all": {
+      "patch": {
+        "operationId": "NotificationsController_markAllRead",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Marked all read"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Mark all of the current user's notifications as read",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/kiosks/{kioskId}/users": {
       "post": {
-        "description": "Admin can create KIOSK_OWNER or LOCATION_MANAGER accounts. A kiosk-owner may only create LOCATION_MANAGER accounts under their own kiosk — never a peer owner.",
+        "description": "Admin can create KIOSK_OWNER or LOCATION_MANAGER accounts. A kiosk-owner may only create LOCATION_MANAGER accounts under their own kiosk. Never a peer owner.",
         "operationId": "KioskUsersController_create",
         "parameters": [
           {
@@ -343,6 +871,51 @@
         ]
       }
     },
+    "/kiosks/{kioskId}/users/{userId}/resend-password": {
+      "post": {
+        "description": "Generates a fresh password, flags the account to change it on next sign-in, re-sends the welcome email, and returns the password so it can be read out directly if email fails.",
+        "operationId": "KioskUsersController_resendPassword",
+        "parameters": [
+          {
+            "name": "kioskId",
+            "required": true,
+            "in": "path",
+            "description": "The kiosk these user accounts belong to",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Password reset and re-sent"
+          },
+          "403": {
+            "description": "Cross-tenant, or a kiosk-owner acting on a non-location-manager account"
+          },
+          "404": {
+            "description": "User does not belong to this kiosk"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Issue a new first-time password and re-send the welcome email",
+        "tags": [
+          "Kiosk Users"
+        ]
+      }
+    },
     "/kiosks/{kioskId}/users/{userId}": {
       "patch": {
         "operationId": "KioskUsersController_update",
@@ -391,7 +964,49 @@
             "jwt": []
           }
         ],
-        "summary": "Update a kiosk user — role, disabled flag, or managedLocationIds",
+        "summary": "Update a kiosk user. Name, email, role, disabled, or managedLocationIds",
+        "tags": [
+          "Kiosk Users"
+        ]
+      },
+      "delete": {
+        "operationId": "KioskUsersController_remove",
+        "parameters": [
+          {
+            "name": "kioskId",
+            "required": true,
+            "in": "path",
+            "description": "The kiosk these user accounts belong to",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted"
+          },
+          "403": {
+            "description": "Cross-tenant, a kiosk-owner acting on a non-location-manager account, or deleting your own account"
+          },
+          "404": {
+            "description": "User does not belong to this kiosk"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete a kiosk user",
         "tags": [
           "Kiosk Users"
         ]
@@ -534,7 +1149,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Location deleted"
+            "description": "Location and everything under it deleted"
           },
           "403": {
             "description": "Not allowed for this role or tenant"
@@ -545,13 +1160,13 @@
             "jwt": []
           }
         ],
-        "summary": "Delete a location (admin or kiosk-owner only, not location-manager)",
+        "summary": "Delete a location (admin or kiosk-owner only, not location-manager). Cascades to its setup codes, devices, and each device's own history",
         "tags": [
           "Locations"
         ]
       }
     },
-    "/locations/{id}/setup-codes": {
+    "/locations/{id}/setup-code": {
       "post": {
         "operationId": "LocationsController_createSetupCode",
         "parameters": [
@@ -566,7 +1181,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Setup code created"
+            "description": "Setup code created or regenerated"
           }
         },
         "security": [
@@ -574,13 +1189,13 @@
             "jwt": []
           }
         ],
-        "summary": "Generate a new reusable device setup code for this location",
+        "summary": "Generate this location's device setup code. Regenerates in place if one already exists (a location only ever has one)",
         "tags": [
           "Locations"
         ]
       },
       "get": {
-        "operationId": "LocationsController_findSetupCodes",
+        "operationId": "LocationsController_findSetupCode",
         "parameters": [
           {
             "name": "id",
@@ -593,7 +1208,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Setup codes"
+            "description": "The setup code, or null"
           }
         },
         "security": [
@@ -601,26 +1216,16 @@
             "jwt": []
           }
         ],
-        "summary": "List setup codes for this location",
+        "summary": "This location's setup code, or null if none has been generated yet",
         "tags": [
           "Locations"
         ]
-      }
-    },
-    "/locations/{id}/setup-codes/{codeId}": {
+      },
       "patch": {
         "operationId": "LocationsController_updateSetupCode",
         "parameters": [
           {
             "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "codeId",
             "required": true,
             "in": "path",
             "schema": {
@@ -643,7 +1248,7 @@
             "description": "Setup code updated"
           },
           "404": {
-            "description": "Setup code does not belong to this location"
+            "description": "This location has no setup code yet"
           }
         },
         "security": [
@@ -651,15 +1256,189 @@
             "jwt": []
           }
         ],
-        "summary": "Revoke or reactivate a setup code",
+        "summary": "Revoke or reactivate this location's setup code",
         "tags": [
           "Locations"
         ]
       }
     },
+    "/locations/{locationId}/employees": {
+      "post": {
+        "operationId": "LocationEmployeesController_create",
+        "parameters": [
+          {
+            "name": "locationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLocationEmployeeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Employee added"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Add an on-site employee to this location (a contact roster, not a portal login)",
+        "tags": [
+          "Location Employees"
+        ]
+      },
+      "get": {
+        "operationId": "LocationEmployeesController_findAll",
+        "parameters": [
+          {
+            "name": "locationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Employees at this location"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "This location's employee roster",
+        "tags": [
+          "Location Employees"
+        ]
+      }
+    },
+    "/locations/{locationId}/employees/{employeeId}": {
+      "patch": {
+        "operationId": "LocationEmployeesController_update",
+        "parameters": [
+          {
+            "name": "locationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "employeeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLocationEmployeeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Employee updated"
+          },
+          "404": {
+            "description": "Employee not found at this location"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update an employee",
+        "tags": [
+          "Location Employees"
+        ]
+      },
+      "delete": {
+        "operationId": "LocationEmployeesController_remove",
+        "parameters": [
+          {
+            "name": "locationId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "employeeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Employee removed"
+          },
+          "404": {
+            "description": "Employee not found at this location"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Remove an employee from the roster",
+        "tags": [
+          "Location Employees"
+        ]
+      }
+    },
+    "/my/employees": {
+      "get": {
+        "operationId": "MyLocationEmployeesController_findMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The caller's kiosk's full employee roster"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Every employee across the caller's own kiosk's locations",
+        "tags": [
+          "Location Employees (kiosk-owner)"
+        ]
+      }
+    },
     "/devices/register": {
       "post": {
-        "description": "No human auth — gated by a valid, active LocationSetupCode whose parent kiosk is ACTIVE. Returns a device token immediately, no approval step. Rate-limited (5/min) to blunt setup-code guessing.",
+        "description": "No human auth. Gated by a valid, active LocationSetupCode whose parent kiosk is ACTIVE. Returns a device token immediately, no approval step. Rate-limited (5/min) to blunt setup-code guessing.",
         "operationId": "DevicesController_register",
         "parameters": [],
         "requestBody": {
@@ -674,7 +1453,7 @@
         },
         "responses": {
           "201": {
-            "description": "Device registered; token returned once, store it — it is not retrievable again"
+            "description": "Device registered; token returned once, store it. It is not retrievable again"
           },
           "400": {
             "description": "Setup code invalid/inactive, or parent kiosk not ACTIVE"
@@ -768,7 +1547,7 @@
         },
         "responses": {
           "200": {
-            "description": "Device updated — active:false blocks its token on next use"
+            "description": "Device updated, active:false blocks its token on next use"
           },
           "403": {
             "description": "Not in the caller's tenant scope"
@@ -831,7 +1610,7 @@
         },
         "responses": {
           "201": {
-            "description": "Program created — apiCredentials never returned, only hasCredentials"
+            "description": "Program created, apiCredentials never returned, only hasCredentials"
           }
         },
         "security": [
@@ -903,11 +1682,44 @@
         "tags": [
           "Affiliate Programs"
         ]
+      },
+      "delete": {
+        "operationId": "AffiliateProgramsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Program deleted"
+          },
+          "404": {
+            "description": "Program not found"
+          },
+          "409": {
+            "description": "Program is still linked to one or more merchants"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete an affiliate program",
+        "tags": [
+          "Affiliate Programs"
+        ]
       }
     },
     "/merchants": {
       "post": {
-        "description": "Tracking method is required — even for a merchant with no coupon API at all, since that is what makes commission attribution work. Coupon sourcing (affiliateProgramId) is optional.",
+        "description": "Tracking method is required. Even for a merchant with no coupon API at all, since that is what makes commission attribution work. Coupon sourcing (affiliateProgramId) is optional.",
         "operationId": "MerchantsController_create",
         "parameters": [],
         "requestBody": {
@@ -1290,7 +2102,37 @@
             "jwt": []
           }
         ],
-        "summary": "Update a scrape source — reschedules automatically if interval or active state changes",
+        "summary": "Update a scrape source. Reschedules automatically if interval or active state changes",
+        "tags": [
+          "Scrape Sources"
+        ]
+      },
+      "delete": {
+        "operationId": "ScrapeSourcesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Scrape source deleted"
+          },
+          "404": {
+            "description": "Scrape source not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete a scrape source. Unschedules its repeat job",
         "tags": [
           "Scrape Sources"
         ]
@@ -1355,6 +2197,30 @@
         ]
       }
     },
+    "/public/devices/me": {
+      "delete": {
+        "description": "Self-service counterpart to the admin-only DELETE /devices/:id, authenticated by the device's own token instead of a human JWT. Called by the desktop agent as its last authenticated act during uninstall, so a decommissioned kiosk machine does not linger in the dashboard as a stale device.",
+        "operationId": "PublicApiController_deregisterDevice",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Device and its tokens deleted"
+          },
+          "401": {
+            "description": "Missing/invalid device token, device disabled, or kiosk inactive"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Deregister this device. Deletes its Device row and tokens entirely",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
+    },
     "/public/devices/me/savings": {
       "get": {
         "operationId": "PublicApiController_getLifetimeSavings",
@@ -1379,7 +2245,7 @@
             "device-token": []
           }
         ],
-        "summary": "Lifetime savings total for this device — sum of confirmed discounts across every 'applied' event",
+        "summary": "Lifetime savings total for this device. Sum of confirmed discounts across every 'applied' event",
         "tags": [
           "Public (device-facing)"
         ]
@@ -1412,7 +2278,40 @@
             "device-token": []
           }
         ],
-        "summary": "Active announcements for this device's location — startAt<=now<=endAt, and scoped to all locations or this device's location specifically. Poll every 60s.",
+        "summary": "Active announcements for this device's location. StartAt<=now<=endAt, and scoped to all locations or this device's location specifically. Poll every 60s.",
+        "tags": [
+          "Public (device-facing)"
+        ]
+      }
+    },
+    "/public/promotions/active": {
+      "get": {
+        "operationId": "PublicApiController_getActivePromotions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Active promotions, earliest-starting first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivePromotionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid device token, device disabled, or kiosk inactive"
+          }
+        },
+        "security": [
+          {
+            "device-token": []
+          }
+        ],
+        "summary": "Active promotions for this device. StartAt<=now<=endAt, active, and matching this device's location by tag or id. Rendered in the extension popup.",
         "tags": [
           "Public (device-facing)"
         ]
@@ -1447,7 +2346,7 @@
             "device-token": []
           }
         ],
-        "summary": "Look up an active merchant by domain — merchant + active coupons + checkoutRecipe + attribution config",
+        "summary": "Look up an active merchant by domain. Merchant + active coupons + checkoutRecipe + attribution config",
         "tags": [
           "Public (device-facing)"
         ]
@@ -1528,6 +2427,7 @@
     },
     "/announcements": {
       "post": {
+        "description": "A location manager may create one only for locations they manage: locationIds is required and every id must be in their own managedLocationIds. An empty array means every location in the kiosk, which is the owner's call, not theirs.",
         "operationId": "AnnouncementsController_create",
         "parameters": [],
         "requestBody": {
@@ -1543,6 +2443,9 @@
         "responses": {
           "201": {
             "description": "Announcement created"
+          },
+          "403": {
+            "description": "A location manager targeting a location they do not manage, or all locations"
           }
         },
         "security": [
@@ -1575,8 +2478,42 @@
         ]
       }
     },
+    "/announcements/upload-image": {
+      "post": {
+        "operationId": "AnnouncementsController_uploadImage",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Image uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadAnnouncementImageResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file, or wrong type"
+          },
+          "413": {
+            "description": "File exceeds the 5MB limit"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Upload an image for use as an announcement's mediaUrl",
+        "tags": [
+          "Announcements"
+        ]
+      }
+    },
     "/announcements/{id}": {
       "get": {
+        "description": "Kiosk-owner and location-manager get read-only visibility into platform-wide broadcasts and their own kiosk's announcements (location-manager further scoped to their assigned locations). PATCH/DELETE is the owner, or the manager who wrote it.",
         "operationId": "AnnouncementsController_findOne",
         "parameters": [
           {
@@ -1610,6 +2547,7 @@
         ]
       },
       "patch": {
+        "description": "A location manager may only update one they created themselves. Anything the owner (or another manager) made for the same location is not theirs to change.",
         "operationId": "AnnouncementsController_update",
         "parameters": [
           {
@@ -1636,7 +2574,7 @@
             "description": "Announcement updated"
           },
           "403": {
-            "description": "Not in the caller's tenant scope"
+            "description": "Not in the caller's tenant scope, or not the manager's own announcement"
           }
         },
         "security": [
@@ -1677,6 +2615,203 @@
         "summary": "Delete an announcement",
         "tags": [
           "Announcements"
+        ]
+      }
+    },
+    "/promotions": {
+      "post": {
+        "operationId": "PromotionsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePromotionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Promotion created"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Create a promotion shown in the Chrome extension popup",
+        "tags": [
+          "Promotions"
+        ]
+      },
+      "get": {
+        "operationId": "PromotionsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Promotions"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "List all promotions, newest first",
+        "tags": [
+          "Promotions"
+        ]
+      }
+    },
+    "/promotions/upload-image": {
+      "post": {
+        "operationId": "PromotionsController_uploadImage",
+        "parameters": [
+          {
+            "name": "size",
+            "required": true,
+            "in": "query",
+            "description": "Which creative slot this upload is for. Determines the dimensions enforced (small = 320x100, large = 728x90).",
+            "schema": {
+              "enum": [
+                "small",
+                "large"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Image uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPromotionImageResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file, wrong type, unknown size, or wrong dimensions"
+          },
+          "413": {
+            "description": "File exceeds the 5MB limit"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Upload one of a promotion’s two creatives",
+        "tags": [
+          "Promotions"
+        ]
+      }
+    },
+    "/promotions/{id}": {
+      "get": {
+        "operationId": "PromotionsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The promotion"
+          },
+          "404": {
+            "description": "Promotion not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Get a promotion by id",
+        "tags": [
+          "Promotions"
+        ]
+      },
+      "patch": {
+        "operationId": "PromotionsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePromotionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Promotion updated"
+          },
+          "404": {
+            "description": "Promotion not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Update a promotion",
+        "tags": [
+          "Promotions"
+        ]
+      },
+      "delete": {
+        "operationId": "PromotionsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Promotion deleted"
+          },
+          "404": {
+            "description": "Promotion not found"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Delete a promotion",
+        "tags": [
+          "Promotions"
         ]
       }
     },
@@ -1725,7 +2860,7 @@
             "name": "dateFrom",
             "required": false,
             "in": "query",
-            "description": "ISO date-time — only events reported at or after this",
+            "description": "ISO date-time. Only events reported at or after this",
             "schema": {
               "type": "string"
             }
@@ -1734,7 +2869,7 @@
             "name": "dateTo",
             "required": false,
             "in": "query",
-            "description": "ISO date-time — only events reported at or before this",
+            "description": "ISO date-time. Only events reported at or before this",
             "schema": {
               "type": "string"
             }
@@ -1817,7 +2952,7 @@
             "jwt": []
           }
         ],
-        "summary": "The caller's own kiosk's commission events, with status clearly shown — never another kiosk's",
+        "summary": "The caller's own kiosk's commission events, with status clearly shown. Never another kiosk's",
         "tags": [
           "Commission Events (kiosk-owner)"
         ]
@@ -1844,7 +2979,7 @@
             "jwt": []
           }
         ],
-        "summary": "The caller's own kiosk's balance split — pending (informational) vs. confirmed-available (withdrawable)",
+        "summary": "The caller's own kiosk's balance split. Pending (informational) vs. confirmed-available (withdrawable)",
         "tags": [
           "Commission Events (kiosk-owner)"
         ]
@@ -1946,7 +3081,7 @@
             "jwt": []
           }
         ],
-        "summary": "The caller's own kiosk's payout history — never another kiosk's",
+        "summary": "The caller's own kiosk's payout history. Never another kiosk's",
         "tags": [
           "Payouts (kiosk-owner)"
         ]
@@ -1978,11 +3113,166 @@
           "Payouts (kiosk-owner)"
         ]
       }
+    },
+    "/search": {
+      "get": {
+        "description": "Results are scoped by the caller's role and tenant, identically to each entity's own list endpoint. Kiosks/merchants/coupons are admin-only, locations/devices/announcements are scoped to the caller's own kiosk or assigned locations.",
+        "operationId": "SearchController_search",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Search text. Fewer than 2 characters yields an empty result set.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching results visible to the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResultDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Search across kiosks, locations, devices, merchants, coupons, and announcements",
+        "tags": [
+          "Search"
+        ]
+      }
+    },
+    "/settings/public": {
+      "get": {
+        "description": "The kiosk portal reads its support address from here at runtime. It used to come from a build-time NEXT_PUBLIC_ env var, which meant changing it required a frontend redeploy.",
+        "operationId": "PlatformSettingsController_findPublic",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Public settings"
+          }
+        },
+        "summary": "Read the platform settings that are safe to expose without auth",
+        "tags": [
+          "Platform Settings"
+        ]
+      }
+    },
+    "/settings": {
+      "get": {
+        "operationId": "PlatformSettingsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All settings"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Read every platform setting",
+        "tags": [
+          "Platform Settings"
+        ]
+      },
+      "patch": {
+        "operationId": "PlatformSettingsController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlatformSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated settings"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Change one or more platform settings",
+        "tags": [
+          "Platform Settings"
+        ]
+      }
+    },
+    "/releases/agent/latest/meta": {
+      "get": {
+        "description": "Version, size, SHA-256 and build time, so the dashboard can say what it is about to download and an operator can verify the file. `available: false` means no installer is configured on this deployment.",
+        "operationId": "ReleasesController_meta",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Release metadata"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Describe the current Windows agent installer",
+        "tags": [
+          "Releases"
+        ]
+      }
+    },
+    "/releases/agent/latest": {
+      "get": {
+        "operationId": "ReleasesController_download",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The installer binary"
+          },
+          "302": {
+            "description": "Redirect to object storage, when configured"
+          },
+          "404": {
+            "description": "No installer is configured on this deployment"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Download the current Windows agent installer",
+        "tags": [
+          "Releases"
+        ]
+      }
     }
   },
   "info": {
     "title": "Saverlly API",
-    "description": "Multi-tenant SaaS platform for internet kiosk businesses — admin console, kiosk portal, and machine (Chrome extension / desktop agent) endpoints.",
+    "description": "Multi-tenant SaaS platform for internet kiosk businesses, admin console, kiosk portal, and machine (Chrome extension / desktop agent) endpoints.",
     "version": "1.0",
     "contact": {}
   },
@@ -1999,7 +3289,7 @@
         "scheme": "bearer",
         "bearerFormat": "device-token",
         "type": "http",
-        "description": "Opaque device token issued at /devices/register — used by machine clients only."
+        "description": "Opaque device token issued at /devices/register. Used by machine clients only."
       }
     },
     "schemas": {
@@ -2031,6 +3321,127 @@
           "refreshToken"
         ]
       },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "newPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 8
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "owner@kiosk.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token from the reset-password email link"
+          },
+          "newPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 8
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ]
+      },
+      "UpdateMeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe"
+          },
+          "email": {
+            "type": "string",
+            "example": "me@example.com"
+          }
+        }
+      },
+      "DismissAlertDto": {
+        "type": "object",
+        "properties": {
+          "alertKey": {
+            "type": "string",
+            "example": "kiosk-inactive:9c3f1e2a-...",
+            "description": "Stable id the frontend derives per Overview 'Needs attention' item, e.g. 'kiosk-inactive:<kioskId>' or 'payouts-pending'"
+          }
+        },
+        "required": [
+          "alertKey"
+        ]
+      },
+      "CreateAdminUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe"
+          },
+          "email": {
+            "type": "string",
+            "example": "jane@saverlly.com"
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
+      },
+      "UpdateAdminUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe"
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "Set true to disable this admin, false to re-enable"
+          }
+        }
+      },
+      "CreateKioskOwnerDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe"
+          },
+          "email": {
+            "type": "string",
+            "example": "owner@kiosk.com"
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
+      },
       "CreateKioskDto": {
         "type": "object",
         "properties": {
@@ -2041,17 +3452,21 @@
           "revenueSharePct": {
             "type": "number",
             "example": 30,
-            "description": "Percentage of commission the kiosk keeps (0-100)"
+            "description": "Percentage of commission the kiosk keeps (0-100, in 5% increments)"
           },
-          "contactEmail": {
-            "type": "string",
-            "example": "owner@kiosk.com"
+          "owner": {
+            "description": "The kiosk-owner account created in the same transaction, a password is generated server-side, emailed to them, and returned once in the response for the admin to share.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CreateKioskOwnerDto"
+              }
+            ]
           }
         },
         "required": [
           "name",
           "revenueSharePct",
-          "contactEmail"
+          "owner"
         ]
       },
       "UpdateKioskDto": {
@@ -2062,10 +3477,7 @@
           },
           "revenueSharePct": {
             "type": "number",
-            "description": "Percentage of commission the kiosk keeps (0-100)"
-          },
-          "contactEmail": {
-            "type": "string"
+            "description": "Percentage of commission the kiosk keeps (0-100, in 5% increments)"
           },
           "status": {
             "type": "string",
@@ -2094,13 +3506,12 @@
       "CreateKioskUserDto": {
         "type": "object",
         "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe"
+          },
           "email": {
             "type": "string"
-          },
-          "password": {
-            "type": "string",
-            "writeOnly": true,
-            "minLength": 8
           },
           "role": {
             "type": "string",
@@ -2110,7 +3521,7 @@
             ]
           },
           "managedLocationIds": {
-            "description": "Location ids this user manages — only meaningful for LOCATION_MANAGER",
+            "description": "Location ids this user manages. Only meaningful for LOCATION_MANAGER",
             "type": "array",
             "items": {
               "type": "string"
@@ -2118,14 +3529,23 @@
           }
         },
         "required": [
+          "name",
           "email",
-          "password",
           "role"
         ]
       },
       "UpdateKioskUserDto": {
         "type": "object",
         "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jane Doe"
+          },
+          "email": {
+            "type": "string",
+            "example": "jane@example.com",
+            "description": "Changing this changes the address the account signs in with. Must not already be in use."
+          },
           "role": {
             "type": "string",
             "enum": [
@@ -2164,8 +3584,10 @@
           "state": {
             "type": "string"
           },
-          "country": {
-            "type": "string"
+          "zip": {
+            "type": "string",
+            "example": "78701",
+            "description": "US 5-digit ZIP code"
           },
           "latitude": {
             "type": "number"
@@ -2190,7 +3612,7 @@
           "address",
           "city",
           "state",
-          "country"
+          "zip"
         ]
       },
       "UpdateLocationDto": {
@@ -2208,8 +3630,10 @@
           "state": {
             "type": "string"
           },
-          "country": {
-            "type": "string"
+          "zip": {
+            "type": "string",
+            "example": "78701",
+            "description": "US 5-digit ZIP code"
           },
           "latitude": {
             "type": "number"
@@ -2242,6 +3666,45 @@
           "active"
         ]
       },
+      "CreateLocationEmployeeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "example": "Shift lead"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateLocationEmployeeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "example": "Shift lead"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        }
+      },
       "RegisterDeviceDto": {
         "type": "object",
         "properties": {
@@ -2259,7 +3722,7 @@
           },
           "deviceIdentifier": {
             "type": "string",
-            "description": "Agent-generated local UUID (device.json) — stored for support/audit correlation only, not used for dedup logic"
+            "description": "Agent-generated local UUID (device.json). Stored for support/audit correlation only, not used for dedup logic"
           },
           "osVersion": {
             "type": "string",
@@ -2278,7 +3741,7 @@
           },
           "active": {
             "type": "boolean",
-            "description": "Kill-switch — false immediately blocks this device's token"
+            "description": "Kill-switch. False immediately blocks this device's token"
           }
         }
       },
@@ -2295,7 +3758,7 @@
           },
           "apiCredentials": {
             "type": "object",
-            "description": "Raw credentials (e.g. { apiKey, apiSecret }) — encrypted before storage, never returned by any read endpoint",
+            "description": "Raw credentials (e.g. { apiKey, apiSecret }). Encrypted before storage, never returned by any read endpoint",
             "additionalProperties": {
               "type": "string"
             }
@@ -2321,7 +3784,7 @@
           },
           "apiCredentials": {
             "type": "object",
-            "description": "Replaces any existing stored credentials entirely — re-encrypted before storage",
+            "description": "Replaces any existing stored credentials entirely. Re-encrypted before storage",
             "additionalProperties": {
               "type": "string"
             }
@@ -2334,6 +3797,17 @@
       "CheckoutRecipeDto": {
         "type": "object",
         "properties": {
+          "couponApplyMode": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "remove"
+            ]
+          },
+          "removeCouponSelector": {
+            "type": "string",
+            "example": "button.remove-promo"
+          },
           "couponFieldSelector": {
             "type": "string",
             "example": "input[name='promoCode']"
@@ -2363,6 +3837,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "couponFieldRevealSelector": {
+            "type": "string",
+            "example": "button#add-promo-code-btn"
           }
         }
       },
@@ -2384,7 +3862,7 @@
               "URL_PARAM",
               "BOTH"
             ],
-            "description": "Required even if the store has no coupon API at all — this is what makes commission tracking work"
+            "description": "Required even if the store has no coupon API at all. This is what makes commission tracking work"
           },
           "affiliateTrackingUrl": {
             "type": "string",
@@ -2401,7 +3879,7 @@
           },
           "affiliateProgramId": {
             "type": "string",
-            "description": "Optional coupon-sourcing config — connects this merchant to an existing affiliate program"
+            "description": "Optional coupon-sourcing config. Connects this merchant to an existing affiliate program"
           },
           "checkoutRecipe": {
             "$ref": "#/components/schemas/CheckoutRecipeDto"
@@ -2468,9 +3946,9 @@
           "discountType": {
             "type": "string",
             "enum": [
-              "percent",
-              "fixed",
-              "unknown"
+              "PERCENT",
+              "FIXED",
+              "UNKNOWN"
             ]
           },
           "discountValue": {
@@ -2497,9 +3975,9 @@
           "discountType": {
             "type": "string",
             "enum": [
-              "percent",
-              "fixed",
-              "unknown"
+              "PERCENT",
+              "FIXED",
+              "UNKNOWN"
             ]
           },
           "discountValue": {
@@ -2524,6 +4002,21 @@
           "descriptionSelector": {
             "type": "string",
             "description": "CSS selector for a description near each code, if present"
+          },
+          "revealSelector": {
+            "type": "string",
+            "description": "CSS selector matching a \"reveal\"/\"get code\" button that must be clicked before the code becomes visible in the page. Only needed on sites that hide the code behind a click.",
+            "example": ".reveal-code-button"
+          },
+          "rowSelector": {
+            "type": "string",
+            "description": "CSS selector matching each row container on a multi-merchant page (e.g. a site-wide \"recently verified\" feed covering many stores in one page, rather than one store per page). When set, this source must omit merchantId on the ScrapeSource itself -- codeSelector and merchantSelector are then evaluated per-row (scoped to each row element, not the whole page) and the merchant is resolved by exact case-insensitive name match against existing merchants; rows with no match are skipped rather than guessed.",
+            "example": ".feed-entry"
+          },
+          "merchantSelector": {
+            "type": "string",
+            "description": "CSS selector for the merchant name within a rowSelector row. Required together with rowSelector; meaningless without it.",
+            "example": ".feed-merchant"
           }
         },
         "required": [
@@ -2538,7 +4031,7 @@
           },
           "merchantId": {
             "type": "string",
-            "description": "Leave unset only if this page cannot yet be attributed to one merchant"
+            "description": "The merchant this scrape source belongs to. Required unless selectorConfig.rowSelector is set (a multi-merchant source resolves the merchant per row instead)."
           },
           "selectorConfig": {
             "$ref": "#/components/schemas/SelectorConfigDto"
@@ -2546,7 +4039,7 @@
           "intervalMinutes": {
             "type": "number",
             "default": 1440,
-            "description": "Scrape cadence in minutes — defaults to daily (1440)"
+            "description": "Scrape cadence in minutes. Defaults to daily (1440)"
           }
         },
         "required": [
@@ -2561,7 +4054,8 @@
             "type": "string"
           },
           "merchantId": {
-            "type": "string"
+            "type": "object",
+            "nullable": true
           },
           "selectorConfig": {
             "$ref": "#/components/schemas/SelectorConfigDto"
@@ -2617,7 +4111,8 @@
             "type": "string"
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "mediaUrl": {
             "type": "string",
@@ -2635,6 +4130,12 @@
             "type": "number",
             "nullable": true,
             "description": "Set when repeatPolicy is MAX_N_TIMES"
+          },
+          "layout": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "Freeform canvas design (AnnouncementLayout). Null for announcements authored before the canvas editor. The agent renders a default layout from title/body/mediaUrl in that case."
           }
         },
         "required": [
@@ -2643,22 +4144,58 @@
           "body",
           "mediaUrl",
           "repeatPolicy",
-          "maxDisplayCount"
+          "maxDisplayCount",
+          "layout"
+        ]
+      },
+      "ActivePromotionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "imageSmallUrl": {
+            "type": "string",
+            "description": "320x100 creative, rendered in the extension popup"
+          },
+          "imageLargeUrl": {
+            "type": "string",
+            "description": "728x90 leaderboard creative. Returned so the future on-page banner surface needs no API change"
+          },
+          "clickUrl": {
+            "type": "string",
+            "description": "Where the shopper lands on click"
+          }
+        },
+        "required": [
+          "id",
+          "imageSmallUrl",
+          "imageLargeUrl",
+          "clickUrl"
         ]
       },
       "CreateCouponTestEventDto": {
         "type": "object",
         "properties": {
+          "eventId": {
+            "type": "string",
+            "description": "Idempotency UUID, retained across reporting retries"
+          },
+          "isFinal": {
+            "type": "boolean",
+            "description": "Final selection; trial success was already reported as valid"
+          },
           "merchantId": {
             "type": "string"
           },
           "couponId": {
             "type": "string",
-            "description": "Nullable — a step-down suppression or a manual trigger with no matching coupon has no couponId"
+            "description": "Nullable, a step-down suppression or a manual trigger with no matching coupon has no couponId"
           },
           "result": {
             "type": "string",
             "enum": [
+              "valid",
               "applied",
               "failed",
               "suppressed_stepdown",
@@ -2667,7 +4204,7 @@
           },
           "discountAmount": {
             "type": "number",
-            "description": "Confirmed cart-total delta for an \"applied\" result — ignored for any other result"
+            "description": "Confirmed cart-total delta for an \"applied\" result. Ignored for any other result"
           }
         },
         "required": [
@@ -2703,7 +4240,11 @@
         "properties": {
           "kioskId": {
             "type": "string",
-            "description": "Required when the caller is ADMIN; ignored for KIOSK_OWNER (their own kioskId is always used)"
+            "description": "Which kiosk this announcement belongs to. Required for ADMIN unless `broadcast` is true; ignored for KIOSK_OWNER (their own kioskId is always used)."
+          },
+          "broadcast": {
+            "type": "boolean",
+            "description": "ADMIN-only: create a platform-wide broadcast shown on every device across every kiosk, instead of one kiosk. An explicit flag rather than inferring broadcast from an omitted kioskId, since a forgotten kioskId silently becoming \"show to everyone\" is too large a blast radius for an implicit default. When true, kioskId and locationIds are ignored, a broadcast always targets everyone."
           },
           "locationIds": {
             "description": "Location ids to scope this announcement to; empty/omitted = all locations for the kiosk",
@@ -2716,10 +4257,16 @@
             "type": "string"
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "description": "Internal note, shown only in the dashboard list so an announcement is findable later. It is never drawn on the kiosk: what a kiosk shows comes entirely from `layout`. It was required and labelled \"Body\", which read like copy that would appear on screen."
           },
           "mediaUrl": {
             "type": "string"
+          },
+          "layout": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Freeform canvas design produced by the portal editor (AnnouncementLayout). Omit for a plain title/body/image announcement. The kiosk agent then renders a default layout built from those fields instead."
           },
           "startAt": {
             "type": "string"
@@ -2738,14 +4285,25 @@
           },
           "maxDisplayCount": {
             "type": "number",
-            "description": "Required (and must be >= 1) when repeatPolicy is MAX_N_TIMES — enforced in AnnouncementsService, since it depends on the resolved repeatPolicy. Whenever supplied, regardless of repeatPolicy, must be a positive integer."
+            "description": "Required (and must be >= 1) when repeatPolicy is MAX_N_TIMES. Enforced in AnnouncementsService, since it depends on the resolved repeatPolicy. Whenever supplied, regardless of repeatPolicy, must be a positive integer."
           }
         },
         "required": [
           "title",
-          "body",
           "startAt",
           "endAt"
+        ]
+      },
+      "UploadAnnouncementImageResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Absolute URL of the uploaded image. Use it as mediaUrl."
+          }
+        },
+        "required": [
+          "url"
         ]
       },
       "UpdateAnnouncementDto": {
@@ -2766,6 +4324,11 @@
           "mediaUrl": {
             "type": "string"
           },
+          "layout": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Freeform canvas design (AnnouncementLayout). See CreateAnnouncementDto.layout."
+          },
           "startAt": {
             "type": "string"
           },
@@ -2782,6 +4345,128 @@
           },
           "maxDisplayCount": {
             "type": "number"
+          }
+        }
+      },
+      "CreatePromotionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal label used to identify this promotion in the admin list. Never shown to shoppers."
+          },
+          "imageSmallUrl": {
+            "type": "string",
+            "description": "Absolute URL of the 320x100 creative, rendered in the extension popup. Get one from POST /promotions/upload-image?size=small."
+          },
+          "imageLargeUrl": {
+            "type": "string",
+            "description": "Absolute URL of the 728x90 creative, held for the future on-page banner surface. Get one from POST /promotions/upload-image?size=large."
+          },
+          "clickUrl": {
+            "type": "string",
+            "description": "Where the shopper lands when they click the promotion."
+          },
+          "targetTags": {
+            "description": "Location tags to target, matched against Location.tags. Combined with locationIds as a union (either may match), not an intersection. Both empty = show on every device.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locationIds": {
+            "description": "Specific location ids to target. Combined with targetTags as a union. See above.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "startAt": {
+            "type": "string"
+          },
+          "endAt": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "Manual kill switch, independent of the startAt/endAt window. Set false to pull a promotion without editing its schedule."
+          }
+        },
+        "required": [
+          "name",
+          "imageSmallUrl",
+          "imageLargeUrl",
+          "clickUrl",
+          "startAt",
+          "endAt"
+        ]
+      },
+      "UploadPromotionImageResponseDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Absolute URL of the uploaded image. Use it as imageSmallUrl or imageLargeUrl."
+          },
+          "width": {
+            "type": "number",
+            "description": "Detected pixel width of the uploaded image."
+          },
+          "height": {
+            "type": "number",
+            "description": "Detected pixel height of the uploaded image."
+          }
+        },
+        "required": [
+          "url",
+          "width",
+          "height"
+        ]
+      },
+      "UpdatePromotionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Internal label used to identify this promotion in the admin list. Never shown to shoppers."
+          },
+          "imageSmallUrl": {
+            "type": "string",
+            "description": "Absolute URL of the 320x100 creative, rendered in the extension popup. Get one from POST /promotions/upload-image?size=small."
+          },
+          "imageLargeUrl": {
+            "type": "string",
+            "description": "Absolute URL of the 728x90 creative, held for the future on-page banner surface. Get one from POST /promotions/upload-image?size=large."
+          },
+          "clickUrl": {
+            "type": "string",
+            "description": "Where the shopper lands when they click the promotion."
+          },
+          "targetTags": {
+            "description": "Location tags to target, matched against Location.tags. Combined with locationIds as a union (either may match), not an intersection. Both empty = show on every device.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "locationIds": {
+            "description": "Specific location ids to target. Combined with targetTags as a union. See above.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "startAt": {
+            "type": "string"
+          },
+          "endAt": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "Manual kill switch, independent of the startAt/endAt window. Set false to pull a promotion without editing its schedule."
           }
         }
       },
@@ -2884,11 +4569,11 @@
         "properties": {
           "pendingAmount": {
             "type": "number",
-            "description": "Estimated kiosk share of still-PENDING commission — informational, not withdrawable"
+            "description": "Estimated kiosk share of still-PENDING commission. Informational, not withdrawable"
           },
           "confirmedAvailableAmount": {
             "type": "number",
-            "description": "Sum of CONFIRMED kioskShareAmount not yet included in a payout — this is the withdrawable balance"
+            "description": "Sum of CONFIRMED kioskShareAmount not yet included in a payout. This is the withdrawable balance"
           }
         },
         "required": [
@@ -2952,10 +4637,10 @@
           "status": {
             "type": "string",
             "enum": [
-              "pending",
-              "processing",
-              "paid",
-              "failed"
+              "PENDING",
+              "PROCESSING",
+              "PAID",
+              "FAILED"
             ]
           },
           "stripeTransferId": {
@@ -2989,12 +4674,54 @@
         "properties": {
           "url": {
             "type": "string",
-            "description": "Stripe-hosted Connect Express onboarding URL — single-use, short-lived"
+            "description": "Stripe-hosted Connect Express onboarding URL. Single-use, short-lived"
           }
         },
         "required": [
           "url"
         ]
+      },
+      "SearchResultDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "kiosk",
+              "location",
+              "device",
+              "merchant",
+              "coupon",
+              "announcement"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "subtitle"
+        ]
+      },
+      "UpdatePlatformSettingsDto": {
+        "type": "object",
+        "properties": {
+          "supportEmail": {
+            "type": "string",
+            "example": "support@saverlly.com",
+            "description": "The address the kiosk portal points owners and managers at. Send an empty string to clear it, which makes the portal render the text unlinked."
+          }
+        }
       }
     }
   }

@@ -33,6 +33,112 @@ describe('Public device-facing API (e2e)', () => {
     return seedDeviceWithToken(location.id);
   }
 
+  it('retries a reporting event exactly once, including concurrent requests, without doubling savings', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+    const eventId = crypto.randomUUID();
+    const payload = {
+      eventId,
+      merchantId: merchant.id,
+      couponId: coupon.id,
+      result: 'applied',
+      discountAmount: 12,
+    };
+    await Promise.all(
+      [1, 2, 3].map(() =>
+        request(app.getHttpServer())
+          .post('/public/coupon-test-events')
+          .set('Authorization', `Bearer ${rawToken}`)
+          .send(payload)
+          .expect(201),
+      ),
+    );
+    expect(
+      await testPrisma.couponTestEvent.count({ where: { id: eventId } }),
+    ).toBe(1);
+    expect(
+      (await testPrisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } }))
+        .successCount,
+    ).toBe(1);
+    const savings = await request(app.getHttpServer())
+      .get('/public/devices/me/savings')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+    expect(savings.body.lifetimeSaved).toBe(12);
+  });
+
+  it('records successful trials without savings and counts the final winner only once', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+    for (const payload of [
+      { result: 'valid', isFinal: false },
+      { result: 'applied', isFinal: true, discountAmount: 8 },
+    ])
+      await request(app.getHttpServer())
+        .post('/public/coupon-test-events')
+        .set('Authorization', `Bearer ${rawToken}`)
+        .send({
+          ...payload,
+          eventId: crypto.randomUUID(),
+          merchantId: merchant.id,
+          couponId: coupon.id,
+        })
+        .expect(201);
+    expect(
+      (await testPrisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } }))
+        .successCount,
+    ).toBe(1);
+    const savings = await request(app.getHttpServer())
+      .get('/public/devices/me/savings')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+    expect(savings.body.lifetimeSaved).toBe(8);
+  });
+
+  it('does not replay another device’s event or change a previously stored event', async () => {
+    const first = await seedDeviceToken();
+    const second = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const payload = {
+      eventId: crypto.randomUUID(),
+      merchantId: merchant.id,
+      result: 'suppressed_stepdown',
+    };
+    await request(app.getHttpServer())
+      .post('/public/coupon-test-events')
+      .set('Authorization', `Bearer ${first.rawToken}`)
+      .send(payload)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/public/coupon-test-events')
+      .set('Authorization', `Bearer ${second.rawToken}`)
+      .send(payload)
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/public/coupon-test-events')
+      .set('Authorization', `Bearer ${first.rawToken}`)
+      .send({ ...payload, result: 'failed' })
+      .expect(400);
+  });
+
+  it('excludes expired coupons from a merchant lookup', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant({ domain: 'expiry.test' });
+    const expired = await seedCoupon(merchant.id, { code: 'EXPIRED' });
+    await testPrisma.coupon.update({
+      where: { id: expired.id },
+      data: { expiresAt: new Date('2020-01-01') },
+    });
+    await seedCoupon(merchant.id, { code: 'CURRENT' });
+    const res = await request(app.getHttpServer())
+      .get('/public/merchants/by-domain/expiry.test')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+    expect(res.body.coupons.map((c) => c.code)).toEqual(['CURRENT']);
+  });
+
   it('returns kioskStatus ACTIVE and deviceActive true for a valid device token', async () => {
     const { rawToken } = await seedDeviceToken();
 

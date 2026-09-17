@@ -1,5 +1,9 @@
 # Saverlly — Full Feature List (Internal/Technical)
 
+> Current extension attribution and comparison behavior is documented in
+> [Extension reliability](docs/extension-reliability.md). Its explicit-action attribution
+> decision supersedes automatic visit-based tracking in this original feature list.
+
 > Revised after client feedback: no kiosk approval workflow (status-based instead), no per-device approval (kill-switch only), location setup codes, location tags, Stripe payouts, admin-side kiosk user management, announcement repeat policy + visual editor, explicit affiliate-tracking-independent-of-coupon-API, pending vs. confirmed commission enforcement, Next.js/shadcn/Tailwind/Zustand/TanStack Query frontend.
 
 ## 1. Admin Console

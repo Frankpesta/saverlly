@@ -1,5 +1,9 @@
 # Saverlly — Project Overview
 
+> Extension behavior update (September 2026): the original automatic merchant-visit
+> attribution requirement below is superseded by the explicit-action decision documented
+> in [Extension reliability](docs/extension-reliability.md).
+
 **Read this file first, before touching any phase file.** This document explains the full system so every phase is built consistent with the whole. Each phase file (`01-...` through `05-...`) is a self-contained build spec for that slice of work, but all of them assume the shared architecture, data model conventions, and terminology defined here.
 
 > **Revision note:** this overview was revised after client feedback on the initial spec. Key changes from v1: kiosks use a simple active/inactive **status**, not an approval workflow; individual computers no longer require approval; commission attribution is explicitly decoupled from coupon sourcing; payout eligibility now requires *confirmed* commission status; Stripe added as the payment gateway; frontend stack finalized.
