@@ -22,8 +22,25 @@ class ComparisonError extends Error {
   }
 }
 function readTotal(selector: string): number | null {
-  const el = element(selector);
+  let el = element(selector);
   if (!el) return null;
+  // A discount can append a "TOTAL SAVINGS" row after the actual total (Shopify).
+  // Within the configured table, prefer its explicitly labelled total, never the
+  // subtotal or savings amount. Keep other merchant selectors unchanged.
+  const table = el.closest('[role="table"], table');
+  if (table) {
+    const totalRows = Array.from(
+      table.querySelectorAll('[role="row"], tr'),
+    ).filter((row) =>
+      /^(?:order\s+|grand\s+)?total\s*:?$/i.test(
+        row.querySelector('[role="rowheader"], th')?.textContent?.trim() ?? "",
+      ),
+    );
+    if (totalRows.length === 1) {
+      const cell = totalRows[0].querySelector<HTMLElement>('[role="cell"], td');
+      if (cell) el = cell;
+    }
+  }
   // Shopify renders an animated old amount alongside the accessible current amount.
   // Read a detached copy without aria-hidden duplicates; never edit merchant-owned DOM.
   const copy = el.cloneNode(true) as HTMLElement;
@@ -31,6 +48,20 @@ function readTotal(selector: string): number | null {
     .querySelectorAll('[aria-hidden="true"], [hidden]')
     .forEach((node) => node.remove());
   return copy.textContent ? parseCartTotal(copy.textContent) : null;
+}
+// Many checkouts (Allbirds/Shopify included) move an already-applied code into a removable
+// chip once accepted, leaving the coupon <input> empty -- reading .value alone misses it.
+// The chip's own remove control commonly exposes the code in its accessible name
+// ("Remove COMEBACK10"), which is readable before we ever click it.
+function readAppliedCodeFromRemoveControl(
+  removeCouponSelector?: string,
+): string | null {
+  const removeControl = element(removeCouponSelector);
+  if (!removeControl) return null;
+  const label =
+    removeControl.getAttribute("aria-label") ?? removeControl.textContent ?? "";
+  const match = /remove\s+(.+)/i.exec(label.trim());
+  return match ? match[1].trim() : null;
 }
 function setFieldValue(field: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(
@@ -185,9 +216,39 @@ function observeIndicators(success?: string, failure?: string) {
     throw new ComparisonError("restore_failed");
   }
 
-  async function attempt(
-    code: string,
-  ): Promise<{
+  // Clears whatever discount is already active before Saverlly's own comparison starts.
+  // Unlike resetCart (which restores to an already-known baseline between our own attempts),
+  // there is no known target here -- just wait for the total to rise off its current,
+  // still-discounted reading and settle.
+  async function clearAppliedDiscount(): Promise<void> {
+    const remove = element(recipe.removeCouponSelector);
+    if (!remove) return;
+    checkActive();
+    const discounted = readTotal(recipe.cartTotalSelector);
+    remove.click();
+    const deadline = Date.now() + RESPONSE_MS;
+    let stableSince = 0;
+    let previous = discounted;
+    while (Date.now() < deadline) {
+      checkActive();
+      const total = readTotal(recipe.cartTotalSelector);
+      if (total !== previous) {
+        previous = total;
+        stableSince = Date.now();
+      }
+      const risen =
+        total !== null &&
+        (discounted === null || cents(total) > cents(discounted));
+      if (risen && Date.now() - stableSince >= STABLE_MS) {
+        currentCode = null;
+        return;
+      }
+      await sleep(POLL_MS);
+    }
+    throw new ComparisonError("restore_failed");
+  }
+
+  async function attempt(code: string): Promise<{
     outcome: "success" | "failure" | "timeout";
     total: number | null;
   }> {
@@ -305,17 +366,24 @@ function observeIndicators(success?: string, failure?: string) {
       return;
     }
     await reveal();
-    // Preserve existing shopper discounts until their removal and restoration are known.
-    if (elements(recipe.removeCouponSelector).some(isVisible))
-      throw new ComparisonError("checkout_changed");
-    baseline = readTotal(recipe.cartTotalSelector);
-    if (baseline === null) throw new ComparisonError("unconfirmed");
-    if (elements(recipe.successIndicatorSelector).some(isVisible)) {
+    // A shopper may already have a discount active -- a marketing code, a returning-customer
+    // promo, or an earlier Saverlly run whose checkout session persisted. Our own comparison
+    // should override it rather than refuse to run: identify it best-effort (so the end-of-run
+    // safety net below can restore it if none of our own codes beat it), clear it if it's a
+    // removable chip the input field can't just overwrite, then measure the true pre-discount
+    // baseline every one of our own codes competes against.
+    if (
+      elements(recipe.successIndicatorSelector).some(isVisible) ||
+      elements(recipe.removeCouponSelector).some(isVisible)
+    ) {
       originalCode =
         element<HTMLInputElement>(recipe.couponFieldSelector)?.value.trim() ||
+        readAppliedCodeFromRemoveControl(recipe.removeCouponSelector) ||
         null;
-      if (!originalCode) throw new ComparisonError("checkout_changed");
+      await clearAppliedDiscount();
     }
+    baseline = readTotal(recipe.cartTotalSelector);
+    if (baseline === null) throw new ComparisonError("unconfirmed");
     // Legacy recipes can safely try failures then stop at the first confirmed saving.
     // Never assume replacement/stacking behavior merely because a mode is missing.
     const canCompare =
