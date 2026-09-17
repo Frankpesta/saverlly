@@ -517,6 +517,39 @@ describe("largest confirmed saving", () => {
     );
   });
 
+  it("compares and reapplies the winner when Shopify appends a savings row after the total", async () => {
+    const { clicks } = checkout({ BEST30: 30, LAST10: 10 });
+    const total = document.querySelector("#cart-total")!;
+    total.outerHTML =
+      '<div role="table" aria-labelledby="MoneyLine-Heading"><div role="row"><div role="rowheader">Subtotal</div><div role="cell">$100</div></div><div role="row"><div role="rowheader">Total</div><div role="cell" id="cart-total">$100</div></div></div>';
+    window.__SAVERLLY__!.recipe.cartTotalSelector =
+      '[role="table"] [role="row"]:last-child [role="cell"]';
+    document
+      .querySelector('[data-test="apply-promo-code-button"]')!
+      .addEventListener("click", () => {
+        if (!document.querySelector("#savings-row"))
+          document
+            .querySelector('[role="table"]')!
+            .insertAdjacentHTML(
+              "beforeend",
+              '<div role="row" id="savings-row"><div role="rowheader">TOTAL SAVINGS $30</div><div role="cell"></div></div>',
+            );
+      });
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(20000);
+    expect(clicks).toEqual(["BEST30", "LAST10", "BEST30"]);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isFinal: true,
+        result: "applied",
+        code: "BEST30",
+        originalTotal: 100,
+        newTotal: 70,
+        discountAmount: 30,
+      }),
+    );
+  });
+
   it("does not claim success when the winner fails during reapplication", async () => {
     const { discounts } = checkout({ BEST30: 30, LAST10: 10 }, "remove");
     document
@@ -566,5 +599,44 @@ describe("largest confirmed saving", () => {
     expect(
       sendMessage.mock.calls.some(([m]) => m.isFinal && m.result === "applied"),
     ).toBe(false);
+  });
+
+  // Regression test for a live Allbirds checkout bug: a discount already applied at checkout
+  // start (a marketing code, a returning-customer promo, or an earlier Saverlly run whose
+  // checkout session persisted) renders as a removable chip, not text inside the coupon
+  // <input> -- the field itself reads empty. The applier must still identify and clear it
+  // (from the remove control's accessible name) and run its normal comparison against the
+  // true pre-discount price, rather than refusing to run at all.
+  it("clears a chip-applied existing discount identified only by the remove control's label, then overrides it with a better code", async () => {
+    const { clicks } = checkout({ EXISTING30: 30, LAST10: 10 }, "remove");
+    // No input value set -- unlike the field-based test above, the code only lives on the chip.
+    document
+      .querySelector("#remove")!
+      .setAttribute("aria-label", "Remove EXISTING30");
+    document.querySelector("#cart-total")!.textContent = "$70";
+    document.querySelector<HTMLElement>(".success")!.hidden = false;
+    document.querySelector<HTMLElement>("#remove")!.hidden = false;
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(20000);
+    expect(clicks[0]).toBe("REMOVE");
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isFinal: true,
+        result: "applied",
+        code: "EXISTING30",
+        originalTotal: 100,
+        newTotal: 70,
+        discountAmount: 30,
+      }),
+    );
+  });
+
+  it("falls back to overwriting the field when an existing discount has no configured remove control", async () => {
+    const { clicks } = checkout({ LAST10: 10 });
+    document.querySelector("#cart-total")!.textContent = "$90";
+    document.querySelector<HTMLElement>(".success")!.hidden = false;
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(clicks).toEqual(["LAST10"]);
   });
 });
