@@ -1,9 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { CouponSource } from '@prisma/client';
+import { saveAutomatedCoupon } from '../../coupons/automated-coupon.util';
 import { Job } from 'bullmq';
 import { AffiliateAdapterRegistryService } from '../../affiliate-adapters/affiliate-adapter-registry.service';
-import { normalizeDiscountType } from '../../coupons/discount-type.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES } from '../queue-names';
 
@@ -32,39 +31,18 @@ export class SyncAffiliateFeedProcessor extends WorkerHost {
       if (!merchant.affiliateProgram) {
         continue;
       }
-      const adapter = this.adapterRegistry.getAdapter(merchant.affiliateProgram.networkName);
-      if (!adapter) {
-        this.logger.warn(
-          `No adapter available for network "${merchant.affiliateProgram.networkName}". Skipping merchant ${merchant.id}`,
-        );
-        continue;
-      }
+      const adapter = this.adapterRegistry.requireAdapter(
+        merchant.affiliateProgram.networkName,
+      );
       const coupons = await adapter.fetchCoupons(merchant.affiliateProgram.id);
 
       for (const coupon of coupons) {
-        await this.prisma.coupon.upsert({
-          where: { merchantId_code: { merchantId: merchant.id, code: coupon.code } },
-          update: {
-            source: CouponSource.API,
-            description: coupon.description,
-            discountType: normalizeDiscountType(coupon.discountType),
-            discountValue: coupon.discountValue,
-            expiresAt: coupon.expiresAt,
-            active: true,
-          },
-          create: {
-            merchantId: merchant.id,
-            code: coupon.code,
-            source: CouponSource.API,
-            description: coupon.description,
-            discountType: normalizeDiscountType(coupon.discountType),
-            discountValue: coupon.discountValue,
-            expiresAt: coupon.expiresAt,
-          },
-        });
+        await saveAutomatedCoupon(this.prisma, merchant.id, coupon, 'API');
       }
 
-      this.logger.log(`Synced ${coupons.length} coupon(s) for merchant ${merchant.id}`);
+      this.logger.log(
+        `Synced ${coupons.length} coupon(s) for merchant ${merchant.id}`,
+      );
     }
   }
 }

@@ -20,7 +20,7 @@ export function useProcessPayout() {
       apiFetch<Payout>(`/payouts/${id}/process`, {
         method: "POST",
       }),
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["payouts"] })
     },
   })
@@ -42,5 +42,16 @@ export function useStripeOnboard() {
       apiFetch<{ url: string }>("/my/stripe/onboard", {
         method: "POST",
       }),
+  })
+}
+
+/** Reconciles a transfer already authorized by an admin. */
+export function useRecoverPayout() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<Payout>(`/payouts/${id}/recover`, { method: "POST" }),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["payouts"] })
+    },
   })
 }

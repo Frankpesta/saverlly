@@ -1,15 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsCssSelector } from '../../common/validators/is-css-selector.decorator';
 
 export class SelectorConfigDto {
-  @ApiProperty({ description: 'CSS selector matching each coupon code element on the page', example: '.coupon-code' })
+  @ApiProperty({
+    description: 'CSS selector matching each coupon code element on the page',
+    example: '.coupon-code',
+  })
   @IsString()
   @MinLength(1)
+  @IsCssSelector()
   codeSelector: string;
 
-  @ApiPropertyOptional({ description: 'CSS selector for a description near each code, if present' })
+  @ApiPropertyOptional({
+    description: 'CSS selector for a description near each code, if present',
+  })
   @IsOptional()
   @IsString()
+  @IsCssSelector()
   descriptionSelector?: string;
 
   @ApiPropertyOptional({
@@ -20,6 +28,7 @@ export class SelectorConfigDto {
   })
   @IsOptional()
   @IsString()
+  @IsCssSelector()
   revealSelector?: string;
 
   @ApiPropertyOptional({
@@ -34,6 +43,7 @@ export class SelectorConfigDto {
   })
   @IsOptional()
   @IsString()
+  @IsCssSelector()
   rowSelector?: string;
 
   @ApiPropertyOptional({
@@ -44,5 +54,6 @@ export class SelectorConfigDto {
   })
   @IsOptional()
   @IsString()
+  @IsCssSelector()
   merchantSelector?: string;
 }

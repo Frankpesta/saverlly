@@ -13,10 +13,13 @@ export class StripeService {
   readonly client: Stripe;
 
   constructor(private readonly configService: ConfigService) {
-    this.client = new Stripe(this.configService.get('STRIPE_SECRET_KEY') || PLACEHOLDER_SECRET_KEY, {
-      timeout: 10_000,
-      maxNetworkRetries: 2,
-    });
+    this.client = new Stripe(
+      this.configService.get('STRIPE_SECRET_KEY') || PLACEHOLDER_SECRET_KEY,
+      {
+        timeout: 10_000,
+        maxNetworkRetries: 2,
+      },
+    );
   }
 
   /**
@@ -46,15 +49,39 @@ export class StripeService {
    * after a transient failure, or the Stripe SDK's own automatic network-error retry),
    * Stripe recognizes it as the same logical transfer instead of creating a duplicate.
    */
-  createTransfer(destinationAccountId: string, amount: Prisma.Decimal, idempotencyKey: string): Promise<Stripe.Transfer> {
+  createTransfer(
+    destinationAccountId: string,
+    amount: Prisma.Decimal,
+    idempotencyKey: string,
+  ): Promise<Stripe.Transfer> {
     return this.client.transfers.create(
       {
         amount: toStripeCents(amount),
         currency: 'usd',
         destination: destinationAccountId,
+        metadata: { payoutId: idempotencyKey },
       },
       { idempotencyKey },
     );
+  }
+
+  retrieveTransfer(id: string): Promise<Stripe.Transfer> {
+    return this.client.transfers.retrieve(id);
+  }
+
+  async findTransferForPayout(
+    payoutId: string,
+    destination: string,
+    startedAt: Date,
+  ): Promise<Stripe.Transfer | null> {
+    for await (const transfer of this.client.transfers.list({
+      destination,
+      created: { gte: Math.floor(startedAt.getTime() / 1000) - 60 },
+      limit: 100,
+    })) {
+      if (transfer.metadata?.payoutId === payoutId) return transfer;
+    }
+    return null;
   }
 
   constructWebhookEvent(payload: Buffer, signature: string): Stripe.Event {

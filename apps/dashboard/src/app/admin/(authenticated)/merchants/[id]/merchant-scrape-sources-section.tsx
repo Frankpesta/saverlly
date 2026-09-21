@@ -8,12 +8,7 @@ import { toast } from "sonner"
 import { PencilIcon, PlayIcon, PlusIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -96,14 +91,31 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
                   {source.url}
                 </TableCell>
                 <TableCell>
-                  {source.lastRunAt ? relativeTime(source.lastRunAt) : "Never"}{" "}
+                  {source.lastRunAt ? relativeTime(source.lastRunAt) : "Never"}
+                  {source.lastError && (
+                    <p
+                      className="max-w-xs whitespace-normal text-xs text-destructive"
+                      title={source.lastError}
+                    >
+                      Failed: {source.lastError}
+                    </p>
+                  )}
+                  {source.lastSucceededAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Last success {relativeTime(source.lastSucceededAt)} ·{" "}
+                      {source.lastCodeCount ?? 0} codes in latest run
+                    </p>
+                  )}{" "}
                   {!source.active && <Badge variant="secondary">Inactive</Badge>}
                 </TableCell>
                 <TableCell>
                   <TableRowActions>
                     <Link
                       href={`/admin/scrape-sources/${source.id}`}
-                      className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+                      className={cn(
+                        buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                        "text-muted-foreground hover:text-foreground",
+                      )}
                       aria-label={`Edit ${source.url}`}
                     >
                       <PencilIcon className="size-3.5" />

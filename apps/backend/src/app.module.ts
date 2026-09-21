@@ -1,3 +1,4 @@
+import { ReviewersModule } from './reviewers/reviewers.module';
 import * as path from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
@@ -78,6 +79,7 @@ import { ReleasesModule } from './releases/releases.module';
     EmailModule,
     PlatformSettingsModule,
     ReleasesModule,
+    ReviewersModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

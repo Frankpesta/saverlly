@@ -23,12 +23,26 @@ const KEYS = {
 
 export async function getDeviceToken(): Promise<string | null> {
   const result = await chrome.storage.local.get(KEYS.deviceToken);
-  return (result[KEYS.deviceToken] as string | undefined) ?? null;
+  return (result[KEYS.deviceToken] as string | undefined) ?? (await getReviewerAccess())?.token ?? null;
+}
+
+export interface ReviewerAccess { token: string; expiresAt: string; name: string }
+
+export async function getReviewerAccess(): Promise<ReviewerAccess | null> {
+  const result = await chrome.storage.local.get(["reviewerAccess", KEYS.deviceToken]);
+  if (result[KEYS.deviceToken]) return null;
+  const access = result.reviewerAccess as ReviewerAccess | undefined;
+  return access && typeof access.token === "string" && typeof access.expiresAt === "string" ? access : null;
 }
 
 export async function setDeviceToken(token: string | null): Promise<void> {
   if (token) {
+    const previous = await getReviewerAccess();
     await chrome.storage.local.set({ [KEYS.deviceToken]: token });
+    if (previous) {
+      await chrome.storage.local.remove(["reviewerAccess", "reviewerActivation", "merchantCache", "lastStatusOkAt", "attributionLog"]);
+      await chrome.storage.session.clear();
+    }
   } else {
     await chrome.storage.local.remove(KEYS.deviceToken);
   }

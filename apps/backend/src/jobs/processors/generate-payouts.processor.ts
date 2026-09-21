@@ -13,7 +13,13 @@ export class GeneratePayoutsProcessor extends WorkerHost {
   }
 
   async process(_job: Job): Promise<void> {
+    if (_job.name === 'recover-processing-payouts') {
+      await this.payoutsService.recoverProcessingPayouts();
+      return;
+    }
     const result = await this.payoutsService.generatePayouts();
-    this.logger.log(`Payout aggregation: ${result.payoutsCreated} payout(s) created`);
+    this.logger.log(
+      `Payout aggregation: ${result.payoutsCreated} payout(s) created`,
+    );
   }
 }

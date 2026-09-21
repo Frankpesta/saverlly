@@ -3,6 +3,7 @@ import {
   StoreIcon,
   MapPinIcon,
   MonitorIcon,
+  UserRoundCheckIcon,
   ShoppingBagIcon,
   TagIcon,
   DatabaseIcon,
@@ -22,6 +23,7 @@ const navMain = [
   { title: "Kiosks", url: "/admin/kiosks", icon: <StoreIcon /> },
   { title: "Locations", url: "/admin/locations", icon: <MapPinIcon /> },
   { title: "Devices", url: "/admin/devices", icon: <MonitorIcon /> },
+  { title: "Reviewers", url: "/admin/reviewers", icon: <UserRoundCheckIcon /> },
   // Promotions replaced admin-side Announcements outright, announcements are now a kiosk-owner
   // feature in the portal only. See apps/dashboard/src/app/portal/(authenticated)/announcements.
   { title: "Merchants", url: "/admin/merchants", icon: <ShoppingBagIcon /> },

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Saverlly",
-  "version": "1.0.9",
+  "version": "1.0.11",
   "description": "Finds and applies coupon codes at checkout. Uses affiliate links and may earn a commission on completed purchases.",
   "icons": {
     "16": "icons/icon16.png",

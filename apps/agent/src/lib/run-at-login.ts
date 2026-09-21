@@ -6,6 +6,14 @@ export interface RunAtLoginOptions {
   taskName?: string;
 }
 
+/** Start the registered SYSTEM task immediately after installation or repair. */
+export function startRunAtLoginTask(options: RunAtLoginOptions = {}): void {
+  execFileSync('schtasks', ['/run', '/tn', options.taskName ?? RUN_AT_LOGIN_TASK_NAME], {
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+}
+
 /**
  * Registers (or re-registers, /f overwrites) a Windows Scheduled Task that launches the
  * agent exe at every user logon, running as SYSTEM so it always has enough privilege to
@@ -16,7 +24,20 @@ export function ensureRunAtLoginTask(exePath: string, options: RunAtLoginOptions
   const taskName = options.taskName ?? RUN_AT_LOGIN_TASK_NAME;
   execFileSync(
     'schtasks',
-    ['/create', '/tn', taskName, '/tr', `"${exePath}"`, '/sc', 'onlogon', '/rl', 'highest', '/ru', 'SYSTEM', '/f'],
+    [
+      '/create',
+      '/tn',
+      taskName,
+      '/tr',
+      `"${exePath}"`,
+      '/sc',
+      'onlogon',
+      '/rl',
+      'highest',
+      '/ru',
+      'SYSTEM',
+      '/f',
+    ],
     { stdio: 'ignore' },
   );
 }

@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { CouponSource } from '@prisma/client';
+import { saveAutomatedCoupon } from '../../coupons/automated-coupon.util';
 import * as Sentry from '@sentry/node';
 import { Job } from 'bullmq';
 import { Page, Response } from 'playwright';
@@ -204,12 +204,19 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       // resolves the merchant per row instead of from a fixed merchantId. Anything else is a
       // genuinely unresolvable config -- skip cleanly rather than guess which merchant a code
       // belongs to.
-      this.logger.warn(
-        `Skipping scrape source ${source.id}: no merchantId set and not rowSelector-configured`,
-      );
-      return;
+      const message =
+        'Source has no merchant and no multi-merchant selector configuration';
+      await this.prisma.scrapeSource.updateMany({
+        where: { id: source.id },
+        data: { lastRunAt: new Date(), lastError: message, lastCodeCount: 0 },
+      });
+      throw new Error(message);
     }
     let cleanup: () => Promise<void> = async () => {};
+    let codeCount = 0;
+    let succeeded = false;
+    let lastError: string | null = null;
+    const extractionFailures: string[] = [];
     try {
       const launched = await launchDetachedChromium();
       cleanup = launched.cleanup;
@@ -255,6 +262,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
                 );
                 popupCodes.push(...found);
               } catch (error) {
+                extractionFailures.push('Popup extraction failed');
                 this.logger.warn(
                   `Popup read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
                 );
@@ -323,17 +331,14 @@ export class ScrapeCouponsProcessor extends WorkerHost {
           (message) => this.logger.log(`Scrape source=${source.id} ${message}`),
         );
         for (const code of result.codes) {
-          await this.prisma.coupon.upsert({
-            where: {
-              merchantId_code: { merchantId: source.merchantId!, code },
-            },
-            update: { source: CouponSource.SCRAPE, active: true },
-            create: {
-              merchantId: source.merchantId!,
-              code,
-              source: CouponSource.SCRAPE,
-            },
-          });
+          await saveAutomatedCoupon(
+            this.prisma,
+            source.merchantId!,
+            { code },
+            'SCRAPE',
+            source.intervalMinutes,
+          );
+          codeCount++;
         }
         if (result.failures.length) {
           throw new Error(
@@ -343,6 +348,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
         this.logger.log(
           `Scraped ${result.codes.length} code(s) from source ${source.id}; elapsedMs=${Date.now() - started}`,
         );
+        succeeded = true;
         return;
       }
 
@@ -366,7 +372,11 @@ export class ScrapeCouponsProcessor extends WorkerHost {
         // not a thrown error.
         await page
           .waitForSelector(config.rowSelector as string, { timeout: 10_000 })
-          .catch(() => {});
+          .catch(() => {
+            extractionFailures.push(
+              'No feed rows appeared; verify selectors or source availability',
+            );
+          });
         const rows = await page.$$(config.rowSelector as string);
         for (const row of rows) {
           const rawCode = await row
@@ -378,6 +388,9 @@ export class ScrapeCouponsProcessor extends WorkerHost {
             )
             .catch(() => null);
           if (!rawCode || !rawMerchantName || !looksLikeCouponCode(rawCode)) {
+            extractionFailures.push(
+              'Feed row is missing a valid code or merchant selector match',
+            );
             continue;
           }
 
@@ -394,17 +407,14 @@ export class ScrapeCouponsProcessor extends WorkerHost {
           }
 
           matchedCount++;
-          await this.prisma.coupon.upsert({
-            where: {
-              merchantId_code: { merchantId: merchant.id, code: rawCode },
-            },
-            update: { source: CouponSource.SCRAPE, active: true },
-            create: {
-              merchantId: merchant.id,
-              code: rawCode,
-              source: CouponSource.SCRAPE,
-            },
-          });
+          await saveAutomatedCoupon(
+            this.prisma,
+            merchant.id,
+            { code: rawCode },
+            'SCRAPE',
+            source.intervalMinutes,
+          );
+          codeCount++;
         }
 
         this.logger.log(
@@ -416,6 +426,10 @@ export class ScrapeCouponsProcessor extends WorkerHost {
             (await page.$$(config.revealSelector)).length,
             MAX_REVEALS_PER_RUN,
           );
+          if (!revealCount)
+            extractionFailures.push(
+              'Configured reveal selector matched no buttons',
+            );
           for (let i = 0; i < revealCount; i++) {
             try {
               // Re-queried fresh on every iteration rather than reusing a single upfront
@@ -431,6 +445,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
               await button.click({ timeout: 5_000 });
               await page.waitForTimeout(REVEAL_CLICK_DELAY_MS);
             } catch (error) {
+              extractionFailures.push('Reveal click failed');
               this.logger.warn(
                 `Reveal click failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
               );
@@ -455,6 +470,7 @@ export class ScrapeCouponsProcessor extends WorkerHost {
               .filter((text): text is string => !!text),
           )
           .catch((error) => {
+            extractionFailures.push('Main page extraction failed');
             this.logger.warn(
               `Main page read failed for source ${source.id}: ${error instanceof Error ? error.message : error}`,
             );
@@ -466,27 +482,31 @@ export class ScrapeCouponsProcessor extends WorkerHost {
         );
 
         for (const code of codes) {
-          await this.prisma.coupon.upsert({
-            where: {
-              merchantId_code: {
-                merchantId: source.merchantId as string,
-                code,
-              },
-            },
-            update: { source: CouponSource.SCRAPE, active: true },
-            create: {
-              merchantId: source.merchantId as string,
-              code,
-              source: CouponSource.SCRAPE,
-            },
-          });
+          await saveAutomatedCoupon(
+            this.prisma,
+            source.merchantId!,
+            { code },
+            'SCRAPE',
+            source.intervalMinutes,
+          );
+          codeCount++;
         }
 
         this.logger.log(
           `Scraped ${codes.length} code(s) from source ${source.id}`,
         );
       }
+      if (!codeCount)
+        extractionFailures.push(
+          'No coupon codes extracted; verify selectors or source availability',
+        );
+      if (extractionFailures.length)
+        throw new Error([...new Set(extractionFailures)].join('; '));
+      succeeded = true;
     } catch (error) {
+      lastError = (
+        error instanceof Error ? error.message : String(error)
+      ).slice(0, 2000);
       this.logger.error(
         `Scrape source=${source.id} phase=failed elapsedMs=${Date.now() - started}: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -495,9 +515,14 @@ export class ScrapeCouponsProcessor extends WorkerHost {
       await cleanup().catch((error) =>
         this.logger.warn(`Browser cleanup failed: ${String(error)}`),
       );
-      await this.prisma.scrapeSource.update({
+      await this.prisma.scrapeSource.updateMany({
         where: { id: source.id },
-        data: { lastRunAt: new Date() },
+        data: {
+          lastRunAt: new Date(),
+          lastError,
+          lastCodeCount: codeCount,
+          ...(succeeded ? { lastSucceededAt: new Date() } : {}),
+        },
       });
     }
   }

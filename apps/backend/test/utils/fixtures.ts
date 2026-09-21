@@ -162,7 +162,7 @@ export async function seedAffiliateProgram(
 ) {
   return testPrisma.affiliateProgram.create({
     data: {
-      networkName: overrides.networkName ?? 'TestNetwork',
+      networkName: overrides.networkName ?? 'Mock',
       hasCouponApi: overrides.hasCouponApi ?? false,
     },
   });

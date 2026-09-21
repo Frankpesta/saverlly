@@ -1,9 +1,7 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-import {
-  Combobox,
-} from "@/components/ui/combobox"
+import { Combobox } from "@/components/ui/combobox"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
 import type { AttributionMethod } from "@/lib/api/types"
 
@@ -12,6 +10,7 @@ export type AttributionFieldsValue = {
   affiliateTrackingUrl?: string
   affiliateUrlParamKey?: string
   affiliateUrlParamValue?: string
+  affiliateSubIdParamKey?: string
 }
 
 const METHOD_LABEL: Record<AttributionMethod, string> = {
@@ -38,8 +37,10 @@ export function AttributionFields({
   idPrefix: string
   errors?: AttributionFieldsErrors
 }) {
-  const needsTrackingUrl = value.attributionMethod === "COOKIE" || value.attributionMethod === "BOTH"
-  const needsUrlParam = value.attributionMethod === "URL_PARAM" || value.attributionMethod === "BOTH"
+  const needsTrackingUrl =
+    value.attributionMethod === "COOKIE" || value.attributionMethod === "BOTH"
+  const needsUrlParam =
+    value.attributionMethod === "URL_PARAM" || value.attributionMethod === "BOTH"
 
   return (
     <div className="flex flex-col gap-4">
@@ -73,9 +74,25 @@ export function AttributionFields({
         </FormField>
       )}
 
+      <FormField
+        label="Commission sub-ID parameter"
+        htmlFor={idPrefix + "-sub-id"}
+        hint="Enter the pass-through parameter supplied by your approved affiliate network (for example SubId1 or SID)."
+        error={errors?.affiliateSubIdParamKey}
+      >
+        <Input
+          id={idPrefix + "-sub-id"}
+          value={value.affiliateSubIdParamKey ?? ""}
+          onChange={(e) => onChange({ ...value, affiliateSubIdParamKey: e.target.value })}
+        />
+      </FormField>
       {needsUrlParam && (
         <FormGrid>
-          <FormField label="URL param key" htmlFor={`${idPrefix}-param-key`} error={errors?.affiliateUrlParamKey}>
+          <FormField
+            label="URL param key"
+            htmlFor={`${idPrefix}-param-key`}
+            error={errors?.affiliateUrlParamKey}
+          >
             <Input
               id={`${idPrefix}-param-key`}
               placeholder="irclickid"

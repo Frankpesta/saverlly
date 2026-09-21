@@ -15,6 +15,8 @@ const addListenerMocks = {
 const chromeMock = {
   storage: { local: { get: jest.fn().mockResolvedValue({}) } },
   runtime: {
+    id: "test-extension",
+    getURL: (path: string) => "chrome-extension://test-extension/" + path,
     onInstalled: { addListener: addListenerMocks.onInstalled },
     onStartup: { addListener: addListenerMocks.onStartup },
     onMessage: { addListener: addListenerMocks.onMessage },
@@ -57,6 +59,8 @@ jest.mock("../lib/event-queue");
 jest.mock("../lib/attribution");
 jest.mock("../lib/storage");
 jest.mock("../lib/native-messaging");
+jest.mock("../lib/reviewer-access");
+import { activateReviewer } from "../lib/reviewer-access";
 
 import {
   fetchActivePromotions,
@@ -158,6 +162,22 @@ function sendMessage(
     registeredOnMessage(message, sender, resolve);
   });
 }
+
+it("does not let a content script activate reviewer access", async () => {
+  jest.mocked(activateReviewer).mockClear();
+  const response = await sendMessage({type:"ACTIVATE_REVIEWER",code:"REV-test"}, {
+    id: "test-extension", tab: {id: 900} as chrome.tabs.Tab, url: "https://shop.example.com/checkout",
+  });
+  expect(response).toEqual({error:"Open Saverlly to enter your access code."});
+  expect(activateReviewer).not.toHaveBeenCalled();
+});
+
+it("accepts activation messages only from the popup and returns useful failures", async () => {
+  jest.mocked(activateReviewer).mockRejectedValueOnce(new Error("This code has expired"));
+  expect(await sendMessage({type:"ACTIVATE_REVIEWER",code:"REV-test"}, {
+    id:"test-extension",url:"chrome-extension://test-extension/popup/popup.html",
+  })).toEqual({error:"This code has expired"});
+});
 
 describe("top-frame navigation handling", () => {
   beforeEach(() => {
@@ -617,6 +637,45 @@ it("preserves a running checkout through same-path URL cleanup and ignores a sta
     { tab: { id: 901 } } as chrome.runtime.MessageSender,
   );
   expect(await sendMessage({ type: "GET_TAB_STATE" })).toEqual(state);
+});
+
+it("reports only incremental savings while preserving the displayed full discount", async () => {
+  mockGetPersistedTabState.mockResolvedValue({
+    merchantId: "m1",
+    merchantName: "Store",
+    coupons: merchant.coupons,
+    runId: "retry",
+    suppressedStepdown: false,
+    applyProgress: null,
+    applyResult: null,
+  });
+  mockReportCouponTestEvent.mockResolvedValue(undefined);
+  chromeMock.tabs.query.mockResolvedValue([{ id: 903 }]);
+  await sendMessage(
+    {
+      type: "COUPON_APPLY_RESULT",
+      merchantId: "m1",
+      couponId: "c1",
+      code: "SAVE10",
+      result: "applied",
+      isFinal: true,
+      runId: "retry",
+      discountAmount: 10,
+      incrementalSavings: 0,
+    },
+    { tab: { id: 903 } } as chrome.runtime.MessageSender,
+  );
+  expect(mockReportCouponTestEvent).toHaveBeenCalledWith(
+    expect.objectContaining({ result: "applied", discountAmount: 0 }),
+  );
+  expect(await sendMessage({ type: "GET_TAB_STATE" })).toEqual(
+    expect.objectContaining({
+      applyResult: expect.objectContaining({
+        discountAmount: 10,
+        incrementalSavings: 0,
+      }),
+    }),
+  );
 });
 
 it("does not let late progress erase a final result from the same run", async () => {

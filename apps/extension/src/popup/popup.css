@@ -135,6 +135,28 @@ a:focus-visible {
   height: 47px;
   transform: translate(-50%, -50%);
 }
+.popup__reviewer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  text-align: left;
+}
+.popup__reviewer-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d5d9dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #16202a;
+  font: inherit;
+  font-size: 12px;
+}
+.popup__reviewer-input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
 .popup__button {
   display: flex;
   align-items: center;

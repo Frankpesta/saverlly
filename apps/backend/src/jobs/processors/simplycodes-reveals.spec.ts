@@ -141,18 +141,28 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
       scrapeSource: {
         findUnique: jest.fn().mockResolvedValue({
           id: 'source',
+          intervalMinutes: 1440,
           active: true,
           merchantId: 'merchant',
           url: sourceUrl,
           selectorConfig: config,
         }),
-        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       coupon: {
-        upsert: jest.fn().mockImplementation(async (args) => {
-          saved.add(args.create.code);
+        findUnique: jest
+          .fn()
+          .mockImplementation(async (args) =>
+            saved.has(args.where.merchantId_code.code)
+              ? { id: args.where.merchantId_code.code, source: 'SCRAPE' }
+              : null,
+          ),
+        create: jest.fn().mockImplementation(async (args) => {
+          saved.add(args.data.code);
         }),
+        update: jest.fn().mockResolvedValue({}),
       },
+      $transaction: jest.fn().mockImplementation(async (work) => work(prisma)),
     };
     jest.mocked(launchDetachedChromium).mockResolvedValue({
       browser,
@@ -172,13 +182,22 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
       await processor.process(job);
       await processor.process(job);
       expect([...saved].sort()).toEqual(['SAVE10', 'SAVE20']);
-      expect(prisma.coupon.upsert).toHaveBeenCalledTimes(4);
-      expect(prisma.scrapeSource.update).toHaveBeenCalledTimes(2);
+      expect(prisma.coupon.create).toHaveBeenCalledTimes(2);
+      expect(prisma.coupon.update).toHaveBeenCalledTimes(2);
+      expect(prisma.scrapeSource.updateMany).toHaveBeenCalledTimes(2);
       mode = 'partial';
       await expect(processor.process(job)).rejects.toThrow(
         'SimplyCodes scrape incomplete: saved 1',
       );
-      expect(prisma.coupon.upsert).toHaveBeenCalledTimes(5);
+      expect(prisma.coupon.create).toHaveBeenCalledTimes(2);
+      expect(prisma.scrapeSource.updateMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            lastCodeCount: 1,
+            lastError: expect.stringContaining('incomplete'),
+          }),
+        }),
+      );
       expect(browser.contexts()).toHaveLength(0);
     } finally {
       spy.mockRestore();

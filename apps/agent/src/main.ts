@@ -7,7 +7,7 @@ import { isUninstallOnce, parseInstallerSetupArgs } from './lib/installer-mode';
 import { isNativeMessagingInvocation, respondWithDeviceToken } from './lib/native-host-mode';
 import { nativeMessagingHostExePath } from './lib/native-messaging-host';
 import { ensureRegistered } from './lib/registration';
-import { ensureRunAtLoginTask } from './lib/run-at-login';
+import { ensureRunAtLoginTask, startRunAtLoginTask } from './lib/run-at-login';
 import { runStatusSync } from './lib/status-sync';
 import { loadDeviceToken } from './lib/token-storage';
 
@@ -34,7 +34,11 @@ async function runSyncCycle(
 ): Promise<void> {
   const active = await runStatusSync(token, policyOptions);
   if (active) {
-    await pollAndDisplayAnnouncements(token);
+    try {
+      await pollAndDisplayAnnouncements(token);
+    } catch (err) {
+      console.error('[saverlly-agent] announcement poll failed; retrying next cycle', err);
+    }
   }
 }
 
@@ -67,8 +71,16 @@ async function performInitialSetup(): Promise<AgentStartupState> {
 
   // The native-messaging manifest must point at the sibling non-elevated host exe, not this
   // (requireAdministrator) one. See native-messaging-host.ts's nativeMessagingHostExePath doc.
-  const policyOptions = { extensionId, updateUrl, exePath: nativeMessagingHostExePath(exePath) };
-  await runSyncCycle(token, policyOptions);
+  const policyOptions = {
+    extensionId,
+    updateUrl,
+    exePath: nativeMessagingHostExePath(exePath),
+  };
+  try {
+    await runSyncCycle(token, policyOptions);
+  } catch (err) {
+    console.error('[saverlly-agent] initial sync failed; retrying next cycle', err);
+  }
 
   return { token, policyOptions };
 }
@@ -79,10 +91,17 @@ async function runBackgroundAgent(): Promise<void> {
   // Cadences happen to match today, but are configured independently (config.ts). Running
   // one combined interval at their minimum keeps both promises without double-scheduling.
   const intervalMs = Math.min(STATUS_SYNC_INTERVAL_MS, ANNOUNCEMENT_POLL_INTERVAL_MS);
+  let syncing = false;
   setInterval(() => {
-    runSyncCycle(token, policyOptions).catch((err) => {
-      console.error('[saverlly-agent] sync cycle failed', err);
-    });
+    if (syncing) return;
+    syncing = true;
+    runSyncCycle(token, policyOptions)
+      .catch((err) => {
+        console.error('[saverlly-agent] sync cycle failed', err);
+      })
+      .finally(() => {
+        syncing = false;
+      });
   }, intervalMs);
 }
 
@@ -93,6 +112,7 @@ async function runBackgroundAgent(): Promise<void> {
 // background agent, which the scheduled task this same setup registers will handle from here.
 async function runSetupOnce(): Promise<void> {
   await performInitialSetup();
+  startRunAtLoginTask();
   console.log('[saverlly-agent] setup complete');
 }
 

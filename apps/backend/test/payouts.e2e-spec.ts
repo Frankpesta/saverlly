@@ -38,10 +38,15 @@ describe('Payouts API (e2e)', () => {
     await resetDatabase();
   });
 
-  async function seedKioskWithPayout(overrides: { stripeAccountId?: string; payoutStatus?: PayoutStatus } = {}) {
+  async function seedKioskWithPayout(
+    overrides: { stripeAccountId?: string; payoutStatus?: PayoutStatus } = {},
+  ) {
     const kiosk = await seedKiosk({ revenueSharePct: 30 });
     if (overrides.stripeAccountId) {
-      await testPrisma.kiosk.update({ where: { id: kiosk.id }, data: { stripeAccountId: overrides.stripeAccountId } });
+      await testPrisma.kiosk.update({
+        where: { id: kiosk.id },
+        data: { stripeAccountId: overrides.stripeAccountId },
+      });
     }
     const payout = await testPrisma.payout.create({
       data: {
@@ -56,9 +61,20 @@ describe('Payouts API (e2e)', () => {
   }
 
   async function seedUsers(kioskAId: string, kioskBId: string) {
-    const admin = await seedUser({ email: 'admin@payouts-e2e.test', role: UserRole.ADMIN });
-    const ownerA = await seedUser({ email: 'ownerA@payouts-e2e.test', role: UserRole.KIOSK_OWNER, kioskId: kioskAId });
-    const ownerB = await seedUser({ email: 'ownerB@payouts-e2e.test', role: UserRole.KIOSK_OWNER, kioskId: kioskBId });
+    const admin = await seedUser({
+      email: 'admin@payouts-e2e.test',
+      role: UserRole.ADMIN,
+    });
+    const ownerA = await seedUser({
+      email: 'ownerA@payouts-e2e.test',
+      role: UserRole.KIOSK_OWNER,
+      kioskId: kioskAId,
+    });
+    const ownerB = await seedUser({
+      email: 'ownerB@payouts-e2e.test',
+      role: UserRole.KIOSK_OWNER,
+      kioskId: kioskBId,
+    });
     return {
       adminToken: await loginAs(app, admin.email),
       ownerAToken: await loginAs(app, ownerA.email),
@@ -67,7 +83,9 @@ describe('Payouts API (e2e)', () => {
   }
 
   it('admin lists payouts with kiosk Stripe connection status inlined', async () => {
-    const { kiosk, payout } = await seedKioskWithPayout({ stripeAccountId: 'acct_test_1' });
+    const { kiosk, payout } = await seedKioskWithPayout({
+      stripeAccountId: 'acct_test_1',
+    });
     const { adminToken } = await seedUsers(kiosk.id, kiosk.id);
 
     const res = await request(app.getHttpServer())
@@ -109,7 +127,10 @@ describe('Payouts API (e2e)', () => {
   });
 
   it('400s processing an already-processing payout', async () => {
-    const { kiosk, payout } = await seedKioskWithPayout({ stripeAccountId: 'acct_test_2', payoutStatus: PayoutStatus.PROCESSING });
+    const { kiosk, payout } = await seedKioskWithPayout({
+      stripeAccountId: 'acct_test_2',
+      payoutStatus: PayoutStatus.PROCESSING,
+    });
     const { adminToken } = await seedUsers(kiosk.id, kiosk.id);
 
     await request(app.getHttpServer())
@@ -132,7 +153,10 @@ describe('Payouts API (e2e)', () => {
     const { kiosk, payout } = await seedKioskWithPayout();
     const { ownerAToken } = await seedUsers(kiosk.id, kiosk.id);
 
-    await request(app.getHttpServer()).get('/payouts').set('Authorization', `Bearer ${ownerAToken}`).expect(403);
+    await request(app.getHttpServer())
+      .get('/payouts')
+      .set('Authorization', `Bearer ${ownerAToken}`)
+      .expect(403);
     await request(app.getHttpServer())
       .post(`/payouts/${payout.id}/process`)
       .set('Authorization', `Bearer ${ownerAToken}`)
@@ -143,7 +167,7 @@ describe('Payouts API (e2e)', () => {
     await request(app.getHttpServer()).get('/payouts').expect(401);
   });
 
-  it('kiosk-owner sees only their own kiosk\'s payouts, never another kiosk\'s', async () => {
+  it("kiosk-owner sees only their own kiosk's payouts, never another kiosk's", async () => {
     const { kiosk: kioskA } = await seedKioskWithPayout();
     const kioskB = await seedKiosk();
     const { ownerAToken, ownerBToken } = await seedUsers(kioskA.id, kioskB.id);
@@ -169,7 +193,10 @@ describe('Payouts API (e2e)', () => {
     const kiosk = await seedKiosk();
     const { adminToken } = await seedUsers(kiosk.id, kiosk.id);
 
-    await request(app.getHttpServer()).get('/my/payouts').set('Authorization', `Bearer ${adminToken}`).expect(403);
+    await request(app.getHttpServer())
+      .get('/my/payouts')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(403);
     await request(app.getHttpServer())
       .post('/my/stripe/onboard')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -188,7 +215,10 @@ describe('Payouts API (e2e)', () => {
     const location = await seedLocation(kiosk.id);
     const device = await seedDevice(location.id);
     const merchant = await seedMerchant();
-    await seedCommissionEvent(device.id, merchant.id, { status: CommissionStatus.CONFIRMED, kioskShareAmount: 8 });
+    await seedCommissionEvent(device.id, merchant.id, {
+      status: CommissionStatus.CONFIRMED,
+      kioskShareAmount: 8,
+    });
     const { adminToken } = await seedUsers(kiosk.id, kiosk.id);
 
     await app.get(PayoutsService).generatePayouts();
@@ -242,7 +272,10 @@ describe('PayoutsService.processPayout with a mocked Stripe client (e2e, real DB
 
   async function seedPendingPayout(overrides: { totalAmount?: number } = {}) {
     const kiosk = await seedKiosk({ revenueSharePct: 30 });
-    await testPrisma.kiosk.update({ where: { id: kiosk.id }, data: { stripeAccountId: 'acct_mock_stripe' } });
+    await testPrisma.kiosk.update({
+      where: { id: kiosk.id },
+      data: { stripeAccountId: 'acct_mock_stripe' },
+    });
     const payout = await testPrisma.payout.create({
       data: {
         kioskId: kiosk.id,
@@ -256,44 +289,75 @@ describe('PayoutsService.processPayout with a mocked Stripe client (e2e, real DB
   }
 
   it('creates the transfer with the destination account + amount + payoutId as the idempotency key, then sets processing and stripeTransferId', async () => {
-    mockCreateTransfer.mockResolvedValue({ id: 'tr_mock_123' });
+    mockCreateTransfer.mockResolvedValue({
+      id: 'tr_mock_123',
+      amount: 1250,
+      currency: 'usd',
+      destination: 'acct_mock_stripe',
+      reversed: false,
+      amount_reversed: 0,
+    });
     const { payout } = await seedPendingPayout({ totalAmount: 12.5 });
 
     const result = await app.get(PayoutsService).processPayout(payout.id);
 
     expect(mockCreateTransfer).toHaveBeenCalledTimes(1);
-    const [destinationArg, amountArg, idempotencyKeyArg] = mockCreateTransfer.mock.calls[0];
+    const [destinationArg, amountArg, idempotencyKeyArg] =
+      mockCreateTransfer.mock.calls[0];
     expect(destinationArg).toBe('acct_mock_stripe');
     expect(amountArg.toNumber()).toBe(12.5);
     expect(idempotencyKeyArg).toBe(payout.id);
 
-    expect(result.status).toBe(PayoutStatus.PROCESSING);
+    expect(result.status).toBe(PayoutStatus.PAID);
     expect(result.stripeTransferId).toBe('tr_mock_123');
 
-    const stored = await testPrisma.payout.findUniqueOrThrow({ where: { id: payout.id } });
-    expect(stored.status).toBe(PayoutStatus.PROCESSING);
+    const stored = await testPrisma.payout.findUniqueOrThrow({
+      where: { id: payout.id },
+    });
+    expect(stored.status).toBe(PayoutStatus.PAID);
     expect(stored.stripeTransferId).toBe('tr_mock_123');
   });
 
-  it('rolls the payout back to pending (no stripeTransferId) when the Stripe call fails', async () => {
+  it('retains the processing claim when the Stripe outcome is uncertain', async () => {
     mockCreateTransfer.mockRejectedValue(new Error('stripe unavailable'));
     const { payout } = await seedPendingPayout();
 
-    await expect(app.get(PayoutsService).processPayout(payout.id)).rejects.toThrow('stripe unavailable');
+    await expect(
+      app.get(PayoutsService).processPayout(payout.id),
+    ).rejects.toThrow('stripe unavailable');
 
-    const stored = await testPrisma.payout.findUniqueOrThrow({ where: { id: payout.id } });
-    expect(stored.status).toBe(PayoutStatus.PENDING);
+    const stored = await testPrisma.payout.findUniqueOrThrow({
+      where: { id: payout.id },
+    });
+    expect(stored.status).toBe(PayoutStatus.PROCESSING);
     expect(stored.stripeTransferId).toBeNull();
   });
 
   it('rejects a second concurrent claim on the same pending payout — only one Stripe call is ever made', async () => {
     mockCreateTransfer.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve({ id: 'tr_mock_race' }), 50)),
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                id: 'tr_mock_race',
+                amount: 1250,
+                currency: 'usd',
+                destination: 'acct_mock_stripe',
+                reversed: false,
+                amount_reversed: 0,
+              }),
+            50,
+          ),
+        ),
     );
     const { payout } = await seedPendingPayout();
     const service = app.get(PayoutsService);
 
-    const results = await Promise.allSettled([service.processPayout(payout.id), service.processPayout(payout.id)]);
+    const results = await Promise.allSettled([
+      service.processPayout(payout.id),
+      service.processPayout(payout.id),
+    ]);
 
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);

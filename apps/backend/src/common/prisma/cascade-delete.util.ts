@@ -1,19 +1,20 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { ConflictException } from '@nestjs/common';
 
 type Tx = Prisma.TransactionClient | PrismaClient;
 
-/**
- * Deletes a set of devices and everything that hangs off them (device tokens, coupon test
- * events, attribution attempts, commission events). None of those relations cascade at the
- * schema level, so a bare `device.delete()` 500s (P2003) the moment a device has any real
- * activity history. Used both for a single device delete and for cascading through every
- * device at a location that's being deleted.
- */
+/** Delete unused devices; financial and attribution history prevents hard deletion. */
 export async function deleteDevicesCascade(tx: Tx, deviceIds: string[]) {
   if (deviceIds.length === 0) return;
   const where = { deviceId: { in: deviceIds } };
-  await tx.commissionEvent.deleteMany({ where });
-  await tx.attributionAttempt.deleteMany({ where });
+  if (
+    (await tx.commissionEvent.count({ where })) ||
+    (await tx.attributionAttempt.count({ where }))
+  ) {
+    throw new ConflictException(
+      'Financial and attribution history must be retained. Deactivate or retire these devices instead.',
+    );
+  }
   await tx.couponTestEvent.deleteMany({ where });
   await tx.deviceToken.deleteMany({ where });
   await tx.device.deleteMany({ where: { id: { in: deviceIds } } });
@@ -52,34 +53,29 @@ export async function deleteLocationsCascade(tx: Tx, locationIds: string[]) {
   await tx.location.deleteMany({ where: { id: { in: locationIds } } });
 }
 
-/**
- * Deletes a merchant and everything that hangs off it. `Coupon`, `CouponTestEvent`,
- * `AttributionAttempt`, and `CommissionEvent` all reference `merchantId` with ON DELETE
- * RESTRICT, so a bare `merchant.delete()` throws an unmapped P2003 (surfacing as a 500) the
- * moment a merchant has ever had a coupon or a conversion. `ScrapeSource.merchantId` is
- * ON DELETE SET NULL, so those rows survive deliberately and just become unattached.
- *
- * Ordered so nothing is still referenced when it is removed: commission events reference
- * coupons, and coupon test events reference coupons, so both go before the coupons do.
- */
+/** Delete a merchant only when it has no financial or attribution history. */
 export async function deleteMerchantCascade(tx: Tx, merchantId: string) {
   const where = { merchantId };
-  await tx.commissionEvent.deleteMany({ where });
-  await tx.attributionAttempt.deleteMany({ where });
+  if (
+    (await tx.commissionEvent.count({ where })) ||
+    (await tx.attributionAttempt.count({ where }))
+  ) {
+    throw new ConflictException(
+      'This merchant has financial or attribution history. Deactivate it instead.',
+    );
+  }
   await tx.couponTestEvent.deleteMany({ where });
   await tx.coupon.deleteMany({ where });
   await tx.merchant.delete({ where: { id: merchantId } });
 }
 
-/**
- * Deletes a kiosk and everything under it: users (and their notifications), locations (and
- * every device + device history under each, via `deleteLocationsCascade`), kiosk-scoped
- * announcements (broadcast announcements have a null kioskId and are untouched), and payouts.
- * Payouts are deleted last since a `CommissionEvent.payoutId` referencing one would otherwise
- * block it. By the time we get here every commission event under this kiosk's own devices is
- * already gone, so nothing should still reference these payouts.
- */
+/** Delete an unused kiosk, preserving any kiosk with payout or attribution history. */
 export async function deleteKioskCascade(tx: Tx, kioskId: string) {
+  if (await tx.payout.count({ where: { kioskId } })) {
+    throw new ConflictException(
+      'This kiosk has payout history. Deactivate it instead.',
+    );
+  }
   const [users, locations] = await Promise.all([
     tx.user.findMany({ where: { kioskId }, select: { id: true } }),
     tx.location.findMany({ where: { kioskId }, select: { id: true } }),
@@ -96,6 +92,5 @@ export async function deleteKioskCascade(tx: Tx, kioskId: string) {
     locations.map((l) => l.id),
   );
   await tx.announcement.deleteMany({ where: { kioskId } });
-  await tx.payout.deleteMany({ where: { kioskId } });
   await tx.kiosk.delete({ where: { id: kioskId } });
 }

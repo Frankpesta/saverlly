@@ -12,7 +12,8 @@ const DEFAULT_INTERVAL_DAYS = 30;
 @Injectable()
 export class PayoutGenerationSchedulerService implements OnModuleInit {
   constructor(
-    @InjectQueue(QUEUE_NAMES.GENERATE_PAYOUTS) private readonly payoutsQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.GENERATE_PAYOUTS)
+    private readonly payoutsQueue: Queue,
     private readonly configService: ConfigService,
   ) {}
 
@@ -23,6 +24,11 @@ export class PayoutGenerationSchedulerService implements OnModuleInit {
    * old schedule running alongside the new one instead of replacing it.
    */
   async onModuleInit() {
+    await this.payoutsQueue.upsertJobScheduler(
+      'recover-processing-payouts',
+      { every: 5 * 60_000 },
+      { name: 'recover-processing-payouts' },
+    );
     const intervalDays = parsePositiveIntEnv(
       this.configService.get('PAYOUT_AGGREGATION_INTERVAL_DAYS'),
       DEFAULT_INTERVAL_DAYS,

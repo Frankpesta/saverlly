@@ -2,6 +2,13 @@
 // setApiBaseUrl (the desktop agent will do this via native messaging in Phase 4).
 export const DEFAULT_API_BASE_URL = 'http://localhost:3000';
 
+declare const __REVIEWER_API_BASE_URL__: string;
+// Bundled at release time; reviewers never enter or choose a backend address.
+export function getReviewerApiBaseUrl(): string | null {
+  return typeof __REVIEWER_API_BASE_URL__ === 'string' && __REVIEWER_API_BASE_URL__
+    ? __REVIEWER_API_BASE_URL__ : null;
+}
+
 export async function getApiBaseUrl(): Promise<string> {
   const { apiBaseUrl } = await chrome.storage.local.get('apiBaseUrl');
   return typeof apiBaseUrl === 'string' && apiBaseUrl.length > 0 ? apiBaseUrl : DEFAULT_API_BASE_URL;

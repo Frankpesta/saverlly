@@ -73,6 +73,12 @@ const merchant = {
 const events = [];
 let reportingAvailable = false;
 const server = http.createServer((req, res) => {
+  if (req.url.split("?")[0] === "/allbirds-checkout") {
+    res.setHeader("Content-Type", "text/html");
+    return res.end(
+      fs.readFileSync(path.join(root, "src/test/mock-allbirds-checkout.html")),
+    );
+  }
   if (req.url.split("?")[0] === "/cart") {
     res.setHeader("Content-Type", "text/html");
     return res.end(
@@ -351,6 +357,132 @@ const server = http.createServer((req, res) => {
       );
       console.log(
         "PASS Target-style cart: escaped selectors, delayed reveal, no success banner, slow response, and first confirmed saving",
+      );
+      merchant.coupons = [
+        coupon("SAVE20", 0),
+        coupon("SAVENOW", 1),
+        coupon("STYLE", 2),
+        coupon("SAVE5", 3),
+      ];
+      await worker.evaluate(() => chrome.storage.local.remove("merchantCache"));
+      const retryCheckout = await browser.newPage();
+      await retryCheckout.goto(`${base}/cart?cached=1`);
+      const retryPopup = await browser.newPage();
+      await retryCheckout.bringToFront();
+      await retryPopup.goto(`chrome-extension://${id}/popup/popup.html`);
+      await retryPopup.locator("#apply-btn").click();
+      for (let run = 0; run < 2; run++) {
+        await retryPopup
+          .getByText("No working codes found", { exact: true })
+          .waitFor({ timeout: 15000 });
+        assert.match(
+          await retryPopup.locator("#content").innerText(),
+          /We tried 4 codes/,
+        );
+        if (run === 0) await retryPopup.locator("#retry-btn").click();
+      }
+      assert.deepEqual(await retryCheckout.evaluate(() => window.testedCodes), [
+        "SAVE20",
+        "SAVENOW",
+        "STYLE",
+        "SAVE5",
+        "SAVE20",
+        "SAVENOW",
+        "STYLE",
+        "SAVE5",
+      ]);
+      console.log(
+        "PASS Target-style repeated comparison: all four cached rejections complete on both runs",
+      );
+      merchant.checkoutRecipe = {
+        couponApplyMode: "remove",
+        removeCouponSelector: 'button[data-event-name="remove_discount_code"]',
+        couponFieldSelector: 'input[name="reductions"]',
+        applyButtonSelector: 'button[aria-label="Apply Discount Code"]',
+        successIndicatorSelector:
+          'button[data-event-name="remove_discount_code"]',
+        failureIndicatorSelector: '[id^="error-for-ReductionsInput"]',
+        cartTotalSelector:
+          '[role="table"][aria-labelledby^="MoneyLine-Heading"] [role="row"]:last-child [role="cell"]',
+        checkoutUrlPatterns: ["/allbirds-checkout"],
+      };
+      const allbirdsCodes = [
+        "COMEBACK10",
+        "TIM",
+        "ALL16",
+        "SAVE16",
+        "WELCOME10",
+        "THANKYOU10",
+        "freetry75",
+      ];
+      merchant.coupons = allbirdsCodes.map(coupon);
+      await worker.evaluate(() => chrome.storage.local.remove("merchantCache"));
+      const allbirdsCheckout = await browser.newPage();
+      await allbirdsCheckout.goto(`${base}/allbirds-checkout`);
+      const allbirdsPopup = await browser.newPage();
+      await allbirdsCheckout.bringToFront();
+      await allbirdsPopup.goto(`chrome-extension://${id}/popup/popup.html`);
+      await allbirdsPopup.locator("#apply-btn").click();
+      await allbirdsPopup.locator("#checkout-btn").waitFor({ timeout: 30000 });
+      assert.match(
+        await allbirdsPopup.locator("#content").innerText(),
+        /We tried 7 codes/,
+      );
+      assert.match(
+        await allbirdsPopup.locator("#content").innerText(),
+        /\$14.00/,
+      );
+      const firstRun = await allbirdsCheckout.evaluate(() =>
+        window.testedCodes.slice(),
+      );
+      assert.deepEqual(
+        firstRun.filter((code) => code !== "REMOVE"),
+        [...allbirdsCodes, "COMEBACK10"],
+      );
+      await allbirdsPopup.locator("#view-coupons-btn").click();
+      await allbirdsPopup.locator("#retry-btn").click();
+      await allbirdsPopup.locator("#checkout-btn").waitFor({ timeout: 30000 });
+      assert.match(
+        await allbirdsPopup.locator("#content").innerText(),
+        /We tried 7 codes/,
+      );
+      assert.deepEqual(
+        (await allbirdsCheckout.evaluate(() => window.testedCodes))
+          .slice(firstRun.length)
+          .filter((code) => code !== "REMOVE"),
+        [...allbirdsCodes, "COMEBACK10"],
+      );
+      assert.equal(
+        await allbirdsCheckout
+          .locator('button[data-event-name="remove_discount_code"]')
+          .textContent(),
+        "COMEBACK10",
+      );
+      await allbirdsPopup.reload();
+      await allbirdsPopup.locator("#checkout-btn").waitFor();
+      assert.match(
+        await allbirdsPopup.locator("#content").innerText(),
+        /\$126.00/,
+      );
+      const allbirdsTabId = await worker.evaluate(
+        async (url) =>
+          (await chrome.tabs.query({})).find((tab) => tab.url === url).id,
+        `${base}/allbirds-checkout`,
+      );
+      const retryResult = await worker.evaluate(
+        async (tabId) =>
+          (await chrome.storage.session.get(`tabState:${tabId}`))[
+            `tabState:${tabId}`
+          ].applyResult,
+        allbirdsTabId,
+      );
+      assert.equal(
+        retryResult.incrementalSavings,
+        0,
+        "Retry must not recount an already-present discount",
+      );
+      console.log(
+        "PASS Allbirds-style checkout: existing chip, appended savings row, animated totals, seven codes, winner reapplication, retry, and popup reopen",
       );
       await browser.close();
       browser = null;

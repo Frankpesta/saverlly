@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AttributionMethod, Prisma } from '@prisma/client';
 import { deleteMerchantCascade } from '../common/prisma/cascade-delete.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,6 +29,7 @@ export class MerchantsService {
           affiliateUrlParamKey: dto.affiliateUrlParamKey,
           affiliateUrlParamValue: dto.affiliateUrlParamValue,
           affiliateProgramId: dto.affiliateProgramId,
+          affiliateSubIdParamKey: dto.affiliateSubIdParamKey,
           checkoutRecipe: dto.checkoutRecipe
             ? (dto.checkoutRecipe as unknown as Prisma.InputJsonValue)
             : undefined,
@@ -62,9 +68,12 @@ export class MerchantsService {
 
     const resultingMethod = dto.attributionMethod ?? existing.attributionMethod;
     this.assertTrackingFieldsPresent(resultingMethod, {
-      affiliateTrackingUrl: dto.affiliateTrackingUrl ?? existing.affiliateTrackingUrl,
-      affiliateUrlParamKey: dto.affiliateUrlParamKey ?? existing.affiliateUrlParamKey,
-      affiliateUrlParamValue: dto.affiliateUrlParamValue ?? existing.affiliateUrlParamValue,
+      affiliateTrackingUrl:
+        dto.affiliateTrackingUrl ?? existing.affiliateTrackingUrl,
+      affiliateUrlParamKey:
+        dto.affiliateUrlParamKey ?? existing.affiliateUrlParamKey,
+      affiliateUrlParamValue:
+        dto.affiliateUrlParamValue ?? existing.affiliateUrlParamValue,
     });
 
     try {
@@ -78,10 +87,14 @@ export class MerchantsService {
           affiliateUrlParamKey: dto.affiliateUrlParamKey,
           affiliateUrlParamValue: dto.affiliateUrlParamValue,
           affiliateProgramId: dto.affiliateProgramId,
+          affiliateSubIdParamKey: dto.affiliateSubIdParamKey,
           active: dto.active,
-          checkoutRecipe: dto.checkoutRecipe
-            ? (dto.checkoutRecipe as unknown as Prisma.InputJsonValue)
-            : undefined,
+          checkoutRecipe:
+            dto.checkoutRecipe === null
+              ? Prisma.DbNull
+              : dto.checkoutRecipe
+                ? (dto.checkoutRecipe as unknown as Prisma.InputJsonValue)
+                : undefined,
         },
       });
     } catch (err) {
@@ -95,8 +108,13 @@ export class MerchantsService {
   }
 
   private mapDomainConflict(err: unknown): unknown {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      return new ConflictException('A merchant with this domain already exists');
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002'
+    ) {
+      return new ConflictException(
+        'A merchant with this domain already exists',
+      );
     }
     return err;
   }
@@ -110,13 +128,17 @@ export class MerchantsService {
     },
   ) {
     if (
-      (method === AttributionMethod.COOKIE || method === AttributionMethod.BOTH) &&
+      (method === AttributionMethod.COOKIE ||
+        method === AttributionMethod.BOTH) &&
       !fields.affiliateTrackingUrl
     ) {
-      throw new BadRequestException('affiliateTrackingUrl is required for COOKIE/BOTH attribution');
+      throw new BadRequestException(
+        'affiliateTrackingUrl is required for COOKIE/BOTH attribution',
+      );
     }
     if (
-      (method === AttributionMethod.URL_PARAM || method === AttributionMethod.BOTH) &&
+      (method === AttributionMethod.URL_PARAM ||
+        method === AttributionMethod.BOTH) &&
       (!fields.affiliateUrlParamKey || !fields.affiliateUrlParamValue)
     ) {
       throw new BadRequestException(

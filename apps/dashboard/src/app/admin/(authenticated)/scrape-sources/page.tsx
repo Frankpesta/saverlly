@@ -49,11 +49,35 @@ export default function ScrapeSourcesPage() {
   }, [merchants])
 
   const view = useCollectionView(sources, {
-    searchText: (item) => [item.url, item.merchantId ? merchantNameById.get(item.merchantId) : undefined].join(" "),
-    sorts: [{ label: "Name: A to Z", value: "name", compare: (a, b) => a.url.localeCompare(b.url, undefined, { numeric: true }) }],
-    filters: [{ key: "status", label: "Status", options: [{ label: "Active", value: "active", matches: (item) => item.active }, { label: "Inactive", value: "inactive", matches: (item) => !(item.active) }] }],
+    searchText: (item) =>
+      [item.url, item.merchantId ? merchantNameById.get(item.merchantId) : undefined].join(" "),
+    sorts: [
+      {
+        label: "Name: A to Z",
+        value: "name",
+        compare: (a, b) => a.url.localeCompare(b.url, undefined, { numeric: true }),
+      },
+    ],
+    filters: [
+      {
+        key: "status",
+        label: "Status",
+        options: [
+          { label: "Active", value: "active", matches: (item) => item.active },
+          {
+            label: "Inactive",
+            value: "inactive",
+            matches: (item) => !item.active,
+          },
+        ],
+      },
+    ],
   })
-  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(view.items, undefined, view.resetKey)
+  const { page, setPage, pageCount, pageItems, totalItems, pageSize } = usePagination(
+    view.items,
+    undefined,
+    view.resetKey,
+  )
 
   const stats = React.useMemo(() => {
     const list = sources ?? []
@@ -75,7 +99,14 @@ export default function ScrapeSourcesPage() {
         </Link>
       </div>
 
-      <CollectionSummary isLoading={isLoading} isError={isError} items={[{ label: "Sources", value: stats.total }, { label: "Active", value: stats.active }]} />
+      <CollectionSummary
+        isLoading={isLoading}
+        isError={isError}
+        items={[
+          { label: "Sources", value: stats.total },
+          { label: "Active", value: stats.active },
+        ]}
+      />
 
       <CollectionToolbar view={view} label="Scrape sources" />
 
@@ -114,7 +145,9 @@ export default function ScrapeSourcesPage() {
                 key={source.id}
                 source={source}
                 index={index}
-                merchantName={source.merchantId ? merchantNameById.get(source.merchantId) : undefined}
+                merchantName={
+                  source.merchantId ? merchantNameById.get(source.merchantId) : undefined
+                }
                 isMultiMerchant={!source.merchantId && !!source.selectorConfig.rowSelector}
               />
             ))}
@@ -160,7 +193,9 @@ function ScrapeSourceRow({
       { active: !source.active },
       {
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not update scrape source."),
+          toast.error(
+            error instanceof ApiError ? error.message : "Could not update scrape source.",
+          ),
       },
     )
   }
@@ -180,11 +215,29 @@ function ScrapeSourceRow({
       </TableCell>
       <TableCell>
         {merchantName ?? (
-          <Badge variant="secondary">{isMultiMerchant ? "Multi-merchant feed" : "Unassigned"}</Badge>
+          <Badge variant="secondary">
+            {isMultiMerchant ? "Multi-merchant feed" : "Unassigned"}
+          </Badge>
         )}
       </TableCell>
       <TableCell>{source.intervalMinutes} min</TableCell>
-      <TableCell>{source.lastRunAt ? relativeTime(source.lastRunAt) : "Never"}</TableCell>
+      <TableCell>
+        {source.lastRunAt ? relativeTime(source.lastRunAt) : "Never"}
+        {source.lastError && (
+          <p
+            className="max-w-xs whitespace-normal text-xs text-destructive"
+            title={source.lastError}
+          >
+            Failed: {source.lastError}
+          </p>
+        )}
+        {source.lastSucceededAt && (
+          <p className="text-xs text-muted-foreground">
+            Last success {relativeTime(source.lastSucceededAt)} · {source.lastCodeCount ?? 0} codes
+            in latest run
+          </p>
+        )}
+      </TableCell>
       <TableCell>
         <Switch
           checked={source.active}
@@ -197,7 +250,10 @@ function ScrapeSourceRow({
         <TableRowActions>
           <Link
             href={`/admin/scrape-sources/${source.id}`}
-            className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "text-muted-foreground hover:text-foreground")}
+            className={cn(
+              buttonVariants({ variant: "ghost", size: "icon-sm" }),
+              "text-muted-foreground hover:text-foreground",
+            )}
             aria-label={`Edit ${source.url}`}
           >
             <PencilIcon className="size-3.5" />
@@ -214,7 +270,9 @@ function ScrapeSourceRow({
             <PlayIcon className="size-3.5" />
           </Button>
           <DeleteRowButton
-            itemLabel={merchantName ? `the scrape source for ${merchantName}` : "this scrape source"}
+            itemLabel={
+              merchantName ? `the scrape source for ${merchantName}` : "this scrape source"
+            }
             onConfirm={handleDelete}
             isPending={deleteSource.isPending}
           />

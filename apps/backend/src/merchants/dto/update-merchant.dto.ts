@@ -13,9 +13,16 @@ import {
 import { AttributionMethod } from '@prisma/client';
 import { CheckoutRecipeDto } from './checkout-recipe.dto';
 
-const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+const DOMAIN_PATTERN =
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
 export class UpdateMerchantDto {
+  @ApiPropertyOptional({ example: 'SubId1', nullable: true })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/)
+  affiliateSubIdParamKey?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -25,7 +32,9 @@ export class UpdateMerchantDto {
   @ApiPropertyOptional({ example: 'target.com' })
   @IsOptional()
   @IsString()
-  @Matches(DOMAIN_PATTERN, { message: 'domain must be a valid bare domain, e.g. "target.com"' })
+  @Matches(DOMAIN_PATTERN, {
+    message: 'domain must be a valid bare domain, e.g. "target.com"',
+  })
   domain?: string;
 
   @ApiPropertyOptional({ enum: AttributionMethod })
@@ -62,5 +71,5 @@ export class UpdateMerchantDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => CheckoutRecipeDto)
-  checkoutRecipe?: CheckoutRecipeDto;
+  checkoutRecipe?: CheckoutRecipeDto | null;
 }

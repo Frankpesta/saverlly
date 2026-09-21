@@ -7,5 +7,6 @@ import { PublicApiService } from './public-api.service';
   imports: [DevicesModule],
   controllers: [PublicApiController],
   providers: [PublicApiService],
+  exports: [PublicApiService],
 })
 export class PublicApiModule {}

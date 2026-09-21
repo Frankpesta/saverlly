@@ -170,7 +170,12 @@ export type PayoutStatus = "PENDING" | "PROCESSING" | "PAID" | "FAILED"
 export type Payout = {
   id: string
   kioskId: string
-  kiosk?: { id: string; name: string; stripeConnected: boolean; stripePayoutsEnabled: boolean }
+  kiosk?: {
+    id: string
+    name: string
+    stripeConnected: boolean
+    stripePayoutsEnabled: boolean
+  }
   periodStart: string
   periodEnd: string
   totalAmount: number
@@ -183,7 +188,7 @@ export type Payout = {
 export type AttributionMethod = "COOKIE" | "URL_PARAM" | "BOTH"
 
 export type CheckoutRecipe = {
-  couponApplyMode?: 'replace' | 'remove'
+  couponApplyMode?: "replace" | "remove"
   removeCouponSelector?: string
   couponFieldSelector?: string
   applyButtonSelector?: string
@@ -202,6 +207,7 @@ export type Merchant = {
   affiliateTrackingUrl: string | null
   affiliateUrlParamKey: string | null
   affiliateUrlParamValue: string | null
+  affiliateSubIdParamKey?: string | null
   affiliateProgramId: string | null
   active: boolean
   checkoutRecipe: CheckoutRecipe | null
@@ -245,6 +251,9 @@ export type ScrapeSource = {
   selectorConfig: SelectorConfig
   intervalMinutes: number
   lastRunAt: string | null
+  lastSucceededAt?: string | null
+  lastError?: string | null
+  lastCodeCount?: number | null
   active: boolean
 }
 
@@ -329,7 +338,8 @@ export type Notification = {
   createdAt: string
 }
 
-export type SearchResultType = "kiosk" | "location" | "device" | "merchant" | "coupon" | "announcement"
+export type SearchResultType =
+  "kiosk" | "location" | "device" | "merchant" | "coupon" | "announcement"
 
 export type SearchResult = {
   type: SearchResultType

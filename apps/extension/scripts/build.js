@@ -5,6 +5,21 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const dist = path.join(root, 'dist');
 const watch = process.argv.includes('--watch');
+// Temporary live origin explicitly selected for reviewer testing.
+const reviewerDefaultOrigin = 'http://56.228.62.8:3000';
+const reviewerApiUrl = process.env.SAVERLLY_REVIEWER_API_URL ??
+  (process.argv.includes('--reviewers') ? reviewerDefaultOrigin : '');
+if (process.argv.includes('--reviewers') && !reviewerApiUrl) {
+  throw new Error('SAVERLLY_REVIEWER_API_URL cannot be empty when building reviewer access.');
+}
+if (reviewerApiUrl) {
+  const url = new URL(reviewerApiUrl);
+  const local = ['localhost', '127.0.0.1'].includes(url.hostname);
+  const approvedTemporaryOrigin = url.origin === reviewerDefaultOrigin;
+  if ((!local && !approvedTemporaryOrigin && url.protocol !== 'https:') || !['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== '/') {
+    throw new Error('SAVERLLY_REVIEWER_API_URL must be an HTTPS origin, localhost, or the approved temporary reviewer backend.');
+  }
+}
 
 const entryPoints = [
   'src/background/service-worker.ts',
@@ -43,6 +58,7 @@ const buildOptions = {
   platform: 'browser',
   sourcemap: true,
   logLevel: 'info',
+  define: { __REVIEWER_API_BASE_URL__: JSON.stringify(reviewerApiUrl.replace(/\/$/, '')) },
 };
 
 async function run() {

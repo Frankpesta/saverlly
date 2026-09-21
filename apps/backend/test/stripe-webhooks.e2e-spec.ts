@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { CommissionStatus, PayoutStatus } from '@prisma/client';
 import request from 'supertest';
 import Stripe from 'stripe';
+import { StripeService } from '../src/stripe/stripe.service';
 import { resetDatabase, resetRedisTestDb, testPrisma } from './utils/db';
 import {
   seedCommissionEvent,
@@ -49,6 +50,21 @@ describe('Stripe webhooks (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase();
+    jest
+      .spyOn(app.get(StripeService), 'retrieveTransfer')
+      .mockImplementation(async (id) => {
+        const payout = await testPrisma.payout.findFirstOrThrow({
+          where: { stripeTransferId: id },
+        });
+        return {
+          id,
+          amount: payout.totalAmount.mul(100).toNumber(),
+          currency: 'usd',
+          destination: 'acct_test',
+          reversed: id === 'tr_test_456',
+          amount_reversed: id === 'tr_test_456' ? 500 : 0,
+        } as Stripe.Transfer;
+      });
   });
 
   it('rejects a webhook with an invalid signature', async () => {
@@ -75,6 +91,10 @@ describe('Stripe webhooks (e2e)', () => {
 
   it('accepts a validly-signed transfer.created event, marks a processing payout paid, and notifies the owner', async () => {
     const kiosk = await seedKiosk({ revenueSharePct: 30 });
+    await testPrisma.kiosk.update({
+      where: { id: kiosk.id },
+      data: { stripeAccountId: 'acct_test' },
+    });
     const owner = await seedUser({
       email: 'owner@transfer-test.com',
       role: 'KIOSK_OWNER',
@@ -120,6 +140,10 @@ describe('Stripe webhooks (e2e)', () => {
 
   it('does not re-notify on a duplicate transfer.created delivery for an already-paid payout', async () => {
     const kiosk = await seedKiosk({ revenueSharePct: 30 });
+    await testPrisma.kiosk.update({
+      where: { id: kiosk.id },
+      data: { stripeAccountId: 'acct_test' },
+    });
     const owner = await seedUser({
       email: 'owner@dup-transfer.com',
       role: 'KIOSK_OWNER',
@@ -157,6 +181,14 @@ describe('Stripe webhooks (e2e)', () => {
 
   it('marks a payout failed on a transfer.reversed event', async () => {
     const kiosk = await seedKiosk();
+    await testPrisma.kiosk.update({
+      where: { id: kiosk.id },
+      data: { stripeAccountId: 'acct_test' },
+    });
+    await testPrisma.kiosk.update({
+      where: { id: kiosk.id },
+      data: { stripeAccountId: 'acct_test' },
+    });
     const payout = await testPrisma.payout.create({
       data: {
         kioskId: kiosk.id,

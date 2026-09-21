@@ -9,10 +9,33 @@ import { Redis } from 'ioredis';
 // else) in process.env instead of this file's real .env.test values — silently pointing every
 // e2e test's PrismaService (and this file's own testPrisma) at the dev database instead of the
 // dedicated test one. Confirmed via direct row-count inspection; see project memory.
-const { parsed: testEnv } = config({
+const { parsed: fileEnv } = config({
   path: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
   override: true,
 });
+
+// Allow a dedicated per-run database/Redis namespace without editing checked-in env
+// files or flushing another developer's tests. Refuse destructive setup on the dev DB.
+const testEnv = {
+  ...fileEnv,
+  ...(process.env.TEST_DATABASE_URL
+    ? { DATABASE_URL: process.env.TEST_DATABASE_URL }
+    : {}),
+  ...(process.env.TEST_REDIS_URL
+    ? { REDIS_URL: process.env.TEST_REDIS_URL }
+    : {}),
+};
+if (
+  process.env.NODE_ENV !== 'test' ||
+  !testEnv.DATABASE_URL ||
+  !new URL(testEnv.DATABASE_URL).pathname.endsWith('_test')
+) {
+  throw new Error(
+    'Integration tests require NODE_ENV=test and a database name ending in _test',
+  );
+}
+process.env.DATABASE_URL = testEnv.DATABASE_URL;
+process.env.REDIS_URL = testEnv.REDIS_URL;
 
 // Standalone client for test setup/teardown — separate from the app's injected
 // PrismaService so fixtures can run before the Nest app is even built.
@@ -47,10 +70,13 @@ export async function resetRedisTestDb(): Promise<void> {
 
 async function deleteAllInOrder(): Promise<void> {
   // Delete order respects FK constraints (children before parents).
+  await testPrisma.reviewerInvite.deleteMany();
+  await testPrisma.reviewerAccessControl.deleteMany();
   await testPrisma.notification.deleteMany();
   // Like Notification, references User with ON DELETE RESTRICT, so it has to go before the
   // user.deleteMany() at the bottom of this function.
   await testPrisma.dismissedAlert.deleteMany();
+  await testPrisma.commissionAdjustment.deleteMany();
   await testPrisma.commissionEvent.deleteMany();
   await testPrisma.payout.deleteMany();
   await testPrisma.attributionAttempt.deleteMany();
@@ -66,6 +92,7 @@ async function deleteAllInOrder(): Promise<void> {
   await testPrisma.deviceToken.deleteMany();
   await testPrisma.device.deleteMany();
   await testPrisma.locationSetupCode.deleteMany();
+  await testPrisma.locationEmployee.deleteMany();
   await testPrisma.location.deleteMany();
   await testPrisma.user.deleteMany();
   await testPrisma.kiosk.deleteMany();

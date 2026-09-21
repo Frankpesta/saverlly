@@ -53,6 +53,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "playwright": "^1.62.1",
+    "postcss-selector-parser": "^7.1.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "reflect-metadata": "^0.2.2",

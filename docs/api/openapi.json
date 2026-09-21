@@ -2204,7 +2204,7 @@
         "parameters": [],
         "responses": {
           "204": {
-            "description": "Device and its tokens deleted"
+            "description": "Device retired and its tokens deleted"
           },
           "401": {
             "description": "Missing/invalid device token, device disabled, or kiosk inactive"
@@ -2215,7 +2215,7 @@
             "device-token": []
           }
         ],
-        "summary": "Deregister this device. Deletes its Device row and tokens entirely",
+        "summary": "Retire this device and revoke its tokens, preserving attribution and financial history",
         "tags": [
           "Public (device-facing)"
         ]
@@ -2985,6 +2985,35 @@
         ]
       }
     },
+    "/payouts/{id}/recover": {
+      "post": {
+        "operationId": "PayoutsController_recover",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "summary": "Reconcile a processing payout with Stripe and safely resume a recent interrupted transfer",
+        "tags": [
+          "Payouts (admin)"
+        ]
+      }
+    },
     "/payouts": {
       "get": {
         "operationId": "PayoutsController_findAll",
@@ -3268,6 +3297,276 @@
           "Releases"
         ]
       }
+    },
+    "/reviewers": {
+      "get": {
+        "operationId": "ReviewersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "tags": [
+          "Reviewers"
+        ]
+      },
+      "post": {
+        "operationId": "ReviewersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "tags": [
+          "Reviewers"
+        ]
+      }
+    },
+    "/reviewers/access": {
+      "patch": {
+        "operationId": "ReviewersController_access",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewerAccessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "tags": [
+          "Reviewers"
+        ]
+      }
+    },
+    "/reviewers/{id}/revoke": {
+      "post": {
+        "operationId": "ReviewersController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "tags": [
+          "Reviewers"
+        ]
+      }
+    },
+    "/reviewer-access/redeem": {
+      "post": {
+        "operationId": "ReviewerActivationController_redeem",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemReviewerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reviewer activation"
+        ]
+      }
+    },
+    "/reviewer-public/devices/me/status": {
+      "get": {
+        "operationId": "ReviewerPublicController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "reviewer-token": []
+          }
+        ],
+        "tags": [
+          "Reviewer extension"
+        ]
+      }
+    },
+    "/reviewer-public/devices/me/savings": {
+      "get": {
+        "operationId": "ReviewerPublicController_savings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "reviewer-token": []
+          }
+        ],
+        "tags": [
+          "Reviewer extension"
+        ]
+      }
+    },
+    "/reviewer-public/promotions/active": {
+      "get": {
+        "operationId": "ReviewerPublicController_promotions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "reviewer-token": []
+          }
+        ],
+        "tags": [
+          "Reviewer extension"
+        ]
+      }
+    },
+    "/reviewer-public/merchants/by-domain/{domain}": {
+      "get": {
+        "operationId": "ReviewerPublicController_merchant",
+        "parameters": [
+          {
+            "name": "domain",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "reviewer-token": []
+          }
+        ],
+        "tags": [
+          "Reviewer extension"
+        ]
+      }
+    },
+    "/reviewer-public/coupon-test-events": {
+      "post": {
+        "operationId": "ReviewerPublicController_event",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCouponTestEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "reviewer-token": []
+          }
+        ],
+        "tags": [
+          "Reviewer extension"
+        ]
+      }
+    },
+    "/reviewer-public/attribution-attempts": {
+      "post": {
+        "operationId": "ReviewerPublicController_attribution",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MintAttributionAttemptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "reviewer-token": []
+          }
+        ],
+        "tags": [
+          "Reviewer extension"
+        ]
+      }
     }
   },
   "info": {
@@ -3290,6 +3589,12 @@
         "bearerFormat": "device-token",
         "type": "http",
         "description": "Opaque device token issued at /devices/register. Used by machine clients only."
+      },
+      "reviewer-token": {
+        "scheme": "bearer",
+        "bearerFormat": "reviewer-token",
+        "type": "http",
+        "description": "Temporary token activated at /reviewer-access/redeem. Only accepted by /reviewer-public endpoints."
       }
     },
     "schemas": {
@@ -3806,7 +4111,8 @@
           },
           "removeCouponSelector": {
             "type": "string",
-            "example": "button.remove-promo"
+            "example": "button.remove-promo",
+            "description": "Required and nonblank when couponApplyMode is remove."
           },
           "couponFieldSelector": {
             "type": "string",
@@ -3842,11 +4148,22 @@
             "type": "string",
             "example": "button#add-promo-code-btn"
           }
-        }
+        },
+        "required": [
+          "couponFieldSelector",
+          "applyButtonSelector",
+          "cartTotalSelector",
+          "checkoutUrlPatterns"
+        ]
       },
       "CreateMerchantDto": {
         "type": "object",
         "properties": {
+          "affiliateSubIdParamKey": {
+            "type": "string",
+            "example": "SubId1",
+            "description": "Network-approved sub-ID query parameter for device commission attribution"
+          },
           "name": {
             "type": "string",
             "example": "Target"
@@ -3894,6 +4211,11 @@
       "UpdateMerchantDto": {
         "type": "object",
         "properties": {
+          "affiliateSubIdParamKey": {
+            "type": "object",
+            "example": "SubId1",
+            "nullable": true
+          },
           "name": {
             "type": "string"
           },
@@ -4722,6 +5044,55 @@
             "description": "The address the kiosk portal points owners and managers at. Send an empty string to clear it, which makes the portal render the text unlinked."
           }
         }
+      },
+      "ReviewerAccessDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "CreateReviewerDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "maxInstallations": {
+            "type": "number",
+            "default": 1
+          }
+        },
+        "required": [
+          "name",
+          "expiresAt",
+          "maxInstallations"
+        ]
+      },
+      "RedeemReviewerDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "token"
+        ]
       }
     }
   }

@@ -60,6 +60,7 @@ describe('Merchants & Coupons (e2e)', () => {
     const recipe = {
       couponFieldSelector: "input[name='promo']",
       applyButtonSelector: 'button.apply',
+      cartTotalSelector: '.total',
       checkoutUrlPatterns: ['/checkout', '/cart/checkout'],
     };
 
@@ -129,10 +130,8 @@ describe('Merchants & Coupons (e2e)', () => {
     expect(res.body[0].merchantId).toBe(merchantA.id);
   });
 
-  // Coupon/CouponTestEvent/AttributionAttempt/CommissionEvent all reference merchantId with
-  // ON DELETE RESTRICT, so this used to throw an unmapped P2003 and surface as a 500 for any
-  // merchant that had ever had a coupon or a conversion, which is most real ones.
-  it('deletes a merchant that has coupons and commission events, cascading both', async () => {
+  // Financial history survives administrative delete requests.
+  it('preserves merchants with financial history and rejects deletion', async () => {
     const kiosk = await seedKiosk();
     const location = await seedLocation(kiosk.id);
     const device = await seedDevice(location.id);
@@ -143,13 +142,17 @@ describe('Merchants & Coupons (e2e)', () => {
     await request(app.getHttpServer())
       .delete(`/merchants/${merchant.id}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .expect(204);
+      .expect(409);
 
-    expect(await testPrisma.merchant.findUnique({ where: { id: merchant.id } })).toBeNull();
-    expect(await testPrisma.coupon.findUnique({ where: { id: coupon.id } })).toBeNull();
+    expect(
+      await testPrisma.merchant.findUnique({ where: { id: merchant.id } }),
+    ).not.toBeNull();
+    expect(
+      await testPrisma.coupon.findUnique({ where: { id: coupon.id } }),
+    ).not.toBeNull();
     expect(
       await testPrisma.commissionEvent.findUnique({ where: { id: event.id } }),
-    ).toBeNull();
+    ).not.toBeNull();
   });
 
   it('keeps scrape sources when their merchant is deleted, unlinking them instead', async () => {

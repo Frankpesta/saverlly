@@ -21,5 +21,14 @@ export function buildSwaggerConfig() {
       },
       'device-token',
     )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'reviewer-token',
+        description: 'Temporary token activated at /reviewer-access/redeem. Only accepted by /reviewer-public endpoints.',
+      },
+      'reviewer-token',
+    )
     .build();
 }
