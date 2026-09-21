@@ -13,6 +13,7 @@ import {
  */
 @Injectable()
 export class MockAffiliateAdapter implements AffiliateNetworkAdapter {
+  readonly isTest = true;
   async fetchCoupons(programId: string): Promise<AffiliateCouponDto[]> {
     const suffix = programId.slice(0, 6).toUpperCase();
     return [
@@ -34,7 +35,10 @@ export class MockAffiliateAdapter implements AffiliateNetworkAdapter {
   // Fabricates a pending conversion for every sub-ID handed to it. Every real network only
   // reports conversions it actually saw, so a real adapter's hit rate is far from 100%, but a
   // deterministic 100% hit rate is what makes this useful for exercising the ingestion job in dev.
-  async fetchConversions(_programId: string, subIds: string[]): Promise<AffiliateConversionDto[]> {
+  async fetchConversions(
+    _programId: string,
+    subIds: string[],
+  ): Promise<AffiliateConversionDto[]> {
     return subIds.map((subId) => ({
       subId,
       networkReference: `MOCKCONV-${subId}`,
@@ -53,7 +57,10 @@ export class MockAffiliateAdapter implements AffiliateNetworkAdapter {
   ): Promise<ConversionStatusResult[]> {
     return networkReferences.map((networkReference) => ({
       networkReference,
-      status: parseInt(networkReference.slice(-1), 16) % 2 === 0 ? 'confirmed' : 'reversed',
+      status:
+        parseInt(networkReference.slice(-1), 16) % 2 === 0
+          ? 'confirmed'
+          : 'reversed',
     }));
   }
 }

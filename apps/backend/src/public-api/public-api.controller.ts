@@ -68,13 +68,16 @@ export class PublicApiController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      'Deregister this device. Deletes its Device row and tokens entirely',
+      'Retire this device and revoke its tokens, preserving attribution and financial history',
     description:
       "Self-service counterpart to the admin-only DELETE /devices/:id, authenticated by the device's " +
       'own token instead of a human JWT. Called by the desktop agent as its last authenticated act during ' +
       'uninstall, so a decommissioned kiosk machine does not linger in the dashboard as a stale device.',
   })
-  @ApiResponse({ status: 204, description: 'Device and its tokens deleted' })
+  @ApiResponse({
+    status: 204,
+    description: 'Device retired and its tokens deleted',
+  })
   @ApiResponse({
     status: 401,
     description:

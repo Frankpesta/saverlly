@@ -1,5 +1,11 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../jobs/queue-names';
@@ -15,20 +21,29 @@ export class ScrapeSourcesService implements OnModuleInit {
 
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue(QUEUE_NAMES.SCRAPE_COUPONS) private readonly scrapeQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.SCRAPE_COUPONS)
+    private readonly scrapeQueue: Queue,
   ) {}
 
   /** Resyncs repeatable jobs on boot. Self-healing if Redis's job schedule was ever lost/reset. */
   async onModuleInit() {
     try {
-      const activeSources = await this.prisma.scrapeSource.findMany({ where: { active: true } });
-      await Promise.all(activeSources.map((s) => this.scheduleRepeat(s.id, s.intervalMinutes)));
+      const activeSources = await this.prisma.scrapeSource.findMany({
+        where: { active: true },
+      });
+      await Promise.all(
+        activeSources.map((s) => this.scheduleRepeat(s.id, s.intervalMinutes)),
+      );
     } catch (err) {
-      this.logger.error('Failed to resync scrape-source repeat jobs on boot. Continuing without scheduling', err);
+      this.logger.error(
+        'Failed to resync scrape-source repeat jobs on boot. Continuing without scheduling',
+        err,
+      );
     }
   }
 
   async create(dto: CreateScrapeSourceDto) {
+    this.validateSource(dto.merchantId, dto.selectorConfig);
     if (dto.merchantId) {
       await this.assertMerchantExists(dto.merchantId);
     }
@@ -59,6 +74,14 @@ export class ScrapeSourcesService implements OnModuleInit {
 
   async update(id: string, dto: UpdateScrapeSourceDto) {
     const existing = await this.findOneOrThrow(id);
+    this.validateSource(
+      dto.merchantId === undefined ? existing.merchantId : dto.merchantId,
+      dto.selectorConfig ??
+        (existing.selectorConfig as unknown as {
+          rowSelector?: string;
+          merchantSelector?: string;
+        }),
+    );
     if (dto.merchantId) {
       await this.assertMerchantExists(dto.merchantId);
     }
@@ -92,7 +115,9 @@ export class ScrapeSourcesService implements OnModuleInit {
   }
 
   async runNow(id: string) {
-    await this.findOneOrThrow(id);
+    const source = await this.findOneOrThrow(id);
+    if (!source.active)
+      throw new BadRequestException('Activate this source before running it');
     await this.scrapeQueue.add(SCRAPE_JOB_NAME, { scrapeSourceId: id });
     return { queued: true };
   }
@@ -101,7 +126,10 @@ export class ScrapeSourcesService implements OnModuleInit {
     await this.scrapeQueue.add(
       SCRAPE_JOB_NAME,
       { scrapeSourceId: id },
-      { jobId: this.repeatJobId(id), repeat: { every: intervalMinutes * 60_000 } },
+      {
+        jobId: this.repeatJobId(id),
+        repeat: { every: intervalMinutes * 60_000 },
+      },
     );
   }
 
@@ -115,6 +143,22 @@ export class ScrapeSourcesService implements OnModuleInit {
 
   private repeatJobId(id: string): string {
     return `scrape-source-${id}`;
+  }
+
+  private validateSource(
+    merchantId: string | null | undefined,
+    config: { rowSelector?: string; merchantSelector?: string },
+  ) {
+    if (
+      !config ||
+      (config.rowSelector
+        ? !!merchantId || !config.merchantSelector
+        : !merchantId || !!config.merchantSelector)
+    ) {
+      throw new BadRequestException(
+        'Choose a merchant, or configure both rowSelector and merchantSelector without a fixed merchant',
+      );
+    }
   }
 
   private async assertMerchantExists(merchantId: string) {

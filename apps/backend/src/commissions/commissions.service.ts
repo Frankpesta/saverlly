@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CommissionEvent,
@@ -10,6 +10,7 @@ import { AffiliateAdapterRegistryService } from '../affiliate-adapters/affiliate
 import { groupBy } from '../common/collections/group-by.util';
 import { parsePositiveIntEnv } from '../common/config/positive-int-env.util';
 import { NotificationTriggersService } from '../notifications/notification-triggers.service';
+import { serializable } from '../common/prisma/serializable.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { BalanceDto } from './dto/balance.dto';
 import { CommissionEventDto } from './dto/commission-event.dto';
@@ -19,8 +20,7 @@ const DIGEST_WINDOW_MS = 24 * 60 * 60 * 1000;
 const DIGEST_PERIOD_LABEL = '24 hours';
 
 const DEFAULT_PENDING_WINDOW_DAYS = 90;
-// Bounds each reconciliation pass so a large PENDING backlog can't load unbounded rows
-// into memory in one query. Subsequent scheduled runs pick up whatever's left.
+// Bound each query; cursor pagination still visits every eligible event in this pass.
 const RECONCILIATION_PAGE_SIZE = 500;
 
 type CandidateAttempt = Prisma.AttributionAttemptGetPayload<{
@@ -30,15 +30,9 @@ type CandidateAttempt = Prisma.AttributionAttemptGetPayload<{
   };
 }>;
 
-type PendingEvent = Prisma.CommissionEventGetPayload<{
-  include: {
-    merchant: { include: { affiliateProgram: true } };
-    device: { include: { location: { include: { kiosk: true } } } };
-  };
-}>;
-
 @Injectable()
 export class CommissionsService {
+  private readonly logger = new Logger(CommissionsService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly adapterRegistry: AffiliateAdapterRegistryService,
@@ -48,7 +42,7 @@ export class CommissionsService {
 
   /**
    * Runs both halves of the commission sync: ingest brand-new conversions for
-   * recent attribution attempts, then re-check every still-PENDING event's status.
+   * recent attribution attempts, then re-check pending and confirmed events for reversals.
    * Used by both the scheduled job and the admin-triggered manual sync endpoint.
    */
   async syncNow(): Promise<{
@@ -56,13 +50,20 @@ export class CommissionsService {
     confirmed: number;
     reversed: number;
   }> {
-    const { ingested } = await this.ingestNewConversions();
+    let ingested = 0;
+    let ingestionError: unknown;
+    try {
+      ({ ingested } = await this.ingestNewConversions());
+    } catch (error) {
+      ingestionError = error;
+    }
     const { confirmed, reversed } = await this.reconcilePendingConversions();
+    if (ingestionError) throw ingestionError;
     return { ingested, confirmed, reversed };
   }
 
   /**
-   * Matches recent, not-yet-ingested AttributionAttempts against each network's reported
+   * Matches recent AttributionAttempts (including clicks with earlier orders) against each network's reported
    * conversions and creates a CommissionEvent (PENDING, or immediately CONFIRMED/REVERSED
    * if the network already reports a final status) for each one found.
    */
@@ -73,45 +74,59 @@ export class CommissionsService {
     );
     const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
-    const candidates = await this.prisma.attributionAttempt.findMany({
-      where: { createdAt: { gte: since }, commissionEvent: null },
-      include: {
-        merchant: { include: { affiliateProgram: true } },
-        device: { include: { location: { include: { kiosk: true } } } },
-      },
-    });
-
-    const byProgramId = groupBy(
-      candidates.filter(
-        (c) => c.merchant.affiliateProgramId && c.merchant.affiliateProgram,
-      ),
-      (c) => c.merchant.affiliateProgramId as string,
-    );
-
+    let cursor: string | undefined;
     let ingested = 0;
-    for (const [programId, attempts] of byProgramId) {
-      const program = attempts[0].merchant.affiliateProgram!;
-      const adapter = this.adapterRegistry.getAdapter(program.networkName);
-      if (!adapter?.fetchConversions) {
-        continue;
-      }
-
-      const attemptsBySubId = new Map(attempts.map((a) => [a.subId, a]));
-      const conversions = await adapter.fetchConversions(programId, [
-        ...attemptsBySubId.keys(),
-      ]);
-
-      for (const conversion of conversions) {
-        const attempt = attemptsBySubId.get(conversion.subId);
-        if (!attempt) {
-          continue; // adapter echoed back a sub-ID we didn't ask about. Ignore rather than guess
+    const failures = new Set<string>();
+    for (;;) {
+      // Revisit clicks with existing orders: a single click can generate multiple sales.
+      const candidates = await this.prisma.attributionAttempt.findMany({
+        where: { createdAt: { gte: since } },
+        include: {
+          merchant: { include: { affiliateProgram: true } },
+          device: { include: { location: { include: { kiosk: true } } } },
+        },
+        orderBy: { id: 'asc' },
+        take: RECONCILIATION_PAGE_SIZE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+      if (!candidates.length) break;
+      cursor = candidates[candidates.length - 1].id;
+      const byProgram = groupBy(
+        candidates.filter((c) => c.merchant.affiliateProgram),
+        (c) => c.merchant.affiliateProgramId!,
+      );
+      for (const [programId, attempts] of byProgram) {
+        try {
+          const adapter = this.adapterRegistry.requireAdapter(
+            attempts[0].merchant.affiliateProgram!.networkName,
+          );
+          if (!adapter.fetchConversions)
+            throw new Error('Adapter does not support conversions');
+          const bySubId = new Map(attempts.map((a) => [a.subId, a]));
+          for (const conversion of await adapter.fetchConversions(programId, [
+            ...bySubId.keys(),
+          ])) {
+            const attempt = bySubId.get(conversion.subId);
+            if (attempt)
+              ingested += await this.createCommissionEvent(
+                attempt,
+                conversion,
+                adapter.isTest === true,
+              );
+          }
+        } catch (error) {
+          this.logger.error(
+            'Conversion ingestion failed for program ' + programId,
+            error,
+          );
+          failures.add(programId);
         }
-
-        await this.createCommissionEvent(attempt, conversion);
-        ingested++;
       }
     }
-
+    if (failures.size)
+      throw new Error(
+        'Conversion ingestion failed for programs: ' + [...failures].join(', '),
+      );
     return { ingested };
   }
 
@@ -125,121 +140,194 @@ export class CommissionsService {
       status: 'pending' | 'confirmed' | 'reversed';
       reportedAt: Date;
     },
-  ): Promise<void> {
+    isTest: boolean,
+  ): Promise<number> {
+    if (
+      !conversion.networkReference ||
+      !Number.isFinite(conversion.orderValue) ||
+      conversion.orderValue < 0 ||
+      !Number.isFinite(conversion.commissionAmount) ||
+      conversion.commissionAmount < 0 ||
+      !['pending', 'confirmed', 'reversed'].includes(conversion.status) ||
+      !Number.isFinite(conversion.reportedAt?.getTime())
+    ) {
+      throw new Error('Invalid network conversion');
+    }
     const kioskShareAmount =
       conversion.status === 'confirmed'
         ? new Prisma.Decimal(conversion.commissionAmount)
             .mul(attempt.device.location.kiosk.revenueSharePct)
             .div(100)
         : new Prisma.Decimal(0);
-
-    await this.prisma.commissionEvent.upsert({
-      where: { subId: attempt.subId },
-      update: {}, // already ingested. Reconciliation handles status changes, not this pass
-      create: {
-        deviceId: attempt.deviceId,
-        merchantId: attempt.merchantId,
-        subId: attempt.subId,
-        networkReference: conversion.networkReference,
-        orderValue: conversion.orderValue,
-        commissionAmount: conversion.commissionAmount,
-        kioskShareAmount,
-        status: toCommissionStatus(conversion.status),
-        reportedAt: conversion.reportedAt,
-        confirmedAt: conversion.status === 'confirmed' ? new Date() : null,
-        reversedAt: conversion.status === 'reversed' ? new Date() : null,
-      },
+    // Actual insert count, deduplicated by merchant + network order, including concurrent runs.
+    const result = await this.prisma.commissionEvent.createMany({
+      skipDuplicates: true,
+      data: [
+        {
+          deviceId: attempt.deviceId,
+          merchantId: attempt.merchantId,
+          subId: attempt.subId,
+          networkReference: conversion.networkReference,
+          orderValue: conversion.orderValue,
+          commissionAmount: conversion.commissionAmount,
+          kioskShareAmount,
+          isTest,
+          status: toCommissionStatus(conversion.status),
+          reportedAt: conversion.reportedAt,
+          confirmedAt: conversion.status === 'confirmed' ? new Date() : null,
+          reversedAt: conversion.status === 'reversed' ? new Date() : null,
+        },
+      ],
     });
+    return result.count;
   }
 
-  /**
-   * Re-checks every still-PENDING CommissionEvent against its network's current status and
-   * transitions it to CONFIRMED (locking in kioskShareAmount) or REVERSED (zeroing it out).
-   */
   async reconcilePendingConversions(): Promise<{
     confirmed: number;
     reversed: number;
   }> {
-    const pending = await this.prisma.commissionEvent.findMany({
-      where: { status: CommissionStatus.PENDING },
-      include: {
-        merchant: { include: { affiliateProgram: true } },
-        device: { include: { location: { include: { kiosk: true } } } },
-      },
-      take: RECONCILIATION_PAGE_SIZE,
-    });
-
-    const byProgramId = groupBy(
-      pending.filter(
-        (e) => e.merchant.affiliateProgramId && e.merchant.affiliateProgram,
-      ),
-      (e) => e.merchant.affiliateProgramId as string,
-    );
-
-    let confirmed = 0;
-    let reversed = 0;
-    for (const [programId, events] of byProgramId) {
-      const program = events[0].merchant.affiliateProgram!;
-      const adapter = this.adapterRegistry.getAdapter(program.networkName);
-      if (!adapter?.checkConversionStatuses) {
-        continue;
-      }
-
-      const results = await adapter.checkConversionStatuses(
-        programId,
-        events.map((e) => e.networkReference),
+    let confirmed = 0,
+      reversed = 0;
+    const failures = new Set<string>();
+    let cursor: string | undefined;
+    for (;;) {
+      // Cursor all pages, including confirmed orders that may subsequently be reversed.
+      const events = await this.prisma.commissionEvent.findMany({
+        where: {
+          status: {
+            in: [CommissionStatus.PENDING, CommissionStatus.CONFIRMED],
+          },
+        },
+        include: {
+          merchant: { include: { affiliateProgram: true } },
+          device: { include: { location: { include: { kiosk: true } } } },
+        },
+        orderBy: { id: 'asc' },
+        take: RECONCILIATION_PAGE_SIZE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+      if (!events.length) break;
+      cursor = events[events.length - 1].id;
+      const byProgram = groupBy(
+        events.filter((e) => e.merchant.affiliateProgram),
+        (e) => e.merchant.affiliateProgramId!,
       );
-      const statusByRef = new Map(
-        results.map((r) => [r.networkReference, r.status]),
-      );
-
-      const toConfirm: PendingEvent[] = [];
-      const toReverseIds: string[] = [];
-      for (const event of events) {
-        const newStatus = statusByRef.get(event.networkReference);
-        if (newStatus === 'confirmed') {
-          toConfirm.push(event);
-        } else if (newStatus === 'reversed') {
-          toReverseIds.push(event.id);
+      for (const [programId, batch] of byProgram) {
+        try {
+          const adapter = this.adapterRegistry.requireAdapter(
+            batch[0].merchant.affiliateProgram!.networkName,
+          );
+          if (!adapter.checkConversionStatuses)
+            throw new Error('Adapter does not support reconciliation');
+          const results = await adapter.checkConversionStatuses(
+            programId,
+            batch.map((e) => e.networkReference),
+          );
+          const statuses = new Map(
+            results.map((r) => [r.networkReference, r.status]),
+          );
+          for (const event of batch) {
+            const changed = await this.reconcileEvent(
+              event.id,
+              statuses.get(event.networkReference),
+            );
+            if (changed === 'confirmed') confirmed++;
+            if (changed === 'reversed') reversed++;
+          }
+        } catch (error) {
+          this.logger.error(
+            'Reconciliation failed for program ' + programId,
+            error,
+          );
+          failures.add(programId);
         }
-        // missing or still 'pending'. Nothing to do this pass
       }
+    }
+    if (failures.size)
+      throw new Error(
+        'Reconciliation failed for programs: ' + [...failures].join(', '),
+      );
+    return { confirmed, reversed };
+  }
 
-      if (toConfirm.length > 0) {
-        // kioskShareAmount differs per event (own commissionAmount * its kiosk's
-        // revenueSharePct), so a single updateMany can't cover this batch, a pipelined
-        // transaction still replaces N serial round-trips with one, atomically.
-        await this.prisma.$transaction(
-          toConfirm.map((event) =>
-            this.prisma.commissionEvent.update({
-              where: { id: event.id },
-              data: {
-                status: CommissionStatus.CONFIRMED,
-                confirmedAt: new Date(),
-                kioskShareAmount: event.commissionAmount
-                  .mul(event.device.location.kiosk.revenueSharePct)
-                  .div(100),
-              },
-            }),
-          ),
-        );
-        confirmed += toConfirm.length;
-      }
-
-      if (toReverseIds.length > 0) {
-        await this.prisma.commissionEvent.updateMany({
-          where: { id: { in: toReverseIds } },
+  private async reconcileEvent(
+    id: string,
+    status?: string,
+  ): Promise<string | null> {
+    return serializable(this.prisma, async (tx) => {
+      const event = await tx.commissionEvent.findUniqueOrThrow({
+        where: { id },
+        include: {
+          payout: true,
+          device: { include: { location: { include: { kiosk: true } } } },
+        },
+      });
+      if (event.status === CommissionStatus.REVERSED) return null;
+      const checked = { lastReconciledAt: new Date() };
+      if (status === 'confirmed' && event.status === CommissionStatus.PENDING) {
+        await tx.commissionEvent.update({
+          where: { id },
           data: {
+            ...checked,
+            status: CommissionStatus.CONFIRMED,
+            confirmedAt: new Date(),
+            kioskShareAmount: event.commissionAmount
+              .mul(event.device.location.kiosk.revenueSharePct)
+              .div(100),
+          },
+        });
+        return 'confirmed';
+      }
+      if (status === 'reversed') {
+        let payoutId = event.payoutId;
+        if (event.payout?.status === 'PENDING') {
+          const reduced = await tx.payout.update({
+            where: { id: event.payout.id },
+            data: { totalAmount: { decrement: event.kioskShareAmount } },
+          });
+          if (!reduced.totalAmount.greaterThan(0)) {
+            // A reversal can consume all earnings that were covering earlier debt. Carry
+            // both the remaining earnings and deductions into a future positive payout.
+            await tx.commissionEvent.updateMany({
+              where: { payoutId: reduced.id },
+              data: { payoutId: null },
+            });
+            await tx.commissionAdjustment.updateMany({
+              where: { payoutId: reduced.id },
+              data: { payoutId: null },
+            });
+            await tx.payout.update({
+              where: { id: reduced.id },
+              data: { totalAmount: 0, status: 'FAILED' },
+            });
+          }
+          payoutId = null;
+        } else if (event.payout && event.kioskShareAmount.greaterThan(0)) {
+          await tx.commissionAdjustment.upsert({
+            where: { commissionEventId: id },
+            update: {},
+            create: {
+              commissionEventId: id,
+              kioskId: event.payout.kioskId,
+              amount: event.kioskShareAmount.negated(),
+            },
+          });
+        }
+        await tx.commissionEvent.update({
+          where: { id },
+          data: {
+            ...checked,
             status: CommissionStatus.REVERSED,
             reversedAt: new Date(),
             kioskShareAmount: 0,
+            payoutId,
           },
         });
-        reversed += toReverseIds.length;
+        return 'reversed';
       }
-    }
-
-    return { confirmed, reversed };
+      await tx.commissionEvent.update({ where: { id }, data: checked });
+      return null;
+    });
   }
 
   /**
@@ -347,10 +435,11 @@ export class CommissionsService {
       throw new NotFoundException('Kiosk not found');
     }
 
-    const [pendingAgg, confirmedAgg] = await Promise.all([
+    const [pendingAgg, confirmedAgg, adjustments] = await Promise.all([
       this.prisma.commissionEvent.aggregate({
         where: {
           status: CommissionStatus.PENDING,
+          isTest: false,
           device: { location: { kioskId } },
         },
         _sum: { commissionAmount: true },
@@ -359,10 +448,15 @@ export class CommissionsService {
         // payoutId: null. CONFIRMED events already swept into a Payout are no longer "available".
         where: {
           status: CommissionStatus.CONFIRMED,
+          isTest: false,
           device: { location: { kioskId } },
           payoutId: null,
         },
         _sum: { kioskShareAmount: true },
+      }),
+      this.prisma.commissionAdjustment.aggregate({
+        where: { kioskId, payoutId: null },
+        _sum: { amount: true },
       }),
     ]);
 
@@ -376,7 +470,9 @@ export class CommissionsService {
 
     return {
       pendingAmount: pendingAmount.toNumber(),
-      confirmedAvailableAmount: confirmedAvailableAmount.toNumber(),
+      confirmedAvailableAmount: confirmedAvailableAmount
+        .add(adjustments._sum.amount ?? 0)
+        .toNumber(),
     };
   }
 }

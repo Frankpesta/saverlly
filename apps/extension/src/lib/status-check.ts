@@ -1,6 +1,6 @@
 import { AuthError, fetchDeviceStatus } from './api-client';
 import { STATUS_GRACE_PERIOD_MS } from './config';
-import { getLastStatusOkAt, isDormant, setDormant, setLastStatusOkAt } from './storage';
+import { getLastStatusOkAt, getReviewerAccess, isDormant, setDormant, setLastStatusOkAt } from './storage';
 
 export function isWithinGracePeriod(lastOkAt: number | null, now: number): boolean {
   if (lastOkAt === null) return false;
@@ -21,6 +21,11 @@ export async function checkDeviceStatus(now: number = Date.now()): Promise<boole
     }
     return active;
   } catch (err) {
+    // Temporary reviewer access requires a live check; no offline grace beyond revocation.
+    if (await getReviewerAccess()) {
+      await setDormant(true);
+      return false;
+    }
     if (err instanceof AuthError) {
       // apiFetch already flipped dormant=true on 401/403. No token, kill-switched
       // device, or inactive kiosk. No grace period for an explicit auth rejection.

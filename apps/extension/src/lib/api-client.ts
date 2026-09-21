@@ -6,8 +6,8 @@ import type {
   LifetimeSavingsResponse,
   PublicMerchant,
 } from '@saverlly/shared-types';
-import { getApiBaseUrl, STATUS_GRACE_PERIOD_MS } from './config';
-import { getDeviceToken, setDormant } from './storage';
+import { getApiBaseUrl, getReviewerApiBaseUrl, STATUS_GRACE_PERIOD_MS } from './config';
+import { getDeviceToken, getReviewerAccess, setDormant } from './storage';
 
 export class AuthError extends Error {
   constructor(public status: number) {
@@ -26,12 +26,19 @@ function withTimeout(signal: AbortSignal | null | undefined): AbortSignal {
 
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const [baseUrl, token] = await Promise.all([getApiBaseUrl(), getDeviceToken()]);
+  const review = await getReviewerAccess();
+  const origin = review ? getReviewerApiBaseUrl() : baseUrl;
+  if (review && (!origin || Date.parse(review.expiresAt) <= Date.now() || !Number.isFinite(Date.parse(review.expiresAt)))) {
+    await setDormant(true);
+    throw new AuthError(401);
+  }
   if (!token) {
     await setDormant(true);
     throw new AuthError(401);
   }
 
-  const res = await fetch(`${baseUrl}${path}`, {
+  const route = review ? path.replace(/^\/public\//, '/reviewer-public/') : path;
+  const res = await fetch(`${origin}${route}`, {
     ...init,
     signal: withTimeout(init.signal),
     headers: {

@@ -32,6 +32,8 @@ export interface CouponApplyResultMessage {
     | "cancelled";
   /** Only set when result === 'applied'. */
   discountAmount?: number;
+  /** Newly saved by this run, excluding a discount already present at its start. */
+  incrementalSavings?: number;
   originalTotal?: number;
   newTotal?: number;
 }
@@ -71,6 +73,7 @@ export interface GetActivePromotionsMessage {
 }
 
 export type ExtensionMessage =
+  | { type: "ACTIVATE_REVIEWER"; code: string }
   | { type: "DEVICE_STATUS_CHANGED"; dormant: boolean }
   | {
       type: "CHECKOUT_STATE_CHANGED";

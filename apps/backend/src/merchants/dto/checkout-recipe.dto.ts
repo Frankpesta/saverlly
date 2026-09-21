@@ -1,7 +1,16 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  ValidateIf,
+  ArrayNotEmpty,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { normalizeCheckoutSelector } from '@saverlly/shared-types';
+import { IsCssSelector } from '../../common/validators/is-css-selector.decorator';
 
 const NormalizeSelector = () =>
   Transform(({ value }) =>
@@ -16,50 +25,66 @@ export class CheckoutRecipeDto {
   @IsIn(['replace', 'remove'])
   couponApplyMode?: 'replace' | 'remove';
 
-  @ApiPropertyOptional({ example: 'button.remove-promo' })
-  @IsOptional()
+  @ApiPropertyOptional({
+    example: 'button.remove-promo',
+    description: 'Required and nonblank when couponApplyMode is remove.',
+  })
+  @ValidateIf(
+    (recipe: CheckoutRecipeDto) =>
+      recipe.couponApplyMode === 'remove' ||
+      (recipe.removeCouponSelector != null &&
+        recipe.removeCouponSelector !== ''),
+  )
   @IsString()
+  @Matches(/\S/, {
+    message:
+      'removeCouponSelector must be nonblank when supplied; it is required for remove mode',
+  })
   @NormalizeSelector()
+  @IsCssSelector()
   removeCouponSelector?: string;
 
-  @ApiPropertyOptional({ example: "input[name='promoCode']" })
-  @IsOptional()
+  @ApiProperty({ example: "input[name='promoCode']" })
   @IsString()
   @NormalizeSelector()
-  couponFieldSelector?: string;
+  @IsCssSelector()
+  couponFieldSelector: string;
 
-  @ApiPropertyOptional({ example: "button[data-testid='apply-promo']" })
-  @IsOptional()
+  @ApiProperty({ example: "button[data-testid='apply-promo']" })
   @IsString()
   @NormalizeSelector()
-  applyButtonSelector?: string;
+  @IsCssSelector()
+  applyButtonSelector: string;
 
   @ApiPropertyOptional({ example: '.promo-success-message' })
   @IsOptional()
   @IsString()
   @NormalizeSelector()
+  @IsCssSelector()
   successIndicatorSelector?: string;
 
   @ApiPropertyOptional({ example: '.promo-error-message' })
   @IsOptional()
   @IsString()
   @NormalizeSelector()
+  @IsCssSelector()
   failureIndicatorSelector?: string;
 
-  @ApiPropertyOptional({ example: '.order-summary-total' })
-  @IsOptional()
+  @ApiProperty({ example: '.order-summary-total' })
   @IsString()
   @NormalizeSelector()
-  cartTotalSelector?: string;
+  @IsCssSelector()
+  cartTotalSelector: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: [String],
     example: ['/checkout', '/cart/checkout'],
   })
-  @IsOptional()
   @IsArray()
+  @ArrayNotEmpty()
   @IsString({ each: true })
-  checkoutUrlPatterns?: string[];
+  @Matches(/\S/, { each: true })
+  checkoutUrlPatterns: string[];
 
   // Some checkouts (e.g. Target) hide the coupon field behind a click-to-reveal button that
   // isn't in the DOM until clicked. See packages/shared-types' CheckoutRecipe for full context.
@@ -67,5 +92,6 @@ export class CheckoutRecipeDto {
   @IsOptional()
   @IsString()
   @NormalizeSelector()
+  @IsCssSelector()
   couponFieldRevealSelector?: string;
 }

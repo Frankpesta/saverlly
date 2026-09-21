@@ -13,9 +13,20 @@ import {
 import { AttributionMethod } from '@prisma/client';
 import { CheckoutRecipeDto } from './checkout-recipe.dto';
 
-const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+const DOMAIN_PATTERN =
+  /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
 export class CreateMerchantDto {
+  @ApiPropertyOptional({
+    example: 'SubId1',
+    description:
+      'Network-approved sub-ID query parameter for device commission attribution',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/)
+  affiliateSubIdParamKey?: string;
+
   @ApiProperty({ example: 'Target' })
   @IsString()
   @MinLength(1)
@@ -23,17 +34,22 @@ export class CreateMerchantDto {
 
   @ApiProperty({ example: 'target.com' })
   @IsString()
-  @Matches(DOMAIN_PATTERN, { message: 'domain must be a valid bare domain, e.g. "target.com"' })
+  @Matches(DOMAIN_PATTERN, {
+    message: 'domain must be a valid bare domain, e.g. "target.com"',
+  })
   domain: string;
 
   @ApiProperty({
     enum: AttributionMethod,
-    description: 'Required even if the store has no coupon API at all. This is what makes commission tracking work',
+    description:
+      'Required even if the store has no coupon API at all. This is what makes commission tracking work',
   })
   @IsEnum(AttributionMethod)
   attributionMethod: AttributionMethod;
 
-  @ApiPropertyOptional({ description: 'Required if attributionMethod is COOKIE or BOTH' })
+  @ApiPropertyOptional({
+    description: 'Required if attributionMethod is COOKIE or BOTH',
+  })
   @ValidateIf(
     (o) =>
       o.affiliateTrackingUrl !== undefined ||
@@ -44,7 +60,10 @@ export class CreateMerchantDto {
   @MinLength(1)
   affiliateTrackingUrl?: string;
 
-  @ApiPropertyOptional({ example: 'irclickid', description: 'Required if attributionMethod is URL_PARAM or BOTH' })
+  @ApiPropertyOptional({
+    example: 'irclickid',
+    description: 'Required if attributionMethod is URL_PARAM or BOTH',
+  })
   @ValidateIf(
     (o) =>
       o.affiliateUrlParamKey !== undefined ||
@@ -55,7 +74,9 @@ export class CreateMerchantDto {
   @MinLength(1)
   affiliateUrlParamKey?: string;
 
-  @ApiPropertyOptional({ description: 'Required if attributionMethod is URL_PARAM or BOTH' })
+  @ApiPropertyOptional({
+    description: 'Required if attributionMethod is URL_PARAM or BOTH',
+  })
   @ValidateIf(
     (o) =>
       o.affiliateUrlParamValue !== undefined ||
@@ -67,7 +88,8 @@ export class CreateMerchantDto {
   affiliateUrlParamValue?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional coupon-sourcing config. Connects this merchant to an existing affiliate program',
+    description:
+      'Optional coupon-sourcing config. Connects this merchant to an existing affiliate program',
   })
   @IsOptional()
   @IsUUID()

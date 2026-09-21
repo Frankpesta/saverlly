@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CouponSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
@@ -57,6 +61,15 @@ export class CouponsService {
           discountValue: dto.discountValue,
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
           active: dto.active,
+          ...([
+            'code',
+            'description',
+            'discountType',
+            'discountValue',
+            'expiresAt',
+          ].some((key) => dto[key] !== undefined)
+            ? { source: CouponSource.MANUAL, freshUntil: null }
+            : {}),
         },
       });
     } catch (err) {
@@ -80,8 +93,13 @@ export class CouponsService {
   }
 
   private mapDuplicateConflict(err: unknown): unknown {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      return new ConflictException('A coupon with this code already exists for this merchant');
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002'
+    ) {
+      return new ConflictException(
+        'A coupon with this code already exists for this merchant',
+      );
     }
     return err;
   }

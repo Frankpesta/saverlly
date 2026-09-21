@@ -22,6 +22,8 @@ import type {
 import { connectToAgentAndReceiveToken } from "../lib/native-messaging";
 import { checkStepDown } from "../lib/step-down-check";
 import { checkDeviceStatus } from "../lib/status-check";
+import { activateReviewer } from "../lib/reviewer-access";
+import { getReviewerAccess } from "../lib/storage";
 import {
   getCachedMerchant,
   getPersistedTabState,
@@ -121,6 +123,7 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === STATUS_ALARM) void checkDeviceStatus();
   if (alarm.name === RECOVERY_ALARM) {
+    void getReviewerAccess().then((review) => { if (review) void checkDeviceStatus(); });
     void isDormant().then((dormant) => {
       if (dormant) void initialize();
       else void flushCouponEvents();
@@ -135,6 +138,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 chrome.storage?.onChanged?.addListener((changes, area) => {
+  if (area === "local" && (changes.deviceToken || changes.reviewerAccess)) {
+    // A reviewer and an agent may use this installation at different times. Never
+    // show one identity's completed checkout as a result belonging to the other.
+    for (const tabId of tabState.keys()) {
+      clearTabState(tabId);
+      void takePendingApply(tabId);
+    }
+  }
   if (area !== "local" || !changes.dormant) return;
   const dormant = changes.dormant.newValue === true;
   chrome.runtime
@@ -412,6 +423,7 @@ async function startApply(
   continuingAfterRedirect = false,
 ): Promise<boolean> {
   if (await isDormant()) return false;
+  if (await getReviewerAccess() && !(await checkDeviceStatus())) return false;
 
   const state = await loadTabState(tabId);
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
@@ -540,6 +552,16 @@ async function handleMessage(
   sender: chrome.runtime.MessageSender,
 ): Promise<unknown> {
   switch (message.type) {
+    case "ACTIVATE_REVIEWER": {
+      if (sender.tab || sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup/popup.html")) return { error: "Open Saverlly to enter your access code." };
+      try {
+        await activateReviewer(message.code);
+        await initialize();
+        return { activated: !(await isDormant()) };
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : "Could not activate reviewer access." };
+      }
+    }
     case "CHECKOUT_CONFIRMED": {
       const tabId = sender.tab?.id;
       if (tabId === undefined) return;
@@ -578,7 +600,10 @@ async function handleMessage(
             ? "valid"
             : message.result,
         isFinal: message.isFinal,
-        discountAmount: message.discountAmount,
+        discountAmount:
+          message.isFinal && message.result === "applied"
+            ? (message.incrementalSavings ?? message.discountAmount)
+            : message.discountAmount,
       });
       // Only the last attempt in the sequence should flip the popup out of "applying"
       // intermediate failures keep reporting to the backend but must not surface yet.
@@ -624,6 +649,7 @@ async function handleMessage(
       }
     }
     case "GET_EXTENSION_STATUS": {
+      if (await getReviewerAccess()) await checkDeviceStatus();
       if (await isDormant()) void initialize();
       return { dormant: await isDormant() };
     }

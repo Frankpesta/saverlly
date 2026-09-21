@@ -17,12 +17,18 @@ export const STRONG_PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
 
 export const passwordSchema = z
   .string()
-  .regex(STRONG_PASSWORD_PATTERN, "Password must be at least 8 characters and include a letter and a number")
+  .regex(
+    STRONG_PASSWORD_PATTERN,
+    "Password must be at least 8 characters and include a letter and a number",
+  )
 
 /** Cross-field "confirm password matches" check, apply with `.refine()` on a schema that
  * already has both a password field and a confirm field, e.g.:
  * `z.object({ newPassword: passwordSchema, confirmPassword: z.string() }).refine(passwordsMatch("newPassword", "confirmPassword"), passwordMismatchIssue("confirmPassword"))` */
-export function passwordsMatch<T extends Record<string, unknown>>(passwordKey: keyof T, confirmKey: keyof T) {
+export function passwordsMatch<T extends Record<string, unknown>>(
+  passwordKey: keyof T,
+  confirmKey: keyof T,
+) {
   return (data: T) => data[passwordKey] === data[confirmKey]
 }
 
@@ -37,10 +43,7 @@ export function passwordMismatchIssue(confirmKey: string, message = "Passwords d
  * migration is involved. */
 export const ZIP_PATTERN = /^\d{5}$/
 
-export const zipSchema = z
-  .string()
-  .trim()
-  .regex(ZIP_PATTERN, "Enter a valid 5-digit ZIP code")
+export const zipSchema = z.string().trim().regex(ZIP_PATTERN, "Enter a valid 5-digit ZIP code")
 
 /** Mirrors the backend's `IsMultipleOf(5)` validator applied to `Kiosk.revenueSharePct`
  * (`apps/backend/src/common/validators/is-multiple-of.decorator.ts`), 0-100 in steps of 5. */
@@ -56,9 +59,9 @@ export const nameSchema = z.string().trim().min(1, "Name is required")
  * `expectedName` is bound at schema-construction time (per dialog instance), not per-submission,
  * since the target being deleted doesn't change while the confirm dialog is open. */
 export function exactMatchSchema(expectedName: string) {
-  return z
-    .string()
-    .refine((value) => value === expectedName, { message: `Type "${expectedName}" to confirm.` })
+  return z.string().refine((value) => value === expectedName, {
+    message: `Type "${expectedName}" to confirm.`,
+  })
 }
 
 const ATTRIBUTION_METHODS = ["COOKIE", "URL_PARAM", "BOTH"] as const
@@ -74,9 +77,15 @@ export const attributionFieldsSchema = z
     affiliateTrackingUrl: z.string().trim().optional(),
     affiliateUrlParamKey: z.string().trim().optional(),
     affiliateUrlParamValue: z.string().trim().optional(),
+    affiliateSubIdParamKey: z
+      .string()
+      .trim()
+      .refine((v) => !v || /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(v), "Enter a valid parameter name")
+      .optional(),
   })
   .superRefine((data, ctx) => {
-    const needsTrackingUrl = data.attributionMethod === "COOKIE" || data.attributionMethod === "BOTH"
+    const needsTrackingUrl =
+      data.attributionMethod === "COOKIE" || data.attributionMethod === "BOTH"
     const needsParam = data.attributionMethod === "URL_PARAM" || data.attributionMethod === "BOTH"
 
     if (needsTrackingUrl && !data.affiliateTrackingUrl) {

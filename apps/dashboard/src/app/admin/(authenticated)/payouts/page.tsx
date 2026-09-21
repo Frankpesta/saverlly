@@ -31,7 +31,7 @@ import {
 import { BentoGrid } from "@/components/dashboard/bento-grid"
 import { StatTile } from "@/components/dashboard/stat-tile"
 import { TablePagination } from "@/components/dashboard/table-pagination"
-import { usePayouts, useProcessPayout } from "@/lib/api/hooks/use-payouts"
+import { usePayouts, useProcessPayout, useRecoverPayout } from "@/lib/api/hooks/use-payouts"
 import { ApiError } from "@/lib/api/client"
 import { formatCurrency } from "@/lib/format-currency"
 import { PAYOUT_STATUS_BADGE_VARIANT, PAYOUT_STATUS_LABEL } from "@/lib/dashboard/status-labels"
@@ -195,14 +195,17 @@ export default function AdminPayoutsPage() {
 
 function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
   const processPayout = useProcessPayout()
+  const recoverPayout = useRecoverPayout()
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [processError, setProcessError] = React.useState<string | null>(null)
 
   function handleProcess() {
     setProcessError(null)
     processPayout.mutate(payout.id, {
-      onSuccess: () => {
-        toast.success("Payout is now processing.")
+      onSuccess: (result) => {
+        toast.success(
+          result.status === "PAID" ? "Payout transferred." : "Payout is now processing.",
+        )
         setConfirmOpen(false)
       },
       onError: (error) =>
@@ -233,6 +236,27 @@ function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
         </Badge>
       </TableCell>
       <TableCell>
+        {payout.status === "PROCESSING" && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={recoverPayout.isPending}
+            onClick={() =>
+              recoverPayout.mutate(payout.id, {
+                onSuccess: (result) =>
+                  toast.success(
+                    result.status === "PAID" ? "Payout confirmed." : "Payout status refreshed.",
+                  ),
+                onError: (error) =>
+                  toast.error(
+                    error instanceof ApiError ? error.message : "Could not reconcile payout.",
+                  ),
+              })
+            }
+          >
+            {recoverPayout.isPending ? "Checking…" : "Recover transfer"}
+          </Button>
+        )}
         {payout.status === "PENDING" && (
           <AlertDialog
             open={confirmOpen}
@@ -256,8 +280,9 @@ function PayoutRow({ payout, index }: { payout: Payout; index: number }) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Process this payout?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This triggers a real Stripe transfer of {formatCurrency(payout.totalAmount)} to{" "}
-                  {payout.kiosk?.name ?? "this kiosk"}. This can&apos;t be undone.
+                  This triggers a real Stripe transfer of up to {formatCurrency(payout.totalAmount)}{" "}
+                  to {payout.kiosk?.name ?? "this kiosk"}. Any newly recorded commission reversals
+                  are deducted before transfer. This can&apos;t be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {processError && (

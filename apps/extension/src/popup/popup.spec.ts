@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 import type { TabCheckoutState } from "../lib/messages";
+jest.mock("../lib/config", () => ({ getReviewerApiBaseUrl: () => "https://api.example.test" }));
 declare function require(id: string): unknown;
 let listener: (message: unknown, sender: unknown) => void;
 let state: TabCheckoutState | null;
@@ -54,6 +55,25 @@ beforeEach(() => {
     },
     tabs: { query: async () => [{ id: 7 }] },
   };
+});
+
+it("activates a reviewer from the disconnected screen without an agent", async () => {
+  let connected = false;
+  sendMessage.mockImplementation(async ({type}) => {
+    if (type === "GET_EXTENSION_STATUS") return {dormant: !connected};
+    if (type === "ACTIVATE_REVIEWER") { connected = true; return {activated:true}; }
+    if (type === "GET_ACTIVE_PROMOTIONS") return [];
+    if (type === "GET_LIFETIME_SAVED") return 0;
+    if (type === "GET_TAB_STATE") return state;
+  });
+  require("./popup");
+  await flush();
+  document.getElementById("reviewer-code-link")!.click();
+  (document.getElementById("reviewer-code") as HTMLInputElement).value = "REV-TEST";
+  document.getElementById("reviewer-form")!.dispatchEvent(new Event("submit", {bubbles:true,cancelable:true}));
+  await flush();
+  expect(sendMessage).toHaveBeenCalledWith({type:"ACTIVATE_REVIEWER",code:"REV-TEST"});
+  expect(document.getElementById("content")!.dataset.view).toBe("idle");
 });
 
 it("restores success before the paused state and exposes the coupon list", async () => {

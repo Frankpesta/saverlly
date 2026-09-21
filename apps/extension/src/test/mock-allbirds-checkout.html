@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><title>Allbirds checkout regression fixture</title>
+  <h1>Checkout fixture</h1>
+  <label>Discount code <input name="reductions" /></label>
+  <button aria-label="Apply Discount Code" disabled>Apply</button>
+  <div id="chips"></div>
+  <p id="error-for-ReductionsInput" hidden>Enter a valid discount code</p>
+  <h2 id="MoneyLine-Heading">Cost summary</h2>
+  <div role="table" aria-labelledby="MoneyLine-Heading">
+    <div role="row">
+      <div role="rowheader">Subtotal</div>
+      <div role="cell">$140.00</div>
+    </div>
+    <div role="row">
+      <div role="rowheader">Total</div>
+      <div role="cell" id="total"></div>
+    </div>
+  </div>
+  <script>
+    const input = document.querySelector("input");
+    const apply = document.querySelector("button");
+    const error = document.querySelector("p");
+    const chips = document.querySelector("#chips");
+    const table = document.querySelector("[role=table]");
+    const total = document.querySelector("#total");
+    window.testedCodes = [];
+    let amount = 140;
+    function render(code) {
+      const next = code ? 126 : 140;
+      total.innerHTML = `USD<span aria-hidden="true">$${amount.toFixed(2)}</span><span>$${next.toFixed(2)}</span>`;
+      amount = next;
+      chips.replaceChildren();
+      document.querySelector("#savings")?.remove();
+      if (code) {
+        const remove = document.createElement("button");
+        remove.dataset.eventName = "remove_discount_code";
+        remove.setAttribute("aria-label", `Remove ${code}`);
+        remove.textContent = code;
+        remove.onclick = () => {
+          window.testedCodes.push("REMOVE");
+          remove.disabled = true;
+          setTimeout(() => render(null), 350);
+        };
+        chips.append(remove);
+        table.insertAdjacentHTML(
+          "beforeend",
+          '<div role="row" id="savings"><div role="rowheader">TOTAL SAVINGS $14.00</div><div role="cell"></div></div>',
+        );
+      }
+    }
+    input.addEventListener("input", () => {
+      apply.disabled = !input.value.trim();
+    });
+    apply.onclick = () => {
+      const code = input.value;
+      window.testedCodes.push(code);
+      apply.disabled = true;
+      apply.setAttribute("aria-busy", "true");
+      setTimeout(() => {
+        if (code === "COMEBACK10") {
+          render(code);
+          input.value = "";
+        } else error.hidden = false;
+        apply.removeAttribute("aria-busy");
+        apply.disabled = !input.value;
+      }, 700);
+    };
+    render("COMEBACK10");
+  </script>
+</html>

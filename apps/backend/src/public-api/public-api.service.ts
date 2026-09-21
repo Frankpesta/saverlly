@@ -124,6 +124,11 @@ export class PublicApiService {
       }));
   }
 
+  async getUntargetedPromotions(): Promise<ActivePromotionDto[]> {
+    const now = new Date();
+    return this.prisma.promotion.findMany({where:{active:true,startAt:{lte:now},endAt:{gte:now},targetTags:{isEmpty:true},locationIds:{isEmpty:true}},orderBy:{startAt:'asc'},select:{id:true,imageSmallUrl:true,imageLargeUrl:true,clickUrl:true}});
+  }
+
   async getMerchantByDomain(domain: string) {
     const merchant = await this.prisma.merchant.findUnique({
       where: { domain: domain.toLowerCase() },
@@ -132,6 +137,11 @@ export class PublicApiService {
           where: {
             active: true,
             OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            AND: [
+              {
+                OR: [{ freshUntil: null }, { freshUntil: { gt: new Date() } }],
+              },
+            ],
           },
           orderBy: [{ successCount: 'desc' }, { failCount: 'asc' }],
         },

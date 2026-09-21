@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { KioskStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashToken } from '../crypto/token-hash.util';
@@ -23,13 +28,15 @@ export class DeviceAuthGuard implements CanActivate {
     const token = authHeader.slice('Bearer '.length);
     const deviceToken = await this.prisma.deviceToken.findUnique({
       where: { tokenHash: hashToken(token) },
-      include: { device: { include: { location: { include: { kiosk: true } } } } },
+      include: {
+        device: { include: { location: { include: { kiosk: true } } } },
+      },
     });
 
     if (!deviceToken || deviceToken.revoked) {
       throw new UnauthorizedException('Invalid device token');
     }
-    if (!deviceToken.device.active) {
+    if (!deviceToken.device.active || deviceToken.device.retiredAt) {
       throw new UnauthorizedException('Device disabled');
     }
     if (deviceToken.device.location.kiosk.status !== KioskStatus.ACTIVE) {

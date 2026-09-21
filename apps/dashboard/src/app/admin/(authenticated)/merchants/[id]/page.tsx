@@ -13,22 +13,12 @@ import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Combobox } from "@/components/ui/combobox"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
-import {
-  useDeleteMerchant,
-  useMerchant,
-  useUpdateMerchant,
-} from "@/lib/api/hooks/use-merchants"
+import { useDeleteMerchant, useMerchant, useUpdateMerchant } from "@/lib/api/hooks/use-merchants"
 import { ApiError } from "@/lib/api/client"
 import type { Merchant } from "@/lib/api/types"
 import { FormField, FormGrid } from "@/components/dashboard/form-section"
@@ -46,22 +36,37 @@ const merchantEditSchema = z.object({
 
 type MerchantEditFormValues = z.infer<typeof merchantEditSchema>
 
-const checkoutRecipeSchema = z.object({
-  couponFieldSelector: z.string().trim(),
-  applyButtonSelector: z.string().trim(),
-  successIndicatorSelector: z.string().trim(),
-  failureIndicatorSelector: z.string().trim(),
-  cartTotalSelector: z.string().trim(),
-  checkoutUrlPatterns: z.string().transform((value) =>
-    value
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean),
-  ),
-  couponFieldRevealSelector: z.string().trim(),
-  couponApplyMode: z.enum(['', 'replace', 'remove']),
-  removeCouponSelector: z.string().trim(),
-})
+const checkoutRecipeSchema = z
+  .object({
+    couponFieldSelector: z.string().trim().min(1, "Required"),
+    applyButtonSelector: z.string().trim().min(1, "Required"),
+    successIndicatorSelector: z.string().trim(),
+    failureIndicatorSelector: z.string().trim(),
+    cartTotalSelector: z.string().trim().min(1, "Required"),
+    checkoutUrlPatterns: z.string().transform((value) =>
+      value
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean),
+    ),
+    couponFieldRevealSelector: z.string().trim(),
+    couponApplyMode: z.enum(["", "replace", "remove"]),
+    removeCouponSelector: z.string().trim(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.checkoutUrlPatterns.length)
+      ctx.addIssue({
+        code: "custom",
+        path: ["checkoutUrlPatterns"],
+        message: "Enter at least one checkout URL pattern",
+      })
+    if (value.couponApplyMode === "remove" && !value.removeCouponSelector)
+      ctx.addIssue({
+        code: "custom",
+        path: ["removeCouponSelector"],
+        message: "Required for remove mode",
+      })
+  })
 
 type CheckoutRecipeFormInput = z.input<typeof checkoutRecipeSchema>
 type CheckoutRecipeFormOutput = z.output<typeof checkoutRecipeSchema>
@@ -101,8 +106,12 @@ export default function MerchantDetailPage() {
             Merchants
           </Link>
           <div>
-            <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Merchant profile</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight">{merchant?.name ?? "Merchant"}</h2>
+            <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+              Merchant profile
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+              {merchant?.name ?? "Merchant"}
+            </h2>
             {merchant && <p className="mt-1 text-sm text-muted-foreground">{merchant.domain}</p>}
           </div>
         </div>
@@ -124,8 +133,12 @@ export default function MerchantDetailPage() {
         <div className="detail-layout">
           <MerchantEditForm key={merchant.id} merchant={merchant} />
           <CheckoutRecipeForm key={`${merchant.id}-recipe`} merchant={merchant} />
-          <div className="@min-[64rem]/workspace:col-span-2"><MerchantCouponsSection merchantId={merchant.id} /></div>
-          <div className="@min-[64rem]/workspace:col-span-2"><MerchantScrapeSourcesSection merchantId={merchant.id} /></div>
+          <div className="@min-[64rem]/workspace:col-span-2">
+            <MerchantCouponsSection merchantId={merchant.id} />
+          </div>
+          <div className="@min-[64rem]/workspace:col-span-2">
+            <MerchantScrapeSourcesSection merchantId={merchant.id} />
+          </div>
         </div>
       )}
     </div>
@@ -152,6 +165,7 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
         affiliateTrackingUrl: merchant.affiliateTrackingUrl ?? "",
         affiliateUrlParamKey: merchant.affiliateUrlParamKey ?? "",
         affiliateUrlParamValue: merchant.affiliateUrlParamValue ?? "",
+        affiliateSubIdParamKey: merchant.affiliateSubIdParamKey ?? "",
       },
     },
   })
@@ -166,6 +180,7 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
         affiliateTrackingUrl: values.tracking.affiliateTrackingUrl || undefined,
         affiliateUrlParamKey: values.tracking.affiliateUrlParamKey || undefined,
         affiliateUrlParamValue: values.tracking.affiliateUrlParamValue || undefined,
+        affiliateSubIdParamKey: values.tracking.affiliateSubIdParamKey || null,
       },
       {
         onSuccess: () => toast.success("Merchant updated."),
@@ -184,8 +199,14 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
           control={control}
           render={({ field }) => (
             <div className="flex items-center gap-2">
-              <Switch checked={field.value} onCheckedChange={field.onChange} aria-label="Toggle merchant active" />
-              <Label className="text-sm text-muted-foreground">{field.value ? "Active" : "Inactive"}</Label>
+              <Switch
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                aria-label="Toggle merchant active"
+              />
+              <Label className="text-sm text-muted-foreground">
+                {field.value ? "Active" : "Inactive"}
+              </Label>
             </div>
           )}
         />
@@ -212,6 +233,7 @@ function MerchantEditForm({ merchant }: { merchant: Merchant }) {
                   affiliateTrackingUrl: errors.tracking?.affiliateTrackingUrl?.message,
                   affiliateUrlParamKey: errors.tracking?.affiliateUrlParamKey?.message,
                   affiliateUrlParamValue: errors.tracking?.affiliateUrlParamValue?.message,
+                  affiliateSubIdParamKey: errors.tracking?.affiliateSubIdParamKey?.message,
                 }}
               />
             )}
@@ -247,8 +269,8 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
       cartTotalSelector: recipe?.cartTotalSelector ?? "",
       checkoutUrlPatterns: (recipe?.checkoutUrlPatterns ?? []).join(", "),
       couponFieldRevealSelector: recipe?.couponFieldRevealSelector ?? "",
-      couponApplyMode: recipe?.couponApplyMode ?? '',
-      removeCouponSelector: recipe?.removeCouponSelector ?? '',
+      couponApplyMode: recipe?.couponApplyMode ?? "",
+      removeCouponSelector: recipe?.removeCouponSelector ?? "",
     },
   })
 
@@ -261,7 +283,8 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
           successIndicatorSelector: values.successIndicatorSelector || undefined,
           failureIndicatorSelector: values.failureIndicatorSelector || undefined,
           cartTotalSelector: values.cartTotalSelector || undefined,
-          checkoutUrlPatterns: values.checkoutUrlPatterns.length > 0 ? values.checkoutUrlPatterns : undefined,
+          checkoutUrlPatterns:
+            values.checkoutUrlPatterns.length > 0 ? values.checkoutUrlPatterns : undefined,
           couponFieldRevealSelector: values.couponFieldRevealSelector || undefined,
           couponApplyMode: values.couponApplyMode || undefined,
           removeCouponSelector: values.removeCouponSelector || undefined,
@@ -270,7 +293,9 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
       {
         onSuccess: () => toast.success("Checkout recipe saved."),
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Could not save checkout recipe."),
+          toast.error(
+            error instanceof ApiError ? error.message : "Could not save checkout recipe.",
+          ),
       },
     )
   }
@@ -315,9 +340,17 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
             </FormField>
           </FormGrid>
           <FormField label="Cart total selector" htmlFor="recipe-cart-total">
-            <Input id="recipe-cart-total" placeholder=".order-summary-total" {...register("cartTotalSelector")} />
+            <Input
+              id="recipe-cart-total"
+              placeholder=".order-summary-total"
+              {...register("cartTotalSelector")}
+            />
           </FormField>
-          <FormField label="Coupon comparison behavior" htmlFor="recipe-apply-mode" hint="Verify this on the merchant checkout before enabling comparison. Codes must not stack during independent tests.">
+          <FormField
+            label="Coupon comparison behavior"
+            htmlFor="recipe-apply-mode"
+            hint="Verify this on the merchant checkout before enabling comparison. Codes must not stack during independent tests."
+          >
             <Controller
               name="couponApplyMode"
               control={control}
@@ -332,8 +365,16 @@ function CheckoutRecipeForm({ merchant }: { merchant: Merchant }) {
               )}
             />
           </FormField>
-          <FormField label="Remove coupon selector" htmlFor="recipe-remove-coupon" hint="Required for remove mode. Select the checkout control that removes an applied coupon and restores the original total.">
-            <Input id="recipe-remove-coupon" placeholder="button.remove-promo" {...register('removeCouponSelector')} />
+          <FormField
+            label="Remove coupon selector"
+            htmlFor="recipe-remove-coupon"
+            hint="Required for remove mode. Select the checkout control that removes an applied coupon and restores the original total."
+          >
+            <Input
+              id="recipe-remove-coupon"
+              placeholder="button.remove-promo"
+              {...register("removeCouponSelector")}
+            />
           </FormField>
           <FormField
             label="Checkout URL patterns"

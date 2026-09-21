@@ -34,10 +34,18 @@ const newMerchantSchema = z
   .superRefine((data, ctx) => {
     if (data.addScrapeSource) {
       if (!data.scrapeUrl) {
-        ctx.addIssue({ code: "custom", message: "Required to add a scrape source now", path: ["scrapeUrl"] })
+        ctx.addIssue({
+          code: "custom",
+          message: "Required to add a scrape source now",
+          path: ["scrapeUrl"],
+        })
       }
       if (!data.codeSelector) {
-        ctx.addIssue({ code: "custom", message: "Required to add a scrape source now", path: ["codeSelector"] })
+        ctx.addIssue({
+          code: "custom",
+          message: "Required to add a scrape source now",
+          path: ["codeSelector"],
+        })
       }
     }
   })
@@ -68,6 +76,7 @@ export default function NewMerchantPage() {
         affiliateTrackingUrl: "",
         affiliateUrlParamKey: "",
         affiliateUrlParamValue: "",
+        affiliateSubIdParamKey: "",
       },
       affiliateProgramId: "",
       addScrapeSource: false,
@@ -88,6 +97,7 @@ export default function NewMerchantPage() {
         affiliateTrackingUrl: values.tracking.affiliateTrackingUrl || undefined,
         affiliateUrlParamKey: values.tracking.affiliateUrlParamKey || undefined,
         affiliateUrlParamValue: values.tracking.affiliateUrlParamValue || undefined,
+        affiliateSubIdParamKey: values.tracking.affiliateSubIdParamKey || undefined,
         affiliateProgramId: values.affiliateProgramId || undefined,
       },
       {
@@ -160,6 +170,7 @@ export default function NewMerchantPage() {
                   affiliateTrackingUrl: errors.tracking?.affiliateTrackingUrl?.message,
                   affiliateUrlParamKey: errors.tracking?.affiliateUrlParamKey?.message,
                   affiliateUrlParamValue: errors.tracking?.affiliateUrlParamValue?.message,
+                  affiliateSubIdParamKey: errors.tracking?.affiliateSubIdParamKey?.message,
                 }}
               />
             )}
@@ -217,7 +228,11 @@ export default function NewMerchantPage() {
 
           {addScrapeSource && (
             <>
-              <FormField label="Page URL" htmlFor="new-merchant-scrape-url" error={errors.scrapeUrl?.message}>
+              <FormField
+                label="Page URL"
+                htmlFor="new-merchant-scrape-url"
+                error={errors.scrapeUrl?.message}
+              >
                 <Input
                   id="new-merchant-scrape-url"
                   type="url"
@@ -230,7 +245,11 @@ export default function NewMerchantPage() {
                 htmlFor="new-merchant-code-selector"
                 error={errors.codeSelector?.message}
               >
-                <Input id="new-merchant-code-selector" placeholder=".coupon-code" {...register("codeSelector")} />
+                <Input
+                  id="new-merchant-code-selector"
+                  placeholder=".coupon-code"
+                  {...register("codeSelector")}
+                />
                 <SelectorHelp />
               </FormField>
               <FormField

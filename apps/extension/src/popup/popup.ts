@@ -1,4 +1,5 @@
 import type { ActivePromotion } from "@saverlly/shared-types";
+import { getReviewerApiBaseUrl } from "../lib/config";
 import { sortCouponsBySuccessLikelihood } from "../lib/cart-total";
 import { formatCurrency, summarizeBestDiscount } from "../lib/format";
 import {
@@ -44,6 +45,7 @@ let liveUpdateReceived = false;
 let applyError = false;
 let applyRequested = false;
 let deviceDormant = false;
+let reviewerFormOpen = false;
 
 function escapeHtml(value: string): string {
   const div = document.createElement("div");
@@ -73,8 +75,11 @@ function render(view: View): void {
   content.dataset.view = view;
   switch (view) {
     case "inactive":
+      if (reviewerFormOpen) return;
       content.innerHTML =
-        '<p class="popup__heading">Saverlly is not connected</p><p class="popup__subtext">Checking the desktop agent and device status. Keep the agent running, then reopen Saverlly.</p>';
+        '<p class="popup__heading">Saverlly is not connected</p><p class="popup__subtext">Checking the desktop agent and device status. Keep the agent running, then reopen Saverlly.</p>' +
+        (getReviewerApiBaseUrl() ? '<button class="popup__link popup__link--strong" id="reviewer-code-link" type="button">Have a reviewer code?</button>' : '');
+      document.getElementById("reviewer-code-link")?.addEventListener("click", renderReviewerForm);
       return;
     case "loading":
       content.innerHTML = `<p class="popup__subtext">Checking this page…</p>`;
@@ -386,6 +391,42 @@ function isSafeHttpUrl(value: string): boolean {
   }
 }
 
+function renderReviewerForm(): void {
+  reviewerFormOpen = true;
+  content.innerHTML = `
+    <p class="popup__heading">Try Saverlly</p>
+    <p class="popup__subtext">Enter the access code you received.</p>
+    <form id="reviewer-form" class="popup__reviewer-form">
+      <label for="reviewer-code">Access code</label>
+      <input id="reviewer-code" class="popup__reviewer-input" type="text" required maxlength="40" autocomplete="off" spellcheck="false" placeholder="REV-…" aria-describedby="reviewer-error" />
+      <p id="reviewer-error" class="popup__subtext" role="alert"></p>
+      <button class="popup__button" id="reviewer-submit" type="submit">Activate Saverlly ${buttonArrow()}</button>
+      <button class="popup__link" id="reviewer-back" type="button">Back</button>
+    </form>`;
+  const input = document.getElementById("reviewer-code") as HTMLInputElement;
+  input.focus();
+  document.getElementById("reviewer-back")?.addEventListener("click", () => { reviewerFormOpen = false; render("inactive"); });
+  document.getElementById("reviewer-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const button = document.getElementById("reviewer-submit") as HTMLButtonElement;
+    const error = document.getElementById("reviewer-error")!;
+    button.disabled = true;
+    button.textContent = "Connecting…";
+    error.textContent = "";
+    void send({ type: "ACTIVATE_REVIEWER", code: input.value }).then(async (result) => {
+      const response = result as { activated?: boolean; error?: string } | undefined;
+      if (!response?.activated) throw new Error(response?.error ?? "Could not connect. Please try again.");
+      reviewerFormOpen = false;
+      liveUpdateReceived = false;
+      await init();
+    }).catch((reason) => {
+      error.textContent = reason instanceof Error ? reason.message : "Could not connect. Please try again.";
+      button.disabled = false;
+      button.textContent = "Activate Saverlly";
+    });
+  });
+}
+
 async function renderPromo(): Promise<void> {
   const promos = (await send({ type: "GET_ACTIVE_PROMOTIONS" }).catch(
     () => [],
@@ -425,6 +466,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender) => {
       tabState = null;
       render("inactive");
     } else {
+      reviewerFormOpen = false;
       liveUpdateReceived = false;
       void init();
     }

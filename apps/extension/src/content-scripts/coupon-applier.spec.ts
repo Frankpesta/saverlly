@@ -92,6 +92,11 @@ it("uses the native input setter so controlled inputs receive the changed value"
   const field = document.querySelector("input")!;
   const instanceSetter = jest.fn();
   Object.defineProperty(field, "value", {
+    get: () =>
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.get!.call(field),
     set: instanceSetter,
     configurable: true,
   });
@@ -193,6 +198,115 @@ describe("coupon-applier content script — click-to-reveal coupon fields", () =
 });
 
 describe("coupon-applier content script — stale indicator from a prior failed attempt", () => {
+  it("continues after a Cure-style rejection toast clears the input and disables Apply", async () => {
+    jest.useFakeTimers();
+    window.__SAVERLLY__ = {
+      merchantId: "merchant-1",
+      recipe: {
+        ...RECIPE,
+        failureIndicatorSelector:
+          '[role="status"]:has(strong[style*="text-transform:uppercase"]):has(button[aria-label="Close"])',
+      },
+      coupons: [COUPON, { ...COUPON, id: "second", code: "WORKS" }],
+    };
+    document.body.innerHTML =
+      '<div id="cart-total">$88.99</div><input data-test="promo-code-input"><button data-test="apply-promo-code-button">Apply</button>';
+    const field = document.querySelector("input")!;
+    const button = document.querySelector("button")!;
+    field.oninput = () => {
+      button.disabled = !field.value;
+    };
+    button.onclick = () => {
+      const code = field.value;
+      button.disabled = true;
+      setTimeout(() => {
+        field.value = "";
+        if (code === "WORKS") {
+          document.querySelector("#cart-total")!.textContent = "$71.20";
+        } else {
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            '<div role="status"><strong style="text-transform:uppercase">SAVE10</strong> discount code isn’t valid for the items in your cart<button aria-label="Close">×</button></div>',
+          );
+          Object.defineProperty(
+            document.querySelector('[role="status"]')!,
+            "offsetParent",
+            { value: document.body },
+          );
+        }
+      }, 500);
+    };
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(6000);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "SAVE10",
+        result: "failed",
+        isFinal: false,
+      }),
+    );
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "WORKS",
+        result: "applied",
+        comparisonComplete: true,
+        isFinal: true,
+        discountAmount: 17.79,
+      }),
+    );
+  });
+
+  it("finishes repeated comparisons when cached rejections finish between polls", async () => {
+    jest.useFakeTimers();
+    window.__SAVERLLY__ = {
+      merchantId: "merchant-1",
+      recipe: RECIPE,
+      coupons: [COUPON, { ...COUPON, id: "second", code: "OTHER" }],
+    };
+    document.body.innerHTML =
+      '<div id="cart-total">$100</div><input data-test="promo-code-input" value="SAVE10"><button data-test="apply-promo-code-button">Add</button><div class="failure">Not applicable</div>';
+    Object.defineProperty(document.querySelector(".failure")!, "offsetParent", {
+      value: document.body,
+    });
+    const field = document.querySelector("input")!;
+    const button = document.querySelector("button")!;
+    const edits: string[] = [];
+    const clicks: string[] = [];
+    field.addEventListener("input", () => edits.push(field.value));
+    button.onclick = () => {
+      clicks.push(field.value);
+      // Busy starts and finishes before the next polling tick; the error node
+      // and text remain identical, as with a cached merchant rejection.
+      setTimeout(() => {
+        button.disabled = true;
+      }, 20);
+      setTimeout(() => {
+        button.disabled = false;
+      }, 70);
+    };
+    for (let run = 0; run < 2; run++) {
+      loadContentScript();
+      await jest.advanceTimersByTimeAsync(10000);
+      expect(
+        sendMessage.mock.calls.map(([m]) => m).filter((m) => m.isFinal),
+      ).toEqual([
+        expect.objectContaining({ result: "failed", comparisonComplete: true }),
+      ]);
+      sendMessage.mockClear();
+    }
+    expect(clicks).toEqual(["SAVE10", "OTHER", "SAVE10", "OTHER"]);
+    expect(edits).toEqual([
+      "",
+      "SAVE10",
+      "",
+      "OTHER",
+      "",
+      "SAVE10",
+      "",
+      "OTHER",
+    ]);
+  });
+
   // Regression test for a live Allbirds checkout bug: the site's own error banner for a failed
   // code (e.g. "Enter a valid discount code") is never removed or hidden once a later, different
   // code succeeds -- confirmed live, not just assumed. Without clearing it before each new
@@ -546,6 +660,7 @@ describe("largest confirmed saving", () => {
         originalTotal: 100,
         newTotal: 70,
         discountAmount: 30,
+        incrementalSavings: 30,
       }),
     );
   });
@@ -570,6 +685,193 @@ describe("largest confirmed saving", () => {
     expect(
       sendMessage.mock.calls.some(([m]) => m.isFinal && m.result === "applied"),
     ).toBe(false);
+  });
+
+  it.each<{
+    discounts: Record<string, number>;
+    winner: string;
+    saving: number;
+  }>([
+    {
+      discounts: { FIRST: 10, BEST: 30, LAST: 20 },
+      winner: "BEST",
+      saving: 30,
+    },
+    { discounts: { FIRST: 20, EQUAL: 20 }, winner: "FIRST", saving: 20 },
+    { discounts: { BAD: 0, GOOD: 15, BAD2: 0 }, winner: "GOOD", saving: 15 },
+    { discounts: { PENNY: 0.01, BAD: 0 }, winner: "PENNY", saving: 0.01 },
+    { discounts: { FREE: 100, BAD: 0 }, winner: "FREE", saving: 100 },
+  ])(
+    "independently compares remove-mode candidates: $winner",
+    async ({ discounts, winner, saving }) => {
+      const { clicks } = checkout(discounts, "remove");
+      loadContentScript();
+      await jest.advanceTimersByTimeAsync(30000);
+      expect(
+        clicks
+          .filter((code) => code !== "REMOVE")
+          .slice(0, Object.keys(discounts).length),
+      ).toEqual(Object.keys(discounts));
+      const finals = sendMessage.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.isFinal);
+      expect(finals).toEqual([
+        expect.objectContaining({
+          result: "applied",
+          code: winner,
+          comparisonComplete: true,
+          discountAmount: saving,
+        }),
+      ]);
+    },
+  );
+
+  it.each([0, 10])(
+    "restores an unlisted shopper coupon when candidates save only %s",
+    async (saving) => {
+      const { clicks, discounts, remove } = checkout(
+        { CANDIDATE: saving },
+        "remove",
+      );
+      discounts.SHOPPER30 = 30;
+      remove.hidden = false;
+      remove.setAttribute("aria-label", "Remove SHOPPER30");
+      document.querySelector<HTMLElement>(".success")!.hidden = false;
+      document.querySelector("#cart-total")!.textContent = "$70";
+      loadContentScript();
+      await jest.advanceTimersByTimeAsync(20000);
+      expect(clicks.at(-1)).toBe("SHOPPER30");
+      expect(document.querySelector("#cart-total")!.textContent).toBe("$70");
+      expect(
+        sendMessage.mock.calls.filter(
+          ([m]) => m.isFinal && m.result === "applied",
+        ),
+      ).toHaveLength(0);
+    },
+  );
+
+  it("restores an existing code after the first candidate times out with no active request", async () => {
+    const { clicks, discounts, remove } = checkout({ SILENT: 0 }, "remove");
+    discounts.SHOPPER30 = 30;
+    remove.hidden = false;
+    remove.setAttribute("aria-label", "Remove SHOPPER30");
+    document.querySelector("#cart-total")!.textContent = "$70";
+    document
+      .querySelector('[data-test="apply-promo-code-button"]')!
+      .addEventListener("click", () => {
+        if (document.querySelector("input")!.value === "SILENT")
+          document.querySelector<HTMLElement>(".failure")!.hidden = true;
+      });
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(22000);
+    expect(clicks).toEqual(["REMOVE", "SILENT", "SHOPPER30"]);
+    expect(document.querySelector("#cart-total")!.textContent).toBe("$70");
+  });
+
+  it("restores the shopper discount when an earlier winner becomes more expensive on reapplication", async () => {
+    const { discounts, remove, clicks } = checkout({ BEST40: 40, SECOND20: 20 }, "remove");
+    discounts.SHOPPER30 = 30;
+    remove.hidden = false;
+    remove.setAttribute("aria-label", "Remove SHOPPER30");
+    document.querySelector<HTMLElement>(".success")!.hidden = false;
+    document.querySelector("#cart-total")!.textContent = "$70";
+    let uses = 0;
+    document.querySelector('[data-test="apply-promo-code-button"]')!.addEventListener("click", () => {
+      if (document.querySelector("input")!.value === "BEST40" && ++uses === 1) discounts.BEST40 = 10;
+    });
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(clicks.at(-1)).toBe("SHOPPER30");
+    expect(document.querySelector("#cart-total")!.textContent).toBe("$70");
+    expect(sendMessage.mock.calls.some(([m]) => m.isFinal && m.result === "applied")).toBe(false);
+  });
+
+  it("verifies the next cheapest coupon when the provisional winner becomes more expensive", async () => {
+    const { discounts, clicks } = checkout({ BEST40: 40, SECOND35: 35 }, "remove");
+    let uses = 0;
+    document.querySelector('[data-test="apply-promo-code-button"]')!.addEventListener("click", () => {
+      if (document.querySelector("input")!.value === "BEST40" && ++uses === 1) discounts.BEST40 = 10;
+    });
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(clicks.at(-1)).toBe("SECOND35");
+    expect(document.querySelector("#cart-total")!.textContent).toBe("$65");
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ isFinal: true, result: "applied", code: "SECOND35", newTotal: 65, comparisonComplete: false }));
+  });
+
+  it("leaves an unidentified existing coupon untouched", async () => {
+    const { clicks, remove } = checkout({ NEW: 20 }, "remove");
+    remove.hidden = false;
+    document.querySelector("#cart-total")!.textContent = "$70";
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(2000);
+    expect(clicks).toEqual([]);
+    expect(document.querySelector("#cart-total")!.textContent).toBe("$70");
+  });
+
+  it("does not claim a provisional discount while the request remains busy", async () => {
+    checkout({ PROVISIONAL: 20 });
+    document
+      .querySelector('[data-test="apply-promo-code-button"]')!
+      .addEventListener("click", (event) => {
+        (event.currentTarget as HTMLElement).setAttribute("aria-busy", "true");
+      });
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(65000);
+    expect(sendMessage.mock.calls.filter(([m]) => m.isFinal)).toEqual([
+      [
+        expect.objectContaining({
+          result: "failed",
+          failureReason: "unconfirmed",
+        }),
+      ],
+    ]);
+  });
+
+  it("cancels further coupon actions after device deactivation", async () => {
+    const { clicks } = checkout({ FIRST: 10, SECOND: 20 }, "remove");
+    let listener: (changes: Record<string, unknown>, area: string) => void;
+    (chrome as unknown as { storage: unknown }).storage = {
+      local: { get: jest.fn().mockResolvedValue({ dormant: false }) },
+      onChanged: {
+        addListener: (fn: typeof listener) => {
+          listener = fn;
+        },
+        removeListener: jest.fn(),
+      },
+    };
+    document
+      .querySelector('[data-test="apply-promo-code-button"]')!
+      .addEventListener("click", () =>
+        listener({ dormant: { newValue: true } }, "local"),
+      );
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(clicks).toEqual(["FIRST"]);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ isFinal: true, failureReason: "cancelled" }),
+    );
+    delete (chrome as unknown as { storage?: unknown }).storage;
+  });
+
+  it("stops after checkout navigation without restoring on the new route", async () => {
+    const { clicks } = checkout({ FIRST: 10, SECOND: 20 }, "remove");
+    const initial = location.href;
+    document
+      .querySelector('[data-test="apply-promo-code-button"]')!
+      .addEventListener("click", () =>
+        history.pushState({}, "", "/different-route"),
+      );
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(clicks).toEqual(["FIRST"]);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isFinal: true,
+        failureReason: "checkout_changed",
+      }),
+    );
+    history.replaceState({}, "", initial);
   });
 
   it("stops at a confirmed saving when comparison is not configured", async () => {
@@ -627,6 +929,7 @@ describe("largest confirmed saving", () => {
         originalTotal: 100,
         newTotal: 70,
         discountAmount: 30,
+        incrementalSavings: 0,
       }),
     );
   });

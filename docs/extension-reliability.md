@@ -75,10 +75,51 @@ commission attribution can be verified; extension fixes cannot create that relat
 
 ## Release order and checks
 
+### September 20 follow-up verification
+
+The local build now resets rejected controlled inputs before retrying, observes brief
+Apply-button busy transitions between polls, and does not let a reused rejection override
+a later settled price reduction. It snapshots response indicators after input edits and
+before submission. Existing shopper discounts are restored when comparison cannot improve
+them, and lifetime savings records only the incremental reduction from the starting cart.
+
+Live Chrome verification confirmed Allbirds completed comparison and retained its discount
+without recounting savings. Cure Mushrooms exposed a separate recipe problem: ineligible
+codes produce a dismissible status toast rather than an inline input error. Its production
+failure selector was updated and verified after reloading the dashboard:
+
+```css
+[id^="error-for-ReductionsInput"], [role="status"]:has(strong[style*="text-transform:uppercase"]):has(button[aria-label="Close"])
+```
+
+Cure then tested all four codes, selected CURE20, and settled at $71.20 from $88.99.
+A repeated comparison again tested all four, retained the $17.79 discount, and left
+lifetime savings unchanged at $137.95. These are observed test-cart results, not a guarantee
+that these codes apply to every cart. No order was placed.
+
+Target: the user confirmed “target works well” after testing the corrected build. The final
+live run was user-verified; agent observation was interrupted by the minimized Chrome window.
+The repeated four-code rejection flow was independently verified in the browser fixture.
+
+Release artifact: `apps/extension/release/saverlly-extension-v1.0.10.zip` (local package;
+not submitted to the store). SHA-256:
+`C46FB81DD72B60CDF9BA87E11F9CB310E87BE4EB5C9BE1F348D5F5D47D5C6499`.
+
+Validation: 133 extension unit tests, eight backend recipe validation tests, both TypeScript
+checks, and the unpacked browser suite passed. Browser coverage includes two consecutive
+four-code Target-style cached rejection runs, Allbirds winner restoration/retry, attribution
+resume, reporting outages, and eight popup layouts. The latest database integration attempt
+could not connect to local PostgreSQL; the new incremental-savings database test remains
+unverified. Backend validation changes still require deployment.
+
+The original automatic attribution behavior remains intentionally disabled: attribution runs
+on explicit Apply with a deduplication window, avoiding navigation-triggered reload loops.
+Merchant tracking placeholders still prevent validating real affiliate commission credit.
+
 1. Deploy the backend first. No schema migration is required: existing event UUIDs provide
    idempotency and event results are already stored as strings. Old extension clients remain
    supported; omitted `isFinal` retains the original success-count behavior.
-2. Publish/install extension 1.0.8 after the backend accepts `valid`, `eventId`, and `isFinal`.
+2. Publish/install extension 1.0.10 after the backend accepts `valid`, `eventId`, and `isFinal`.
 3. Verify a real eligible coupon on each merchant using the deployed package. Confirm the
    final code, settled cart total, popup result, and one final savings event agree.
 

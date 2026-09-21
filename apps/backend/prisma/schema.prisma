@@ -56,6 +56,7 @@ model Kiosk {
   users                User[]
   announcements        Announcement[]
   payouts              Payout[]
+  commissionAdjustments CommissionAdjustment[]
 }
 
 model Location {
@@ -113,6 +114,7 @@ model Device {
   location              Location             @relation(fields: [locationId], references: [id])
   label                 String // e.g. "Computer 4"
   active                Boolean              @default(true) // kill-switch. No approval needed to start, but can be disabled any time
+  retiredAt             DateTime? // deregistered; retained for attribution and financial history
   localDeviceIdentifier String? // agent-generated UUID from its local device.json, for support/audit correlation across re-registrations of the same physical machine
   osVersion             String? // e.g. "Windows 11 Pro 10.0.26200", reported by the agent at registration
   lastSeenAt            DateTime?
@@ -204,6 +206,8 @@ model Coupon {
   failCount        Int               @default(0)
   lastTestedAt     DateTime?
   expiresAt        DateTime?
+  lastSeenAt       DateTime?
+  freshUntil       DateTime? // automated-source freshness, independent of admin's active switch
   active           Boolean           @default(true)
   createdAt        DateTime          @default(now())
   couponTestEvents CouponTestEvent[]
@@ -224,6 +228,9 @@ model ScrapeSource {
   selectorConfig  Json // CSS selectors for code extraction
   intervalMinutes Int       @default(1440) // schedule cadence, configurable per source. Default daily
   lastRunAt       DateTime?
+  lastSucceededAt DateTime?
+  lastError       String?
+  lastCodeCount   Int?
   active          Boolean   @default(true)
 
   @@index([merchantId])
@@ -329,7 +336,7 @@ model AttributionAttempt {
   merchant        Merchant         @relation(fields: [merchantId], references: [id])
   subId           String           @unique
   createdAt       DateTime         @default(now())
-  commissionEvent CommissionEvent?
+  commissionEvents CommissionEvent[]
 
   @@index([deviceId])
   @@index([merchantId])
@@ -349,7 +356,7 @@ model CommissionEvent {
   merchant           Merchant            @relation(fields: [merchantId], references: [id])
   couponId           String? // nullable, attribution-only sales (no coupon involved) are still valid commission events
   coupon             Coupon?             @relation(fields: [couponId], references: [id])
-  subId              String?             @unique // the AttributionAttempt.subId this conversion was matched from. Nullable for a conversion reported with no recoverable sub-ID (orphaned, needs manual reconciliation)
+  subId              String? // one click can generate multiple distinct network orders
   attributionAttempt AttributionAttempt? @relation(fields: [subId], references: [subId])
   networkReference   String // the affiliate network's own transaction/click ID, for reconciliation
   orderValue         Decimal             @db.Decimal(10, 2)
@@ -359,6 +366,9 @@ model CommissionEvent {
   reportedAt         DateTime
   confirmedAt        DateTime?
   reversedAt         DateTime?
+  lastReconciledAt   DateTime?
+  isTest            Boolean @default(false)
+  reversalAdjustment CommissionAdjustment?
   createdAt          DateTime            @default(now())
   payoutId           String? // set once included in a Payout's aggregation. Excluded from future aggregation runs
   payout             Payout?             @relation(fields: [payoutId], references: [id])
@@ -369,6 +379,23 @@ model CommissionEvent {
   @@index([couponId])
   @@index([status])
   @@index([payoutId])
+  @@index([subId])
+  @@index([status, lastReconciledAt])
+}
+
+// A reversal after a transfer was claimed is recovered from future earnings. Never rewrite
+// the amount of an already submitted transfer or erase its original commission allocation.
+model CommissionAdjustment {
+  id                String @id @default(uuid())
+  commissionEventId String @unique
+  commissionEvent   CommissionEvent @relation(fields: [commissionEventId], references: [id], onDelete: Restrict)
+  kioskId           String
+  kiosk             Kiosk @relation(fields: [kioskId], references: [id], onDelete: Restrict)
+  amount            Decimal @db.Decimal(10, 2)
+  payoutId          String?
+  payout            Payout? @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  createdAt         DateTime @default(now())
+  @@index([kioskId, payoutId])
 }
 
 enum PayoutStatus {
@@ -387,9 +414,12 @@ model Payout {
   totalAmount      Decimal           @db.Decimal(10, 2) // sum of CONFIRMED kioskShareAmount only, never includes pending
   status           PayoutStatus      @default(PENDING)
   stripeTransferId String?
+  transferStartedAt DateTime?
+  transferDestination String? // immutable destination for retries of this transfer
   paidAt           DateTime?
   createdAt        DateTime          @default(now())
   commissionEvents CommissionEvent[]
+  adjustments      CommissionAdjustment[]
 
   // Guards against generating two payouts for the same kiosk+period -- e.g. a retried
   // generate-payouts run (cron re-fire, manual re-trigger after a timeout) -- at the DB level
@@ -449,4 +479,56 @@ model DismissedAlert {
 
   @@unique([userId, alertKey])
   @@index([userId])
+}
+
+model ReviewerAccessControl {
+  id String @id @default("global")
+  enabled Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model ReviewerInvite {
+  id String @id @default(uuid())
+  name String
+  email String?
+  codeHash String @unique
+  codeHint String
+  expiresAt DateTime
+  maxInstallations Int @default(1)
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  sessions ReviewerSession[]
+}
+
+model ReviewerSession {
+  id String @id @default(uuid())
+  inviteId String
+  invite ReviewerInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  tokenHash String @unique
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime?
+  events ReviewerEvent[]
+  attributions ReviewerAttribution[]
+  @@index([inviteId])
+}
+
+model ReviewerEvent {
+  id String @id @default(uuid())
+  sessionId String
+  session ReviewerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventId String
+  payload Json
+  discountAmount Decimal @default(0) @db.Decimal(10,2)
+  createdAt DateTime @default(now())
+  @@unique([sessionId, eventId])
+}
+
+model ReviewerAttribution {
+  id String @id @default(uuid())
+  sessionId String
+  session ReviewerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  merchantId String
+  subId String @unique
+  createdAt DateTime @default(now())
+  @@index([sessionId])
 }

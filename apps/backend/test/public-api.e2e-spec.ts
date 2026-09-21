@@ -283,6 +283,30 @@ describe('Public device-facing API (e2e)', () => {
     expect(res.body.discountAmount).toBeNull();
   });
 
+  it('does not add savings for a successful retry that reports zero incremental saving', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const coupon = await seedCoupon(merchant.id);
+    for (const discountAmount of [14, 0, 0]) {
+      await request(app.getHttpServer())
+        .post('/public/coupon-test-events')
+        .set('Authorization', `Bearer ${rawToken}`)
+        .send({
+          merchantId: merchant.id,
+          couponId: coupon.id,
+          result: 'applied',
+          isFinal: true,
+          discountAmount,
+        })
+        .expect(201);
+    }
+    const savings = await request(app.getHttpServer())
+      .get('/public/devices/me/savings')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+    expect(savings.body.lifetimeSaved).toBe(14);
+  });
+
   it('returns 0 lifetime savings for a device with no applied events', async () => {
     const { rawToken } = await seedDeviceToken();
 

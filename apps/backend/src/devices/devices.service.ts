@@ -1,9 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { KioskStatus, UserRole } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { hashToken } from '../common/crypto/token-hash.util';
-import { deleteDevicesCascade } from '../common/prisma/cascade-delete.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
@@ -15,8 +18,16 @@ const DEVICE_TOKEN_BYTES = 32;
 // Falling back to the most recent CouponTestEvent/AttributionAttempt per device means a device
 // with real historical activity doesn't show "Never" just because it predates the heartbeat write.
 const latestActivityInclude = {
-  couponTestEvents: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { createdAt: true } },
-  attributionAttempts: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { createdAt: true } },
+  couponTestEvents: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+    select: { createdAt: true },
+  },
+  attributionAttempts: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+    select: { createdAt: true },
+  },
 };
 
 function withDerivedLastSeenAt<
@@ -27,12 +38,16 @@ function withDerivedLastSeenAt<
   },
 >(device: T) {
   const { couponTestEvents, attributionAttempts, ...rest } = device;
-  const timestamps = [rest.lastSeenAt, couponTestEvents[0]?.createdAt, attributionAttempts[0]?.createdAt].filter(
-    (d): d is Date => d != null,
-  );
+  const timestamps = [
+    rest.lastSeenAt,
+    couponTestEvents[0]?.createdAt,
+    attributionAttempts[0]?.createdAt,
+  ].filter((d): d is Date => d != null);
   return {
     ...rest,
-    lastSeenAt: timestamps.length ? new Date(Math.max(...timestamps.map((d) => d.getTime()))) : null,
+    lastSeenAt: timestamps.length
+      ? new Date(Math.max(...timestamps.map((d) => d.getTime())))
+      : null,
   };
 }
 
@@ -73,6 +88,7 @@ export class DevicesService {
   async findAll(currentUser: JwtPayload) {
     if (currentUser.role === UserRole.ADMIN) {
       const devices = await this.prisma.device.findMany({
+        where: { retiredAt: null },
         orderBy: { createdAt: 'desc' },
         include: latestActivityInclude,
       });
@@ -85,7 +101,10 @@ export class DevicesService {
         select: { managedLocationIds: true },
       });
       const devices = await this.prisma.device.findMany({
-        where: { locationId: { in: manager?.managedLocationIds ?? [] } },
+        where: {
+          locationId: { in: manager?.managedLocationIds ?? [] },
+          retiredAt: null,
+        },
         orderBy: { createdAt: 'desc' },
         include: latestActivityInclude,
       });
@@ -94,7 +113,7 @@ export class DevicesService {
 
     // KIOSK_OWNER
     const devices = await this.prisma.device.findMany({
-      where: { location: { kioskId: currentUser.kioskId! } },
+      where: { location: { kioskId: currentUser.kioskId! }, retiredAt: null },
       orderBy: { createdAt: 'desc' },
       include: latestActivityInclude,
     });
@@ -103,7 +122,7 @@ export class DevicesService {
 
   async findOne(id: string) {
     const device = await this.prisma.device.findUnique({ where: { id } });
-    if (!device) {
+    if (!device || device.retiredAt) {
       throw new NotFoundException('Device not found');
     }
     return device;
@@ -116,6 +135,12 @@ export class DevicesService {
 
   async remove(id: string) {
     await this.findOne(id);
-    await this.prisma.$transaction((tx) => deleteDevicesCascade(tx, [id]));
+    await this.prisma.$transaction(async (tx) => {
+      await tx.device.update({
+        where: { id },
+        data: { active: false, retiredAt: new Date() },
+      });
+      await tx.deviceToken.deleteMany({ where: { deviceId: id } });
+    });
   }
 }

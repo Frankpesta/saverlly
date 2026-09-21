@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build.js",
+    "build:reviewers": "node scripts/build.js --reviewers",
+    "package:reviewers": "npm run build:reviewers && node scripts/package.js",
     "dev": "node scripts/build.js --watch",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",

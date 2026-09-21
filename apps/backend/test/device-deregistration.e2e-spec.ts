@@ -33,7 +33,7 @@ describe('Device deregistration (e2e) — DELETE /public/devices/me', () => {
     return { device, rawToken };
   }
 
-  it('deletes the Device row and its tokens, authenticated by its own device token', async () => {
+  it('retires the device and deletes its tokens, retaining its historical identity', async () => {
     const { device, rawToken } = await seedDeviceWithToken();
 
     await request(app.getHttpServer())
@@ -41,8 +41,12 @@ describe('Device deregistration (e2e) — DELETE /public/devices/me', () => {
       .set('Authorization', `Bearer ${rawToken}`)
       .expect(204);
 
-    expect(await testPrisma.device.findUnique({ where: { id: device.id } })).toBeNull();
-    expect(await testPrisma.deviceToken.findMany({ where: { deviceId: device.id } })).toHaveLength(0);
+    expect(
+      await testPrisma.device.findUnique({ where: { id: device.id } }),
+    ).toMatchObject({ active: false, retiredAt: expect.any(Date) });
+    expect(
+      await testPrisma.deviceToken.findMany({ where: { deviceId: device.id } }),
+    ).toHaveLength(0);
   });
 
   it('the deleted device token can no longer authenticate afterward', async () => {
@@ -68,6 +72,8 @@ describe('Device deregistration (e2e) — DELETE /public/devices/me', () => {
       .set('Authorization', 'Bearer not-a-real-token')
       .expect(401);
 
-    expect(await testPrisma.device.findUnique({ where: { id: device.id } })).not.toBeNull();
+    expect(
+      await testPrisma.device.findUnique({ where: { id: device.id } }),
+    ).not.toBeNull();
   });
 });

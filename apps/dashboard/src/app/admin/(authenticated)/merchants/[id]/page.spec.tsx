@@ -34,7 +34,11 @@ const merchant: Merchant = {
   affiliateUrlParamValue: null,
   affiliateProgramId: null,
   active: true,
-  checkoutRecipe: { couponFieldSelector: "input[name='promoCode']" },
+  checkoutRecipe: {
+    couponFieldSelector: "input[name='promoCode']",
+    cartTotalSelector: ".total",
+    checkoutUrlPatterns: ["/checkout"],
+  },
   createdAt: "2026-01-01T00:00:00.000Z",
 }
 
@@ -83,20 +87,40 @@ describe("MerchantDetailPage", () => {
       const method = init?.method ?? "GET"
 
       if (url === "/api/proxy/merchants/m-1" && method === "GET") {
-        return { ok: true, status: 200, json: async () => merchant } as Response
+        return {
+          ok: true,
+          status: 200,
+          json: async () => merchant,
+        } as Response
       }
       if (url === "/api/proxy/merchants/m-1" && method === "PATCH") {
         const body = JSON.parse(String(init?.body))
-        return { ok: true, status: 200, json: async () => ({ ...merchant, ...body }) } as Response
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...merchant, ...body }),
+        } as Response
       }
       if (url === "/api/proxy/merchants/m-1" && method === "DELETE") {
-        return { ok: true, status: 204, json: async () => undefined } as Response
+        return {
+          ok: true,
+          status: 204,
+          json: async () => undefined,
+        } as Response
       }
       if (url.startsWith("/api/proxy/coupons") && method === "GET") {
-        return { ok: true, status: 200, json: async () => coupons } as Response
+        return {
+          ok: true,
+          status: 200,
+          json: async () => coupons,
+        } as Response
       }
       if (url === "/api/proxy/scrape-sources" && method === "GET") {
-        return { ok: true, status: 200, json: async () => scrapeSources } as Response
+        return {
+          ok: true,
+          status: 200,
+          json: async () => scrapeSources,
+        } as Response
       }
 
       throw new Error(`Unhandled fetch in test: ${method} ${url}`)

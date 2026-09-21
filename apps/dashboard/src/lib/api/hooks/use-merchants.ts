@@ -30,6 +30,7 @@ export type MerchantPayload = {
   affiliateTrackingUrl?: string
   affiliateUrlParamKey?: string
   affiliateUrlParamValue?: string
+  affiliateSubIdParamKey?: string | null
   affiliateProgramId?: string
   checkoutRecipe?: CheckoutRecipe
 }
@@ -48,7 +49,9 @@ export function useCreateMerchant() {
   })
 }
 
-export type UpdateMerchantPayload = Partial<MerchantPayload> & { active?: boolean }
+export type UpdateMerchantPayload = Partial<MerchantPayload> & {
+  active?: boolean
+}
 
 export function useUpdateMerchant(id: string) {
   const queryClient = useQueryClient()

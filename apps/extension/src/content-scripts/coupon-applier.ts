@@ -75,7 +75,11 @@ function setFieldValue(field: HTMLInputElement, value: string): void {
 }
 
 // Ignore unrelated ancestor re-renders: they are not a response to the submitted code.
-function observeIndicators(success?: string, failure?: string) {
+function observeIndicators(
+  success?: string,
+  failure?: string,
+  applySelector?: string,
+) {
   const selectors = [success, failure].filter(Boolean).join(",");
   const signature = (el: Element) =>
     `${el.textContent}|${el.getAttribute("aria-label")}|${el.getAttribute("title")}`;
@@ -85,12 +89,30 @@ function observeIndicators(success?: string, failure?: string) {
       .map((el) => [el, signature(el)]),
   );
   const changed = new Set<Element>();
+  let observedBusy = false;
   const observer = new MutationObserver((records) => {
     for (const record of records) {
       const target =
         record.target instanceof Element
           ? record.target
           : record.target.parentElement;
+      if (
+        record.type === "attributes" &&
+        target &&
+        elements(applySelector).includes(target as HTMLElement)
+      ) {
+        // A cached response can finish between 250ms polls. Attribute mutation history
+        // still proves that this submission entered processing and then completed.
+        const name = record.attributeName;
+        if (
+          (name === "disabled" &&
+            (record.oldValue !== null || target.hasAttribute("disabled"))) ||
+          ((name === "aria-busy" || name === "aria-disabled") &&
+            (record.oldValue === "true" ||
+              target.getAttribute(name) === "true"))
+        )
+          observedBusy = true;
+      }
       for (const el of elements(selectors)) {
         if (
           target === el ||
@@ -105,7 +127,15 @@ function observeIndicators(success?: string, failure?: string) {
     childList: true,
     characterData: true,
     attributes: true,
-    attributeFilter: ["hidden", "style", "aria-hidden"],
+    attributeOldValue: true,
+    attributeFilter: [
+      "hidden",
+      "style",
+      "aria-hidden",
+      "disabled",
+      "aria-busy",
+      "aria-disabled",
+    ],
   });
   return {
     fresh: (el: Element) =>
@@ -113,6 +143,7 @@ function observeIndicators(success?: string, failure?: string) {
       stale.get(el as HTMLElement) !== signature(el) ||
       changed.has(el),
     disconnect: () => observer.disconnect(),
+    wasBusy: () => observedBusy,
   };
 }
 
@@ -129,9 +160,14 @@ function observeIndicators(success?: string, failure?: string) {
   );
   const testedCodes: Array<{ code: string; saved: boolean }> = [];
   let baseline: number | null = null;
+  let startingTotal: number | null = null;
   let currentCode: string | null = null;
   let originalCode: string | null = null;
+  let originalTotal: number | null = null;
+  let originalRemoved = false;
+  let pendingResponse = false;
   let best: { coupon: (typeof ordered)[number]; total: number } | null = null;
+  const successfulQuotes: Array<{ coupon: (typeof ordered)[number]; total: number }> = [];
   let cancelled = false;
   let comparisonComplete = true;
   const initialPath = location.pathname + location.hash;
@@ -253,24 +289,38 @@ function observeIndicators(success?: string, failure?: string) {
     total: number | null;
   }> {
     await reveal();
-    const field = element<HTMLInputElement>(recipe.couponFieldSelector)!;
+    let field = element<HTMLInputElement>(recipe.couponFieldSelector)!;
     const before = readTotal(recipe.cartTotalSelector);
+    // Retrying the same rejected value may be a no-op for controlled forms. Clear
+    // it through the merchant's input handler, allowing its validation to reset.
+    if (
+      field.value.trim() &&
+      elements(recipe.failureIndicatorSelector).some(isVisible)
+    ) {
+      setFieldValue(field, "");
+      await sleep(POLL_MS);
+      await reveal();
+      field = element<HTMLInputElement>(recipe.couponFieldSelector)!;
+    }
+    setFieldValue(field, code);
+    // Controlled checkouts enable/re-render their button after the input event.
+    await sleep(POLL_MS);
+    checkActive();
+    const button = element<HTMLButtonElement>(recipe.applyButtonSelector);
+    if (
+      !button ||
+      button.disabled ||
+      button.getAttribute("aria-disabled") === "true"
+    )
+      throw new ComparisonError("checkout_changed");
+    // Snapshot after editing so validation changes caused by typing cannot be
+    // mistaken for the response to the submission we are about to make.
     const indicators = observeIndicators(
       recipe.successIndicatorSelector,
       recipe.failureIndicatorSelector,
+      recipe.applyButtonSelector,
     );
     try {
-      setFieldValue(field, code);
-      // Controlled checkouts enable/re-render their button after the input event.
-      await sleep(POLL_MS);
-      checkActive();
-      const button = element<HTMLButtonElement>(recipe.applyButtonSelector);
-      if (
-        !button ||
-        button.disabled ||
-        button.getAttribute("aria-disabled") === "true"
-      )
-        throw new ComparisonError("checkout_changed");
       button.click();
       let deadline = Date.now() + RESPONSE_MS;
       const hardDeadline = Date.now() + 60_000;
@@ -290,17 +340,16 @@ function observeIndicators(success?: string, failure?: string) {
         const busy =
           !liveButton ||
           liveButton.getAttribute("aria-busy") === "true" ||
+          liveButton.getAttribute("aria-disabled") === "true" ||
           (liveButton.disabled && submittedValue === code);
         if (busy) deadline = Math.min(hardDeadline, Date.now() + RESPONSE_MS);
-        wasBusy ||= busy;
+        wasBusy ||= busy || indicators.wasBusy();
         success ||= elements(recipe.successIndicatorSelector).some(
           (el) => isVisible(el) && indicators.fresh(el),
         );
         failure ||= elements(recipe.failureIndicatorSelector).some(
           (el) => isVisible(el) && indicators.fresh(el),
         );
-        if (wasBusy && !busy && !success)
-          failure ||= elements(recipe.failureIndicatorSelector).some(isVisible);
         const total = readTotal(recipe.cartTotalSelector);
         if (total !== previous) {
           previous = total;
@@ -311,25 +360,57 @@ function observeIndicators(success?: string, failure?: string) {
           total !== null && before !== null && cents(total) < cents(before);
         // A settled reduction is useful when a store has no success banner. An unchanged
         // prior discount cannot count as success for the newly submitted code.
-        if (stable && (success || (reduced && !failure))) {
+        if (!busy && stable && (success || (reduced && !failure))) {
           // A success response can leave Apply disabled because the store clears the input.
           if (total !== before || (!busy && Date.now() - stableSince >= 1500)) {
             currentCode = code;
             return { outcome: "success", total };
           }
         }
-        if (!busy && failure && !success && stable && !reduced)
+        // A reused rejection can confirm a completed request with an unchanged
+        // total, but must not override a later price reduction or success marker.
+        const rejected =
+          failure ||
+          (wasBusy &&
+            elements(recipe.failureIndicatorSelector).some(isVisible));
+        if (!busy && rejected && !success && stable && !reduced)
           return { outcome: "failure", total };
         await sleep(POLL_MS);
       }
+      const liveButton = element<HTMLButtonElement>(recipe.applyButtonSelector);
+      pendingResponse =
+        !liveButton ||
+        liveButton.getAttribute("aria-busy") === "true" ||
+        liveButton.getAttribute("aria-disabled") === "true" ||
+        (liveButton.disabled &&
+          element<HTMLInputElement>(
+            recipe.couponFieldSelector,
+          )?.value.trim() === code);
       return { outcome: "timeout", total: readTotal(recipe.cartTotalSelector) };
     } finally {
       indicators.disconnect();
     }
   }
 
+  async function restoreOriginal(): Promise<void> {
+    if (!originalCode || originalTotal === null) return;
+    if (recipe.couponApplyMode === "remove") await resetCart();
+    const restored = await attempt(originalCode);
+    if (
+      restored.outcome !== "success" ||
+      restored.total === null ||
+      cents(restored.total) > cents(originalTotal)
+    )
+      throw new ComparisonError("restore_failed");
+    originalRemoved = false;
+  }
+
   async function selectBest(): Promise<void> {
     if (!best || baseline === null) return;
+    const selections = new Set<string>();
+    for (;;) {
+    if (selections.has(best.coupon.id)) throw new ComparisonError("unconfirmed");
+    selections.add(best.coupon.id);
     const observed = readTotal(recipe.cartTotalSelector);
     if (
       currentCode !== best.coupon.code ||
@@ -346,7 +427,22 @@ function observeIndicators(success?: string, failure?: string) {
         throw new ComparisonError("restore_failed");
       // Taxes/shipping can settle differently on reapplication. Report the confirmed
       // final delta instead of declaring a working code a failure over a stale total.
+      if (cents(best.total) !== cents(reapplied.total)) comparisonComplete = false;
       best.total = reapplied.total;
+    }
+    const cheaper = successfulQuotes.filter(quote => quote.coupon.id !== best!.coupon.id && cents(quote.total) < cents(best!.total))
+      .sort((a, b) => a.total - b.total)[0];
+    if (!cheaper) break;
+    // Prices changed since testing: verify the next candidate instead of accepting an
+    // earlier, now more expensive quote. Bound attempts if the checkout keeps changing.
+    best = cheaper;
+    }
+    // Reapplication is a new price quote. A provisional winner must never cost more
+    // than the shopper's original discount after taxes/shipping or eligibility change.
+    if (originalCode && originalTotal !== null && cents(best.total) > cents(originalTotal)) {
+      await restoreOriginal();
+      finish("failed", { failureReason: "restore_failed" });
+      return;
     }
     finish("applied", {
       couponId: best.coupon.id,
@@ -354,6 +450,8 @@ function observeIndicators(success?: string, failure?: string) {
       originalTotal: baseline,
       newTotal: best.total,
       discountAmount: (cents(baseline) - cents(best.total)) / 100,
+      incrementalSavings:
+        Math.max(0, cents(startingTotal ?? baseline) - cents(best.total)) / 100,
     });
   }
 
@@ -366,6 +464,7 @@ function observeIndicators(success?: string, failure?: string) {
       return;
     }
     await reveal();
+    startingTotal = readTotal(recipe.cartTotalSelector);
     // A shopper may already have a discount active -- a marketing code, a returning-customer
     // promo, or an earlier Saverlly run whose checkout session persisted. Our own comparison
     // should override it rather than refuse to run: identify it best-effort (so the end-of-run
@@ -376,10 +475,24 @@ function observeIndicators(success?: string, failure?: string) {
       elements(recipe.successIndicatorSelector).some(isVisible) ||
       elements(recipe.removeCouponSelector).some(isVisible)
     ) {
+      originalTotal = readTotal(recipe.cartTotalSelector);
       originalCode =
-        element<HTMLInputElement>(recipe.couponFieldSelector)?.value.trim() ||
         readAppliedCodeFromRemoveControl(recipe.removeCouponSelector) ||
+        element<HTMLInputElement>(recipe.couponFieldSelector)?.value.trim() ||
         null;
+      const activeRemoveControls = elements(recipe.removeCouponSelector).filter(
+        isVisible,
+      );
+      // Never erase an unknown code or a stack of shopper discounts that we cannot restore.
+      if (
+        activeRemoveControls.length &&
+        (!originalCode ||
+          activeRemoveControls.length > 1 ||
+          originalTotal === null)
+      )
+        throw new ComparisonError("unconfirmed");
+      currentCode = originalCode;
+      originalRemoved = activeRemoveControls.length > 0;
       await clearAppliedDiscount();
     }
     baseline = readTotal(recipe.cartTotalSelector);
@@ -403,6 +516,7 @@ function observeIndicators(success?: string, failure?: string) {
       const trial = await attempt(coupon.code);
       if (trial.outcome === "timeout") {
         comparisonComplete = false;
+        if (pendingResponse) throw new ComparisonError("unconfirmed");
         if (best) break;
         throw new ComparisonError("unconfirmed");
       }
@@ -411,12 +525,11 @@ function observeIndicators(success?: string, failure?: string) {
         trial.total !== null &&
         cents(trial.total) < cents(baseline);
       testedCodes.push({ code: coupon.code, saved });
-      if (
-        saved &&
-        trial.total !== null &&
-        (!best || cents(trial.total) < cents(best.total))
-      )
-        best = { coupon, total: trial.total };
+      if (saved && trial.total !== null) {
+        const quote = { coupon, total: trial.total };
+        successfulQuotes.push(quote);
+        if (!best || cents(trial.total) < cents(best.total)) best = quote;
+      }
       send({
         type: "COUPON_APPLY_RESULT",
         merchantId,
@@ -429,6 +542,15 @@ function observeIndicators(success?: string, failure?: string) {
         comparisonComplete = index === ordered.length - 1;
         break;
       }
+    }
+    if (
+      originalRemoved &&
+      originalTotal !== null &&
+      (!best || cents(best.total) > cents(originalTotal))
+    ) {
+      await restoreOriginal();
+      finish("failed");
+      return;
     }
     if (best) {
       send({
@@ -443,13 +565,7 @@ function observeIndicators(success?: string, failure?: string) {
       return;
     }
     if (originalCode && currentCode !== originalCode) {
-      const restored = await attempt(originalCode);
-      if (
-        restored.outcome !== "success" ||
-        restored.total === null ||
-        cents(restored.total) !== cents(baseline)
-      )
-        throw new ComparisonError("restore_failed");
+      await restoreOriginal();
     } else if (currentCode && recipe.removeCouponSelector) await resetCart();
     const finalTotal = readTotal(recipe.cartTotalSelector);
     if (finalTotal === null || cents(finalTotal) > cents(baseline))
@@ -457,15 +573,15 @@ function observeIndicators(success?: string, failure?: string) {
     finish("failed");
   } catch (error) {
     // Deactivation cancels further DOM writes; it must not start a restoration request.
-    if (!cancelled && originalCode && currentCode && baseline !== null) {
+    if (
+      !cancelled &&
+      !pendingResponse &&
+      location.pathname + location.hash === initialPath &&
+      originalCode &&
+      (originalRemoved || (currentCode && currentCode !== originalCode))
+    ) {
       try {
-        const restored = await attempt(originalCode);
-        if (
-          restored.outcome !== "success" ||
-          restored.total === null ||
-          cents(restored.total) !== cents(baseline)
-        )
-          throw new Error();
+        await restoreOriginal();
       } catch {
         error = new ComparisonError("restore_failed");
       }
