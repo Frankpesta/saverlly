@@ -1,7 +1,7 @@
 "use client"
 import * as React from "react"
 import Link from "next/link"
-import { PlusIcon, BanIcon } from "lucide-react"
+import { PlusIcon, BanIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { WorkspaceHeader, CollectionSummary } from "@/components/dashboard/page-layout"
 import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
@@ -39,6 +39,7 @@ import {
   useReviewers,
   useReviewerAccess,
   useRevokeReviewer,
+  useDeleteReviewer,
   reviewerStatus,
   type Reviewer,
 } from "@/lib/api/hooks/use-reviewers"
@@ -171,6 +172,7 @@ function ReviewerRow({
   index: number
 }) {
   const revoke = useRevokeReviewer()
+  const remove = useDeleteReviewer()
   const status = reviewerStatus(reviewer, enabled)
   const lastSeen = reviewer.sessions
     .map((s) => s.lastSeenAt)
@@ -223,6 +225,39 @@ function ReviewerRow({
                     }
                   >
                     Revoke access
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          {reviewer.revokedAt && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label={`Delete ${reviewer.name}`}>
+                  <Trash2Icon className="size-3.5 text-destructive" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {reviewer.name}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes the reviewer, their installations and their test activity from the
+                    list. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={remove.isPending}
+                    onClick={() =>
+                      remove.mutate(reviewer.id, {
+                        onSuccess: () => toast.success("Reviewer deleted."),
+                        onError: showError,
+                      })
+                    }
+                  >
+                    Delete reviewer
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
