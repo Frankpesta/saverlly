@@ -39,6 +39,7 @@ export function codeFromRevealUrl(url: string, source: string): string | null {
 function offerIdentities(elements: Element[]): string[] {
   return elements.map((element) => {
     const attributes = [
+      'data-coupon-id',
       'data-offer-id',
       'data-code-id',
       'data-id',
@@ -53,6 +54,30 @@ function offerIdentities(elements: Element[]): string[] {
     }
     return `markup:${element.outerHTML}`;
   });
+}
+
+// Confirmed live (2026-09-29): every reveal button carries its code as `data-code`,
+// so reading it from the one listing load avoids per-offer reloads entirely.
+function embeddedCodes(elements: Element[]): (string | null)[] {
+  return elements.map((element) => {
+    const code = element.getAttribute('data-code')?.trim();
+    return code && /^[A-Za-z0-9_-]{3,64}$/.test(code) ? code : null;
+  });
+}
+
+// Confirmed live: reloading the same store page seconds after the listing load
+// gets Cloudflare's 403 "Sorry, you have been blocked" page, which has no reveal
+// buttons. Without this check every later offer waits out its full timeout.
+async function blockedReason(
+  page: Page,
+  status: number | undefined,
+): Promise<string | null> {
+  if (status === 403 || status === 429 || status === 503)
+    return `HTTP ${status}`;
+  const title = (await page.title().catch(() => '')).toLowerCase();
+  return /attention required|just a moment|access denied/.test(title)
+    ? `page title "${title}"`
+    : null;
 }
 
 export async function collectSimplyCodesReveals(
@@ -74,13 +99,19 @@ export async function collectSimplyCodesReveals(
     .locator(config.revealSelector)
     .first()
     .waitFor({ timeout: timeoutMs });
-  const identities = await listing
-    .locator(config.revealSelector)
-    .evaluateAll(offerIdentities);
-  const offers = [...new Set(identities)].slice(0, 25);
-  if (offers.length !== Math.min(identities.length, 25)) {
+  const listed = listing.locator(config.revealSelector);
+  const [identities, embedded] = await Promise.all([
+    listed.evaluateAll(offerIdentities),
+    listed.evaluateAll(embeddedCodes),
+  ]);
+  for (const code of embedded) if (code) codes.add(code);
+  // Only offers without an embedded code need the reload-and-click reveal below.
+  const pending = identities.filter((_, i) => !embedded[i]);
+  const offers = [...new Set(pending)].slice(0, 25);
+  if (offers.length !== Math.min(pending.length, 25)) {
     throw new Error('SimplyCodes reveal buttons do not have unique identities');
   }
+  log(`embedded=${codes.size} pendingReveals=${offers.length}`);
 
   for (const [index, identity] of offers.entries()) {
     if (Date.now() - started > 120_000) {
@@ -99,6 +130,7 @@ export async function collectSimplyCodesReveals(
     const pages = new Set<Page>();
     let revealed: string | null = null;
     let accepting = true;
+    let halted = false;
     const observe = (url: string) => {
       revealed = codeFromRevealUrl(url, sourceUrl) ?? revealed;
     };
@@ -131,10 +163,18 @@ export async function collectSimplyCodesReveals(
     };
     listing.context().on('request', requestListener);
     try {
-      await work.goto(sourceUrl, {
+      const response = await work.goto(sourceUrl, {
         waitUntil: 'domcontentloaded',
         timeout: timeoutMs,
       });
+      const blocked = await blockedReason(work, response?.status());
+      if (blocked) {
+        // Every later reload is blocked the same way; stop rather than time out on each.
+        halted = true;
+        throw new Error(
+          `store page reload blocked by bot protection (${blocked}); ${offers.length - index - 1} later offer(s) skipped`,
+        );
+      }
       await work
         .locator(config.revealSelector)
         .first()
@@ -187,9 +227,9 @@ export async function collectSimplyCodesReveals(
         `offer=${index + 1}/${offers.length} result=captured elapsedMs=${Date.now() - started}`,
       );
     } catch (error) {
-      failures.push(
-        `offer=${index + 1}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      // Playwright appends a multi-line, ANSI-colored "Call log"; keep the first line.
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`offer=${index + 1}: ${message.split('\n')[0]}`);
       log(
         `offer=${index + 1}/${offers.length} result=failed elapsedMs=${Date.now() - started}`,
       );
@@ -199,6 +239,7 @@ export async function collectSimplyCodesReveals(
       await work.close().catch(() => {});
       await Promise.all([...pages].map((page) => page.close().catch(() => {})));
     }
+    if (halted) break;
   }
   return { codes: [...codes], failures };
 }

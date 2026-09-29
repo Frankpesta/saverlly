@@ -69,6 +69,16 @@ export class ReviewersService {
       throw new NotFoundException('Reviewer not found');
     return { revoked: true };
   }
+  // Only revoked reviewers can be deleted; sessions, events and attributions cascade.
+  async remove(id: string) {
+    const result = await this.prisma.reviewerInvite.deleteMany({
+      where: { id, revokedAt: { not: null } },
+    });
+    if (result.count) return { deleted: true };
+    if (!(await this.prisma.reviewerInvite.findUnique({ where: { id } })))
+      throw new NotFoundException('Reviewer not found');
+    throw new BadRequestException('Revoke this reviewer before deleting it');
+  }
   async redeem(dto: RedeemReviewerDto) {
     return serializable(this.prisma, async (tx) => {
       const control = await tx.reviewerAccessControl.findUnique({

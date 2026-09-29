@@ -54,6 +54,13 @@ export function useRevokeReviewer() {
     onSuccess: () => client.invalidateQueries({ queryKey: key }),
   })
 }
+export function useDeleteReviewer() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/reviewers/${id}`, { method: "DELETE" }),
+    onSuccess: () => client.invalidateQueries({ queryKey: key }),
+  })
+}
 export function reviewerStatus(reviewer: Reviewer, enabled: boolean) {
   if (reviewer.revokedAt) return "Revoked"
   if (new Date(reviewer.expiresAt).getTime() <= Date.now()) return "Expired"

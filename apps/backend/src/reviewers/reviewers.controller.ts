@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -43,6 +44,9 @@ export class ReviewersController {
   }
   @Post(':id/revoke') revoke(@Param('id') id: string) {
     return this.reviewers.revoke(id);
+  }
+  @Delete(':id') remove(@Param('id') id: string) {
+    return this.reviewers.remove(id);
   }
 }
 @ApiTags('Reviewer activation')

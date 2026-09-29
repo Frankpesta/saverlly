@@ -39,6 +39,21 @@ async function fixture(context: BrowserContext) {
             : '<p>The modal never renders.</p>';
       } else {
         listingLoads++;
+        if (mode === 'blocked' && listingLoads > 1) {
+          await route.fulfill({
+            status: 403,
+            contentType: 'text/html',
+            body: '<title>Attention Required! | Cloudflare</title><h1>Sorry, you have been blocked</h1>',
+          });
+          return;
+        }
+        if (mode === 'embedded') {
+          await route.fulfill({
+            contentType: 'text/html',
+            body: '<button data-coupon-id="cc-1" data-code="Save_10" class="btn-show-code">Show Code</button><button data-coupon-id="cc-2" data-code="Show Code" class="btn-show-code">Show Code</button><button data-coupon-id="cc-3" data-code="SAVE20" class="btn-show-code">Show Code</button>',
+          });
+          return;
+        }
         const ids = listingLoads % 2 ? ['a', 'b'] : ['b', 'a'];
         html = ids
           .map((id) => {
@@ -126,6 +141,56 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
     },
     20_000,
   );
+
+  it('reads embedded data-code attributes without reloading the store page', async () => {
+    mode = 'embedded';
+    const context = await browser.newContext();
+    try {
+      await fixture(context);
+      const page = await context.newPage();
+      await page.goto(sourceUrl);
+      const result = await collectSimplyCodesReveals(
+        page,
+        sourceUrl,
+        config,
+        () => {},
+        1_500,
+      );
+      // "Show Code" fails the code shape, so that offer falls through to a reveal,
+      // which this fixture can never satisfy.
+      expect(result.codes).toEqual(['Save_10', 'SAVE20']);
+      expect(result.failures).toHaveLength(1);
+      expect(listingLoads).toBe(2);
+    } finally {
+      await context.close();
+    }
+  }, 20_000);
+
+  it('stops at the first bot-protection block instead of timing out on every offer', async () => {
+    mode = 'blocked';
+    const context = await browser.newContext();
+    try {
+      await fixture(context);
+      const page = await context.newPage();
+      await page.goto(sourceUrl);
+      const started = Date.now();
+      const result = await collectSimplyCodesReveals(
+        page,
+        sourceUrl,
+        config,
+        () => {},
+        1_500,
+      );
+      expect(result.codes).toEqual([]);
+      expect(result.failures).toEqual([
+        'offer=1: store page reload blocked by bot protection (HTTP 403); 1 later offer(s) skipped',
+      ]);
+      expect(Date.now() - started).toBeLessThan(1_500);
+      expect(context.pages()).toEqual([page]);
+    } finally {
+      await context.close();
+    }
+  }, 20_000);
 
   it('runs the actual processor and deduplicates persisted codes across retries', async () => {
     const createContext = browser.newContext.bind(browser);

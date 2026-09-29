@@ -58,6 +58,13 @@ beforeEach(() => {
       }
       return { ok: true, json: async () => ({}) } as Response
     }
+    if (path === "/api/proxy/reviewers/r1" && init?.method === "DELETE") {
+      data = {
+        ...data,
+        reviewers: data.reviewers.filter((r) => r.id !== "r1"),
+      }
+      return { ok: true, json: async () => ({}) } as Response
+    }
     if (path === "/api/proxy/reviewers" && init?.method === "POST")
       return {
         ok: true,
@@ -98,6 +105,23 @@ it("revokes only after confirming the named reviewer", async () => {
   expect(screen.getByText("Revoke Alex Review?")).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Revoke access" }))
   expect(await screen.findByText("Revoked")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Revoke Alex Review" })).not.toBeInTheDocument()
+})
+it("offers delete only for revoked reviewers and removes them after confirming", async () => {
+  const user = userEvent.setup()
+  renderPage(<ReviewersPage />)
+  await screen.findByText("Alex Review")
+  expect(screen.queryByRole("button", { name: "Delete Alex Review" })).not.toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Revoke Alex Review" }))
+  await user.click(screen.getByRole("button", { name: "Revoke access" }))
+  await user.click(await screen.findByRole("button", { name: "Delete Alex Review" }))
+  expect(screen.getByText("Delete Alex Review?")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Delete reviewer" }))
+  await waitFor(() => expect(screen.queryByText("Alex Review")).not.toBeInTheDocument())
+  expect(global.fetch).toHaveBeenCalledWith(
+    "/api/proxy/reviewers/r1",
+    expect.objectContaining({ method: "DELETE" }),
+  )
 })
 it("creates an invite using the shared form and shows its code once", async () => {
   const user = userEvent.setup()

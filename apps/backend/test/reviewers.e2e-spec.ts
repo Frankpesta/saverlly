@@ -178,6 +178,32 @@ describe('Temporary reviewer access', () => {
       .expect(401);
   });
 
+  it('deletes only revoked reviewers, cascading their sessions', async () => {
+    const created = await invite();
+    await activate(created.code);
+    const api = app.getHttpServer();
+    await request(api)
+      .delete(`/reviewers/${created.id}`)
+      .set(authorized())
+      .expect(400);
+    await request(api)
+      .post(`/reviewers/${created.id}/revoke`)
+      .set(authorized())
+      .expect(201);
+    await request(api)
+      .delete(`/reviewers/${created.id}`)
+      .set(authorized())
+      .expect(200);
+    expect(
+      await testPrisma.reviewerInvite.count({ where: { id: created.id } }),
+    ).toBe(0);
+    expect(await testPrisma.reviewerSession.count()).toBe(0);
+    await request(api)
+      .delete(`/reviewers/${created.id}`)
+      .set(authorized())
+      .expect(404);
+  });
+
   it('uses the same merchant data while isolating savings, attribution and coupon statistics', async () => {
     const created = await invite();
     const token = await activate(created.code);

@@ -1,6 +1,7 @@
 "use client"
 
 import { InlineQueryError } from "@/components/dashboard/query-state"
+import { ScrapeError } from "@/components/dashboard/scrape-error"
 
 import * as React from "react"
 import Link from "next/link"
@@ -92,14 +93,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
                 </TableCell>
                 <TableCell>
                   {source.lastRunAt ? relativeTime(source.lastRunAt) : "Never"}
-                  {source.lastError && (
-                    <p
-                      className="max-w-xs whitespace-normal text-xs text-destructive"
-                      title={source.lastError}
-                    >
-                      Failed: {source.lastError}
-                    </p>
-                  )}
+                  {source.lastError && <ScrapeError message={source.lastError} />}
                   {source.lastSucceededAt && (
                     <p className="text-xs text-muted-foreground">
                       Last success {relativeTime(source.lastSucceededAt)} ·{" "}
