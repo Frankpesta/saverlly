@@ -20,7 +20,12 @@ import type {
   TabCheckoutState,
 } from "../lib/messages";
 import { connectToAgentAndReceiveToken } from "../lib/native-messaging";
-import { checkStepDown } from "../lib/step-down-check";
+import {
+  checkStepDown,
+  isAffiliateLanding,
+  overrideStandDown,
+  recordAffiliateLanding,
+} from "../lib/step-down-check";
 import { checkDeviceStatus } from "../lib/status-check";
 import { activateReviewer } from "../lib/reviewer-access";
 import { getReviewerAccess } from "../lib/storage";
@@ -41,6 +46,15 @@ let initializing: Promise<void> | undefined;
 const navigationVersions = new Map<number, number>();
 const starting = new Map<number, Promise<boolean>>();
 const messageQueues = new Map<number, Promise<unknown>>();
+// Where each top-frame navigation started (before server redirects) and the last committed
+// document per tab. Together they reveal an affiliate redirect hop (network -> merchant) that
+// leaves no trace in the merchant URL. Lost on a worker recycle, which only costs the
+// redirect-hop signal for navigations that were already in flight.
+const navigationStarts = new Map<number, string>();
+const lastCommittedUrls = new Map<number, string>();
+// Tabs whose checkout became ready while they were in the background. Their popup opens when
+// the shopper actually looks at them, never over whatever tab is in front at the time.
+const AUTO_POPUP_PENDING_KEY = "autoPopupPending";
 
 function ensureAlarms(): void {
   chrome.alarms.create(STATUS_ALARM, {
@@ -133,6 +147,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   navigationVersions.delete(tabId);
+  navigationStarts.delete(tabId);
+  lastCommittedUrls.delete(tabId);
+  void setAutoPopupPending(tabId, false);
   clearTabState(tabId);
   void takePendingApply(tabId);
 });
@@ -271,6 +288,18 @@ async function handleTopFrameNavigation(
 ): Promise<void> {
   if (details.frameId !== 0) return;
 
+  if (!sameDocument) {
+    const qualifiers = details.transitionQualifiers ?? [];
+    const redirectedFrom = qualifiers.includes("server_redirect")
+      ? navigationStarts.get(details.tabId)
+      : qualifiers.includes("client_redirect")
+        ? lastCommittedUrls.get(details.tabId)
+        : undefined;
+    navigationStarts.delete(details.tabId);
+    lastCommittedUrls.set(details.tabId, details.url);
+    void noteAffiliateLanding(details.url, redirectedFrom).catch(() => {});
+  }
+
   const previous = await loadTabState(details.tabId);
   if (
     sameDocument &&
@@ -288,11 +317,39 @@ async function handleTopFrameNavigation(
   // rather than only in the branches below, so stale state can't linger past a dormant check.
   clearTabState(details.tabId);
   setBadge(details.tabId, null);
+  void setAutoPopupPending(details.tabId, false);
 
   if (await isDormant()) return;
 
   await detectTab(details.tabId, details.url);
 }
+
+// Stand-down evidence has to be captured on the landing page itself (see
+// step-down-check.ts' isAffiliateLanding). Only merchants are recorded, keyed by their domain,
+// so the checkout reached several pages later is still paused.
+async function noteAffiliateLanding(
+  url: string,
+  redirectedFrom: string | undefined,
+): Promise<void> {
+  if (!url.startsWith("http")) return;
+  // Cheap pre-check with no merchant config, so ordinary browsing never costs a lookup.
+  if (!isAffiliateLanding(url, redirectedFrom)) return;
+  const merchant = await resolveMerchant(new URL(url).hostname);
+  if (!merchant) return;
+  if (
+    !isAffiliateLanding(url, redirectedFrom, {
+      key: merchant.affiliateUrlParamKey,
+      value: merchant.affiliateUrlParamValue,
+      subIdKey: merchant.affiliateSubIdParamKey,
+    })
+  )
+    return;
+  await recordAffiliateLanding(merchant.domain);
+}
+
+chrome.webNavigation.onBeforeNavigate?.addListener((details) => {
+  if (details.frameId === 0) navigationStarts.set(details.tabId, details.url);
+});
 
 chrome.webNavigation.onCommitted.addListener((details) =>
   handleTopFrameNavigation(details).catch(() => {}),
@@ -391,19 +448,94 @@ async function onCheckoutConfirmed(
   }
 
   setBadge(tabId, BADGE_READY);
-  try {
-    // Best-effort only: Chrome may refuse this outside a user gesture / focused window.
-    // The badge above is the guaranteed fallback affordance either way.
-    await (
-      chrome.action as unknown as { openPopup?: () => Promise<void> }
-    ).openPopup?.();
-  } catch {
-    // ignored. See comment above
-  }
+  await openPopupWhenVisible(tabId);
 
   // No competing affiliate link. Surface the popup's "Apply Coupons" prompt and wait for the
   // user to click it (APPLY_BEST_COUPON), rather than applying automatically.
 }
+
+async function setAutoPopupPending(
+  tabId: number,
+  pending: boolean,
+): Promise<void> {
+  const session = chrome.storage?.session;
+  if (!session) return;
+  const stored = (await session.get(AUTO_POPUP_PENDING_KEY))[
+    AUTO_POPUP_PENDING_KEY
+  ] as number[] | undefined;
+  if (!pending && !stored?.includes(tabId)) return;
+  const next = new Set(stored ?? []);
+  if (pending) next.add(tabId);
+  else next.delete(tabId);
+  await session.set({ [AUTO_POPUP_PENDING_KEY]: [...next] });
+}
+
+async function isAutoPopupPending(tabId: number): Promise<boolean> {
+  const session = chrome.storage?.session;
+  if (!session) return false;
+  const stored = (await session.get(AUTO_POPUP_PENDING_KEY))[
+    AUTO_POPUP_PENDING_KEY
+  ] as number[] | undefined;
+  return !!stored?.includes(tabId);
+}
+
+// chrome.action.openPopup() opens over whichever window is focused, regardless of which tab
+// asked. Checkout detection also runs in background tabs (startup scan, recovery alarm, a cart
+// left open), so opening unconditionally put the popup over YouTube and other unrelated pages.
+// Only open it while the checkout tab is the one being looked at; otherwise defer until it is.
+async function openPopupWhenVisible(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+  const window = tab?.active
+    ? await chrome.windows?.get(tab.windowId).catch(() => undefined)
+    : undefined;
+  if (!tab?.active || !window?.focused) {
+    await setAutoPopupPending(tabId, true);
+    return;
+  }
+  await setAutoPopupPending(tabId, false);
+  try {
+    // Best-effort only: Chrome may refuse this outside a user gesture. The badge is the
+    // guaranteed fallback affordance either way.
+    await (
+      chrome.action as unknown as {
+        openPopup?: (options?: { windowId?: number }) => Promise<void>;
+      }
+    ).openPopup?.({ windowId: tab.windowId });
+  } catch {
+    // ignored. See comment above
+  }
+}
+
+// A deferred popup only makes sense while that checkout is still waiting for the shopper.
+async function openDeferredPopup(tabId: number): Promise<void> {
+  if (!(await isAutoPopupPending(tabId))) return;
+  const state = await loadTabState(tabId);
+  if (
+    !state ||
+    state.suppressedStepdown ||
+    state.applyProgress ||
+    state.applyResult ||
+    (await isDormant())
+  ) {
+    await setAutoPopupPending(tabId, false);
+    return;
+  }
+  await openPopupWhenVisible(tabId);
+}
+
+chrome.tabs.onActivated?.addListener(({ tabId }) => {
+  void openDeferredPopup(tabId).catch(() => {});
+});
+
+chrome.windows?.onFocusChanged?.addListener((windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+  void chrome.tabs
+    .query({ active: true, windowId })
+    .then(([tab]) =>
+      tab?.id !== undefined ? openDeferredPopup(tab.id) : undefined,
+    )
+    .catch(() => {});
+});
 
 function triggerApply(
   tabId: number,
@@ -431,6 +563,7 @@ async function startApply(
   if (state.checkoutUrl && state.checkoutUrl !== checkoutPath(tab.url))
     return false;
   if (state.applyProgress && !state.applyResult) return true;
+  void setAutoPopupPending(tabId, false);
 
   // Reset any stale progress/result from a prior run (e.g. a manual "Try Coupons Again")
   // so a popup opened mid-run doesn't show the previous attempt's outcome.
@@ -475,6 +608,8 @@ async function startApply(
     !merchant.checkoutRecipe
   )
     return false;
+  // Applying from the paused screen is the shopper explicitly overriding the stand-down.
+  if (state.suppressedStepdown) await overrideStandDown(merchant.domain);
   const coupons = merchant.coupons.filter(
     (c) => c.active && (!c.expiresAt || Date.parse(c.expiresAt) > Date.now()),
   );

@@ -38,6 +38,8 @@ function copyStatic() {
   fs.mkdirSync(path.join(dist, 'popup'), { recursive: true });
   fs.copyFileSync(path.join(root, 'src/popup/popup.html'), path.join(dist, 'popup/popup.html'));
   fs.copyFileSync(path.join(root, 'src/popup/popup.css'), path.join(dist, 'popup/popup.css'));
+  // Start from an empty assets folder so assets removed from src don't linger in the build.
+  fs.rmSync(path.join(dist, 'popup/assets'), { recursive: true, force: true });
   fs.mkdirSync(path.join(dist, 'popup/assets'), { recursive: true });
   for (const file of fs.readdirSync(path.join(root, 'src/popup/assets'))) {
     fs.copyFileSync(path.join(root, 'src/popup/assets', file), path.join(dist, 'popup/assets', file));

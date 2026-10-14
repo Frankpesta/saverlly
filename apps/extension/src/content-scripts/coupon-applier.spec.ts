@@ -943,3 +943,131 @@ describe("largest confirmed saving", () => {
     expect(clicks).toEqual(["LAST10"]);
   });
 });
+
+it("moves straight on when a store keeps Apply disabled after rejecting a code", async () => {
+  // Pattern seen on Target-style carts: after a rejection the button stays disabled until the
+  // input changes. That is an answered request; it used to be read as still in flight, so
+  // every rejected code waited out the 60s hard deadline and the run gave up.
+  jest.useFakeTimers();
+  window.__SAVERLLY__ = {
+    merchantId: "merchant-1",
+    recipe: { ...RECIPE, successIndicatorSelector: "" },
+    coupons: [
+      { ...COUPON, id: "bad", code: "NOPE" },
+      { ...COUPON, id: "good", code: "SAVE10" },
+    ],
+  };
+  document.body.innerHTML =
+    '<div id="cart-total">$100.00</div><input data-test="promo-code-input"><button data-test="apply-promo-code-button"></button><div class="failure" hidden>Not valid</div>';
+  const input = document.querySelector("input")!;
+  const button = document.querySelector("button")!;
+  const failure = document.querySelector<HTMLElement>(".failure")!;
+  Object.defineProperty(failure, "offsetParent", {
+    get: () => (failure.hidden ? null : document.body),
+  });
+  input.addEventListener("input", () => {
+    failure.hidden = true;
+    button.disabled = false;
+  });
+  button.addEventListener("click", () => {
+    button.disabled = true;
+    setTimeout(() => {
+      if (input.value === "SAVE10") {
+        document.querySelector("#cart-total")!.textContent = "$90.00";
+        button.disabled = false;
+      } else {
+        failure.hidden = false; // Apply deliberately left disabled.
+      }
+    }, 300);
+  });
+  loadContentScript();
+  await jest.advanceTimersByTimeAsync(5_000);
+  expect(sendMessage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      isFinal: true,
+      result: "applied",
+      code: "SAVE10",
+      testedCount: 2,
+    }),
+  );
+  jest.useRealTimers();
+});
+
+it("handles an Amazon-style payment widget that re-renders itself on every response", async () => {
+  // Measured live on amazon.com/checkout/p/<id>/pay (2026-10-14): Apply is handled in-page
+  // (~1.9s), the whole pmts widget is replaced (new input, button and messages), the
+  // rejection shows in .pmts-error-message-inline next to a hidden *-template lookalike,
+  // and there is no success banner, so only a lower order total proves a working code.
+  jest.useFakeTimers();
+  window.__SAVERLLY__ = {
+    merchantId: "merchant-1",
+    recipe: {
+      couponFieldSelector: 'input[name="ppw-claimCode"]',
+      applyButtonSelector: 'input[name="ppw-claimCodeApplyPressed"]',
+      successIndicatorSelector: "",
+      failureIndicatorSelector: ".pmts-error-message-inline",
+      cartTotalSelector:
+        "#subtotals-marketplace-table .a-text-bold .order-summary-line-definition",
+      checkoutUrlPatterns: ["/checkout/p/*/pay"],
+    },
+    coupons: [
+      { ...COUPON, id: "bad", code: "NOPE" },
+      { ...COUPON, id: "good", code: "SAVE10" },
+    ],
+  };
+  const widget = (value: string, error: boolean) =>
+    `<form id="pmts"><input name="ppw-claimCode" value="${value}"><input type="submit" name="ppw-claimCodeApplyPressed" value="Apply">` +
+    `<div class="pmts-error-message-inline-template" hidden>Placeholder</div>` +
+    (error
+      ? '<div class="pmts-error-message-inline">The promotional code you entered is not valid.</div>'
+      : "") +
+    "</form>";
+  document.body.innerHTML =
+    '<ul id="subtotals-marketplace-table"><li><span class="a-text-bold"><div class="order-summary-line-definition">$71.96</div></span></li></ul><div id="slot"></div>';
+  const slot = document.getElementById("slot")!;
+  slot.innerHTML = widget("", false);
+  const originalOffsetParent = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    "offsetParent",
+  );
+  Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.hidden ? null : document.body;
+    },
+  });
+  slot.addEventListener("click", (event) => {
+    const target = event.target as HTMLInputElement;
+    if (target.name !== "ppw-claimCodeApplyPressed") return;
+    event.preventDefault();
+    const code = slot.querySelector<HTMLInputElement>(
+      'input[name="ppw-claimCode"]',
+    )!.value;
+    setTimeout(() => {
+      if (code === "SAVE10")
+        document.querySelector(".order-summary-line-definition")!.textContent =
+          "$64.76";
+      slot.innerHTML = widget(code, code !== "SAVE10");
+    }, 1_900);
+  });
+  loadContentScript();
+  await jest.advanceTimersByTimeAsync(15_000);
+  expect(sendMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ isFinal: false, code: "NOPE", result: "failed" }),
+  );
+  expect(sendMessage).toHaveBeenCalledWith(
+    expect.objectContaining({
+      isFinal: true,
+      result: "applied",
+      code: "SAVE10",
+      discountAmount: 7.2,
+    }),
+  );
+  if (originalOffsetParent)
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "offsetParent",
+      originalOffsetParent,
+    );
+  jest.useRealTimers();
+});

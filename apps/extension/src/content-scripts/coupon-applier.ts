@@ -8,9 +8,17 @@ import type {
   CouponApplyResultMessage,
 } from "../lib/messages";
 
-const POLL_MS = 250;
+// Timings dominate how long a run takes: every code pays them, so a 20-code store multiplies
+// each one by 20. Polling is cheap DOM reads, so it runs often; the settle windows are only as
+// long as checkouts have been observed to keep re-rendering after a response.
+const POLL_MS = 100;
 const RESPONSE_MS = 15_000;
-const STABLE_MS = 750;
+const STABLE_MS = 500;
+// A rejection message is itself the store's answer. Once it has shown (and the total has not
+// moved) only a short debounce is needed, not the full total-stability window.
+const FAILURE_SETTLE_MS = 300;
+// Upper bound on waiting for a controlled form to enable Apply after the code is typed.
+const BUTTON_READY_MS = 1_000;
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 const cents = (value: number) => Math.round(value * 100);
@@ -303,9 +311,21 @@ function observeIndicators(
       field = element<HTMLInputElement>(recipe.couponFieldSelector)!;
     }
     setFieldValue(field, code);
-    // Controlled checkouts enable/re-render their button after the input event.
-    await sleep(POLL_MS);
-    checkActive();
+    // Controlled checkouts enable/re-render their button after the input event. Wait only as
+    // long as that actually takes instead of a fixed delay per code.
+    const buttonDeadline = Date.now() + BUTTON_READY_MS;
+    for (;;) {
+      await sleep(50);
+      checkActive();
+      const ready = element<HTMLButtonElement>(recipe.applyButtonSelector);
+      if (
+        (ready &&
+          !ready.disabled &&
+          ready.getAttribute("aria-disabled") !== "true") ||
+        Date.now() >= buttonDeadline
+      )
+        break;
+    }
     const button = element<HTMLButtonElement>(recipe.applyButtonSelector);
     if (
       !button ||
@@ -328,6 +348,7 @@ function observeIndicators(
       let stableSince = Date.now();
       let success = false;
       let failure = false;
+      let failureSince = 0;
       let wasBusy = false;
       while (Date.now() < deadline) {
         checkActive();
@@ -337,19 +358,25 @@ function observeIndicators(
         const submittedValue = element<HTMLInputElement>(
           recipe.couponFieldSelector,
         )?.value.trim();
-        const busy =
-          !liveButton ||
-          liveButton.getAttribute("aria-busy") === "true" ||
-          liveButton.getAttribute("aria-disabled") === "true" ||
-          (liveButton.disabled && submittedValue === code);
-        if (busy) deadline = Math.min(hardDeadline, Date.now() + RESPONSE_MS);
-        wasBusy ||= busy || indicators.wasBusy();
         success ||= elements(recipe.successIndicatorSelector).some(
           (el) => isVisible(el) && indicators.fresh(el),
         );
-        failure ||= elements(recipe.failureIndicatorSelector).some(
+        const failureVisible = elements(recipe.failureIndicatorSelector).some(
           (el) => isVisible(el) && indicators.fresh(el),
         );
+        if (failureVisible && !failure) failureSince = Date.now();
+        failure ||= failureVisible;
+        // Many stores keep Apply disabled after rejecting a code until the input changes.
+        // That is an answered request, not one still in flight: treating it as busy kept every
+        // rejected code waiting out the 60s hard deadline.
+        const busy =
+          !liveButton ||
+          liveButton.getAttribute("aria-busy") === "true" ||
+          (!failureVisible &&
+            (liveButton.getAttribute("aria-disabled") === "true" ||
+              (liveButton.disabled && submittedValue === code)));
+        if (busy) deadline = Math.min(hardDeadline, Date.now() + RESPONSE_MS);
+        wasBusy ||= busy || indicators.wasBusy();
         const total = readTotal(recipe.cartTotalSelector);
         if (total !== previous) {
           previous = total;
@@ -373,7 +400,11 @@ function observeIndicators(
           failure ||
           (wasBusy &&
             elements(recipe.failureIndicatorSelector).some(isVisible));
-        if (!busy && rejected && !success && stable && !reduced)
+        const settled = failure
+          ? total !== null &&
+            Date.now() - Math.max(failureSince, stableSince) >= FAILURE_SETTLE_MS
+          : stable;
+        if (!busy && rejected && !success && settled && !reduced)
           return { outcome: "failure", total };
         await sleep(POLL_MS);
       }
