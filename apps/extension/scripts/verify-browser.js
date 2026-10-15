@@ -490,7 +490,8 @@ const server = http.createServer((req, res) => {
 
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({
-      viewport: { width: 360, height: 600 },
+      viewport: { width: 423, height: 600 },
+      screen: { width: 1920, height: 1040 },
       deviceScaleFactor: 1,
     });
     for (const view of [
@@ -546,9 +547,15 @@ const server = http.createServer((req, res) => {
         await page.locator("#view-coupons-btn").click();
       assert.equal(
         await page.evaluate(() => document.documentElement.scrollWidth),
-        360,
+        423,
         `${view} horizontal overflow`,
       );
+      // A toolbar popup sizes to its content: every state stays clear of Chrome's 600px cap
+      // (no scrollbar) instead of filling the screen with artboard whitespace.
+      const height = await page.evaluate(() =>
+        Math.round(document.body.getBoundingClientRect().height),
+      );
+      assert.ok(height <= 598, `${view} popup is ${height}px tall (Chrome caps popups at 600)`);
       await page.screenshot({
         path: path.join(output, `${view}.png`),
         fullPage: true,
@@ -587,7 +594,7 @@ const server = http.createServer((req, res) => {
       const panels = Object.entries(references)
         .map(
           ([view, name]) =>
-            `<section><h2>${view}</h2><div><figure><figcaption>Figma export at 60%</figcaption><img src="${pathToFileURL(path.join(process.argv[2], `${name}.png`)).href}" width="360"></figure><figure><figcaption>Implementation · live data varies</figcaption><img src="${view}.png" width="360"></figure></div></section>`,
+            `<section><h2>${view}</h2><div><figure><figcaption>Figma frame</figcaption><img src="${pathToFileURL(path.join(process.argv[2], `${name}.png`)).href}" width="423"></figure><figure><figcaption>Implementation · live data varies</figcaption><img src="${view}.png" width="423"></figure></div></section>`,
         )
         .join("");
       fs.writeFileSync(

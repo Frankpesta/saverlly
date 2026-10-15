@@ -1,4 +1,4 @@
-import { detectStepDown } from "./step-down-check";
+import { detectStepDown, isAffiliateLanding } from "./step-down-check";
 
 describe("detectStepDown", () => {
   it("detects a competitor using the same network parameter key", () => {
@@ -122,5 +122,70 @@ describe("detectStepDown", () => {
         undefined,
       ),
     ).toBe(false);
+  });
+});
+
+describe("isAffiliateLanding", () => {
+  it("matches network parameters case-insensitively (Rakuten sends ranSiteID/ranMID)", () => {
+    expect(
+      isAffiliateLanding("https://shop.test/p?ranSiteID=abc&ranMID=1", null),
+    ).toBe(true);
+  });
+
+  it("recognises Target's Impact click parameters and the afsrc stand-down flag", () => {
+    expect(
+      isAffiliateLanding("https://www.target.com/p/x?clkid=1a2b&lnm=81938", null),
+    ).toBe(true);
+    expect(isAffiliateLanding("https://shop.test/?afsrc=1", null)).toBe(true);
+  });
+
+  it("treats Amazon Associates tags as affiliate only on Amazon", () => {
+    expect(
+      isAffiliateLanding("https://www.amazon.com/dp/B0?tag=someblog-20", null),
+    ).toBe(true);
+    expect(isAffiliateLanding("https://blog.test/posts?tag=shoes", null)).toBe(
+      false,
+    );
+  });
+
+  it("recognises affiliate utm values but not ordinary marketing ones", () => {
+    expect(
+      isAffiliateLanding("https://shop.test/?utm_medium=affiliate", null),
+    ).toBe(true);
+    expect(
+      isAffiliateLanding("https://shop.test/?utm_source=rakuten", null),
+    ).toBe(true);
+    expect(
+      isAffiliateLanding("https://shop.test/?utm_medium=email&utm_source=newsletter", null),
+    ).toBe(false);
+  });
+
+  it("detects a redirect hop through an affiliate network even when the merchant URL is clean", () => {
+    expect(
+      isAffiliateLanding(
+        "https://shop.test/",
+        "https://www.anrdoezrs.net/click-123-456",
+      ),
+    ).toBe(true);
+    expect(
+      isAffiliateLanding("https://shop.test/", "https://goto.target.com/c/123/81938/2092"),
+    ).toBe(true);
+    expect(
+      isAffiliateLanding("https://shop.test/", "https://www.google.com/search?q=shoes"),
+    ).toBe(false);
+  });
+
+  it("never counts Saverlly's own parameter or sub-id as a competitor", () => {
+    const own = { key: "clickid", value: "saverlly", subIdKey: "subid1" };
+    expect(
+      isAffiliateLanding("https://shop.test/?clickid=saverlly&subid1=dev-1", null, own),
+    ).toBe(false);
+    expect(
+      isAffiliateLanding("https://shop.test/?clickid=someone-else", null, own),
+    ).toBe(true);
+  });
+
+  it("is not triggered by an ordinary visit", () => {
+    expect(isAffiliateLanding("https://shop.test/cart?ref=nav", null)).toBe(false);
   });
 });

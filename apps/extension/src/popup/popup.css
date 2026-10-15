@@ -1,34 +1,60 @@
-/* The supplied 600 x 832 Figma frames are rendered at 60% for the 360px popup.
-   Illustration, logo, close glyph and background are original exported layers. */
+/* Every length below is a Figma pixel, read off the 600 x 832 frames in extension_figma_files/
+   (layer bounding boxes measured from the SVG exports, font sizes calibrated against Rubik's
+   real metrics). Element sizes, type, padding and in-card positions are the frame's own.
+
+   Two things differ from the frames, both about height:
+   - The frames' empty bands (above the hero, before the primary button, the blank bottom of
+     the artboard) are tightened. A toolbar popup sizes to its content; it should not
+     reproduce artboard whitespace and fill the screen.
+   - The whole popup is scaled by --popup-scale, which popup.ts sets from the screen's height:
+     0.705 (423px wide, the largest that keeps every state under Chrome's 600px popup cap) on
+     large screens, down to 0.62 (372px) on short laptop screens.
+     Change sizes here only in Figma units. */
 @font-face {
   font-family: Rubik;
   font-style: normal;
   font-weight: 300 900;
-  font-display: swap;
+  font-display: block;
   src: url("fonts/rubik.woff2") format("woff2");
 }
 :root {
+  --popup-scale: 0.705;
   --teal: #58c3b7;
   --teal-dark: #43a99d;
-  --teal-tint: #e8f7f6;
-  --text: #000;
+  --teal-tint: rgba(88, 195, 183, 0.13);
+  --ink: #000;
+  --ink-soft: #1b1c1c;
   --muted: #787878;
   --border: #ededed;
-  --track: #f4f3f3;
-  --bg: #fff;
+  --card-border: #f2f2f2;
+  --pill: #f1f1f1;
+  --pill-text: #d0d0d0;
+  --row: #f4f4f4;
+  --green: #00a259;
+  --card-shadow: 1.24px 3.73px 8.96px rgba(0, 0, 0, 0.09);
+  --button-shadow: 0 5px 16px rgba(0, 0, 0, 0.2);
 }
 * {
   box-sizing: border-box;
 }
-body {
-  margin: 0;
-  width: 360px;
-  max-height: 600px;
+/* The root measures exactly the scaled frame width, so Chrome's popup auto-sizing gets it. */
+html {
+  width: calc(600px * var(--popup-scale));
   overflow-x: hidden;
-  overflow-y: auto;
+}
+body {
+  zoom: var(--popup-scale);
+  margin: 0;
+  width: 600px;
+  overflow-x: hidden;
   font-family: Rubik, Arial, sans-serif;
-  color: var(--text);
-  background: white;
+  font-weight: 400;
+  color: var(--ink);
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+p {
+  margin: 0;
 }
 button,
 a {
@@ -39,553 +65,642 @@ button {
   cursor: pointer;
 }
 button:focus-visible,
-a:focus-visible {
-  outline: 2px solid #247c73;
-  outline-offset: 3px;
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid #247c73;
+  outline-offset: 4px;
 }
+
+/* Header: 0-72 plus a 2px rule (Figma y 72-74). Logo layer at (32, 16), close glyph box at
+   (540, 24.5). */
 .popup__header {
-  height: 43.8px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 0 19.2px;
-  border-bottom: 0.6px solid var(--border);
-}
-.popup__brand {
-  display: flex;
+  height: 74px;
+  padding: 0 36px 0 32px;
+  border-bottom: 2px solid var(--border);
 }
 .popup__logo {
   display: block;
-  width: 114.6px;
-  height: 25.2px;
+  width: 191px;
+  height: 42px;
+  margin-top: 16px;
 }
 .popup__close {
-  width: 20px;
+  width: 24px;
   height: 24px;
+  margin-top: 24.5px;
+  padding: 0;
   border: 0;
-  padding: 2.8px;
   background: none;
 }
 .popup__close img {
   display: block;
-  width: 14.4px;
-  height: 14.4px;
+  width: 24px;
+  height: 24px;
 }
+
+/* Lifetime row: Figma y 74-133. The 31 x 30 gift sits 11.5px before 16px/500 text, the pair
+   centred 6px left of the frame's midline. */
 .popup__lifetime {
-  height: 35.4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  border-bottom: 0.6px solid var(--border);
-  font-size: 9.6px;
+  gap: 11.5px;
+  height: 59px;
+  padding-right: 12px;
+  border-bottom: 2px solid var(--border);
+  font-size: 16px;
   font-weight: 500;
-  color: #1b1c1c;
+  line-height: 19.2px;
+  color: var(--ink-soft);
 }
 .popup__lifetime-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  margin-right: 3px;
+  display: block;
+  flex: none;
+  width: 34px;
+  height: 33px;
+  margin-top: 1px;
 }
+
+/* Content panel. The faint doodle background is the original layer. flow-root keeps each
+   view's first margin inside the panel instead of collapsing through it. */
 .popup__content {
+  display: flow-root;
   position: relative;
-  min-height: 420px;
-  padding: 22px 20px;
+  isolation: isolate;
+  padding: 0 0 28px;
   text-align: center;
-  background: white url("assets/design-background.svg") center top / 360px 420px
+  background: #fff url("assets/design-background.svg") center top / 600px 700px
     no-repeat;
 }
+
+/* Type (font-size / line-height). Line boxes are 1.2x unless Figma's line pitch differs. */
 .popup__heading {
-  margin: 0;
-  font-size: 24px;
+  font-size: 40px;
   font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: 0;
+  line-height: 48px;
 }
 .popup__accent {
   color: var(--teal);
 }
 .popup__subtext {
-  margin: 11px auto 0;
-  max-width: 180px;
-  font-size: 9.6px;
-  font-weight: 400;
-  line-height: 1.05;
-  color: var(--text);
+  font-size: 16px;
+  line-height: 16px;
 }
 .popup__hero {
-  position: absolute;
-  top: 22.2px;
-  left: 0;
-  width: 360px;
-  height: 204px;
-}
-.popup__hero-illustration {
   display: block;
-  width: 360px;
-  height: 204px;
-  object-fit: contain;
+  width: 600px;
+  height: 340px;
+  margin-top: 24px;
 }
-.popup__hero-icon {
-  position: absolute;
-  left: 49.75%;
-  top: 25%;
-  width: 38px;
-  height: 47px;
-  transform: translate(-50%, -50%);
-}
-.popup__reviewer-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
-  text-align: left;
-}
-.popup__reviewer-input {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #d5d9dd;
-  border-radius: 8px;
-  background: #fff;
-  color: #16202a;
-  font: inherit;
-  font-size: 12px;
-}
-.popup__reviewer-input:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
+
+/* Primary pill button: 58px tall, 18px/500 label, 28px white arrow disc 10.6px after it.
+   Every Figma button sits its label + arrow group 6.5px right of centre. */
 .popup__button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 34.8px;
-  padding: 0 8px;
+  gap: 10.6px;
+  width: 529px;
+  height: 58px;
+  margin: 0 0 0 34px;
+  padding: 0 10px 0 23px;
   border: 0;
-  border-radius: 99px;
+  border-radius: 29px;
   background: var(--teal);
-  color: white;
-  font-size: 10.8px;
+  box-shadow: var(--button-shadow);
+  color: #fff;
+  font-size: 18px;
   font-weight: 500;
-  box-shadow: 0 3px 7px #0003;
+  line-height: 21.6px;
+  transition: background-color 0.15s ease;
 }
 .popup__button:hover {
   background: var(--teal-dark);
 }
 .popup__button:disabled {
-  background: var(--track);
+  background: var(--row);
   color: var(--muted);
+  box-shadow: none;
   cursor: default;
 }
 .popup__button-arrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 17px;
-  height: 17px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: white;
-  color: #111;
-}
-.popup__button-arrow svg {
-  width: 10px;
-  height: 10px;
+  display: block;
+  flex: none;
+  width: 28px;
+  height: 28px;
 }
 .popup__link {
   display: inline-block;
-  margin: 12px 0 0;
-  border: 0;
   padding: 0;
+  border: 0;
   background: none;
-  text-decoration: underline;
-  color: var(--text);
-  font-size: 9.6px;
-  line-height: 1.3;
-}
-.popup__link--strong {
+  color: var(--ink);
+  font-size: 16px;
   font-weight: 500;
+  line-height: 19.2px;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
-.popup__content[data-view="idle"],
-.popup__content[data-view="suppressed"] {
-  padding-top: 232px;
-  padding-bottom: 16px;
-}
+
+/* --- Pop Up (idle) ------------------------------------------------------------------------ */
+/* Hero layer ends 34px below its stacked cards; the headline tucks up into that air. */
 .popup__content[data-view="idle"] .popup__heading {
-  min-height: 58px;
+  min-height: 96px;
+  margin-top: -6px;
 }
 .popup__content[data-view="idle"] .popup__button {
-  margin-top: 52px;
+  margin-top: 46px;
 }
 .popup__content[data-view="idle"] .popup__link {
-  margin-top: 13px;
+  margin-top: 21.7px;
 }
-.popup__content[data-view="suppressed"] .popup__hero-illustration,
-.popup__content[data-view="failure"] .popup__hero-illustration {
-  height: 243.6px;
+
+/* --- No Pop Up (paused); failure reuses its composition ---------------------------------- */
+.popup__content[data-view="suppressed"] .popup__heading,
+.popup__content[data-view="failure"] .popup__heading {
+  margin-top: -6px;
 }
-.popup__content[data-view="suppressed"] .popup__hero-icon,
-.popup__content[data-view="failure"] .popup__hero-icon {
-  top: 61px;
-}
-.popup__content[data-view="suppressed"] .popup__subtext {
-  margin-top: 13px;
-  max-width: 150px;
+.popup__content[data-view="suppressed"] .popup__heading + .popup__subtext,
+.popup__content[data-view="failure"] .popup__heading + .popup__subtext {
+  margin-top: 19.6px;
 }
 .popup__content[data-view="suppressed"] .popup__button {
-  margin-top: 33px;
+  margin-top: 38px;
 }
-.popup__content[data-view="suppressed"] .popup__button + .popup__subtext {
-  max-width: 184px;
-  line-height: 1.35;
+.popup__terms {
+  margin-top: 22px;
+  font-size: 16px;
+  line-height: 20.5px;
 }
-.popup__subtext a {
+.popup__terms a {
   color: inherit;
-}
-.popup__content[data-view="failure"] {
-  padding-top: 232px;
+  font-weight: 500;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 .popup__content[data-view="failure"] .popup__heading {
-  font-size: 21px;
+  font-size: 36px;
 }
 .popup__content[data-view="failure"] .popup__subtext {
-  max-width: 270px;
-  line-height: 1.4;
-}
-.popup__content[data-view="failure"] .popup__button {
-  margin-top: 20px;
-}
-.popup__content[data-view="applying"] {
-  padding-top: 50.4px;
-}
-.popup__content[data-view="applying"] .popup__subtext {
-  margin-top: 11px;
-}
-.popup__progress-card,
-.popup__list-card,
-.popup__result-card {
-  position: relative;
-  width: 246px;
+  max-width: 440px;
   margin-left: auto;
   margin-right: auto;
-  border: 0.75px solid #f2f2f2;
-  border-radius: 9px;
-  background: white;
-  box-shadow: 0 2px 4px #00000012;
+  line-height: 20.5px;
 }
-.popup__progress-card {
-  height: 190.2px;
-  margin-top: 24px;
-  padding: 13px 17px;
+.popup__content[data-view="failure"] .popup__button {
+  margin-top: 36px;
+}
+.popup__content[data-view="failure"] .popup__link {
+  margin-top: 21.7px;
+}
+
+/* --- Cards ------------------------------------------------------------------------------------ */
+.popup__card {
+  position: relative;
+  width: 410px;
+  margin: 0 auto;
+  border: 1.2px solid var(--card-border);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: var(--card-shadow);
   text-align: left;
 }
-.popup__progress-card::before,
-.popup__progress-card::after,
-.popup__list-card::before,
-.popup__list-card::after {
+/* The two cards peeking out underneath (Figma: 28.2 / 45.7 inset, 20.4 / 34.3 lower). */
+.popup__card--stacked::before,
+.popup__card--stacked::after {
   content: "";
   position: absolute;
   z-index: -1;
-  left: 17px;
-  right: 17px;
-  height: 30px;
-  bottom: -13px;
-  border: 0.75px solid #f2f2f2;
-  border-radius: 9px;
-  background: white;
-  box-shadow: 0 3px 4px #00000012;
+  left: 28.2px;
+  right: 28.2px;
+  bottom: -20.4px;
+  height: 95.4px;
+  border: 1.2px solid var(--card-border);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: var(--card-shadow);
 }
-.popup__progress-card::after,
-.popup__list-card::after {
-  left: 27px;
-  right: 27px;
-  bottom: -21px;
+.popup__card--stacked::after {
   z-index: -2;
+  left: 45.7px;
+  right: 45.7px;
+  bottom: -34.3px;
+  height: 86px;
 }
-.popup__content[data-view="applying"],
-.popup__content[data-view="coupon-list"] {
-  isolation: isolate;
+
+/* --- Applying And Testing The Codes ---------------------------------------------------------- */
+.popup__content[data-view="applying"] .popup__heading {
+  margin-top: 56px;
+}
+.popup__content[data-view="applying"] .popup__heading + .popup__subtext {
+  margin-top: 18.1px;
+}
+.popup__progress-card {
+  height: 318px;
+  margin-top: 36px;
 }
 .popup__progress-row {
+  position: absolute;
+  left: 28px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  height: 36px;
-  font-size: 9.6px;
+  gap: 8.7px;
+  height: 49px;
+  color: #1b1b1b;
+  font-size: 16px;
   font-weight: 500;
-  color: #1b1c1c;
+  line-height: 19.2px;
+}
+.popup__progress-row:nth-child(1) {
+  top: 30.5px;
+}
+.popup__progress-row:nth-child(2) {
+  top: 89.9px;
 }
 .popup__progress-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 27px;
-  height: 27px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: #f4f4f4;
-  box-shadow: 0 2px 2px #0002;
+  display: block;
+  flex: none;
+  width: 49px;
+  height: 49px;
 }
-.popup__progress-icon svg {
-  width: 22px;
-  height: 22px;
-}
-.popup__progress-icon img {
-  width: 29.4px;
-  height: 29.4px;
-}
-.popup__progress-icon--active,
-.popup__progress-icon--pending {
-  background: none;
-  box-shadow: none;
-}
-.popup__progress-icon--active img {
+.popup__progress-icon--active {
   animation: popup-spin 1.8s linear infinite;
-}
-.popup__progress-icon--done svg {
-  width: 15px;
-  height: 15px;
-}
-.popup__progress-icon--active svg,
-.popup__pill--testing svg,
-.popup__pill--applying svg {
-  animation: popup-spin 0.9s linear infinite;
 }
 @keyframes popup-spin {
   to {
     transform: rotate(360deg);
   }
 }
+/* Strip of codes along the card's bottom edge, fading out at both ends as in the frame. */
 .popup__pill-row {
   position: absolute;
-  bottom: 6px;
-  left: 0;
+  top: 271px;
+  left: 3px;
   right: 0;
   display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 0 6px;
+  gap: 6px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 134px,
+    #000 calc(100% - 103px),
+    transparent
+  );
   mask-image: linear-gradient(
     to right,
     transparent,
-    black 12%,
-    black 88%,
+    #000 134px,
+    #000 calc(100% - 103px),
     transparent
   );
 }
-.popup__pill-row::-webkit-scrollbar {
-  display: none;
-}
 .popup__pill {
   display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 5px;
-  border-radius: 2px;
-  background: #f2f2f2;
-  color: #ccc;
-  font-size: 7.2px;
+  height: 36px;
+  padding: 0 6.5px;
+  border-radius: 4px;
+  background: var(--pill);
+  color: var(--pill-text);
+  font-size: 12px;
   font-weight: 500;
+  line-height: 14.4px;
   white-space: nowrap;
 }
-.popup__pill svg {
-  width: 10px;
-  height: 10px;
-  flex-shrink: 0;
+.popup__pill img {
+  display: block;
+  flex: none;
+}
+.popup__pill--failed {
+  gap: 8.6px;
+  padding: 0 7.5px 0 10px;
+}
+.popup__pill--failed img {
+  width: 12px;
+  height: 12px;
 }
 .popup__pill--testing,
 .popup__pill--applying,
 .popup__pill--applied {
   color: var(--teal);
 }
+.popup__pill--testing,
+.popup__pill--applying {
+  padding: 0 7.5px 0 7px;
+}
+.popup__pill--testing img,
+.popup__pill--applying img {
+  width: 24px;
+  height: 24px;
+  animation: popup-spin 0.9s steps(8) infinite;
+}
+.popup__pill--applied {
+  gap: 6px;
+  padding: 0 7.5px 0 8px;
+}
+.popup__pill--applied img {
+  width: 14px;
+  height: 14px;
+}
 .popup__progress-caption {
-  margin: 36px 0 0;
-  font-size: 10.8px;
+  margin-top: 54px;
+  font-size: 18px;
   font-weight: 500;
+  line-height: 21.6px;
 }
-.popup__content[data-view="success"],
-.popup__content[data-view="coupon-list"] {
-  padding-top: 21.6px;
+
+/* --- Codes Applied Successfully --------------------------------------------------------------- */
+.popup__content[data-view="success"] .popup__heading:first-child,
+.popup__content[data-view="coupon-list"] .popup__heading:first-of-type {
+  margin-top: 26px;
 }
-.popup__content[data-view="success"] > .popup__accent,
-.popup__content[data-view="coupon-list"] > .popup__accent {
-  margin-top: 7px;
+.popup__content[data-view="success"] .popup__heading + .popup__heading {
+  margin-top: 13px;
+}
+/* In the frame both success headings are centred 14px left of the card's axis. */
+.popup__content[data-view="success"] > .popup__heading {
+  padding-right: 28px;
 }
 .popup__result-card {
-  margin-top: 8px;
-  padding: 6px;
+  margin-top: 11.8px;
+  padding: 12px;
 }
 .popup__savings-box {
+  height: 101px;
+  padding-top: 12.2px;
+  border-radius: 12px;
   background: var(--teal-tint);
-  border-radius: 7px;
-  height: 61.2px;
-  padding: 7px 0;
+  text-align: center;
 }
 .popup__savings-total {
-  font-size: 26.4px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 48px;
 }
 .popup__savings-label {
-  margin-top: 4px;
-  font-size: 9.6px;
+  margin-top: 6.5px;
+  font-size: 16px;
+  line-height: 19.2px;
 }
 .popup__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 0;
-  text-align: left;
-  font-size: 9.6px;
+  gap: 12px;
+  font-size: 16px;
+  line-height: 19.2px;
 }
-.popup__row > span:last-child {
+.popup__row--total {
+  margin-top: 15.6px;
+  padding: 0 1px;
+  color: #1b1b1b;
+}
+.popup__row--total > span:last-child,
+.popup__discount-value {
   font-weight: 500;
 }
-.popup__row + .popup__row {
-  padding: 7px 7px 21px;
+.popup__row--code {
+  margin-top: 28.2px;
+  padding: 0 13.2px 0 12px;
 }
 .popup__chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 4px 3px;
-  border-radius: 2px;
-  background: var(--teal);
-  color: white;
-  font-size: 7.2px;
-  font-weight: 500;
-}
-.popup__chip svg {
-  width: 9px;
-  height: 9px;
-  flex-shrink: 0;
-}
-.popup__chip {
+  gap: 5.5px;
+  min-width: 0;
   max-width: 100%;
+  min-height: 27px;
+  padding: 0 5.5px 0 5.3px;
+  border-radius: 4px;
+  background: var(--teal);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 14.4px;
   overflow-wrap: anywhere;
 }
+.popup__chip img {
+  display: block;
+  flex: none;
+  width: 13.9px;
+  height: 13.9px;
+}
 .popup__discount-value {
-  color: #00a259;
+  flex: none;
+  color: var(--green);
 }
 .popup__result-note {
-  border-top: 0.6px solid var(--border);
-  padding: 10px 0 0;
-  margin-bottom: 19px;
+  margin-top: 35px;
+  padding-top: 13.5px;
+  border-top: 2px solid #efefef;
   text-align: left;
-  font-size: 8.4px;
-  line-height: 13.2px;
 }
 .popup__result-note strong {
   display: block;
-  margin-bottom: 6px;
-  font-size: 12px;
+  font-size: 20px;
   font-weight: 500;
+  line-height: 24px;
 }
 .popup__result-note span {
   display: block;
-  font-size: 8.4px;
-  line-height: 13.2px;
+  max-width: 290px;
+  margin-top: 10.6px;
   color: var(--muted);
+  font-size: 14px;
+  line-height: 22px;
+}
+.popup__result-card .popup__button {
+  width: 386px;
+  margin: 31.9px 0 0;
+}
+.popup__content[data-view="success"] > .popup__link {
+  margin-top: 18px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* --- Coupon list (frame "5") ------------------------------------------------------------------- */
+.popup__content[data-view="coupon-list"] .popup__heading + .popup__heading {
+  margin-top: 10.9px;
 }
 .popup__button--outline {
-  height: 28.8px;
-  width: 246px;
-  margin: 15px auto 0;
-  background: white;
-  border: 0.6px solid #ddd;
-  color: #545454;
+  gap: 12.1px;
+  width: 409px;
+  height: 47px;
+  margin: 24.9px auto 0;
+  border: 1.2px solid #e6e6e6;
+  background: #fff;
   box-shadow: none;
+  color: #505050;
 }
 .popup__button--outline:hover {
-  background: var(--track);
+  background: var(--row);
 }
 .popup__button--outline .popup__button-arrow {
-  background: #f5f5f5;
+  width: 29.1px;
+  height: 29.1px;
 }
 .popup__list-card {
-  padding: 6px;
-  margin-top: 14px;
-  text-align: left;
+  margin-top: 23.5px;
+  margin-bottom: 34.3px;
+  padding: 13.9px 12px 12px;
 }
 .popup__list-card h3 {
-  margin: 1px 0 7px;
-  font-size: 12px;
+  margin: 0;
+  font-size: 20px;
   font-weight: 500;
+  line-height: 24px;
 }
 .popup__list-card p {
-  margin: 0 0 22px;
-  font-size: 8.4px;
+  margin-top: 12.8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16.8px;
+}
+.popup__list-card p .popup__muted {
   color: var(--muted);
+  font-weight: 400;
 }
 .popup__list-title {
   display: block;
-  margin-bottom: 8px;
-  font-size: 12px;
+  margin-top: 35.1px;
+  font-size: 20px;
   font-weight: 500;
+  line-height: 24px;
+}
+/* Three rows show, as in the frame; more scroll inside the card. */
+.popup__coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 231px;
+  margin-top: 15.4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 .popup__coupon-row {
-  padding: 5px;
-  border-radius: 5px;
-  background: #f4f3f3;
-}
-.popup__coupon-row + .popup__coupon-row {
-  margin-top: 7px;
+  flex: none;
+  padding: 8px 8px 11px;
+  border-radius: 8px;
+  background: var(--row);
 }
 .popup__coupon-desc {
-  margin-top: 4px;
-  font-size: 8.4px;
-  line-height: 1.4;
+  margin-top: 6.2px;
   color: var(--muted);
+  font-size: 14px;
+  line-height: 16.8px;
   overflow-wrap: anywhere;
 }
 .popup__back {
   position: absolute;
-  top: 5px;
-  left: 10px;
+  top: 12px;
+  left: 20px;
   padding: 0;
   border: 0;
   background: none;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 14px;
+  line-height: 16.8px;
 }
+
+/* --- States with no frame of their own (loading, no offer, not connected) ----------------------- */
+.popup__content[data-view="loading"],
+.popup__content[data-view="no-offer"],
+.popup__content[data-view="inactive"] {
+  padding-left: 40px;
+  padding-right: 40px;
+}
+.popup__content[data-view="loading"] .popup__subtext {
+  padding: 220px 0 180px;
+  color: var(--muted);
+  font-size: 18px;
+}
+.popup__content[data-view="no-offer"] .popup__hero,
+.popup__content[data-view="inactive"] .popup__hero {
+  margin-left: -40px;
+}
+.popup__content[data-view="no-offer"] .popup__heading,
+.popup__content[data-view="inactive"] .popup__heading {
+  margin-top: -6px;
+  font-size: 36px;
+  line-height: 43.2px;
+}
+.popup__content[data-view="no-offer"] .popup__subtext,
+.popup__content[data-view="inactive"] .popup__subtext {
+  margin-top: 16px;
+  line-height: 22px;
+}
+.popup__content[data-view="inactive"] .popup__link {
+  margin-top: 22px;
+}
+.popup__reviewer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 28px;
+  text-align: left;
+  font-size: 16px;
+}
+.popup__reviewer-input {
+  width: 100%;
+  height: 58px;
+  padding: 0 20px;
+  border: 1.2px solid #d5d9dd;
+  border-radius: 12px;
+  background: #fff;
+  color: #16202a;
+  font: inherit;
+  font-size: 18px;
+}
+.popup__reviewer-form .popup__button {
+  width: 100%;
+  margin: 8px 0 0;
+}
+.popup__reviewer-form .popup__link {
+  align-self: center;
+}
+
+/* --- Sponsored slot and disclosure (outside the Figma frame) ------------------------------------ */
 .popup__promo {
   display: block;
-  padding: 12px 20px 14px;
-  border-top: 1px solid var(--border);
+  padding: 20px 34px 22px;
+  border-top: 2px solid var(--border);
 }
 .popup__promo[hidden] {
   display: none;
 }
 .popup__promo-label {
   display: block;
-  margin-bottom: 6px;
-  font-size: 10px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 14px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
 }
 .popup__promo-link {
   display: block;
-  border-radius: 8px;
   overflow: hidden;
+  border-radius: 12px;
 }
 .popup__promo-image {
   display: block;
-  width: 320px;
-  height: 100px;
+  width: 532px;
+  height: 166px;
   object-fit: contain;
 }
+/* Chrome Web Store policy: the affiliate relationship is disclosed in the extension UI. */
 .popup__disclosure {
-  padding: 8px 12px;
-  border-top: 1px solid var(--border);
-  font-size: 9px;
+  padding: 5px 20px 6px;
+  border-top: 2px solid var(--border);
   color: var(--muted);
+  font-size: 14px;
+  line-height: 17px;
   text-align: center;
 }
 .popup__disclosure a {
@@ -596,5 +711,6 @@ a:focus-visible {
   *::before,
   *::after {
     animation: none !important;
+    transition: none !important;
   }
 }

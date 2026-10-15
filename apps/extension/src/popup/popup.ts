@@ -2,13 +2,6 @@ import type { ActivePromotion } from "@saverlly/shared-types";
 import { getReviewerApiBaseUrl } from "../lib/config";
 import { sortCouponsBySuccessLikelihood } from "../lib/cart-total";
 import { formatCurrency, summarizeBestDiscount } from "../lib/format";
-import {
-  ARROW_ICON,
-  CHECK_ICON,
-  SPINNER_ICON,
-  TAG_ICON,
-  X_ICON,
-} from "./icons";
 import type {
   CouponApplyProgressMessage,
   CouponApplyResultMessage,
@@ -16,13 +9,36 @@ import type {
   TabCheckoutState,
 } from "../lib/messages";
 
+// The popup is the Figma frame scaled down (popup.css). Pick the scale from the screen:
+// - Large screens: as large as Chrome allows. Chrome caps a toolbar popup at 600 CSS px tall
+//   however big the monitor, and the tallest state (coupon list, ~841 Figma px) still fits
+//   below that at 0.705, i.e. 423px wide.
+// - Short laptop screens: shrink so that state stays within ~78% of the screen, down to 0.62
+//   (372px), below which the frame's 16px body text would get too small to read.
+// Set before the first render, so the popup never visibly resizes after opening.
+const TALLEST_STATE_FIGMA_PX = 841;
+const MAX_SCALE = 0.705;
+const MIN_SCALE = 0.62;
+const popupScale = Math.min(
+  MAX_SCALE,
+  Math.max(MIN_SCALE, (window.screen.availHeight * 0.78) / TALLEST_STATE_FIGMA_PX),
+);
+document.documentElement.style.setProperty(
+  "--popup-scale",
+  popupScale.toFixed(3),
+);
+
 const content = document.getElementById("content") as HTMLElement;
 const lifetimeValueEl = document.getElementById(
   "lifetime-value",
 ) as HTMLElement;
 const promoEl = document.getElementById("promo") as HTMLElement;
-const testingIcon = '<img src="assets/design-testing.svg" alt="" />';
-const pendingIcon = '<img src="assets/design-pending.svg" alt="" />';
+// Every icon is an original layer cut from the Figma exports (scripts/extract-design-*).
+const asset = (name: string, className = "") =>
+  `<img${className ? ` class="${className}"` : ""} src="assets/${name}.svg" alt="" />`;
+const TAG = asset("design-tag");
+const HERO = asset("design-hero", "popup__hero");
+const PAUSED_HERO = asset("design-paused-hero", "popup__hero");
 
 type View =
   | "loading"
@@ -67,8 +83,8 @@ function orderedCoupons(): TabCheckoutState["coupons"] {
   return tabState ? sortCouponsBySuccessLikelihood(tabState.coupons) : [];
 }
 
-function buttonArrow(): string {
-  return `<span class="popup__button-arrow">${ARROW_ICON}</span>`;
+function buttonArrow(light = false): string {
+  return asset(light ? "design-arrow-light" : "design-arrow", "popup__button-arrow");
 }
 
 function render(view: View): void {
@@ -77,7 +93,7 @@ function render(view: View): void {
     case "inactive":
       if (reviewerFormOpen) return;
       content.innerHTML =
-        '<p class="popup__heading">Saverlly is not connected</p><p class="popup__subtext">Checking the desktop agent and device status. Keep the agent running, then reopen Saverlly.</p>' +
+        `${HERO}<p class="popup__heading">Saverlly is not connected</p><p class="popup__subtext">Checking the desktop agent and device status. Keep the agent running, then reopen Saverlly.</p>` +
         (getReviewerApiBaseUrl() ? '<button class="popup__link popup__link--strong" id="reviewer-code-link" type="button">Have a reviewer code?</button>' : '');
       document.getElementById("reviewer-code-link")?.addEventListener("click", renderReviewerForm);
       return;
@@ -110,6 +126,7 @@ function render(view: View): void {
 
 function renderNoOffer(): void {
   content.innerHTML = `
+    ${HERO}
     <p class="popup__heading">No offers here yet</p>
     <p class="popup__subtext">Saverlly didn't find a supported checkout on this page.</p>
   `;
@@ -124,14 +141,10 @@ function renderIdle(): void {
       : `Found <span class="popup__accent">${count}</span> coupon${count === 1 ? "" : "s"} to try`;
 
   content.innerHTML = `
-    <div class="popup__hero">
-      <img class="popup__hero-illustration" src="assets/design-hero.svg" alt="" />
-    </div>
-    <p class="popup__heading popup__heading--lg">${heading}${tabState.coupons.some((c) => /\bfree shipping\b/i.test(c.description ?? "")) ? '<br>plus <span class="popup__accent">Free Shipping</span>' : ""}</p>
+    ${HERO}
+    <p class="popup__heading">${heading}${tabState.coupons.some((c) => /\bfree shipping\b/i.test(c.description ?? "")) ? '<br>plus <span class="popup__accent">Free Shipping</span>' : ""}</p>
     <button class="popup__button" id="apply-btn" type="button">Apply Coupons ${buttonArrow()}</button>
-    <button class="popup__link popup__link--strong" id="no-thanks-btn" type="button">
-      No thanks, I don't want to save money!
-    </button>
+    <button class="popup__link" id="no-thanks-btn" type="button">No thanks, I don’t want to save money!</button>
   `;
   document
     .getElementById("apply-btn")
@@ -143,16 +156,11 @@ function renderIdle(): void {
 
 function renderSuppressed(): void {
   content.innerHTML = `
-    <div class="popup__hero">
-      <img class="popup__hero-illustration" src="assets/paused.svg" alt="" />
-      <img class="popup__hero-icon" src="assets/paused-inside.svg" alt="" />
-    </div>
+    ${PAUSED_HERO}
     <p class="popup__heading"><span class="popup__accent">Paused</span> website</p>
-    <p class="popup__subtext popup__subtext--dark">Saverlly is paused because a referral link is already active.</p>
+    <p class="popup__subtext">Saverlly is paused because a<br>referral link is already active.</p>
     <button class="popup__button" id="apply-btn" type="button">Activate Your Savings ${buttonArrow()}</button>
-    <p class="popup__subtext popup__subtext--dark" style="margin-top: 14px; margin-bottom: 0;">
-      Save money by applying the best coupons. <a href="#" id="terms-link"><strong><u>Terms</u></strong></a> and <a href="#" id="exclusions-link"><strong><u>exclusions</u></strong></a> apply.
-    </p>
+    <p class="popup__terms">Save money by applying the best<br>coupons. <a href="#" id="terms-link">Terms</a> and <a href="#" id="exclusions-link">exclusions</a> apply.</p>
   `;
   document
     .getElementById("apply-btn")
@@ -187,11 +195,11 @@ function pillIcon(status: PillStatus): string {
   switch (status) {
     case "testing":
     case "applying":
-      return SPINNER_ICON;
+      return asset("design-pill-testing");
     case "failed":
-      return X_ICON;
+      return asset("design-pill-failed");
     case "applied":
-      return CHECK_ICON;
+      return asset("design-done");
     default:
       return "";
   }
@@ -214,14 +222,14 @@ function renderApplying(): void {
 
   content.innerHTML = `
     <p class="popup__heading">Applying <span class="popup__accent">deals...</span></p>
-    <p class="popup__subtext">Saverlly automatically tries codes to save you money.</p>
-    <div class="popup__progress-card">
+    <p class="popup__subtext">Saverlly automatically tries codes<br>to save you money.</p>
+    <div class="popup__card popup__card--stacked popup__progress-card">
       <div class="popup__progress-row">
-        <span class="popup__progress-icon ${testingDone ? "popup__progress-icon--done" : "popup__progress-icon--active"}">${testingDone ? CHECK_ICON : testingIcon}</span>
+        ${testingDone ? asset("design-done", "popup__progress-icon") : asset("design-testing", "popup__progress-icon popup__progress-icon--active")}
         <span>Testing ${total} coupon code${total === 1 ? "" : "s"}</span>
       </div>
       <div class="popup__progress-row">
-        <span class="popup__progress-icon ${testingDone ? "popup__progress-icon--active" : "popup__progress-icon--pending"}">${testingDone ? testingIcon : pendingIcon}</span>
+        ${testingDone ? asset("design-testing", "popup__progress-icon popup__progress-icon--active") : asset("design-pending", "popup__progress-icon")}
         <span>Applying discounts</span>
       </div>
       <div class="popup__pill-row">${pills}</div>
@@ -232,9 +240,10 @@ function renderApplying(): void {
     ".popup__pill--testing, .popup__pill--applying",
   );
   if (activePill)
+    // Keep the code under test in the clear middle of the faded strip, like the frame.
     activePill.parentElement!.scrollLeft = Math.max(
       0,
-      activePill.offsetLeft - 60,
+      activePill.offsetLeft - 100,
     );
 }
 
@@ -247,25 +256,25 @@ function renderSuccess(): void {
 
   content.innerHTML = `
     <p class="popup__heading">You're saving</p>
-    <p class="popup__heading popup__heading--lg popup__accent">${formatCurrency(discountAmount)}!</p>
-    <div class="popup__result-card">
-    <div class="popup__savings-box">
-      <div class="popup__savings-total">${newTotal !== undefined ? formatCurrency(newTotal) : " "}</div>
-      <div class="popup__savings-label">Est. Cart Total</div>
-    </div>
-    <div class="popup__row">
-      <span>Original Total</span>
-      <span>${originalTotal !== undefined ? formatCurrency(originalTotal) : " "}</span>
-    </div>
-    <div class="popup__row">
-      <span class="popup__chip">${TAG_ICON}${escapeHtml(code ?? "")}</span>
-      <span class="popup__discount-value">-${formatCurrency(discountAmount)}</span>
-    </div>
-    <div class="popup__result-note">
-      <strong>Savings applied successfully!</strong>
-      <span>${lastResult.comparisonComplete === false ? "Applied a confirmed discount. Some codes could not be compared." : `We tried ${triedCount} code${triedCount === 1 ? "" : "s"} and applied the best one saving you ${formatCurrency(discountAmount)}`}</span>
-    </div>
-    <button class="popup__button" id="checkout-btn" type="button">Continue to Checkout ${buttonArrow()}</button>
+    <p class="popup__heading popup__accent">${formatCurrency(discountAmount)}!</p>
+    <div class="popup__card popup__result-card">
+      <div class="popup__savings-box">
+        <div class="popup__savings-total">${newTotal !== undefined ? formatCurrency(newTotal) : " "}</div>
+        <div class="popup__savings-label">Est. Cart Total</div>
+      </div>
+      <div class="popup__row popup__row--total">
+        <span>Original Total</span>
+        <span>${originalTotal !== undefined ? formatCurrency(originalTotal) : " "}</span>
+      </div>
+      <div class="popup__row popup__row--code">
+        <span class="popup__chip">${TAG}${escapeHtml(code ?? "")}</span>
+        <span class="popup__discount-value">-${formatCurrency(discountAmount)}</span>
+      </div>
+      <div class="popup__result-note">
+        <strong>Savings applied successfully!</strong>
+        <span>${lastResult.comparisonComplete === false ? "Applied a confirmed discount. Some codes could not be compared." : `We tried ${triedCount} code${triedCount === 1 ? "" : "s"} and applied the best one saving you ${formatCurrency(discountAmount)}`}</span>
+      </div>
+      <button class="popup__button" id="checkout-btn" type="button">Continue to Checkout ${buttonArrow()}</button>
     </div>
     <button class="popup__link" id="view-coupons-btn" type="button">View all coupons</button>
   `;
@@ -295,10 +304,7 @@ function renderFailure(): void {
             : `We tried ${total} code${total === 1 ? "" : "s"} but couldn't find a discount this time.`;
 
   content.innerHTML = `
-    <div class="popup__hero">
-      <img class="popup__hero-illustration" src="assets/paused.svg" alt="" />
-      <img class="popup__hero-icon" src="assets/paused-inside.svg" alt="" />
-    </div>
+    ${PAUSED_HERO}
     <p class="popup__heading">${applyError || comparisonError ? "Unable to compare coupons" : "No working codes found"}</p>
     <p class="popup__subtext">${subtext}</p>
     <button class="popup__button" id="retry-btn" type="button">Try Coupons Again ${buttonArrow()}</button>
@@ -325,7 +331,7 @@ function renderCouponList(): void {
     .map(
       (c) => `
         <div class="popup__coupon-row">
-          <span class="popup__chip">${TAG_ICON}${escapeHtml(c.code)}</span>
+          <span class="popup__chip">${TAG}${escapeHtml(c.code)}</span>
           ${c.description ? `<div class="popup__coupon-desc">${escapeHtml(c.description)}</div>` : ""}
         </div>`,
     )
@@ -334,13 +340,13 @@ function renderCouponList(): void {
   content.innerHTML = `
     <button class="popup__back" id="back-btn" type="button">&larr; Back</button>
     <p class="popup__heading">Found ${count} code${count === 1 ? "" : "s"}${bestPercent !== null ? " and" : ""}</p>
-    ${bestPercent !== null ? `<p class="popup__heading popup__heading--lg popup__accent">up to ${pctLabel} off</p>` : ""}
-    <button class="popup__button popup__button--outline" id="retry-btn" type="button">Try Coupons Again ${buttonArrow()}</button>
-    <div class="popup__list-card">
+    ${bestPercent !== null ? `<p class="popup__heading popup__accent">up to ${pctLabel} off</p>` : ""}
+    <button class="popup__button popup__button--outline" id="retry-btn" type="button">Try Coupons Again ${buttonArrow(true)}</button>
+    <div class="popup__card popup__card--stacked popup__list-card">
       <h3>${bestPercent !== null ? `Save up to <span class="popup__accent">${pctLabel}</span>` : "Available savings"}</h3>
-      <p>${bestPercent !== null ? `Save up to <span class="popup__accent">${pctLabel}</span> on eligible items.` : "Try these codes on eligible items."}</p>
+      <p>${bestPercent !== null ? `Save up to <span class="popup__accent">${pctLabel}</span> <span class="popup__muted">on eligible items.</span>` : '<span class="popup__muted">Try these codes on eligible items.</span>'}</p>
       <strong class="popup__list-title">Available Coupons (${count})</strong>
-      ${rows}
+      <div class="popup__coupon-list">${rows}</div>
     </div>
   `;
   document

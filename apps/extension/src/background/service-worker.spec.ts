@@ -9,11 +9,32 @@ const addListenerMocks = {
   tabsOnRemoved: jest.fn(),
   onCommitted: jest.fn(),
   onHistoryStateUpdated: jest.fn(),
+  onBeforeNavigate: jest.fn(),
+  tabsOnActivated: jest.fn(),
   onMessage: jest.fn(),
 };
 
+// In-memory chrome.storage.session, so stand-down records and deferred popups persist
+// across messages the way they do in the browser.
+const sessionStore: Record<string, unknown> = {};
+const sessionStorageMock = {
+  get: jest.fn(async (key: string) =>
+    key in sessionStore ? { [key]: sessionStore[key] } : {},
+  ),
+  set: jest.fn(async (items: Record<string, unknown>) => {
+    Object.assign(sessionStore, items);
+  }),
+};
+
 const chromeMock = {
-  storage: { local: { get: jest.fn().mockResolvedValue({}) } },
+  storage: {
+    local: { get: jest.fn().mockResolvedValue({}) },
+    session: sessionStorageMock,
+  },
+  windows: {
+    WINDOW_ID_NONE: -1,
+    get: jest.fn().mockResolvedValue({ focused: true }),
+  },
   runtime: {
     id: "test-extension",
     getURL: (path: string) => "chrome-extension://test-extension/" + path,
@@ -28,6 +49,7 @@ const chromeMock = {
   },
   tabs: {
     onRemoved: { addListener: addListenerMocks.tabsOnRemoved },
+    onActivated: { addListener: addListenerMocks.tabsOnActivated },
     get: jest.fn(),
     query: jest.fn(),
     update: jest.fn(),
@@ -37,6 +59,7 @@ const chromeMock = {
     onHistoryStateUpdated: {
       addListener: addListenerMocks.onHistoryStateUpdated,
     },
+    onBeforeNavigate: { addListener: addListenerMocks.onBeforeNavigate },
   },
   action: {
     setBadgeText: jest.fn(),
@@ -148,11 +171,21 @@ const merchant: PublicMerchant = {
 const registeredOnCommitted = addListenerMocks.onCommitted.mock.calls[0]?.[0];
 const registeredOnHistoryStateUpdated =
   addListenerMocks.onHistoryStateUpdated.mock.calls[0]?.[0];
+const registeredOnBeforeNavigate =
+  addListenerMocks.onBeforeNavigate.mock.calls[0]?.[0];
+const registeredOnActivated =
+  addListenerMocks.tabsOnActivated.mock.calls[0]?.[0];
 const registeredOnMessage = addListenerMocks.onMessage.mock.calls[0]?.[0] as (
   message: unknown,
   sender: chrome.runtime.MessageSender,
   sendResponse: (response: unknown) => void,
 ) => boolean;
+
+// Lets fire-and-forget listener work (landing checks, deferred popups) settle.
+async function flush(): Promise<void> {
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 function sendMessage(
   message: unknown,
@@ -326,6 +359,7 @@ describe("CHECKOUT_CONFIRMED manual-trigger", () => {
     chromeMock.action.setBadgeText.mockClear();
     chromeMock.action.setBadgeBackgroundColor.mockClear();
     chromeMock.action.openPopup.mockClear();
+    for (const key of Object.keys(sessionStore)) delete sessionStore[key];
   });
 
   it("shows the ready badge but does not apply coupons until APPLY_BEST_COUPON is sent, when no competing affiliate link is active", async () => {
@@ -385,6 +419,163 @@ describe("CHECKOUT_CONFIRMED manual-trigger", () => {
     expect(mockReportCouponTestEvent).toHaveBeenCalledWith(
       expect.objectContaining({ result: "suppressed_stepdown" }),
     );
+  });
+
+  it("opens the popup over the checkout tab only while that tab is the one being viewed", async () => {
+    chromeMock.tabs.get.mockResolvedValue({
+      url: "https://shop.example.com/checkout",
+      active: true,
+      windowId: 3,
+    });
+
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+
+    expect(chromeMock.action.openPopup).toHaveBeenCalledWith({ windowId: 3 });
+  });
+
+  it("never opens the popup over another tab when a background checkout becomes ready, and opens it once the shopper switches to that tab", async () => {
+    // A cart left open in a background tab while the shopper watches YouTube.
+    chromeMock.tabs.get.mockResolvedValue({
+      url: "https://shop.example.com/checkout",
+      active: false,
+      windowId: 3,
+    });
+
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 8 } } as chrome.runtime.MessageSender,
+    );
+    expect(chromeMock.action.openPopup).not.toHaveBeenCalled();
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({
+      tabId: 8,
+      text: "%",
+    });
+
+    chromeMock.tabs.get.mockResolvedValue({
+      url: "https://shop.example.com/checkout",
+      active: true,
+      windowId: 3,
+    });
+    registeredOnActivated({ tabId: 8, windowId: 3 });
+    await flush();
+
+    expect(chromeMock.action.openPopup).toHaveBeenCalledTimes(1);
+    expect(chromeMock.action.openPopup).toHaveBeenCalledWith({ windowId: 3 });
+
+    // Only once: revisiting the tab later does not keep reopening it.
+    registeredOnActivated({ tabId: 8, windowId: 3 });
+    await flush();
+    expect(chromeMock.action.openPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it("stands down at checkout when the visit began on an affiliate link several pages earlier", async () => {
+    // Landing: shop.example.com/product?ranSiteID=... (Rakuten, mixed-case parameter).
+    await registeredOnCommitted({
+      tabId: 7,
+      frameId: 0,
+      url: "https://shop.example.com/product?ranSiteID=pub-123&ranMID=999",
+      transitionQualifiers: [],
+    });
+    await flush();
+
+    // Checkout: no parameters left in the URL, no referrer, no tracking cookie.
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({
+      tabId: 7,
+      text: "!",
+    });
+    expect(chromeMock.action.openPopup).not.toHaveBeenCalled();
+  });
+
+  it("stands down when an affiliate network redirect hop delivered the shopper, even with a clean merchant URL", async () => {
+    registeredOnBeforeNavigate({
+      tabId: 9,
+      frameId: 0,
+      url: "https://click.linksynergy.com/deeplink?id=abc&mid=1",
+    });
+    await registeredOnCommitted({
+      tabId: 9,
+      frameId: 0,
+      url: "https://shop.example.com/",
+      transitionQualifiers: ["server_redirect"],
+    });
+    await flush();
+
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 9 } } as chrome.runtime.MessageSender,
+    );
+
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({
+      tabId: 9,
+      text: "!",
+    });
+  });
+
+  it("lets the shopper override a stand-down from the paused screen, and remembers it", async () => {
+    await registeredOnCommitted({
+      tabId: 7,
+      frameId: 0,
+      url: "https://shop.example.com/?irclickid=competitor",
+      transitionQualifiers: [],
+    });
+    await flush();
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+    chromeMock.tabs.query.mockResolvedValue([{ id: 7 }]);
+
+    await sendMessage({ type: "APPLY_BEST_COUPON" });
+    expect(mockRunAttribution).toHaveBeenCalled();
+
+    // Same checkout reloaded: no longer paused.
+    chromeMock.action.setBadgeText.mockClear();
+    await registeredOnCommitted({
+      tabId: 7,
+      frameId: 0,
+      url: "https://shop.example.com/checkout",
+      transitionQualifiers: [],
+    });
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+    expect(chromeMock.action.setBadgeText).toHaveBeenLastCalledWith({
+      tabId: 7,
+      text: "%",
+    });
+  });
+
+  it("does not treat Saverlly's own attribution parameter as a competing affiliate", async () => {
+    mockFetchMerchantByDomain.mockResolvedValue({
+      ...merchant,
+      affiliateUrlParamKey: "clickid",
+      affiliateUrlParamValue: "saverlly-1",
+    });
+    await registeredOnCommitted({
+      tabId: 7,
+      frameId: 0,
+      url: "https://shop.example.com/checkout?clickid=saverlly-1",
+      transitionQualifiers: [],
+    });
+    await flush();
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+
+    expect(chromeMock.action.setBadgeText).toHaveBeenLastCalledWith({
+      tabId: 7,
+      text: "%",
+    });
   });
 
   it("lets GET_TAB_STATE reflect the ready-but-not-yet-applied state, for a popup opened right after checkout is confirmed", async () => {

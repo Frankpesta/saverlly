@@ -8,15 +8,12 @@
   <body>
     <div class="popup">
       <header class="popup__header">
-        <span class="popup__brand">
-          <img class="popup__logo" src="assets/design-logo.svg" alt="Saverlly" />
-        </span>
+        <img class="popup__logo" src="assets/design-logo.svg" alt="Saverlly" />
         <button class="popup__close" id="close-btn" aria-label="Close" type="button"><img src="assets/design-close.svg" alt="" /></button>
       </header>
       <div class="popup__lifetime">
-        <img class="popup__lifetime-icon" src="assets/gift-icon.png" alt="" />
-        <span class="popup__lifetime-label">Lifetime Saved:</span>
-        <span class="popup__lifetime-value" id="lifetime-value"> </span>
+        <img class="popup__lifetime-icon" src="assets/design-gift.svg" alt="" />
+        <span>Lifetime Saved: <span id="lifetime-value"> </span></span>
       </div>
       <main id="content" class="popup__content" aria-live="polite" aria-atomic="true">
         <p class="popup__subtext">Checking this page…</p>
@@ -25,6 +22,9 @@
            rather than being wiped whenever render() replaces the main panel. Stays empty and
            takes up no space when there is no active promotion for this device. -->
       <aside id="promo" class="popup__promo" hidden></aside>
+      <!-- Chrome Web Store policy: the affiliate relationship must be disclosed in the extension's
+           own UI. The Figma frames have no settings menu to hold it (the extension has no
+           account or settings), so it stays as this footer. -->
       <footer class="popup__disclosure">
         <a href="#" id="disclosure-link">Learn how Saverlly earns money</a>
       </footer>
