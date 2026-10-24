@@ -93,7 +93,7 @@ function render(view: View): void {
     case "inactive":
       if (reviewerFormOpen) return;
       content.innerHTML =
-        `${HERO}<p class="popup__heading">Saverlly is not connected</p><p class="popup__subtext">Checking the desktop agent and device status. Keep the agent running, then reopen Saverlly.</p>` +
+        `${HERO}<p class="popup__heading">Saverlly is not connected</p><p class="popup__subtext">Saverlly requires the Saverlly desktop app for Windows, installed on this computer by a participating business. Coupons apply only after the desktop app connects. If it is installed, keep it running and reopen Saverlly.</p>` +
         (getReviewerApiBaseUrl() ? '<button class="popup__link popup__link--strong" id="reviewer-code-link" type="button">Have a reviewer code?</button>' : '');
       document.getElementById("reviewer-code-link")?.addEventListener("click", renderReviewerForm);
       return;
