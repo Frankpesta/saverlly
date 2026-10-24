@@ -59,9 +59,9 @@ describe("NewPortalLocationPage", () => {
 
     await user.click(screen.getByRole("button", { name: /create location/i }))
 
-    const errorLink = await screen.findByRole("button", { name: "Address is required" })
-    await user.click(errorLink)
-    expect(screen.getByLabelText("Address")).toHaveFocus()
+    // Errors render as plain text under each field (not a clickable summary), per the client.
+    expect(await screen.findByText("Address is required")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Address is required" })).not.toBeInTheDocument()
     expect(screen.getByLabelText("Address")).toHaveAccessibleDescription("Address is required")
     expect(screen.getByLabelText("Address")).toHaveAttribute("aria-invalid", "true")
     expect(global.fetch).not.toHaveBeenCalled()

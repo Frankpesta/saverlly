@@ -116,6 +116,9 @@ input:focus-visible {
   line-height: 19.2px;
   color: var(--ink-soft);
 }
+.popup__lifetime[hidden] {
+  display: none;
+}
 .popup__lifetime-icon {
   display: block;
   flex: none;

@@ -29,7 +29,16 @@ import type { Kiosk } from "@/lib/api/types"
 const confirmDeleteSchema = (kioskName: string) =>
   z.object({ confirmText: exactMatchSchema(kioskName) })
 
-export function DeleteKioskButton({ kiosk, onDeleted }: { kiosk: Kiosk; onDeleted: () => void }) {
+export function DeleteKioskButton({
+  kiosk,
+  onDeleted,
+  variant = "button",
+}: {
+  kiosk: Kiosk
+  onDeleted?: () => void
+  /** "button" for the detail page header; "icon" for a compact table-row action. */
+  variant?: "button" | "icon"
+}) {
   const [open, setOpen] = React.useState(false)
   const deleteKiosk = useDeleteKiosk()
 
@@ -52,7 +61,7 @@ export function DeleteKioskButton({ kiosk, onDeleted }: { kiosk: Kiosk; onDelete
     deleteKiosk.mutate(kiosk.id, {
       onSuccess: () => {
         toast.success(`${kiosk.name} and everything under it was deleted.`)
-        onDeleted()
+        onDeleted?.()
       },
       onError: (error) =>
         toast.error(error instanceof ApiError ? error.message : "Could not delete kiosk."),
@@ -63,16 +72,29 @@ export function DeleteKioskButton({ kiosk, onDeleted }: { kiosk: Kiosk; onDelete
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="gap-1.5 text-destructive"
-        onClick={() => setOpen(true)}
-      >
-        <Trash2Icon className="size-4" />
-        Delete kiosk
-      </Button>
+      {variant === "icon" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          aria-label={`Delete ${kiosk.name}`}
+          onClick={() => setOpen(true)}
+        >
+          <Trash2Icon className="size-3.5" />
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-destructive"
+          onClick={() => setOpen(true)}
+        >
+          <Trash2Icon className="size-4" />
+          Delete kiosk
+        </Button>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-2 text-destructive">

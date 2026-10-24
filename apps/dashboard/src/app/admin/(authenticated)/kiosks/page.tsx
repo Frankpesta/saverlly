@@ -23,6 +23,7 @@ import {
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import { CollectionArea, CollectionSummary, WorkspaceHeader } from "@/components/dashboard/page-layout"
 import { useKiosks, useUpdateKioskStatus } from "@/lib/api/hooks/use-kiosks"
+import { DeleteKioskButton } from "./[id]/delete-kiosk-button"
 import { ApiError } from "@/lib/api/client"
 import { useCollectionView } from "@/hooks/use-collection-view"
 import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
@@ -93,7 +94,7 @@ export default function KiosksPage() {
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Revenue Share</TableHead>
-              <TableHead className="w-10" />
+              <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -142,6 +143,7 @@ export default function KiosksPage() {
                     >
                       <PencilIcon className="size-3.5" />
                     </Link>
+                    <DeleteKioskButton kiosk={kiosk} variant="icon" />
                   </TableRowActions>
                 </TableCell>
               </TableRow>
