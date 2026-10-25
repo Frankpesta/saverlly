@@ -4,6 +4,7 @@ import { decodeJwt } from "jose"
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth/constants"
 import { backendUrl } from "@/lib/api/backend"
 import type { JwtPayload, TokenPair } from "@/lib/api/types"
+import { homeUrlForRole, portalForRole } from "@/lib/auth/role-routing"
 
 const LOGIN_PATH = {
   admin: "/admin/login",
@@ -24,6 +25,10 @@ const CHANGE_PASSWORD_PATH = {
   admin: "/admin/change-password",
   portal: "/portal/change-password",
 } as const
+
+// Backed by @Roles(KIOSK_OWNER)-only endpoints. They're already hidden from a location
+// manager's nav; this stops a typed or bookmarked URL from opening a page of 403s.
+const OWNER_ONLY_PORTAL_PATHS = ["/portal/employees", "/portal/earnings"]
 
 function safeDecode(token: string): JwtPayload | null {
   try {
@@ -91,16 +96,22 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
   const namespace = pathname.startsWith("/admin") ? "admin" : "portal"
 
-  if (
-    pathname === LOGIN_PATH[namespace] ||
-    pathname === FORGOT_PASSWORD_PATH[namespace] ||
-    pathname === RESET_PASSWORD_PATH[namespace]
-  ) {
+  const token = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
+  let payload = token ? safeDecode(token) : null
+
+  if (pathname === LOGIN_PATH[namespace]) {
+    // Already signed in (in either portal): go to that account's own home, not a sign-in form.
+    if (payload && payload.exp * 1000 > Date.now()) {
+      const portal = portalForRole(payload.role)
+      const destination = payload.mustChangePassword ? CHANGE_PASSWORD_PATH[portal] : homeUrlForRole(payload.role)
+      return NextResponse.redirect(new URL(destination, request.url))
+    }
+    return NextResponse.next()
+  }
+  if (pathname === FORGOT_PASSWORD_PATH[namespace] || pathname === RESET_PASSWORD_PATH[namespace]) {
     return NextResponse.next()
   }
 
-  const token = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value
-  let payload = token ? safeDecode(token) : null
   let refreshedTokens: TokenPair | null = null
 
   if (!payload || payload.exp * 1000 < Date.now()) {
@@ -114,14 +125,20 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const withRefreshedCookies = (response: NextResponse) =>
     refreshedTokens ? withSessionCookies(response, refreshedTokens) : response
 
-  const allowedHere = namespace === "admin" ? payload.role === "ADMIN" : payload.role !== "ADMIN"
-  if (!allowedHere) {
-    const otherNamespace = namespace === "admin" ? "portal" : "admin"
-    return withRefreshedCookies(NextResponse.redirect(new URL(LOGIN_PATH[otherNamespace], request.url)))
+  // Signed in, just in the other portal: send them to their own home rather than a login form.
+  if (portalForRole(payload.role) !== namespace) {
+    return withRefreshedCookies(NextResponse.redirect(new URL(homeUrlForRole(payload.role), request.url)))
   }
 
   if (payload.mustChangePassword && pathname !== CHANGE_PASSWORD_PATH[namespace]) {
     return withRefreshedCookies(NextResponse.redirect(new URL(CHANGE_PASSWORD_PATH[namespace], request.url)))
+  }
+
+  if (
+    payload.role === "LOCATION_MANAGER" &&
+    OWNER_ONLY_PORTAL_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  ) {
+    return withRefreshedCookies(NextResponse.redirect(new URL(homeUrlForRole(payload.role), request.url)))
   }
 
   return withRefreshedCookies(NextResponse.next())

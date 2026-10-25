@@ -5,6 +5,7 @@ import {
   fetchMerchantByDomain,
 } from "../lib/api-client";
 import { runAttribution } from "../lib/attribution";
+import { usableCoupons } from "../lib/cart-total";
 import {
   flushCouponEvents,
   queueCouponTestEvent as reportCouponTestEvent,
@@ -33,6 +34,7 @@ import {
   getCachedMerchant,
   getPersistedTabState,
   isDormant,
+  peekPendingApply,
   removePersistedTabState,
   setCachedMerchant,
   setPersistedTabState,
@@ -55,6 +57,11 @@ const lastCommittedUrls = new Map<number, string>();
 // Tabs whose checkout became ready while they were in the background. Their popup opens when
 // the shopper actually looks at them, never over whatever tab is in front at the time.
 const AUTO_POPUP_PENDING_KEY = "autoPopupPending";
+// A run killed by a full page load (store reloaded the checkout, shopper navigated) can never
+// report its own result. Its failure is kept here until the checkout is detected again, so the
+// popup shows what happened instead of a fresh "Apply Coupons" prompt.
+const interruptedRuns = new Map<number, CouponApplyResultMessage>();
+const subframeScanTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
 function ensureAlarms(): void {
   chrome.alarms.create(STATUS_ALARM, {
@@ -147,6 +154,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   navigationVersions.delete(tabId);
+  interruptedRuns.delete(tabId);
+  clearTimeout(subframeScanTimers.get(tabId));
+  subframeScanTimers.delete(tabId);
   navigationStarts.delete(tabId);
   lastCommittedUrls.delete(tabId);
   void setAutoPopupPending(tabId, false);
@@ -263,7 +273,7 @@ async function detectTab(
   const merchant = await resolveMerchant(new URL(url).hostname, fresh);
   if (
     !merchant?.active ||
-    !merchant.coupons.length ||
+    !usableCoupons(merchant.coupons).length ||
     !merchant.checkoutRecipe ||
     version !== navigationVersions.get(tabId)
   )
@@ -301,6 +311,26 @@ async function handleTopFrameNavigation(
   }
 
   const previous = await loadTabState(details.tabId);
+  // Only a new document kills the coupon-applier; a same-document route change is noticed by
+  // the script itself, which then reports checkout_changed on its own.
+  let interrupted: CouponApplyResultMessage | null = null;
+  if (!sameDocument) {
+    const pending = await peekPendingApply(details.tabId);
+    const landed = new URL(details.url);
+    if (pending) {
+      // Attribution redirect in progress. It resumes on its own only if it lands back on the
+      // same checkout in time; anything else would leave the popup testing forever.
+      if (
+        pending.expiresAt <= Date.now() ||
+        pending.checkoutPath !== landed.origin + landed.pathname
+      ) {
+        await takePendingApply(details.tabId);
+        interrupted = interruptedResult(pending.merchantId);
+      }
+    } else if (previous?.runId && !previous.applyResult) {
+      interrupted = interruptedResult(previous.merchantId);
+    }
+  }
   if (
     sameDocument &&
     previous?.checkoutUrl &&
@@ -318,10 +348,28 @@ async function handleTopFrameNavigation(
   clearTabState(details.tabId);
   setBadge(details.tabId, null);
   void setAutoPopupPending(details.tabId, false);
+  if (interrupted) {
+    interruptedRuns.set(details.tabId, interrupted);
+    chrome.runtime
+      .sendMessage({ type: "APPLY_DONE", tabId: details.tabId, result: interrupted })
+      .catch(() => {});
+  }
 
   if (await isDormant()) return;
 
   await detectTab(details.tabId, details.url);
+}
+
+function interruptedResult(merchantId: string): CouponApplyResultMessage {
+  return {
+    type: "COUPON_APPLY_RESULT",
+    merchantId,
+    couponId: null,
+    code: null,
+    result: "failed",
+    isFinal: true,
+    failureReason: "checkout_changed",
+  };
 }
 
 // Stand-down evidence has to be captured on the landing page itself (see
@@ -360,14 +408,25 @@ chrome.webNavigation.onHistoryStateUpdated.addListener((details) =>
 chrome.webNavigation.onReferenceFragmentUpdated?.addListener((details) => {
   void handleTopFrameNavigation(details, true).catch(() => {});
 });
+// Some checkouts render their coupon form in an iframe that loads after the top frame, so a
+// late subframe gets the detector too. Ad-heavy pages load dozens of iframes, so the scans are
+// coalesced per tab and skipped once the checkout is already confirmed.
 chrome.webNavigation.onCompleted?.addListener((details) => {
   if (details.frameId === 0) return;
-  void chrome.tabs
-    .get(details.tabId)
-    .then((tab) => {
-      if (tab.url) return detectTab(details.tabId, tab.url);
-    })
-    .catch(() => {});
+  clearTimeout(subframeScanTimers.get(details.tabId));
+  subframeScanTimers.set(
+    details.tabId,
+    setTimeout(() => {
+      subframeScanTimers.delete(details.tabId);
+      void loadTabState(details.tabId)
+        .then(async (state) => {
+          if (state) return;
+          const tab = await chrome.tabs.get(details.tabId);
+          if (tab.url) return detectTab(details.tabId, tab.url);
+        })
+        .catch(() => {});
+    }, 750),
+  );
 });
 
 async function onCheckoutConfirmed(
@@ -406,6 +465,9 @@ async function onCheckoutConfirmed(
   )
     return;
 
+  const coupons = usableCoupons(merchant.coupons);
+  const interrupted = interruptedRuns.get(tabId);
+  interruptedRuns.delete(tabId);
   const suppressed = await checkStepDown(
     merchant.domain,
     tab.url,
@@ -419,10 +481,11 @@ async function onCheckoutConfirmed(
     documentId: sender.documentId,
     merchantId: merchant.id,
     merchantName: merchant.name,
-    coupons: merchant.coupons,
+    coupons,
     suppressedStepdown: suppressed,
     applyProgress: null,
-    applyResult: null,
+    applyResult:
+      interrupted?.merchantId === merchant.id ? interrupted : null,
   });
 
   const pending = await takePendingApply(tabId);
@@ -433,6 +496,11 @@ async function onCheckoutConfirmed(
     pending.checkoutPath === new URL(tab.url).origin + new URL(tab.url).pathname
   ) {
     await triggerApply(tabId, true);
+    return;
+  }
+
+  if (interrupted?.merchantId === merchant.id) {
+    setBadge(tabId, suppressed ? BADGE_SUPPRESSED : BADGE_READY);
     return;
   }
 
@@ -610,9 +678,7 @@ async function startApply(
     return false;
   // Applying from the paused screen is the shopper explicitly overriding the stand-down.
   if (state.suppressedStepdown) await overrideStandDown(merchant.domain);
-  const coupons = merchant.coupons.filter(
-    (c) => c.active && (!c.expiresAt || Date.parse(c.expiresAt) > Date.now()),
-  );
+  const coupons = usableCoupons(merchant.coupons);
   const runId = crypto.randomUUID();
   saveTabState(tabId, {
     ...state,

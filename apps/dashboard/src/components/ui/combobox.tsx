@@ -39,10 +39,11 @@ interface ComboboxProps {
   "aria-invalid"?: boolean
   "aria-label"?: string
   "aria-describedby"?: string
-  /** Free-typed text that doesn't match any option is discarded on blur/close (default combobox
-   * behavior). Set true to also call onValueChange with the raw typed text when the popover
-   * closes without a selected match. Useful for fields that accept an option list as
-   * suggestions but shouldn't hard-require picking one (e.g. City). */
+  /** Treat the options as suggestions rather than the only valid values (e.g. City): typed text
+   * that matches nothing is offered as its own "Use …" row, and a value that isn't one of the
+   * options still shows in the trigger. Typed text is never saved just by clicking away, so a
+   * half-typed "Aus" can't silently become the value. Matches that start with the typed text
+   * are listed before ones that merely contain it. */
   allowCustomValue?: boolean
 }
 
@@ -67,18 +68,33 @@ function Combobox({
   const [query, setQuery] = React.useState("")
 
   const selected = options.find((option) => option.value === value)
+  const displayLabel = selected?.label ?? (allowCustomValue && value ? value : undefined)
+  const trimmedQuery = query.trim()
+  const customMatches = React.useMemo(() => {
+    if (!allowCustomValue) return []
+    const needle = trimmedQuery.toLowerCase()
+    if (!needle) return options.slice(0, MAX_RENDERED_OPTIONS)
+    const prefix: ComboboxOption[] = []
+    const contains: ComboboxOption[] = []
+    for (const option of options) {
+      const label = option.label.toLowerCase()
+      if (label.startsWith(needle)) prefix.push(option)
+      else if (label.includes(needle)) contains.push(option)
+      if (prefix.length >= MAX_RENDERED_OPTIONS) break
+    }
+    return [...prefix, ...contains].slice(0, MAX_RENDERED_OPTIONS)
+  }, [allowCustomValue, options, trimmedQuery])
+  const offerTypedValue =
+    allowCustomValue &&
+    trimmedQuery !== "" &&
+    !options.some((option) => option.label.toLowerCase() === trimmedQuery.toLowerCase())
 
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (!next) {
-          if (allowCustomValue && query && !selected) {
-            onValueChange(query)
-          }
-          setQuery("")
-        }
+        if (!next) setQuery("")
       }}
     >
       <PopoverTrigger asChild>
@@ -96,12 +112,12 @@ function Combobox({
           data-size={size}
           className={cn(
             "flex w-full items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-3 pl-3 text-sm font-normal whitespace-nowrap shadow-[0_1px_2px_rgba(11,11,11,0.03)] hover:bg-transparent data-[size=default]:h-10 data-[size=sm]:h-7 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-            !selected && "text-muted-foreground",
+            !displayLabel && "text-muted-foreground",
             className,
           )}
         >
           <span className="line-clamp-1 flex items-center gap-1.5">
-            {selected ? selected.label : placeholder}
+            {displayLabel ?? placeholder}
           </span>
           <ChevronDownIcon className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
         </Button>
@@ -131,17 +147,11 @@ function Combobox({
            * popover above the trigger instead, a shorter list needs less room, so it stays
            * anchored below across more dialog/viewport combinations. */}
           <CommandList className="max-h-[220px]">
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            {!offerTypedValue && <CommandEmpty>{emptyText}</CommandEmpty>}
             <CommandGroup>
-              {(allowCustomValue
-                ? options
-                    .filter((option) => option.label.toLowerCase().includes(query.toLowerCase()))
-                    // A large options list (e.g. every US city) can match hundreds of rows for a
-                    // one- or two-character query. Capped so typing doesn't mount hundreds of
-                    // DOM nodes on every keystroke. Typing more narrows the real match further.
-                    .slice(0, MAX_RENDERED_OPTIONS)
-                : options
-              ).map((option) => (
+              {/* A large options list (e.g. every US city) can match hundreds of rows for a short
+                * query, so allowCustomValue lists are capped. Typing more narrows the match. */}
+              {(allowCustomValue ? customMatches : options).map((option) => (
                 <CommandItem
                   key={option.value}
                   value={option.label}
@@ -161,6 +171,19 @@ function Combobox({
                   {option.label}
                 </CommandItem>
               ))}
+              {offerTypedValue && (
+                <CommandItem
+                  value={`use:${trimmedQuery}`}
+                  onSelect={() => {
+                    onValueChange(trimmedQuery)
+                    setQuery("")
+                    setOpen(false)
+                  }}
+                >
+                  <span className="size-4" aria-hidden />
+                  Use &ldquo;{trimmedQuery}&rdquo;
+                </CommandItem>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>

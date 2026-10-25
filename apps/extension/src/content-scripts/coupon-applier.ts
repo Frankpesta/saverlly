@@ -1,7 +1,4 @@
-import {
-  parseCartTotal,
-  sortCouponsBySuccessLikelihood,
-} from "../lib/cart-total";
+import { couponsInTestOrder, parseCartTotal } from "../lib/cart-total";
 import { element, elements, isVisible } from "../lib/checkout-dom";
 import type {
   CouponApplyProgressMessage,
@@ -160,12 +157,7 @@ function observeIndicators(
   if (!context || window.__SAVERLLY_APPLYING__) return;
   window.__SAVERLLY_APPLYING__ = true;
   const { merchantId, recipe, runId } = context;
-  const ordered = sortCouponsBySuccessLikelihood(context.coupons ?? []).filter(
-    (coupon, index, all) =>
-      all.findIndex(
-        (other) => other.code.toLowerCase() === coupon.code.toLowerCase(),
-      ) === index,
-  );
+  const ordered = couponsInTestOrder(context.coupons ?? []);
   const testedCodes: Array<{ code: string; saved: boolean }> = [];
   let baseline: number | null = null;
   let startingTotal: number | null = null;

@@ -1,6 +1,6 @@
 import type { ActivePromotion } from "@saverlly/shared-types";
 import { getReviewerApiBaseUrl } from "../lib/config";
-import { sortCouponsBySuccessLikelihood } from "../lib/cart-total";
+import { couponsInTestOrder } from "../lib/cart-total";
 import { formatCurrency, summarizeBestDiscount } from "../lib/format";
 import type {
   CouponApplyProgressMessage,
@@ -33,6 +33,7 @@ const lifetimeValueEl = document.getElementById(
   "lifetime-value",
 ) as HTMLElement;
 const promoEl = document.getElementById("promo") as HTMLElement;
+const lifetimeEl = document.querySelector<HTMLElement>(".popup__lifetime");
 // Every icon is an original layer cut from the Figma exports (scripts/extract-design-*).
 const asset = (name: string, className = "") =>
   `<img${className ? ` class="${className}"` : ""} src="assets/${name}.svg" alt="" />`;
@@ -62,6 +63,11 @@ let applyError = false;
 let applyRequested = false;
 let deviceDormant = false;
 let reviewerFormOpen = false;
+let applyStalled = false;
+let applyWatchdog: ReturnType<typeof setTimeout> | undefined;
+// Every live progress update re-renders "applying" and so re-arms this. One code can take up
+// to 60s when a store is slow to answer, so only a silence well past that counts as stalled.
+const APPLY_STALL_MS = 90_000;
 
 function escapeHtml(value: string): string {
   const div = document.createElement("div");
@@ -80,7 +86,7 @@ function openDisclosurePage(): void {
 }
 
 function orderedCoupons(): TabCheckoutState["coupons"] {
-  return tabState ? sortCouponsBySuccessLikelihood(tabState.coupons) : [];
+  return tabState ? couponsInTestOrder(tabState.coupons) : [];
 }
 
 function buttonArrow(light = false): string {
@@ -88,7 +94,16 @@ function buttonArrow(light = false): string {
 }
 
 function render(view: View): void {
+  clearTimeout(applyWatchdog);
+  if (view === "applying")
+    applyWatchdog = setTimeout(() => {
+      applyRequested = false;
+      applyStalled = true;
+      render("failure");
+    }, APPLY_STALL_MS);
   content.dataset.view = view;
+  // Nothing has been saved by a disconnected install, so "Lifetime Saved: —" is just noise.
+  if (lifetimeEl) lifetimeEl.hidden = view === "inactive";
   switch (view) {
     case "inactive":
       if (reviewerFormOpen) return;
@@ -258,14 +273,14 @@ function renderSuccess(): void {
     <p class="popup__heading">You're saving</p>
     <p class="popup__heading popup__accent">${formatCurrency(discountAmount)}!</p>
     <div class="popup__card popup__result-card">
-      <div class="popup__savings-box">
-        <div class="popup__savings-total">${newTotal !== undefined ? formatCurrency(newTotal) : " "}</div>
+      ${newTotal !== undefined ? `<div class="popup__savings-box">
+        <div class="popup__savings-total">${formatCurrency(newTotal)}</div>
         <div class="popup__savings-label">Est. Cart Total</div>
-      </div>
-      <div class="popup__row popup__row--total">
+      </div>` : ""}
+      ${originalTotal !== undefined ? `<div class="popup__row popup__row--total">
         <span>Original Total</span>
-        <span>${originalTotal !== undefined ? formatCurrency(originalTotal) : " "}</span>
-      </div>
+        <span>${formatCurrency(originalTotal)}</span>
+      </div>` : ""}
       <div class="popup__row popup__row--code">
         <span class="popup__chip">${TAG}${escapeHtml(code ?? "")}</span>
         <span class="popup__discount-value">-${formatCurrency(discountAmount)}</span>
@@ -292,22 +307,28 @@ function renderFailure(): void {
   const noCoupons =
     lastResult?.result === "no_coupons_available" || total === 0;
   const comparisonError = lastResult?.failureReason;
-  const subtext =
-    comparisonError === "comparison_unavailable"
+  const isError = applyError || applyStalled || !!comparisonError;
+  const subtext = applyStalled
+    ? "This is taking longer than expected. Check your cart, then try again."
+    : comparisonError === "comparison_unavailable"
       ? "We cannot safely compare codes on this checkout yet. You can view the available coupons below."
-      : comparisonError
-        ? "We could not confirm the best discount. Please check your cart before continuing."
-        : applyError
-          ? "We could not connect to this checkout. Refresh the store page and try again."
-          : noCoupons
-            ? "No active coupons are available for this store right now."
-            : `We tried ${total} code${total === 1 ? "" : "s"} but couldn't find a discount this time.`;
+      : comparisonError === "checkout_changed"
+        ? "The checkout page changed while we were testing codes. Check your cart, then try again."
+        : comparisonError
+          ? "We could not confirm the best discount. Please check your cart before continuing."
+          : applyError
+            ? "We could not connect to this checkout. Refresh the store page and try again."
+            : noCoupons
+              ? "No active coupons are available for this store right now."
+              : `We tried ${total} code${total === 1 ? "" : "s"} but couldn't find a discount this time.`;
 
+  // The red alert artwork is for something going wrong. "Nothing saved this time" is a
+  // normal outcome and keeps the regular hero.
   content.innerHTML = `
-    ${PAUSED_HERO}
-    <p class="popup__heading">${applyError || comparisonError ? "Unable to compare coupons" : "No working codes found"}</p>
+    ${isError ? PAUSED_HERO : HERO}
+    <p class="popup__heading">${isError ? "Unable to compare coupons" : noCoupons ? "No coupons right now" : "No working codes found"}</p>
     <p class="popup__subtext">${subtext}</p>
-    <button class="popup__button" id="retry-btn" type="button">Try Coupons Again ${buttonArrow()}</button>
+    ${noCoupons && !isError ? "" : `<button class="popup__button" id="retry-btn" type="button">Try Coupons Again ${buttonArrow()}</button>`}
     ${total > 0 ? `<button class="popup__link" id="view-coupons-btn" type="button">View all coupons</button>` : ""}
   `;
   document
@@ -362,6 +383,7 @@ async function onApplyClicked(): Promise<void> {
   progress = null;
   lastResult = null;
   applyError = false;
+  applyStalled = false;
   render("applying");
   try {
     const response = (await send({ type: "APPLY_BEST_COUPON" })) as
@@ -428,7 +450,7 @@ function renderReviewerForm(): void {
     }).catch((reason) => {
       error.textContent = reason instanceof Error ? reason.message : "Could not connect. Please try again.";
       button.disabled = false;
-      button.textContent = "Activate Saverlly";
+      button.innerHTML = `Activate Saverlly ${buttonArrow()}`;
     });
   });
 }

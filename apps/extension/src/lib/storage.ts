@@ -146,6 +146,13 @@ export async function setPendingApply(
 ): Promise<void> {
   await chrome.storage.session.set({ [`pendingApply:${tabId}`]: value });
 }
+export async function peekPendingApply(
+  tabId: number,
+): Promise<PendingApply | null> {
+  const key = `pendingApply:${tabId}`;
+  const stored = await chrome.storage.session.get(key);
+  return stored[key] ?? null;
+}
 export async function takePendingApply(
   tabId: number,
 ): Promise<PendingApply | null> {

@@ -95,6 +95,7 @@ import {
   getCachedMerchant,
   getPersistedTabState,
   isDormant,
+  peekPendingApply,
   setCachedMerchant,
   setPersistedTabState,
 } from "../lib/storage";
@@ -912,4 +913,38 @@ it("does not let late progress erase a final result from the same run", async ()
       applyProgress: null,
     }),
   );
+});
+
+it("ends a running checkout with checkout_changed when the page reloads, so the popup cannot hang", async () => {
+  mockIsDormant.mockReset().mockResolvedValue(false);
+  jest.mocked(peekPendingApply).mockReset().mockResolvedValue(null);
+  mockGetPersistedTabState.mockReset().mockResolvedValue({
+    merchantId: "m1",
+    merchantName: "Store",
+    coupons: merchant.coupons,
+    checkoutUrl: "https://shop.example.com/checkout",
+    runId: "running",
+    suppressedStepdown: false,
+    applyProgress: null,
+    applyResult: null,
+  });
+  mockGetCachedMerchant.mockResolvedValue({ merchant, fetchedAt: Date.now() });
+  chromeMock.runtime.sendMessage.mockReset().mockResolvedValue(undefined);
+  await registeredOnCommitted({
+    tabId: 9031,
+    frameId: 0,
+    url: "https://shop.example.com/checkout",
+    transitionType: "reload",
+    transitionQualifiers: [],
+  });
+  await flush();
+  expect(chromeMock.runtime.sendMessage).toHaveBeenCalledWith({
+    type: "APPLY_DONE",
+    tabId: 9031,
+    result: expect.objectContaining({
+      result: "failed",
+      isFinal: true,
+      failureReason: "checkout_changed",
+    }),
+  });
 });

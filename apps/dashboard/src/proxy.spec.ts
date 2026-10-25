@@ -84,9 +84,9 @@ describe("proxy route gating", () => {
     expect(res.headers.get("location")).toBeNull()
   })
 
-  it("bounces an ADMIN out of /portal/* to /admin/login", async () => {
+  it("sends a signed-in ADMIN who opens /portal/* to their own home, not a login form", async () => {
     const res = await proxy(requestFor("/portal/locations", tokenFor("ADMIN")))
-    expect(res.headers.get("location")).toBe("http://localhost:3001/admin/login")
+    expect(res.headers.get("location")).toBe("http://localhost:3001/admin/overview")
   })
 
   it("allows a KIOSK_OWNER into /portal/*", async () => {
@@ -99,9 +99,30 @@ describe("proxy route gating", () => {
     expect(res.headers.get("location")).toBeNull()
   })
 
-  it("bounces a KIOSK_OWNER out of /admin/* to /portal/login", async () => {
+  it("sends a signed-in KIOSK_OWNER who opens /admin/* to their own home, not a login form", async () => {
     const res = await proxy(requestFor("/admin/kiosks", tokenFor("KIOSK_OWNER")))
-    expect(res.headers.get("location")).toBe("http://localhost:3001/portal/login")
+    expect(res.headers.get("location")).toBe("http://localhost:3001/portal/overview")
+  })
+
+  it("sends an already signed-in user away from either login page to their home", async () => {
+    const own = await proxy(requestFor("/portal/login", tokenFor("KIOSK_OWNER")))
+    expect(own.headers.get("location")).toBe("http://localhost:3001/portal/overview")
+    const other = await proxy(requestFor("/portal/login", tokenFor("ADMIN")))
+    expect(other.headers.get("location")).toBe("http://localhost:3001/admin/overview")
+  })
+
+  it("shows the login page when the only session cookie has expired", async () => {
+    const res = await proxy(requestFor("/admin/login", tokenFor("ADMIN", -60)))
+    expect(res.headers.get("location")).toBeNull()
+  })
+
+  it("keeps a LOCATION_MANAGER out of owner-only portal pages", async () => {
+    for (const path of ["/portal/employees", "/portal/earnings"]) {
+      const res = await proxy(requestFor(path, tokenFor("LOCATION_MANAGER")))
+      expect(res.headers.get("location")).toBe("http://localhost:3001/portal/overview")
+    }
+    const owner = await proxy(requestFor("/portal/earnings", tokenFor("KIOSK_OWNER")))
+    expect(owner.headers.get("location")).toBeNull()
   })
 
   it("redirects to /admin/change-password when mustChangePassword is true", async () => {

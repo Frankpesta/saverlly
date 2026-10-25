@@ -8,14 +8,22 @@ import { clearSessionCookies, setSessionCookies } from "@/lib/auth/cookies"
 
 export { portalForRole, homeUrlForRole } from "@/lib/auth/role-routing"
 
-export async function loginRequest(email: string, password: string): Promise<TokenPair | null> {
-  const res = await backendFetch("/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  })
-  if (!res.ok) return null
-  return res.json()
+/** `status` is the backend's HTTP status on failure, or 0 when it couldn't be reached at all. */
+export async function loginRequest(
+  email: string,
+  password: string,
+): Promise<{ ok: true; tokens: TokenPair } | { ok: false; status: number }> {
+  try {
+    const res = await backendFetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!res.ok) return { ok: false, status: res.status }
+    return { ok: true, tokens: await res.json() }
+  } catch {
+    return { ok: false, status: 0 }
+  }
 }
 
 export async function logoutRequest(accessToken: string): Promise<void> {

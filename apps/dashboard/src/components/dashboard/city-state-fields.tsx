@@ -13,6 +13,16 @@ const ALL_CITY_OPTIONS = Array.from(new Set(US_CITIES.map((c) => c.city)))
 
 const ALL_STATE_OPTIONS = US_STATES.map((s) => ({ value: s.code, label: `${s.name} (${s.code})` }))
 
+const CITY_OPTIONS_BY_STATE = new Map<string, { value: string; label: string }[]>()
+for (const [code, group] of Map.groupBy(US_CITIES, (c) => c.state)) {
+  CITY_OPTIONS_BY_STATE.set(
+    code,
+    Array.from(new Set(group.map((c) => c.city)))
+      .sort()
+      .map((city) => ({ value: city, label: city })),
+  )
+}
+
 const STATE_OPTIONS_BY_CITY = new Map<string, { value: string; label: string }[]>()
 for (const [city, group] of Map.groupBy(US_CITIES, (c) => c.city.toLowerCase())) {
   const codes = new Set(group.map((c) => c.state))
@@ -25,13 +35,15 @@ for (const [city, group] of Map.groupBy(US_CITIES, (c) => c.city.toLowerCase()))
 /** City + State fields, US-only, wired directly to a react-hook-form `control`. Registers both
  * sub-fields itself via `useController` so callers don't need two `<Controller>` wrappers.
  *
- * Rendered State-first, City-second per the client's layout preference, but the *dependency*
- * still runs City -> State underneath: typing/selecting a city narrows the State dropdown to
- * just the state(s) that city actually exists in (a name like "Springfield" spans dozens of
- * states), and auto-fills State outright when the city has exactly one match. City itself always
- * searches the full ~29,500-city list and accepts any typed value (`allowCustomValue`), since
- * even that list isn't every unincorporated place. Visual order and data dependency are
- * independent here on purpose -- don't assume swapping one implies swapping the other. */
+ * Rendered State-first, City-second per the client's layout preference. Only City is ever
+ * narrowed: a chosen State limits City to that state's cities, and switching State clears a
+ * city that doesn't exist there. State always offers every state, so a choice can always be
+ * changed in either field without first undoing the other. (Narrowing both ways used to
+ * deadlock: Austin, TX limited State to Austin's states while TX limited City to Texas.)
+ * Picking a City first still helps: it auto-fills State when the city exists in exactly one,
+ * and otherwise lists its states first (a name like "Springfield" spans dozens). City still
+ * accepts a typed value that isn't listed (`allowCustomValue`), since even ~29,500 cities isn't
+ * every unincorporated place. */
 export function CityStateFields<TFieldValues extends FieldValues>({
   idPrefix,
   control,
@@ -49,11 +61,29 @@ export function CityStateFields<TFieldValues extends FieldValues>({
   const city = String(cityField.field.value ?? "")
 
   const stateOptionsForCity = city ? STATE_OPTIONS_BY_CITY.get(city.trim().toLowerCase()) : undefined
-  const stateOptions = stateOptionsForCity ?? ALL_STATE_OPTIONS
+  const stateOptions = stateOptionsForCity
+    ? [
+        ...stateOptionsForCity,
+        ...ALL_STATE_OPTIONS.filter((option) => !stateOptionsForCity.includes(option)),
+      ]
+    : ALL_STATE_OPTIONS
+  const cityOptions = (state && CITY_OPTIONS_BY_STATE.get(state)) || ALL_CITY_OPTIONS
+
+  function handleStateChange(nextState: string) {
+    stateField.field.onChange(nextState)
+    // Only a listed city that doesn't exist in the new state is cleared. A typed, unlisted city
+    // has no known state, so it's left for the user to judge.
+    const statesForCity = STATE_OPTIONS_BY_CITY.get(city.trim().toLowerCase())
+    if (statesForCity && !statesForCity.some((option) => option.value === nextState)) {
+      cityField.field.onChange("")
+    }
+  }
 
   function handleCityChange(nextCity: string) {
     cityField.field.onChange(nextCity)
     const matches = STATE_OPTIONS_BY_CITY.get(nextCity.trim().toLowerCase())
+    // A city that exists in exactly one state settles State, including correcting it when a
+    // typed city (e.g. "Los Angeles" while Texas is chosen) belongs somewhere else.
     if (matches?.length === 1) {
       stateField.field.onChange(matches[0].value)
     }
@@ -65,9 +95,9 @@ export function CityStateFields<TFieldValues extends FieldValues>({
         <Combobox
           id={`${idPrefix}-state`}
           value={state}
-          onValueChange={stateField.field.onChange}
+          onValueChange={handleStateChange}
           options={stateOptions}
-          placeholder={stateOptionsForCity ? "Select the matching state" : "Select a state"}
+          placeholder={stateOptionsForCity && !state ? "Select the matching state" : "Select a state"}
           searchPlaceholder="Search states..."
           aria-invalid={!!stateField.fieldState.error}
         />
@@ -77,7 +107,7 @@ export function CityStateFields<TFieldValues extends FieldValues>({
           id={`${idPrefix}-city`}
           value={city}
           onValueChange={handleCityChange}
-          options={ALL_CITY_OPTIONS}
+          options={cityOptions}
           placeholder="Select or type a city"
           searchPlaceholder="Type a city..."
           allowCustomValue
