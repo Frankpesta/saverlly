@@ -13,6 +13,7 @@ import {
 import {
   STATUS_CHECK_INTERVAL_MINUTES,
   MERCHANT_CACHE_TTL_MS,
+  MERCHANT_MISS_CACHE_TTL_MS,
 } from "../lib/config";
 import type {
   CouponApplyResultMessage,
@@ -195,10 +196,13 @@ async function getMerchantCached(
   fresh = false,
 ): Promise<PublicMerchant | null> {
   const cached = await getCachedMerchant(domain);
+  const usable =
+    cached?.merchant?.active && usableCoupons(cached.merchant.coupons).length;
   if (
     !fresh &&
     cached &&
-    Date.now() - cached.fetchedAt < MERCHANT_CACHE_TTL_MS
+    Date.now() - cached.fetchedAt <
+      (usable ? MERCHANT_CACHE_TTL_MS : MERCHANT_MISS_CACHE_TTL_MS)
   ) {
     return cached.merchant;
   }
@@ -561,17 +565,38 @@ async function openPopupWhenVisible(tabId: number): Promise<void> {
     return;
   }
   await setAutoPopupPending(tabId, false);
-  try {
-    // Best-effort only: Chrome may refuse this outside a user gesture. The badge is the
-    // guaranteed fallback affordance either way.
-    await (
-      chrome.action as unknown as {
-        openPopup?: (options?: { windowId?: number }) => Promise<void>;
-      }
-    ).openPopup?.({ windowId: tab.windowId });
-  } catch {
-    // ignored. See comment above
+  const openPopup = (
+    chrome.action as unknown as {
+      openPopup?: (options?: { windowId?: number }) => Promise<void>;
+    }
+  ).openPopup;
+  if (!openPopup) return;
+  // Chrome refuses openPopup() while the checkout is still settling (focus in a page dialog or
+  // the omnibox, another popup closing, the window mid-activation), and a single refusal used
+  // to cost the shopper the popup for that checkout. Retry briefly, then leave it pending so
+  // the next tab switch or window focus tries again. The badge stays as the fallback throughout.
+  for (const delay of POPUP_RETRY_DELAYS_MS) {
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    if (delay && !(await stillAwaitingPopup(tabId))) return;
+    try {
+      await openPopup({ windowId: tab.windowId });
+      return;
+    } catch {
+      // retried below
+    }
   }
+  await setAutoPopupPending(tabId, true);
+}
+
+const POPUP_RETRY_DELAYS_MS = [0, 500, 1500, 3000];
+
+// The retries above must not open the popup over a different tab, or after the shopper has
+// already opened it themselves and started applying.
+async function stillAwaitingPopup(tabId: number): Promise<boolean> {
+  const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+  if (!tab?.active) return false;
+  const state = await loadTabState(tabId);
+  return !!state && !state.applyProgress && !state.applyResult;
 }
 
 // A deferred popup only makes sense while that checkout is still waiting for the shopper.

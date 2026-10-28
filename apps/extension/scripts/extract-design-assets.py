@@ -40,5 +40,9 @@ extract('design-close.svg', (540, 24.5, 24, 24), [265])
 source = ET.parse(Path(sys.argv[1]) / 'Applying And Testing The Codes.svg').getroot()
 definitions = {el.get('id'): el for el in source.iter() if el.get('id')}
 layers = list(source[0][7][0])
-extract('design-testing.svg', (123, 385.5, 49, 49), range(1, 12))
+# The spinner's still parts, and its green arc (layer 10) on its own so only the arc rotates. The
+# arc's box is centred on the arc itself (147.5, 408.836), not on the outer ring, so rotating it
+# about its centre traces a perfect circle; popup.css lifts it 1.164px to sit back in place.
+extract('design-testing.svg', (123, 385.5, 49, 49), [*range(1, 10), 11])
+extract('design-testing-arc.svg', (123, 384.336, 49, 49), [10])
 extract('design-pending.svg', (123, 444.9, 49, 49), range(13, 23))

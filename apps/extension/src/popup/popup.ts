@@ -40,6 +40,11 @@ const asset = (name: string, className = "") =>
 const TAG = asset("design-tag");
 const HERO = asset("design-hero", "popup__hero");
 const PAUSED_HERO = asset("design-paused-hero", "popup__hero");
+// Only the green arc turns; the disc, ticks and ring beneath it stay still.
+const SPINNER = `<span class="popup__progress-icon popup__spinner">${asset("design-testing")}${asset("design-testing-arc", "popup__spinner-arc")}</span>`;
+// The spinner arc turns once per period and a pill icon twice (popup.css), so one clock keeps
+// both in step.
+const SPIN_PERIOD_MS = 1800;
 
 type View =
   | "loading"
@@ -228,38 +233,62 @@ function renderApplying(): void {
     ? "Applying best Code"
     : `Trying ${progress?.index ?? 0} of ${total} Codes`;
 
-  const pills = coupons
-    .map((c, i) => {
-      const status = pillStatus(i + 1, c.code);
-      return `<span class="popup__pill popup__pill--${status}">${pillIcon(status)}${escapeHtml(c.code)}</span>`;
-    })
-    .join("");
+  const statuses = coupons.map((c, i) => pillStatus(i + 1, c.code));
+  const pills = coupons.map(
+    (c, i) =>
+      `<span class="popup__pill popup__pill--${statuses[i]}" data-status="${statuses[i]}">${pillIcon(statuses[i])}${escapeHtml(c.code)}</span>`,
+  );
 
-  content.innerHTML = `
-    <p class="popup__heading">Applying <span class="popup__accent">deals...</span></p>
-    <p class="popup__subtext">Saverlly automatically tries codes<br>to save you money.</p>
-    <div class="popup__card popup__card--stacked popup__progress-card">
-      <div class="popup__progress-row">
-        ${testingDone ? asset("design-done", "popup__progress-icon") : asset("design-testing", "popup__progress-icon popup__progress-icon--active")}
-        <span>Testing ${total} coupon code${total === 1 ? "" : "s"}</span>
+  // Every progress message re-renders this view. Rebuilding the spinner restarted its rotation
+  // (a visible jump per code), so the card is only rebuilt when its rows actually change; a new
+  // code under test just refreshes the strip and caption.
+  const rowsKey = `${testingDone}:${total}`;
+  let card = content.querySelector<HTMLElement>(".popup__progress-card");
+  if (card?.dataset.rows !== rowsKey) {
+    content.innerHTML = `
+      <p class="popup__heading">Applying <span class="popup__accent">deals...</span></p>
+      <p class="popup__subtext">Saverlly automatically tries codes<br>to save you money.</p>
+      <div class="popup__card popup__card--stacked popup__progress-card" data-rows="${rowsKey}">
+        <div class="popup__progress-row">
+          ${testingDone ? asset("design-done", "popup__progress-icon") : SPINNER}
+          <span>Testing ${total} coupon code${total === 1 ? "" : "s"}</span>
+        </div>
+        <div class="popup__progress-row">
+          ${testingDone ? SPINNER : asset("design-pending", "popup__progress-icon")}
+          <span>Applying discounts</span>
+        </div>
+        <div class="popup__pill-row">${pills.join("")}</div>
       </div>
-      <div class="popup__progress-row">
-        ${testingDone ? asset("design-testing", "popup__progress-icon popup__progress-icon--active") : asset("design-pending", "popup__progress-icon")}
-        <span>Applying discounts</span>
-      </div>
-      <div class="popup__pill-row">${pills}</div>
-    </div>
-    <p class="popup__progress-caption">${captionText}</p>
-  `;
-  const activePill = content.querySelector<HTMLElement>(
+      <p class="popup__progress-caption"></p>
+    `;
+    card = content.querySelector<HTMLElement>(".popup__progress-card")!;
+  }
+  const strip = card.querySelector<HTMLElement>(".popup__pill-row")!;
+  // Pills change in place, so the strip keeps its scroll position and glides to the next code.
+  if (strip.children.length === pills.length)
+    pills.forEach((html, i) => {
+      const pill = strip.children[i] as HTMLElement;
+      if (pill.dataset.status !== statuses[i]) pill.outerHTML = html;
+    });
+  else strip.innerHTML = pills.join("");
+  content.querySelector(".popup__progress-caption")!.textContent = captionText;
+  // Elements created mid-run (the spinner when testing hands over to applying, each pill's
+  // icon) join the rotation at the angle it has already reached instead of starting over.
+  content
+    .querySelectorAll<HTMLElement>(
+      ".popup__spinner-arc, .popup__pill--testing img, .popup__pill--applying img",
+    )
+    .forEach((spinning) => {
+      // Only new elements: changing the delay of one already turning would itself jump.
+      if (!spinning.style.animationDelay)
+        spinning.style.animationDelay = `-${Math.round(performance.now() % SPIN_PERIOD_MS)}ms`;
+    });
+  const activePill = strip.querySelector<HTMLElement>(
     ".popup__pill--testing, .popup__pill--applying",
   );
   if (activePill)
     // Keep the code under test in the clear middle of the faded strip, like the frame.
-    activePill.parentElement!.scrollLeft = Math.max(
-      0,
-      activePill.offsetLeft - 100,
-    );
+    strip.scrollLeft = Math.max(0, activePill.offsetLeft - 100);
 }
 
 function renderSuccess(): void {

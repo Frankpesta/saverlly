@@ -27,3 +27,6 @@ export const STATUS_GRACE_PERIOD_MS = 60 * 60 * 1000;
 
 // How long a merchant-by-domain lookup is cached before being re-fetched.
 export const MERCHANT_CACHE_TTL_MS = 10 * 60 * 1000;
+// A store that is unknown, inactive or has no usable coupons yet is re-checked much sooner, so
+// one added (or given coupons) in the admin starts working within a minute, not ten.
+export const MERCHANT_MISS_CACHE_TTL_MS = 60 * 1000;

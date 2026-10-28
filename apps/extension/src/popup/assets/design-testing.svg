@@ -10,7 +10,6 @@
 <path d="M144.635 412.131L143.207 413.559" stroke="black" stroke-width="0.673349" stroke-linecap="round" />
 <path d="M151.776 413.559L150.348 412.131" stroke="black" stroke-width="0.673349" stroke-linecap="round" />
 <path d="M144.635 406.418L143.207 404.989" stroke="black" stroke-width="0.673349" stroke-linecap="round" />
-<path d="M147.5 393.336C156.06 393.336 163 400.276 163 408.836C163 417.397 156.06 424.336 147.5 424.336C144.243 424.336 141.221 423.332 138.726 421.616" stroke="#58C3B7" stroke-width="3" stroke-linecap="round" />
 <path opacity="0.5" d="M147.491 387.754C159.791 387.754 169.763 397.724 169.763 410.024C169.763 422.324 159.792 432.296 147.491 432.296C135.192 432.295 125.221 422.324 125.221 410.024C125.221 397.724 135.192 387.754 147.491 387.754Z" stroke="#E4E4E4" stroke-width="2.19062" />
 <defs><filter id="filter3_dddddd_1_843" x="54.0586" y="362.128" width="186.883" height="186.883" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
 <feFlood flood-opacity="0" result="BackgroundImageFix" />

@@ -330,7 +330,19 @@ input:focus-visible {
   width: 49px;
   height: 49px;
 }
-.popup__progress-icon--active {
+.popup__spinner {
+  position: relative;
+}
+.popup__spinner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* The arc's box is centred on the arc (see extract-design-assets.py), 1.164px above the ring's. */
+.popup__spinner .popup__spinner-arc {
+  position: absolute;
+  top: -1.164px;
+  left: 0;
   animation: popup-spin 1.8s linear infinite;
 }
 @keyframes popup-spin {
@@ -347,6 +359,7 @@ input:focus-visible {
   display: flex;
   gap: 6px;
   overflow: hidden;
+  scroll-behavior: smooth;
   -webkit-mask-image: linear-gradient(
     to right,
     transparent,
@@ -715,5 +728,6 @@ input:focus-visible {
   *::after {
     animation: none !important;
     transition: none !important;
+    scroll-behavior: auto !important;
   }
 }
