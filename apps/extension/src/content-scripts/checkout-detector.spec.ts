@@ -22,6 +22,11 @@ const RECIPE: CheckoutRecipe = {
   checkoutUrlPatterns: ["/checkouts/"],
 };
 
+// A confirmed checkout also reports that the recipe works (RECIPE_HEALTH); these count only
+// the confirmations themselves.
+const confirmations = () =>
+  sendMessage.mock.calls.filter(([message]) => message.type === "CHECKOUT_CONFIRMED");
+
 function setPath(pathname: string): void {
   window.history.pushState({}, "", pathname);
 }
@@ -80,7 +85,7 @@ describe("checkout-detector content script", () => {
     loadContentScript();
     renderCheckoutElements();
     await Promise.resolve();
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(confirmations()).toHaveLength(1);
   });
   it("does nothing when no injected context is present on the page", () => {
     setPath("/checkouts/abc");
@@ -88,7 +93,7 @@ describe("checkout-detector content script", () => {
 
     loadContentScript();
 
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(confirmations()).toHaveLength(0);
   });
 
   it("does nothing when the current URL does not match any checkout pattern", () => {
@@ -98,7 +103,7 @@ describe("checkout-detector content script", () => {
 
     loadContentScript();
 
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(confirmations()).toHaveLength(0);
   });
 
   it("confirms immediately when both checkout elements are already present at injection time", () => {
@@ -108,7 +113,7 @@ describe("checkout-detector content script", () => {
 
     loadContentScript();
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(confirmations()).toHaveLength(1);
     expect(sendMessage).toHaveBeenCalledWith({
       type: "CHECKOUT_CONFIRMED",
       merchantId: "merchant-1",
@@ -125,20 +130,20 @@ describe("checkout-detector content script", () => {
     setPath("/checkouts/abc");
 
     loadContentScript();
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(confirmations()).toHaveLength(0);
 
     renderCheckoutElements();
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(confirmations()).toHaveLength(1);
 
     // The observer must disconnect after confirming, a further mutation must not re-fire it.
     document.body.innerHTML += "<span>irrelevant later mutation</span>";
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(confirmations()).toHaveLength(1);
   });
 
   it("gives up after the detection timeout if the checkout elements never appear", () => {
@@ -149,7 +154,7 @@ describe("checkout-detector content script", () => {
     loadContentScript();
     jest.advanceTimersByTime(10_000);
 
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(confirmations()).toHaveLength(0);
   });
 
   // Regression test for a live Target checkout bug: its coupon field/apply button don't exist
@@ -171,7 +176,7 @@ describe("checkout-detector content script", () => {
 
     loadContentScript();
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(confirmations()).toHaveLength(1);
     expect(sendMessage).toHaveBeenCalledWith({
       type: "CHECKOUT_CONFIRMED",
       merchantId: "merchant-1",
@@ -195,6 +200,93 @@ describe("checkout-detector content script", () => {
     loadContentScript();
     jest.advanceTimersByTime(10_000); // let the observer give up and disconnect within the test
 
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(confirmations()).toHaveLength(0);
+  });
+});
+
+describe("keeping stores working", () => {
+  const health = () =>
+    sendMessage.mock.calls.map(([message]) => message).filter((message) => message.type === "RECIPE_HEALTH");
+  beforeAll(() => {
+    // jsdom lays nothing out; treat anything not inside [hidden] as visible.
+    Object.defineProperty(HTMLElement.prototype, "offsetParent", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.closest("[hidden]") ? null : document.body;
+      },
+    });
+  });
+  afterAll(() => {
+    delete (HTMLElement.prototype as { offsetParent?: unknown }).offsetParent;
+  });
+  beforeEach(() => {
+    jest.useFakeTimers();
+    window.__SAVERLLY__ = { merchantId: "m1", recipe: RECIPE };
+    setPath("/checkouts/abc");
+  });
+
+  it("reports a working recipe once the checkout is confirmed", () => {
+    renderCheckoutElements();
+    loadContentScript();
+    expect(health()).toEqual([{ type: "RECIPE_HEALTH", merchantId: "m1", ok: true }]);
+  });
+
+  it("finds an obvious promo box when the saved one is gone, reports it, and lets shoppers use it", async () => {
+    document.body.innerHTML = `
+      <form><label for="discount-code">Discount code</label><input id="discount-code" name="discount">
+      <button type="submit">Apply</button></form>
+      <input type="email" name="email" placeholder="Email for discount offers">
+      <div id="cart-total">$84.20</div>`;
+    loadContentScript();
+    expect(confirmations()).toHaveLength(0);
+    await jest.advanceTimersByTimeAsync(8_000);
+    expect(health()).toEqual([{ type: "RECIPE_HEALTH", merchantId: "m1", ok: false, problem: "PROMO_BOX_CHANGED" }]);
+    expect(confirmations()).toHaveLength(1);
+    const { backup } = confirmations()[0][0];
+    // Used on this very page only, so any selector that finds the right element will do.
+    expect(document.querySelector(backup.couponFieldSelector)).toBe(document.getElementById("discount-code"));
+    expect(document.querySelector(backup.applyButtonSelector)).toBe(document.querySelector("form button"));
+  });
+
+  it("reports a changed promo box but doesn't run coupons when the order total is gone too", async () => {
+    document.body.innerHTML = `<input name="coupon_code" placeholder="Coupon code"><button>Apply coupon</button>`;
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(8_000);
+    expect(health()).toEqual([expect.objectContaining({ ok: false, problem: "PROMO_BOX_CHANGED" })]);
+    expect(confirmations()).toHaveLength(0);
+  });
+
+  it("reports a changed order total when the saved promo box is still there", async () => {
+    document.body.innerHTML = '<input name="reductions" />';
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(8_000);
+    expect(health()).toEqual([expect.objectContaining({ ok: false, problem: "ORDER_TOTAL_CHANGED" })]);
+  });
+
+  it("says nothing on a checkout step without any promo box", async () => {
+    document.body.innerHTML = `<input name="address1" placeholder="Street address"><input type="email" name="email"><div id="cart-total">$84.20</div>`;
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(8_000);
+    expect(health()).toEqual([]);
+    expect(confirmations()).toHaveLength(0);
+  });
+
+  it("doesn't guess between two possible promo boxes", async () => {
+    document.body.innerHTML = `
+      <input name="promo" placeholder="Promo code"><input name="giftcard" placeholder="Gift card"><button>Apply</button>
+      <div id="cart-total">$84.20</div>`;
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(8_000);
+    expect(health()).toEqual([]);
+    expect(confirmations()).toHaveLength(0);
+  });
+
+  it("judges only the recipe's own checkout pages", async () => {
+    window.__SAVERLLY__ = { merchantId: "m1", recipe: { ...RECIPE, couponFieldRevealSelector: "#reveal" } };
+    setPath("/cart");
+    document.body.innerHTML = '<input name="reductions" /><input name="promo" placeholder="Promo code">';
+    loadContentScript();
+    await jest.advanceTimersByTimeAsync(8_000);
+    expect(health()).toEqual([]);
   });
 });

@@ -97,6 +97,13 @@ describe('Store setup sessions', () => {
         .set(asAdmin())
         .expect(200),
     ).session;
+  /** The submittedAt the dashboard shows for the draft, which a Save sends back. */
+  const reviewedAt = async (sessionId: string): Promise<string> =>
+    (
+      await testPrisma.storeSetupSession.findUniqueOrThrow({
+        where: { id: sessionId },
+      })
+    ).submittedAt?.toISOString() ?? new Date().toISOString();
   const sessionGet = (token: string) =>
     http().get('/store-setup/session').set(bearer(token));
 
@@ -266,6 +273,12 @@ describe('Store setup sessions', () => {
   });
 
   describe('token scope', () => {
+    it('rate limits guessed tokens per IP before looking them up', async () => {
+      for (let i = 0; i < 120; i++) await sessionGet(newToken()).expect(401);
+      await sessionGet(newToken()).expect(429);
+    });
+
+
     it('accepts only setup tokens on setup routes, and setup tokens nowhere else', async () => {
       const { token } = await connect();
       const kiosk = await seedKiosk();
@@ -414,10 +427,11 @@ describe('Store setup sessions', () => {
   });
 
   describe('saving on the dashboard', () => {
-    const apply = (sessionId: string) =>
+    const apply = (sessionId: string, submittedAt: string) =>
       http()
         .post(`/merchants/${merchantId}/setup-sessions/${sessionId}/apply`)
-        .set(asAdmin());
+        .set(asAdmin())
+        .send({ submittedAt });
 
     it('copies the draft onto the store and ends the session', async () => {
       const { token, sessionId } = await connect();
@@ -425,7 +439,7 @@ describe('Store setup sessions', () => {
       const applied = body<{
         session: StoreSetupSessionView;
         merchant: Merchant;
-      }>(await apply(sessionId).expect(200));
+      }>(await apply(sessionId, await reviewedAt(sessionId)).expect(200));
 
       expect(applied.session).toMatchObject({
         state: 'APPLIED',
@@ -440,17 +454,18 @@ describe('Store setup sessions', () => {
 
       await sessionGet(token).expect(401);
       await submit(token).expect(401);
-      await apply(sessionId).expect(409);
+      await apply(sessionId, await reviewedAt(sessionId)).expect(409);
     });
 
     it('refuses when nothing was submitted, or the session belongs to another store', async () => {
       const { token, sessionId } = await connect();
-      await apply(sessionId).expect(409);
+      await apply(sessionId, await reviewedAt(sessionId)).expect(409);
       await submit(token).expect(200);
       const other = await seedMerchant();
       await http()
         .post(`/merchants/${other.id}/setup-sessions/${sessionId}/apply`)
         .set(asAdmin())
+        .send({ submittedAt: await reviewedAt(sessionId) })
         .expect(404);
     });
 
@@ -461,7 +476,7 @@ describe('Store setup sessions', () => {
         where: { id: sessionId },
         data: { draftRecipe: { ...recipe(), applyButtonSelector: 'button[' } },
       });
-      const res = await apply(sessionId).expect(400);
+      const res = await apply(sessionId, await reviewedAt(sessionId)).expect(400);
       expect(message(res)[0]).toBe(
         'The submitted recipe is no longer valid. Run setup again',
       );
@@ -479,18 +494,44 @@ describe('Store setup sessions', () => {
       const stale = await testPrisma.storeSetupSession.findUniqueOrThrow({
         where: { id: sessionId },
       });
+      const reviewed = new Date(stale.submittedAt!.getTime() - 1000);
       const prisma = app.get(PrismaService);
       jest.spyOn(prisma.storeSetupSession, 'findFirst').mockResolvedValueOnce({
         ...stale,
-        submittedAt: new Date(stale.submittedAt!.getTime() - 1000),
+        submittedAt: reviewed,
       });
 
-      await apply(sessionId).expect(409);
+      await apply(sessionId, reviewed.toISOString()).expect(409);
       const merchant = await testPrisma.merchant.findUniqueOrThrow({
         where: { id: merchantId },
       });
       expect(merchant.checkoutRecipe).toEqual(LIVE_RECIPE);
       expect((await current())?.state).toBe('SUBMITTED');
+    });
+
+    it('refuses to save a draft newer than the one the admin reviewed', async () => {
+      const { token, sessionId } = await connect();
+      await submit(token).expect(200);
+      const reviewed = await reviewedAt(sessionId);
+      await new Promise((r) => setTimeout(r, 5));
+      await submit(token).expect(200);
+
+      await apply(sessionId, reviewed).expect(409);
+      const merchant = await testPrisma.merchant.findUniqueOrThrow({
+        where: { id: merchantId },
+      });
+      expect(merchant.checkoutRecipe).toEqual(LIVE_RECIPE);
+      expect((await current())?.state).toBe('SUBMITTED');
+      await apply(sessionId, await reviewedAt(sessionId)).expect(200);
+    });
+
+    it('requires the reviewed draft to be named', async () => {
+      const { token, sessionId } = await connect();
+      await submit(token).expect(200);
+      await http()
+        .post(`/merchants/${merchantId}/setup-sessions/${sessionId}/apply`)
+        .set(asAdmin())
+        .expect(400);
     });
 
     it('keeps a submitted draft saveable after the extension session ends', async () => {
@@ -504,7 +545,7 @@ describe('Store setup sessions', () => {
         state: 'SUBMITTED',
         extensionActive: false,
       });
-      await apply(sessionId).expect(200);
+      await apply(sessionId, await reviewedAt(sessionId)).expect(200);
     });
   });
 
@@ -527,6 +568,7 @@ describe('Store setup sessions', () => {
       await http()
         .post(`/merchants/${merchantId}/setup-sessions/${sessionId}/apply`)
         .set(asAdmin())
+        .send({ submittedAt: await reviewedAt(sessionId) })
         .expect(409);
     });
 
@@ -536,6 +578,7 @@ describe('Store setup sessions', () => {
       await http()
         .post(`/merchants/${merchantId}/setup-sessions/${sessionId}/apply`)
         .set(asAdmin())
+        .send({ submittedAt: await reviewedAt(sessionId) })
         .expect(200);
       await cancel(sessionId).expect(409);
     });

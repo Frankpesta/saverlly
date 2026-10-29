@@ -10,7 +10,8 @@ import { isVisible } from "./checkout-dom";
 // and the descendant/child combinators. Every form passes the backend's isCssSelector check
 // and is left unchanged by normalizeCheckoutSelector.
 
-export type SelectorStrategy = "id" | "attribute" | "class" | "scoped" | "path";
+/** How a selector was found; "template" = taken from the store platform's template (setup-template). */
+export type SelectorStrategy = "id" | "attribute" | "class" | "scoped" | "path" | "template";
 
 export type SelectorResult =
   | {

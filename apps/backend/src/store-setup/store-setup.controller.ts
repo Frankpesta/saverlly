@@ -23,12 +23,14 @@ import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import {
+  ApplyStoreSetupDto,
   RedeemStoreSetupCodeDto,
   SubmitStoreSetupRecipeDto,
 } from './dto/store-setup.dto';
 import {
   CurrentStoreSetupSession,
   SetupSessionGuard,
+  SetupSessionIpThrottlerGuard,
   SetupSessionThrottlerGuard,
 } from './setup-session.guard';
 import {
@@ -81,9 +83,15 @@ export class StoreSetupAdminController {
   apply(
     @Param('merchantId', ParseUUIDPipe) merchantId: string,
     @Param('sessionId', ParseUUIDPipe) sessionId: string,
+    @Body() dto: ApplyStoreSetupDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.storeSetup.apply(merchantId, sessionId, user.sub);
+    return this.storeSetup.apply(
+      merchantId,
+      sessionId,
+      user.sub,
+      dto.submittedAt,
+    );
   }
 
   @Post(':sessionId/cancel')
@@ -122,7 +130,11 @@ export class StoreSetupActivationController {
 @ApiTags('Store setup (extension)')
 @ApiBearerAuth('store-setup-token')
 @Controller('store-setup/session')
-@UseGuards(SetupSessionGuard, SetupSessionThrottlerGuard)
+@UseGuards(
+  SetupSessionIpThrottlerGuard,
+  SetupSessionGuard,
+  SetupSessionThrottlerGuard,
+)
 @Throttle({ default: { limit: 120, ttl: 60_000 } })
 export class StoreSetupSessionController {
   constructor(private readonly storeSetup: StoreSetupService) {}

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
+  ApplyStoreSetupPayload,
   CurrentStoreSetupSessionResponse,
   IssuedStoreSetupCode,
   StoreSetupSessionView,
@@ -55,14 +56,15 @@ export function useIssueStoreSetupCode(merchantId: string) {
   })
 }
 
-/** The Save: copies the submitted draft onto the store's live checkout recipe. */
+/** The Save: copies the submitted draft onto the store's live checkout recipe. It names the
+ *  draft the admin reviewed (its submittedAt), so a newer one is refused rather than saved. */
 export function useApplyStoreSetup(merchantId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (sessionId: string) =>
+    mutationFn: ({ sessionId, submittedAt }: { sessionId: string } & ApplyStoreSetupPayload) =>
       apiFetch<{ session: StoreSetupSessionView; merchant: Merchant }>(
         `/merchants/${merchantId}/setup-sessions/${sessionId}/apply`,
-        { method: "POST" },
+        { method: "POST", body: JSON.stringify({ submittedAt } satisfies ApplyStoreSetupPayload) },
       ),
     onSuccess: ({ session, merchant }) => {
       queryClient.setQueryData(setupSessionKey(merchantId), session)

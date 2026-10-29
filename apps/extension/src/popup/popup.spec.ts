@@ -198,6 +198,10 @@ describe("store setup pill", () => {
       "Saverlly is trying coupons on this page. Wait for it to finish.",
     );
     expect(document.getElementById("setup-stop-btn")!.hidden).toBe(true);
+
+    // The coupon run it was waiting on finishes: the popup shows the result, not the stale error.
+    listener({ type: "APPLY_DONE", tabId: 7, result: success }, {});
+    expect(document.getElementById("content")!.dataset.view).toBe("success");
   });
 
   it("replaces shopper states on a tab being set up, even when disconnected, and stops on request", async () => {

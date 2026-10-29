@@ -107,6 +107,7 @@ import {
 import {
   fetchActivePromotions,
   fetchMerchantByDomain,
+  reportRecipeHealth,
 } from "../lib/api-client";
 import { queueCouponTestEvent as reportCouponTestEvent } from "../lib/event-queue";
 import { runAttribution } from "../lib/attribution";
@@ -567,6 +568,32 @@ describe("top-frame navigation handling", () => {
     expect(registeredOnCommitted).not.toBe(registeredOnHistoryStateUpdated);
   });
 
+  it("re-checks within a minute a cached store that has coupons but no checkout recipe yet", async () => {
+    mockIsDormant.mockResolvedValue(false);
+    mockSetCachedMerchant.mockResolvedValue(undefined);
+    mockRunAttribution.mockResolvedValue(null);
+    const twoMinutesAgo = Date.now() - 2 * 60_000;
+    mockGetCachedMerchant.mockResolvedValue({ merchant: { ...merchant, checkoutRecipe: null }, fetchedAt: twoMinutesAgo });
+    mockFetchMerchantByDomain.mockResolvedValue(merchant);
+
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: "https://shop.example.com/checkout" });
+
+    expect(mockFetchMerchantByDomain).toHaveBeenCalledWith("shop.example.com");
+    expect(chromeMock.scripting.executeScript).toHaveBeenLastCalledWith(
+      expect.objectContaining({ files: ["content-scripts/checkout-detector.js"] }),
+    );
+  });
+
+  it("keeps a usable cached store for the full cache time", async () => {
+    mockIsDormant.mockResolvedValue(false);
+    mockRunAttribution.mockResolvedValue(null);
+    mockGetCachedMerchant.mockResolvedValue({ merchant, fetchedAt: Date.now() - 2 * 60_000 });
+
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: "https://shop.example.com/checkout" });
+
+    expect(mockFetchMerchantByDomain).not.toHaveBeenCalled();
+  });
+
   it("injects the checkout-detector on a plain onCommitted document load too", async () => {
     mockIsDormant.mockResolvedValue(false);
     mockGetCachedMerchant.mockResolvedValue(null);
@@ -806,6 +833,92 @@ describe("CHECKOUT_CONFIRMED manual-trigger", () => {
     registeredOnActivated({ tabId: 8, windowId: 3 });
     await flush();
     expect(chromeMock.action.openPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the popup waiting when Chrome refuses it and the shopper switches tabs before the retry", async () => {
+    chromeMock.tabs.get.mockResolvedValue({ url: "https://shop.example.com/checkout", active: true, windowId: 3 });
+    // Chrome refuses, and the shopper moves to another tab before the first retry.
+    chromeMock.action.openPopup.mockImplementationOnce(async () => {
+      chromeMock.tabs.get.mockResolvedValue({ url: "https://shop.example.com/checkout", active: false, windowId: 3 });
+      throw new Error("Could not open popup");
+    });
+
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: 8 } } as chrome.runtime.MessageSender,
+    );
+    expect(chromeMock.action.openPopup).toHaveBeenCalledTimes(1);
+
+    chromeMock.tabs.get.mockResolvedValue({ url: "https://shop.example.com/checkout", active: true, windowId: 3 });
+    registeredOnActivated({ tabId: 8, windowId: 3 });
+    await flush();
+    expect(chromeMock.action.openPopup).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs coupons through the obvious promo box found when the store's saved one is gone", async () => {
+    chromeMock.tabs.query.mockResolvedValue([{ id: 7 }]);
+    const backup = { couponFieldSelector: "#discount-code", applyButtonSelector: "form > button" };
+    await sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "", backup },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender,
+    );
+    await sendMessage({ type: "APPLY_BEST_COUPON" });
+    expect(chromeMock.scripting.executeScript).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: [
+          expect.objectContaining({
+            recipe: {
+              couponFieldSelector: "#discount-code",
+              applyButtonSelector: "form > button",
+              cartTotalSelector: ".total",
+              checkoutUrlPatterns: ["/checkout"],
+            },
+          }),
+        ],
+      }),
+    );
+  });
+
+  describe("recipe health reports", () => {
+    let local: Record<string, unknown>;
+    const report = (message: object, sender: Partial<chrome.runtime.MessageSender> = {}) =>
+      sendMessage(
+        { type: "RECIPE_HEALTH", merchantId: "m1", ...message },
+        { tab: { id: 7, url: "https://shop.example.com/checkout" } as chrome.tabs.Tab, frameId: 0, ...sender },
+      );
+    const mockReport = jest.mocked(reportRecipeHealth);
+    beforeEach(() => {
+      local = {};
+      chromeMock.storage.local.get.mockImplementation(async (key: string) => (key in local ? { [key]: local[key] } : {}));
+      (chromeMock.storage.local as unknown as { set: jest.Mock }).set = jest.fn(async (items: object) => Object.assign(local, items));
+      mockReport.mockReset().mockResolvedValue(undefined);
+    });
+    afterEach(() => chromeMock.storage.local.get.mockReset().mockResolvedValue({}));
+
+    it("passes a checkout's verdict on, once a day per store and outcome", async () => {
+      await report({ ok: false, problem: "PROMO_BOX_CHANGED" });
+      await report({ ok: false, problem: "PROMO_BOX_CHANGED" });
+      await report({ ok: true });
+      expect(mockReport.mock.calls).toEqual([
+        [{ merchantId: "m1", ok: false, problem: "PROMO_BOX_CHANGED" }],
+        [{ merchantId: "m1", ok: true }],
+      ]);
+    });
+
+    it("tries again on a later visit when sending fails", async () => {
+      mockReport.mockRejectedValueOnce(new TypeError("offline"));
+      await report({ ok: true });
+      await report({ ok: true });
+      expect(mockReport).toHaveBeenCalledTimes(2);
+    });
+
+    it("ignores frames, other stores, and a dormant extension", async () => {
+      await report({ ok: true }, { frameId: 3 });
+      await report({ ok: true, merchantId: "someone-else" });
+      mockIsDormant.mockResolvedValue(true);
+      await report({ ok: true });
+      expect(mockReport).not.toHaveBeenCalled();
+    });
   });
 
   it("stands down at checkout when the visit began on an affiliate link several pages earlier", async () => {

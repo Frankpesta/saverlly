@@ -83,6 +83,15 @@ export class StoreSetupTestResultDto {
   @ApiProperty() @IsISO8601({ strict: true }) testedAt: string;
 }
 
+export class ApplyStoreSetupDto {
+  @ApiProperty({
+    description:
+      'submittedAt of the draft the admin reviewed; the Save is refused if a newer one arrived',
+  })
+  @IsISO8601({ strict: true })
+  submittedAt: string;
+}
+
 // @IsDefined on both: @ValidateNested alone silently accepts a missing nested object.
 export class SubmitStoreSetupRecipeDto {
   @ApiProperty({ type: CheckoutRecipeDto })

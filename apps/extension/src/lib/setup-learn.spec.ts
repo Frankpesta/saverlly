@@ -207,10 +207,39 @@ describe("a working code the admin applied", () => {
     type("#other", "nope");
     $<HTMLInputElement>("#code").value = "";
     expect(typed.current()).toBe("SAVE10");
-    expect(seen).toEqual(["SAVE", "SAVE10"]);
+    // Saved on the click that applies it, not on every keystroke.
+    expect(seen).toEqual([]);
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(seen).toEqual(["SAVE10"]);
     typed.stop();
     type("#code", "LATER");
     expect(typed.current()).toBe("SAVE10");
+  });
+
+  it("saves the typed code once typing pauses, and at once on Enter or when the page unloads", () => {
+    jest.useFakeTimers();
+    document.body.innerHTML = `<input id="code">`;
+    const seen: string[] = [];
+    const typed = watchTypedCode("#code", (code) => seen.push(code), 400);
+    const type = (value: string) => {
+      $<HTMLInputElement>("#code").value = value;
+      $("#code").dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    type("WEL");
+    type("WELCOME");
+    jest.advanceTimersByTime(399);
+    expect(seen).toEqual([]);
+    jest.advanceTimersByTime(1);
+    expect(seen).toEqual(["WELCOME"]);
+
+    type("WELCOME5");
+    $("#code").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(seen).toEqual(["WELCOME", "WELCOME5"]);
+
+    type("WELCOME50");
+    window.dispatchEvent(new Event("pagehide"));
+    expect(seen).toEqual(["WELCOME", "WELCOME5", "WELCOME50"]);
+    typed.stop();
   });
 
   it("settles once the page has been quiet, or gives up", async () => {

@@ -37,18 +37,6 @@ const check = (key: StoreSetupCheck["key"], outcome: StoreSetupCheck["outcome"],
   detail: detail.length > MAX_DETAIL ? `${detail.slice(0, MAX_DETAIL - 1)}…` : detail,
 });
 
-/** The same names the dashboard uses for each check. */
-export const CHECK_LABELS: Record<StoreSetupCheck["key"], string> = {
-  checkoutPage: "Checkout page",
-  revealLink: "Promo code link",
-  promoField: "Promo code box",
-  applyButton: "Apply button",
-  cartTotal: "Order total",
-  failureMessage: "Message for a rejected code",
-  successMessage: "Message for an accepted code",
-  applyMode: "Trying one code after another",
-};
-
 /** Set when the store reloaded the page in the middle of a test: see runFinalTest. */
 export const RELOADED_DURING_TEST =
   "The store reloaded the page to apply the code. Saverlly's coupon testing can't carry on across a reload, so this store can't be automated yet.";

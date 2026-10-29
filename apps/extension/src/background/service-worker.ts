@@ -1,9 +1,11 @@
-import type { PublicMerchant } from "@saverlly/shared-types";
+import type { CheckoutRecipe, PublicMerchant } from "@saverlly/shared-types";
 import {
   fetchActivePromotions,
   fetchLifetimeSaved,
   fetchMerchantByDomain,
+  reportRecipeHealth,
 } from "../lib/api-client";
+import type { BackupSelectors } from "../lib/backup-promo-box";
 import { runAttribution } from "../lib/attribution";
 import { usableCoupons } from "../lib/cart-total";
 import {
@@ -18,6 +20,7 @@ import {
 import type {
   CouponApplyResultMessage,
   ExtensionMessage,
+  RecipeHealthMessage,
   InjectedCheckoutContext,
   StoreSetupMessage,
   StoreSetupSubmitResult,
@@ -228,8 +231,12 @@ async function getMerchantCached(
   fresh = false,
 ): Promise<PublicMerchant | null> {
   const cached = await getCachedMerchant(domain);
+  // A store without a checkout recipe can't be used yet either, so a Save on the dashboard
+  // reaches shoppers within a minute rather than ten.
   const usable =
-    cached?.merchant?.active && usableCoupons(cached.merchant.coupons).length;
+    cached?.merchant?.active &&
+    cached.merchant.checkoutRecipe &&
+    usableCoupons(cached.merchant.coupons).length;
   if (
     !fresh &&
     cached &&
@@ -484,6 +491,7 @@ async function onCheckoutConfirmed(
   merchantId: string,
   referrer: string,
   sender: chrome.runtime.MessageSender,
+  backup?: BackupSelectors,
 ): Promise<void> {
   if (await isDormant()) return;
   if (sender.documentId && chrome.webNavigation.getFrame) {
@@ -535,6 +543,7 @@ async function onCheckoutConfirmed(
     merchantName: merchant.name,
     coupons,
     suppressedStepdown: suppressed,
+    ...(backup ? { backup } : {}),
     applyProgress: null,
     applyResult:
       interrupted?.merchantId === merchant.id ? interrupted : null,
@@ -603,6 +612,71 @@ async function isAutoPopupPending(tabId: number): Promise<boolean> {
 // asked. Checkout detection also runs in background tabs (startup scan, recovery alarm, a cart
 // left open), so opening unconditionally put the popup over YouTube and other unrelated pages.
 // Only open it while the checkout tab is the one being looked at; otherwise defer until it is.
+/**
+ * The store's recipe with its promo box and apply button swapped for the obvious ones found on
+ * the page, while its saved ones are gone. Messages, reveal link and code removal belonged to
+ * the old layout, so they're dropped: the run goes by the order total and keeps the first code
+ * that works.
+ */
+function withBackupPromoBox(recipe: CheckoutRecipe, backup: BackupSelectors): CheckoutRecipe {
+  return {
+    couponFieldSelector: backup.couponFieldSelector,
+    applyButtonSelector: backup.applyButtonSelector,
+    cartTotalSelector: recipe.cartTotalSelector,
+    checkoutUrlPatterns: recipe.checkoutUrlPatterns,
+  };
+}
+
+// Each store's recipe is reported on at most once a day per outcome by this browser.
+const RECIPE_HEALTH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/** Passes a checkout's verdict on a store's recipe to the backend (keeping stores working). */
+async function onRecipeHealth(
+  message: RecipeHealthMessage,
+  sender: chrome.runtime.MessageSender,
+): Promise<void> {
+  const url = sender.tab?.url;
+  if (sender.tab?.id === undefined || sender.frameId !== 0 || !url) return;
+  // Reviewers use the store, not report on it; a dormant extension reports nothing.
+  if ((await isDormant()) || (await getReviewerAccess())) return;
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return;
+  }
+  const merchant = await resolveMerchant(hostname);
+  if (merchant?.id !== message.merchantId) return;
+  const key = `${message.merchantId}:${message.ok ? "ok" : message.problem}`;
+  const { recipeHealthSentAt = {} } = (await chrome.storage.local.get("recipeHealthSentAt")) as {
+    recipeHealthSentAt?: Record<string, number>;
+  };
+  if (Date.now() - (recipeHealthSentAt[key] ?? 0) < RECIPE_HEALTH_INTERVAL_MS) return;
+  const { type: _type, ...report } = message;
+  try {
+    await reportRecipeHealth(report);
+  } catch {
+    return; // tried again on a later visit
+  }
+  // Forget entries old enough to send again, so the record doesn't grow forever.
+  const kept = Object.fromEntries(
+    Object.entries(recipeHealthSentAt).filter(([, at]) => Date.now() - at < RECIPE_HEALTH_INTERVAL_MS),
+  );
+  await chrome.storage.local.set({ recipeHealthSentAt: { ...kept, [key]: Date.now() } });
+}
+
+/** What a store-setup request failure says to the admin. fetch() rejects with a TypeError when
+ *  offline and a TimeoutError on timeout; neither message is meant for people. */
+function storeSetupErrorMessage(error: unknown): string {
+  const unreachable =
+    !(error instanceof Error) ||
+    error instanceof TypeError ||
+    error.name === "TimeoutError";
+  return unreachable
+    ? "Could not reach Saverlly. Check the connection and try again."
+    : error.message;
+}
+
 async function openPopupWhenVisible(tabId: number): Promise<void> {
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
   const window = tab?.active
@@ -625,7 +699,12 @@ async function openPopupWhenVisible(tabId: number): Promise<void> {
   // the next tab switch or window focus tries again. The badge stays as the fallback throughout.
   for (const delay of POPUP_RETRY_DELAYS_MS) {
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
-    if (delay && !(await stillAwaitingPopup(tabId))) return;
+    const awaiting = delay ? await stillAwaitingPopup(tabId) : "now";
+    if (awaiting === "done") return;
+    if (awaiting === "later") {
+      await setAutoPopupPending(tabId, true);
+      return;
+    }
     try {
       await openPopup({ windowId: tab.windowId });
       return;
@@ -638,13 +717,15 @@ async function openPopupWhenVisible(tabId: number): Promise<void> {
 
 const POPUP_RETRY_DELAYS_MS = [0, 500, 1500, 3000];
 
-// The retries above must not open the popup over a different tab, or after the shopper has
-// already opened it themselves and started applying.
-async function stillAwaitingPopup(tabId: number): Promise<boolean> {
+// The retries above must not open the popup over a different tab ("later": it stays pending
+// for when the shopper comes back), or after the shopper has already opened it themselves and
+// started applying ("done").
+async function stillAwaitingPopup(tabId: number): Promise<"now" | "later" | "done"> {
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
-  if (!tab?.active) return false;
+  if (!tab) return "done";
   const state = await loadTabState(tabId);
-  return !!state && !state.applyProgress && !state.applyResult;
+  if (!state || state.applyProgress || state.applyResult) return "done";
+  return tab.active ? "now" : "later";
 }
 
 // A deferred popup only makes sense while that checkout is still waiting for the shopper.
@@ -794,7 +875,9 @@ async function startApply(
     ["content-scripts/coupon-applier.js"],
     {
       merchantId: merchant.id,
-      recipe: merchant.checkoutRecipe,
+      recipe: state.backup
+        ? withBackupPromoBox(merchant.checkoutRecipe, state.backup)
+        : merchant.checkoutRecipe,
       coupons,
       runId,
     },
@@ -840,17 +923,7 @@ async function handleStoreSetupMessage(
       try {
         return { setup: toStoreSetupStatus(await redeemStoreSetupCode(message.code)) };
       } catch (error) {
-        // fetch() rejects with a TypeError when offline and a TimeoutError on timeout; neither
-        // message is meant for people.
-        const unreachable =
-          !(error instanceof Error) ||
-          error instanceof TypeError ||
-          error.name === "TimeoutError";
-        return {
-          error: unreachable
-            ? "Could not reach Saverlly. Check the connection and try again."
-            : error.message,
-        };
+        return { error: storeSetupErrorMessage(error) };
       }
     case "STORE_SETUP_STATUS": {
       const record = await getStoreSetup();
@@ -924,12 +997,10 @@ async function handleStoreSetupTabMessage(
         await submitStoreSetupRecipe(message.payload);
         result = { ok: true };
       } catch (error) {
-        const unreachable =
-          !(error instanceof Error) || error instanceof TypeError || error.name === "TimeoutError";
         result = {
           ok: false,
           ended: error instanceof StoreSetupEndedError,
-          error: unreachable ? "Could not reach Saverlly. Check the connection and try again." : error.message,
+          error: storeSetupErrorMessage(error),
         };
       }
       return result;
@@ -1022,9 +1093,13 @@ async function handleMessage(
         message.merchantId,
         message.referrer,
         sender,
+        message.backup,
       );
       return;
     }
+    case "RECIPE_HEALTH":
+      await onRecipeHealth(message, sender);
+      return;
     case "COUPON_APPLY_RESULT": {
       if (sender.tab?.id === undefined) return;
       const state = await loadTabState(sender.tab.id);

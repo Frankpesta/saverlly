@@ -52,6 +52,8 @@ const REDEEMED_STATUSES: StoreSetupStatus[] = [
 // a used, cancelled or expired one.
 const INVALID_CODE_MESSAGE = 'This setup code is invalid or has expired';
 const SESSION_ENDED_MESSAGE = 'This store setup session has ended';
+const DRAFT_CHANGED_MESSAGE =
+  'A newer setup draft arrived. Review it and try again';
 
 const authenticatedInclude = {
   merchant: {
@@ -140,7 +142,12 @@ export class StoreSetupService {
   }
 
   /** The dashboard Save: the only path by which a setup draft reaches a live merchant. */
-  async apply(merchantId: string, sessionId: string, adminId: string) {
+  async apply(
+    merchantId: string,
+    sessionId: string,
+    adminId: string,
+    reviewedSubmittedAt: string,
+  ) {
     const session = await this.findForMerchant(
       this.prisma,
       merchantId,
@@ -152,6 +159,9 @@ export class StoreSetupService {
       );
     if (session.status !== StoreSetupStatus.SUBMITTED || !session.submittedAt)
       throw new ConflictException('There is no submitted recipe to save');
+    // The admin reviewed one draft; a resubmission since then must be reviewed before saving.
+    if (session.submittedAt.getTime() !== Date.parse(reviewedSubmittedAt))
+      throw new ConflictException(DRAFT_CHANGED_MESSAGE);
 
     // Re-validate rather than trust what was accepted at submit time: the validator rules may
     // have tightened since, and this is the last gate before shoppers' checkouts use it.
@@ -159,8 +169,8 @@ export class StoreSetupService {
 
     return this.prisma.$transaction(async (tx) => {
       const now = new Date();
-      // Pinned to the submittedAt we validated, so a resubmission racing this Save can't
-      // swap an unreviewed draft onto the store.
+      // Pinned to the reviewed submittedAt, so a resubmission racing this Save can't swap an
+      // unreviewed draft onto the store.
       const claimed = await tx.storeSetupSession.updateMany({
         where: {
           id: session.id,
@@ -175,12 +185,16 @@ export class StoreSetupService {
         },
       });
       if (claimed.count !== 1)
-        throw new ConflictException(
-          'The setup draft changed while saving. Review it and try again',
-        );
+        throw new ConflictException(DRAFT_CHANGED_MESSAGE);
       const merchant = await tx.merchant.update({
         where: { id: merchantId },
-        data: { checkoutRecipe: recipe },
+        // A new recipe starts with a clean bill of health.
+        data: {
+          checkoutRecipe: recipe,
+          recipeSavedAt: now,
+          recipeNeedsRecheckAt: null,
+          recipeProblem: null,
+        },
       });
       const applied = await tx.storeSetupSession.findUniqueOrThrow({
         where: { id: session.id },

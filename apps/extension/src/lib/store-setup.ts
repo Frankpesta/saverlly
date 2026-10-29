@@ -6,7 +6,7 @@ import {
   type StoreSetupMerchant,
   type SubmitStoreSetupRecipePayload,
 } from '@saverlly/shared-types';
-import { DEFAULT_API_BASE_URL, getReviewerApiBaseUrl } from './config';
+import { getApiBaseUrl } from './config';
 
 // Store setup is an admin-only mode, entirely separate from shopper operation: it lives under its
 // own storage keys and never reads or writes deviceToken, reviewerAccess, dormant, the merchant
@@ -49,14 +49,6 @@ export function toStoreSetupStatus(record: StoreSetupRecord): StoreSetupStatus {
     expiresAt: record.expiresAt,
     merchant: record.merchant,
   };
-}
-
-/** The agent-provided backend when there is one, else the bundled reviewer origin, else the
- * build default. Resolved once at redemption and pinned to the session after that. */
-async function resolveApiBaseUrl(): Promise<string> {
-  const { apiBaseUrl } = await chrome.storage.local.get('apiBaseUrl');
-  if (typeof apiBaseUrl === 'string' && apiBaseUrl.length > 0) return apiBaseUrl;
-  return getReviewerApiBaseUrl() ?? DEFAULT_API_BASE_URL;
 }
 
 function isRecord(value: unknown): value is StoreSetupRecord {
@@ -104,14 +96,22 @@ async function errorMessage(res: Response, fallback: string): Promise<string> {
   return fallback;
 }
 
-let redeeming: Promise<StoreSetupRecord> | undefined;
+let redeeming: { code: string; promise: Promise<StoreSetupRecord> } | undefined;
 
-/** Exchanges a dashboard code for a setup session. Concurrent calls share one request. */
+/** Exchanges a dashboard code for a setup session. Concurrent calls for the same code share one
+ *  request; a different code waits for the one in flight (they share the activation record),
+ *  then is sent itself, so it never gets another code's answer. */
 export function redeemStoreSetupCode(value: string): Promise<StoreSetupRecord> {
-  redeeming ??= redeem(value).finally(() => {
-    redeeming = undefined;
-  });
-  return redeeming;
+  const code = normalizeStoreSetupCode(value);
+  if (redeeming?.code === code) return redeeming.promise;
+  const previous = redeeming?.promise.catch(() => undefined);
+  const promise: Promise<StoreSetupRecord> = (previous ?? Promise.resolve())
+    .then(() => redeem(value))
+    .finally(() => {
+      if (redeeming?.promise === promise) redeeming = undefined;
+    });
+  redeeming = { code, promise };
+  return promise;
 }
 
 async function redeem(value: string): Promise<StoreSetupRecord> {
@@ -130,7 +130,8 @@ async function redeem(value: string): Promise<StoreSetupRecord> {
       : { code, token: newSecret() };
   await chrome.storage.local.set({ [ACTIVATION_KEY]: activation });
 
-  const apiBaseUrl = await resolveApiBaseUrl();
+  // The agent's backend or the one baked into the build, pinned to the session from here on.
+  const apiBaseUrl = await getApiBaseUrl();
   const res = await fetch(`${apiBaseUrl}/store-setup/redeem`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

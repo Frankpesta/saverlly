@@ -9,6 +9,7 @@ The setup panel lives in a **closed** shadow root, so ordinary Playwright locato
 | `panel.e2e.ts` | Starting setup from the popup. The panel on a store with hostile `!important` CSS. Pick mode, where the store sees no events. Resuming after a reload. A click into a cross-origin payment frame. Moving and stopping the panel. |
 | `steps.e2e.ts` | A Shopify-style store through all eight steps: the picks, learning the error message, and a working code (`SAVE10`) with removal proven, ending in a passing final test. A WooCommerce-classic store that reloads the page to answer a code: the error message is found on the reloaded page, and the final test fails with a plain explanation. |
 | `one-code-store.e2e.ts` | A store that holds one code at a time and hides its promo box until the code is removed. When removal restores the total, comparing codes is switched on. When it doesn't, comparing stays off and the admin is told the code is still applied. |
+| `platform-template.e2e.ts` | A Shopify checkout and a WooCommerce checkout (box behind WooCommerce's own link) set up from their platform's template: every part filled in from the live page, nothing clicked, and the final test passes. |
 | `full-system.e2e.ts` | Opt-in. Dashboard code → options-page redeem → all eight steps → send → dashboard **Save recipe to store**. The backend must then hold exactly the tested recipe. |
 
 The test stores are in `stores.ts`.
@@ -48,7 +49,7 @@ export SETUP_E2E_MERCHANT_ID=$(node ../extension/e2e/store-setup/seed-full-syste
 npm run build && PORT=3000 node dist/src/main &            # backend
 (cd ../dashboard && BACKEND_API_URL=http://127.0.0.1:3000 npx next dev -p 3001) &   # dashboard
 
-cd ../extension && npm run build
+cd ../extension && npm run build:local   # talks to the local backend, not the live one
 npx playwright test full-system
 ```
 

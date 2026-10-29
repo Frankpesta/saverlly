@@ -9,11 +9,6 @@ import {
   type StoreSetupRecord,
 } from './store-setup';
 
-jest.mock('./config', () => ({
-  ...jest.requireActual('./config'),
-  getReviewerApiBaseUrl: () => null,
-}));
-
 let local: Record<string, unknown>;
 const fetchMock = jest.fn();
 const CODE = 'SET-7K4Q-92MD';
@@ -87,7 +82,7 @@ describe('redeeming a code', () => {
     expect(local.merchantCache).toEqual({ 'shop.test': {} });
   });
 
-  it('falls back to the build default backend without an agent', async () => {
+  it('falls back to the backend baked into the build without an agent', async () => {
     fetchMock.mockResolvedValueOnce(redeemed());
     await redeemStoreSetupCode(CODE);
     expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:3000/store-setup/redeem');
@@ -131,6 +126,20 @@ describe('redeeming a code', () => {
     const [a, b] = await Promise.all([redeemStoreSetupCode(CODE), redeemStoreSetupCode(CODE)]);
     expect(a).toBe(b);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a different code entered meanwhile on its own, after the first', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(401, { message: 'This setup code is invalid or has expired' }))
+      .mockResolvedValueOnce(redeemed('s2'));
+    const [typo, right] = await Promise.allSettled([
+      redeemStoreSetupCode('SET-AAAA-AAAA'),
+      redeemStoreSetupCode(CODE),
+    ]);
+    expect(typo.status).toBe('rejected');
+    expect(right).toEqual({ status: 'fulfilled', value: expect.objectContaining({ sessionId: 's2' }) });
+    expect(body(0).code).toBe('SETAAAAAAAA');
+    expect(body(1).code).toBe('SET7K4Q92MD');
   });
 
   it('ends the previous session on the backend when a new one replaces it', async () => {

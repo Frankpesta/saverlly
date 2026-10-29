@@ -1,7 +1,11 @@
-import type {
-  CheckoutRecipe,
-  StoreSetupTestResult,
-  SubmitStoreSetupRecipePayload,
+import {
+  STORE_PLATFORM_LABELS,
+  STORE_PLATFORMS,
+  STORE_SETUP_CHECK_LABELS,
+  type CheckoutRecipe,
+  type StorePlatform,
+  type StoreSetupTestResult,
+  type SubmitStoreSetupRecipePayload,
 } from "@saverlly/shared-types";
 import { CheckoutActions, cents, readTotal } from "./checkout-actions";
 import { element as findElement } from "./checkout-dom";
@@ -29,7 +33,8 @@ import {
   watchTypedCode,
   type TestCodeOutcome,
 } from "./setup-learn";
-import { buildRecipe, CHECK_LABELS, runFinalTest } from "./setup-test";
+import { detectPagePlatform, matchTemplate, templateFor } from "./setup-template";
+import { buildRecipe, runFinalTest } from "./setup-test";
 import type { StoreSetupSubmitResult } from "./messages";
 import { checkoutUrlPattern } from "./url-pattern";
 
@@ -58,6 +63,8 @@ export interface SetupProgress {
   version: 2;
   /** Index into SETUP_STEPS of the step on screen. */
   step: number;
+  /** The platform whose template filled in parts of the checkout, if one did. */
+  platform?: StorePlatform;
   /** The recipe's checkout URL pattern, from the page the admin confirmed as the checkout. */
   pattern?: string;
   /** Whether the promo box shows straight away or only after clicking a link. */
@@ -97,7 +104,9 @@ export interface FlowEnv {
   signal: AbortSignal;
 }
 
-type StepResult = "next" | "back";
+/** Where to go after a step: on, back, or straight to a step (the template skips the parts it
+ *  filled in). */
+type StepResult = "next" | "back" | { goto: number };
 interface Step {
   run: (env: FlowEnv) => Promise<StepResult>;
 }
@@ -134,6 +143,7 @@ export function parseProgress(value: unknown): SetupProgress {
     typeof progress.picks !== "object" ||
     progress.picks === null ||
     (progress.pattern !== undefined && typeof progress.pattern !== "string") ||
+    (progress.platform !== undefined && !STORE_PLATFORMS.includes(progress.platform)) ||
     (progress.reveal !== undefined && progress.reveal !== "visible" && progress.reveal !== "link") ||
     (progress.noFailureMessage !== undefined && typeof progress.noFailureMessage !== "boolean") ||
     (progress.pendingTest !== undefined &&
@@ -153,6 +163,7 @@ export function parseProgress(value: unknown): SetupProgress {
   return {
     version: 2,
     step: progress.step!,
+    platform: progress.platform,
     pattern: progress.pattern,
     reveal: progress.reveal,
     noFailureMessage: progress.noFailureMessage,
@@ -1087,7 +1098,7 @@ const testAndSendStep: Step = {
           body: tested.passed
             ? "Send it to the dashboard, then review and save it there."
             : "Go back to fix them, or send it anyway: the dashboard shows what failed before anything is saved.",
-          notes: tested.checks.map((c) => `${OUTCOME_MARK[c.outcome]} ${CHECK_LABELS[c.key]}: ${c.detail ?? ""}`.trim()),
+          notes: tested.checks.map((c) => `${OUTCOME_MARK[c.outcome]} ${STORE_SETUP_CHECK_LABELS[c.key]}: ${c.detail ?? ""}`.trim()),
           result: problem,
           tone: problem || !tested.passed ? "error" : "info",
           actions: [
@@ -1128,19 +1139,83 @@ const testAndSendStep: Step = {
   },
 };
 
-export const SETUP_STEPS: Step[] = [
-  {
-    run: async (env) => {
-      await choose(env, (on) =>
-        env.overlay.render({
-          title: `Set up ${env.storeName}`,
-          body: "Saverlly will walk you through this checkout: you'll click the promo code box, the apply button and the order total. Nothing changes for shoppers until you save the result on the dashboard.",
-          actions: [{ id: "start", label: "Start", kind: "primary", onClick: on("start") }],
-        }),
-      );
+/** The step for the first part the template couldn't fill in, or the error message step. */
+function firstStepToDo(progress: SetupProgress): number {
+  const { picks } = progress;
+  if (!progress.pattern) return SETUP_STEPS.indexOf(checkoutPageStep);
+  if (!progress.reveal) return SETUP_STEPS.indexOf(revealStep);
+  if (!picks.promoField) return SETUP_STEPS.indexOf(promoFieldStep);
+  if (!picks.applyButton) return SETUP_STEPS.indexOf(applyButtonStep);
+  if (!picks.cartTotal) return SETUP_STEPS.indexOf(cartTotalStep);
+  return SETUP_STEPS.indexOf(failureMessageStep);
+}
+
+const introStep: Step = {
+  run: async (env) => {
+    const platform = detectPagePlatform();
+    const template = templateFor(platform);
+    const name = platform ? STORE_PLATFORM_LABELS[platform] : "";
+    // Only a setup not yet begun starts from the template; coming back here keeps the picks.
+    const fresh = !env.progress.pattern && Object.keys(env.progress.picks).length === 0;
+    const fromTemplate = !!template && fresh;
+    await choose(env, (on) =>
+      env.overlay.render({
+        title: `Set up ${env.storeName}`,
+        body: fromTemplate
+          ? `This store runs on ${name}, so Saverlly will fill in the parts of the checkout it recognises. You check them and run the test. Nothing changes for shoppers until you save the result on the dashboard.`
+          : "Saverlly will walk you through this checkout: you'll click the promo code box, the apply button and the order total. Nothing changes for shoppers until you save the result on the dashboard.",
+        result: platform && !template ? `This store runs on ${name}.` : undefined,
+        actions: [{ id: "start", label: "Start", kind: "primary", onClick: on("start") }],
+      }),
+    );
+    if (!fromTemplate) return "next";
+
+    env.overlay.render({ title: "Reading the checkout…", body: `Looking for ${name}'s promo box, apply button and order total.`, actions: [] });
+    const match = await matchTemplate(template);
+    if (env.signal.aborted) throw stopped();
+    const { picks } = env.progress;
+    Object.assign(picks, match.picks);
+    env.progress.platform = platform!;
+    env.progress.pattern = match.pattern;
+    env.progress.reveal = match.reveal;
+    await env.save(env.progress);
+
+    const line = (found: boolean, label: string, detail: string) =>
+      found ? `✓ ${label}: ${detail}` : `– ${label}: you'll point to it`;
+    const all = !!(env.progress.pattern && picks.promoField && picks.applyButton && picks.cartTotal);
+    const choice = await choose(env, (on) =>
+      env.overlay.render({
+        title: all ? `Found ${name}'s checkout` : `Found part of ${name}'s checkout`,
+        body: all
+          ? "Next, Saverlly learns the store's error message with a made-up code, then tests everything. Use Back on any step to check or change a part."
+          : "Saverlly filled in what it recognised. Point to the rest, then it tests everything.",
+        notes: [
+          line(!!env.progress.pattern, "Checkout page", `pages whose address contains ${env.progress.pattern}`),
+          ...(env.progress.reveal === "link" ? [line(true, "Promo code link", "opens the promo box")] : []),
+          line(!!picks.promoField, "Promo code box", "found"),
+          line(!!picks.applyButton, "Apply button", "found"),
+          line(!!picks.cartTotal, "Order total", "found"),
+        ],
+        actions: [
+          { id: "next", label: "Continue", kind: "primary", onClick: on("next") },
+          { id: "manual", label: "Set it up by clicking instead", kind: "link", onClick: on("manual") },
+        ],
+      }),
+    );
+    if (choice === "manual") {
+      env.progress.platform = undefined;
+      env.progress.pattern = undefined;
+      env.progress.reveal = undefined;
+      env.progress.picks = {};
+      await env.save(env.progress);
       return "next";
-    },
+    }
+    return { goto: firstStepToDo(env.progress) };
   },
+};
+
+export const SETUP_STEPS: Step[] = [
+  introStep,
   checkoutPageStep,
   revealStep,
   promoFieldStep,
@@ -1157,7 +1232,8 @@ export async function runSetupFlow(env: FlowEnv): Promise<void> {
     for (;;) {
       env.overlay.highlight(null);
       const result = await SETUP_STEPS[env.progress.step].run(env);
-      const next = env.progress.step + (result === "next" ? 1 : -1);
+      const next =
+        typeof result === "object" ? result.goto : env.progress.step + (result === "next" ? 1 : -1);
       env.progress.step = Math.min(Math.max(next, 0), SETUP_STEPS.length - 1);
       await env.save(env.progress);
     }

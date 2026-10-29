@@ -34,6 +34,15 @@ export class SetupSessionGuard implements CanActivate {
   }
 }
 
+/** Rate-limits by IP before the token is checked, so guessed or stale tokens can't hit the
+ * database unthrottled. Runs before SetupSessionGuard; the per-session limit follows it. */
+@Injectable()
+export class SetupSessionIpThrottlerGuard extends ThrottlerGuard {
+  protected getTracker(req: Record<string, any>): Promise<string> {
+    return Promise.resolve(`ip:${(req as Request).ip ?? 'unknown'}`);
+  }
+}
+
 /** Rate-limits per setup session rather than per IP, since kiosks share a store network. Must
  * run after SetupSessionGuard, which populates request.storeSetupSession. */
 @Injectable()

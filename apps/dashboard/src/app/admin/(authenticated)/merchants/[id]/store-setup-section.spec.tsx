@@ -79,6 +79,7 @@ function submitted(passed: boolean, overrides: Partial<StoreSetupSessionView> = 
 }
 
 let current: StoreSetupSessionView | null
+let platformCheck: unknown
 let fetchMock: jest.Mock
 const respond = (status: number, body: unknown) =>
   ({ ok: status < 400, status, json: async () => body }) as Response
@@ -89,6 +90,7 @@ const calls = (method: string, suffix: string) =>
 
 beforeEach(() => {
   current = null
+  platformCheck = { reachable: true, platform: "SHOPIFY", evidence: "cdn.shopify.com in the page", checkedAt: new Date().toISOString() }
   jest.mocked(toast.success).mockClear()
   jest.mocked(toast.error).mockClear()
   fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -104,6 +106,8 @@ beforeEach(() => {
       current = view({ ...current!, state: "APPLIED", extensionActive: false, appliedAt: new Date().toISOString() })
       return respond(200, { session: current, merchant: { ...merchant, checkoutRecipe: draftRecipe } })
     }
+    if (url === "/api/proxy/merchants/m-1/platform/check" && method === "POST")
+      return respond(200, platformCheck)
     if (url === `${base}/${current?.id}/cancel` && method === "POST") {
       current = view({ ...current!, state: "CANCELLED", extensionActive: false })
       return respond(200, current)
@@ -164,11 +168,14 @@ it("shows the test result in plain language and saves the draft", async () => {
     "Message for a rejected code: PassedStore rejected the test code",
     "Message for an accepted code: Skipped",
   ])
-  expect(screen.getByText("$84.20")).toBeInTheDocument()
+  expect(screen.getByText("84.20")).toBeInTheDocument()
   expect(screen.getByText("Ready to save")).toBeInTheDocument()
 
+  const reviewed = current.submittedAt
   await user.click(screen.getByRole("button", { name: "Save recipe to store" }))
   await waitFor(() => expect(calls("POST", "/s-1/apply")).toHaveLength(1))
+  // Names the draft the admin reviewed, so a newer one is refused rather than saved unseen.
+  expect(JSON.parse(String(calls("POST", "/s-1/apply")[0][1].body))).toEqual({ submittedAt: reviewed })
   expect(toast.success).toHaveBeenCalledWith("Checkout recipe saved for Demo Outfitters.")
   expect(await screen.findByText(/Last set up with the extension/)).toBeInTheDocument()
   expect(queryClient.getQueryData<Merchant>(["merchants", "m-1"])?.checkoutRecipe).toEqual(draftRecipe)
@@ -247,4 +254,57 @@ it("polls quickly while waiting on the extension, slowly for a live draft, and n
   expect(storeSetupPollInterval(submitted(true, { extensionActive: false }))).toBe(false)
   for (const state of ["APPLIED", "CANCELLED", "EXPIRED"] as const)
     expect(storeSetupPollInterval(view({ state }))).toBe(false)
+})
+
+describe("store platform", () => {
+  const platformText = () => screen.getByTestId("store-platform").textContent
+
+  it("says a recognised platform is set up from its template", async () => {
+    renderSection({ ...merchant, platform: "SHOPIFY", platformCheckedAt: "2026-10-30T10:00:00.000Z" })
+    await screen.findByRole("button", { name: "Get setup code" })
+    expect(platformText()).toContain("Runs on Shopify. The extension fills in this checkout itself")
+  })
+
+  it("says a platform without a template, or a custom store, is set up by clicking", async () => {
+    renderSection({ ...merchant, platform: "WIX", platformCheckedAt: "2026-10-30T10:00:00.000Z" })
+    expect(await screen.findByText("Runs on Wix. Set it up by clicking through the checkout.")).toBeInTheDocument()
+  })
+
+  it("checks a store not checked yet, and reports what it found", async () => {
+    const user = userEvent.setup()
+    renderSection({ ...merchant, platform: null, platformCheckedAt: null })
+    expect(await screen.findByText("Platform not checked yet.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Check now" }))
+    await waitFor(() => expect(calls("POST", "/platform/check")).toHaveLength(1))
+    expect(toast.success).toHaveBeenCalledWith("demo-outfitters.test runs on Shopify.")
+  })
+
+  it("says why a store couldn't be read", async () => {
+    const user = userEvent.setup()
+    platformCheck = { reachable: false, reason: "The site took too long to answer" }
+    renderSection({ ...merchant, platform: null, platformCheckedAt: "2026-10-30T10:00:00.000Z" })
+    expect(await screen.findByText("Custom-built store. Set it up by clicking through the checkout.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Check again" }))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Couldn't read demo-outfitters.test: The site took too long to answer."),
+    )
+  })
+})
+
+it("says when shoppers' checkouts report the store's setup out of date", async () => {
+  renderSection({
+    ...merchant,
+    recipeNeedsRecheckAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    recipeProblem: "PROMO_BOX_CHANGED",
+  })
+  const alert = await screen.findByRole("alert")
+  expect(alert).toHaveTextContent(/^Needs a quick re-check, reported 2 hours ago\./)
+  expect(alert).toHaveTextContent("Shoppers' checkouts show a promo box the saved setup no longer finds.")
+  expect(await screen.findByRole("button", { name: "Get setup code" })).toBeInTheDocument()
+})
+
+it("shows no re-check notice for a healthy store", async () => {
+  renderSection()
+  await screen.findByRole("button", { name: "Get setup code" })
+  expect(screen.queryByRole("alert")).toBeNull()
 })

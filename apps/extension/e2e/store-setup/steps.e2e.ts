@@ -1,6 +1,6 @@
 // All guided steps on the two kinds of store checkout answers come in: in place (Shopify-style)
 // and on a reloaded page (WooCommerce classic).
-import { expect, pickBasics, test, waitFor } from "./fixtures";
+import { expect, test, waitFor } from "./fixtures";
 import { shopifyStore, wooStore } from "./stores";
 
 test("a Shopify-style store: all eight steps, with a working code and removal proven", async ({ page, signIn, startSetup, progressOf, serveStore, shot }) => {
@@ -123,7 +123,11 @@ test("a WooCommerce-classic store: the error message is found on the reloaded pa
   await signIn();
   await page.goto(`${store.origin}/checkout/`);
   const panel = await startSetup(page);
-  await pickBasics(panel, { field: "#coupon_code", total: ".woocommerce-Price-amount" });
+  // The page carries WooCommerce's own markup, so setup starts from WooCommerce's template.
+  await panel.onTitle("Set up Demo Outfitters");
+  await panel.press("start");
+  await panel.onTitle("Found WooCommerce's checkout");
+  await panel.press("next");
 
   await panel.onTitle("Learn the store's error message");
   const navigated = page.waitForURL(/coupon_code=SAVERLLY-TEST-/);

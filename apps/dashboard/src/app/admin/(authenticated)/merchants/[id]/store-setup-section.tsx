@@ -10,10 +10,14 @@ import {
   RefreshCwIcon,
   XCircleIcon,
 } from "lucide-react"
-import type {
-  StoreSetupCheck,
-  StoreSetupCheckKey,
-  StoreSetupSessionView,
+import {
+  PLATFORM_TEMPLATES,
+  RECIPE_PROBLEM_LABELS,
+  STORE_PLATFORM_LABELS,
+  STORE_SETUP_CHECK_LABELS,
+  type StoreSetupCheck,
+  type StoreSetupCheckKey,
+  type StoreSetupSessionView,
 } from "@saverlly/shared-types"
 import { InlineQueryError } from "@/components/dashboard/query-state"
 import {
@@ -37,23 +41,55 @@ import {
   useIssueStoreSetupCode,
   useStoreSetupSession,
 } from "@/lib/api/hooks/use-store-setup"
+import { useCheckMerchantPlatform } from "@/lib/api/hooks/use-merchants"
 import type { Merchant } from "@/lib/api/types"
 import { relativeTime } from "@/lib/relative-time"
 
-/** Plain-language names for each step the extension checks, in the order they're shown. */
-const CHECK_LABELS: Record<StoreSetupCheckKey, string> = {
-  checkoutPage: "Checkout page",
-  revealLink: "Promo code link",
-  promoField: "Promo code box",
-  applyButton: "Apply button",
-  cartTotal: "Order total",
-  failureMessage: "Message for a rejected code",
-  successMessage: "Message for an accepted code",
-  applyMode: "Trying one code after another",
-}
-const CHECK_ORDER = Object.keys(CHECK_LABELS) as StoreSetupCheckKey[]
+const CHECK_ORDER = Object.keys(STORE_SETUP_CHECK_LABELS) as StoreSetupCheckKey[]
 
-const totalFormatter = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+// The test result carries the amount but not the store's currency, so no symbol is guessed.
+const totalFormatter = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** Which platform the store runs on, and what that means for setting it up. */
+function PlatformLine({ merchant }: { merchant: Merchant }) {
+  const checkPlatform = useCheckMerchantPlatform(merchant.id)
+  const { platform, platformCheckedAt } = merchant
+
+  function recheck() {
+    checkPlatform.mutate(undefined, {
+      onSuccess: (result) => {
+        if (!result.reachable) toast.error(`Couldn't read ${merchant.domain}: ${result.reason}.`)
+        else if (result.platform) toast.success(`${merchant.domain} runs on ${STORE_PLATFORM_LABELS[result.platform]}.`)
+        else toast.success(`${merchant.domain} doesn't run on a platform Saverlly recognises.`)
+      },
+      onError: (error) => toast.error(errorMessage(error, "Could not check the store's platform.")),
+    })
+  }
+
+  const text = platform
+    ? PLATFORM_TEMPLATES[platform]
+      ? `Runs on ${STORE_PLATFORM_LABELS[platform]}. The extension fills in this checkout itself; you check it and run the test.`
+      : `Runs on ${STORE_PLATFORM_LABELS[platform]}. Set it up by clicking through the checkout.`
+    : platformCheckedAt
+      ? "Custom-built store. Set it up by clicking through the checkout."
+      : "Platform not checked yet."
+
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground" data-testid="store-platform">
+      <span>{text}</span>
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        className="h-auto p-0"
+        onClick={recheck}
+        disabled={checkPlatform.isPending}
+      >
+        {checkPlatform.isPending ? "Checking…" : platformCheckedAt ? "Check again" : "Check now"}
+      </Button>
+    </p>
+  )
+}
 
 /** The plaintext code exists only in the issue response, so it's held here, tied to the
  * session it belongs to. A reload loses it on purpose: the code is never retrievable again. */
@@ -108,8 +144,8 @@ export function StoreSetupSection({ merchant }: { merchant: Merchant }) {
   }
 
   function save() {
-    if (!session) return
-    applySetup.mutate(session.id, {
+    if (!session?.submittedAt) return
+    applySetup.mutate({ sessionId: session.id, submittedAt: session.submittedAt }, {
       onSuccess: () => toast.success(`Checkout recipe saved for ${merchant.name}.`),
       onError: (error) => toast.error(errorMessage(error, "Could not save the recipe.")),
     })
@@ -140,10 +176,26 @@ export function StoreSetupSection({ merchant }: { merchant: Merchant }) {
             Point and click on the store&apos;s checkout instead of writing selectors. Nothing
             changes for shoppers until you save the result here.
           </CardDescription>
+          <PlatformLine merchant={merchant} />
         </div>
         {session && <StateBadge session={session} />}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {merchant.recipeNeedsRecheckAt && (
+          <div
+            role="alert"
+            className="rounded-md border border-[var(--warning-foreground)]/30 bg-[var(--warning-tint)] px-3 py-2.5 text-sm text-[var(--warning-foreground)]"
+          >
+            <p className="font-medium">
+              Needs a quick re-check, reported {relativeTime(merchant.recipeNeedsRecheckAt)}.
+            </p>
+            <p className="mt-1">
+              {merchant.recipeProblem ? `${RECIPE_PROBLEM_LABELS[merchant.recipeProblem]} ` : ""}
+              Get a setup code and walk through the checkout again. Until then, Saverlly tries codes
+              through an obvious promo box when it finds one.
+            </p>
+          </div>
+        )}
         {isError && (
           <InlineQueryError message="Could not load store setup." onRetry={refetch} />
         )}
@@ -494,7 +546,7 @@ function CheckRow({ check }: { check: StoreSetupCheck }) {
       <span className="mt-0.5">{icon}</span>
       <span className="flex min-w-0 flex-col">
         <span className="font-medium">
-          {CHECK_LABELS[check.key]}
+          {STORE_SETUP_CHECK_LABELS[check.key]}
           <span className="sr-only">: {outcome}</span>
         </span>
         {check.detail && <span className="text-muted-foreground">{check.detail}</span>}

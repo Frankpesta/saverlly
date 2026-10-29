@@ -30,6 +30,8 @@ const merchants: Merchant[] = [
     affiliateProgramId: "p-1",
     active: true,
     checkoutRecipe: null,
+    recipeNeedsRecheckAt: "2026-10-30T09:00:00.000Z",
+    recipeProblem: "PROMO_BOX_CHANGED",
     createdAt: "2026-01-01T00:00:00.000Z",
   },
   {
@@ -102,6 +104,9 @@ describe("MerchantsPage", () => {
 
     const amazonRow = amazonLink.closest("tr") as HTMLElement
     await waitFor(() => expect(within(amazonRow).getByText("1")).toBeInTheDocument()) // coupon count
+    // A store whose checkout changed is flagged where admins scan the list.
+    expect(within(amazonRow).getByText("Needs re-check")).toBeInTheDocument()
+    expect(within(screen.getByText("Jumia").closest("tr") as HTMLElement).queryByText("Needs re-check")).toBeNull()
   })
 
   it("toggles a merchant's active state", async () => {

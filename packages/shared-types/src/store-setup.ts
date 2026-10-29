@@ -48,6 +48,19 @@ export const STORE_SETUP_CHECK_KEYS = [
 ] as const;
 export type StoreSetupCheckKey = (typeof STORE_SETUP_CHECK_KEYS)[number];
 
+/** Plain-language names for each check, in the order they're shown, in the extension's panel
+ *  and on the dashboard alike. */
+export const STORE_SETUP_CHECK_LABELS: Record<StoreSetupCheckKey, string> = {
+  checkoutPage: 'Checkout page',
+  revealLink: 'Promo code link',
+  promoField: 'Promo code box',
+  applyButton: 'Apply button',
+  cartTotal: 'Order total',
+  failureMessage: 'Message for a rejected code',
+  successMessage: 'Message for an accepted code',
+  applyMode: 'Trying one code after another',
+};
+
 export const STORE_SETUP_CHECK_OUTCOMES = ['pass', 'fail', 'skipped'] as const;
 export type StoreSetupCheckOutcome = (typeof STORE_SETUP_CHECK_OUTCOMES)[number];
 
@@ -117,6 +130,11 @@ export interface StoreSetupExtensionSession {
   expiresAt: string;
   submittedAt: string | null;
   merchant: StoreSetupMerchant & { checkoutRecipe: CheckoutRecipe | null };
+}
+
+/** The dashboard Save names the draft the admin reviewed, so a newer one is never saved unseen. */
+export interface ApplyStoreSetupPayload {
+  submittedAt: string;
 }
 
 export interface SubmitStoreSetupRecipePayload {

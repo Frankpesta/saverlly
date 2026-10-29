@@ -161,6 +161,30 @@ export function observeIndicators(
  * `currentCode` is the code this run last got accepted (null once removed); `pendingResponse`
  * records whether the last timed-out attempt was still visibly in flight.
  */
+const isEnabled = (button: HTMLButtonElement | null): button is HTMLButtonElement =>
+  !!button &&
+  !button.disabled &&
+  button.getAttribute("aria-disabled") !== "true";
+
+/**
+ * The apply button once it's usable, or null. Controlled checkouts enable/re-render their
+ * button after the input event, so this waits only as long as that actually takes instead of a
+ * fixed delay per code. Shared by the shopper run and store setup so both judge a store alike.
+ */
+export async function waitForApplyButton(
+  selector: string,
+  checkActive: () => void,
+): Promise<HTMLButtonElement | null> {
+  const deadline = Date.now() + BUTTON_READY_MS;
+  for (;;) {
+    await sleep(50);
+    checkActive();
+    const button = element<HTMLButtonElement>(selector);
+    if (isEnabled(button)) return button;
+    if (Date.now() >= deadline) return null;
+  }
+}
+
 export class CheckoutActions {
   currentCode: string | null = null;
   pendingResponse = false;
@@ -266,28 +290,11 @@ export class CheckoutActions {
       field = element<HTMLInputElement>(this.recipe.couponFieldSelector)!;
     }
     setFieldValue(field, code);
-    // Controlled checkouts enable/re-render their button after the input event. Wait only as
-    // long as that actually takes instead of a fixed delay per code.
-    const buttonDeadline = Date.now() + BUTTON_READY_MS;
-    for (;;) {
-      await sleep(50);
-      this.checkActive();
-      const ready = element<HTMLButtonElement>(this.recipe.applyButtonSelector);
-      if (
-        (ready &&
-          !ready.disabled &&
-          ready.getAttribute("aria-disabled") !== "true") ||
-        Date.now() >= buttonDeadline
-      )
-        break;
-    }
-    const button = element<HTMLButtonElement>(this.recipe.applyButtonSelector);
-    if (
-      !button ||
-      button.disabled ||
-      button.getAttribute("aria-disabled") === "true"
-    )
-      throw new ComparisonError("checkout_changed");
+    const button = await waitForApplyButton(
+      this.recipe.applyButtonSelector,
+      this.checkActive,
+    );
+    if (!button) throw new ComparisonError("checkout_changed");
     // Snapshot after editing so validation changes caused by typing cannot be
     // mistaken for the response to the submission we are about to make.
     const indicators = observeIndicators(

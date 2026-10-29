@@ -2,14 +2,22 @@ import type {
   CheckoutRecipe,
   CouponTestResult,
   PublicCoupon,
+  RecipeHealthReportPayload,
   SubmitStoreSetupRecipePayload,
 } from "@saverlly/shared-types";
+import type { BackupSelectors } from "./backup-promo-box";
 
 export interface CheckoutConfirmedMessage {
   type: "CHECKOUT_CONFIRMED";
   merchantId: string;
   referrer: string;
+  /** Set when the store's saved promo box is gone and an obvious one was found instead: the
+   *  coupon run uses these until an admin re-checks the store (see backup-promo-box). */
+  backup?: BackupSelectors;
 }
+
+/** The checkout's verdict on the store's saved recipe, for keeping stores working. */
+export type RecipeHealthMessage = { type: "RECIPE_HEALTH" } & RecipeHealthReportPayload;
 
 export interface CouponApplyResultMessage {
   runId?: string;
@@ -125,6 +133,7 @@ export type ExtensionMessage =
     }
   | { type: "GET_EXTENSION_STATUS" | "SAVINGS_UPDATED" }
   | CheckoutConfirmedMessage
+  | RecipeHealthMessage
   | CouponApplyResultMessage
   | CouponApplyProgressMessage
   | GetTabStateMessage
@@ -142,6 +151,8 @@ export interface TabCheckoutState {
   merchantName: string;
   coupons: PublicCoupon[];
   suppressedStepdown: boolean;
+  /** The obvious promo box found when the store's saved one is gone (CheckoutConfirmedMessage). */
+  backup?: BackupSelectors;
   /** Latest progress tick from an apply run started automatically or manually. Lets a
    *  popup opened mid-run (or reopened after one finishes) restore the right view instead
    *  of always starting from a blank "idle" screen. */

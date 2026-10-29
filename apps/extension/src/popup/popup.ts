@@ -73,7 +73,8 @@ let applyRequested = false;
 let deviceDormant = false;
 let reviewerFormOpen = false;
 // Admin store setup: the session (none for shoppers), this tab's part in it, and whether a
-// setup message is on screen that later renders must leave alone.
+// setup message is on screen that the popup's own late first render must leave alone (a live
+// coupon-run update still replaces it).
 let setupStatus: StoreSetupStatus | null = null;
 let setupTab: StoreSetupTabStatus | null = null;
 let setupViewPinned = false;
@@ -631,6 +632,9 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender) => {
   }
   const sourceTabId = "tabId" in message ? message.tabId : sender.tab?.id;
   if (activeTabId === undefined || sourceTabId !== activeTabId) return;
+  // A live update about this tab's coupon run is newer than a setup error on screen.
+  if (["CHECKOUT_STATE_CHANGED", "COUPON_APPLY_PROGRESS", "APPLY_DONE"].includes(message.type))
+    setupViewPinned = false;
   if (message.type === "CHECKOUT_STATE_CHANGED") {
     liveUpdateReceived = true;
     tabState = message.state;
@@ -681,6 +685,8 @@ async function init(): Promise<void> {
   void renderPromo();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = tab?.id;
+  // Asked together so shoppers (who never have a setup session) don't wait on the setup check.
+  const extensionStatus = send({ type: "GET_EXTENSION_STATUS" }).catch(() => null);
   await loadSetupStatus(activeTabId);
   renderSetupPill();
   // Shopper states don't apply where an admin is setting the store up, connected or not.
@@ -688,9 +694,7 @@ async function init(): Promise<void> {
     render("setup");
     return;
   }
-  const status = (await send({ type: "GET_EXTENSION_STATUS" }).catch(
-    () => null,
-  )) as { dormant?: boolean } | null;
+  const status = (await extensionStatus) as { dormant?: boolean } | null;
   deviceDormant = status?.dormant === true;
   if (deviceDormant) {
     render("inactive");

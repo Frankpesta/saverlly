@@ -797,3 +797,98 @@ describe("saved progress", () => {
     { version: 2, step: 0, submitted: "yes", picks: {} },
   ])("starts over from %p", (value) => expect(parseProgress(value)).toEqual(initialProgress()));
 });
+
+describe("starting from the store platform's template", () => {
+  const SHOPIFY = `
+    <script src="https://cdn.shopify.com/s/checkout.js"></script>
+    <form id="discount"><input name="reductions" placeholder="Discount code"><button type="submit">Apply</button></form>
+    <span class="payment-due__price">$84.20</span>`;
+  const onShopify = (html = SHOPIFY) => () => {
+    history.replaceState(null, "", "/checkouts/cn/abc123/information");
+    document.body.innerHTML = html;
+  };
+
+  it("fills in a Shopify checkout and goes straight to learning the error message", async () => {
+    const flow = start(initialProgress(), onShopify());
+    await flush();
+    expect(flow.text("body")).toMatch(/^This store runs on Shopify, so Saverlly will fill in/);
+    await flow.press("start");
+    await flush();
+    expect(flow.title()).toBe("Found Shopify's checkout");
+    expect(Array.from(flow.panel.querySelectorAll(".notes li"), (li) => li.textContent)).toEqual([
+      "✓ Checkout page: pages whose address contains /checkouts/",
+      "✓ Promo code box: found",
+      "✓ Apply button: found",
+      "✓ Order total: found",
+    ]);
+    await flow.press("next");
+    expect(flow.title()).toBe("Learn the store's error message");
+    const saved = flow.saved.at(-1)!;
+    expect(saved).toMatchObject({ step: 6, platform: "SHOPIFY", pattern: "/checkouts/", reveal: "visible" });
+    expect(Object.keys(saved.picks).sort()).toEqual(["applyButton", "cartTotal", "promoField"]);
+
+    // Back reaches the filled-in parts, to check or change them.
+    await flow.press("back");
+    expect(flow.title()).toBe("Click the order total");
+    expect(flow.text("detail")).toBe(".payment-due__price");
+    await flow.stop();
+  });
+
+  it("asks only for the part it couldn't recognise", async () => {
+    const flow = start(
+      initialProgress(),
+      onShopify(SHOPIFY.replace('<span class="payment-due__price">$84.20</span>', '<b class="x-total">$84.20</b>')),
+    );
+    await flush();
+    await flow.press("start");
+    await flush();
+    expect(flow.title()).toBe("Found part of Shopify's checkout");
+    expect(flow.panel.querySelectorAll(".notes li")[3].textContent).toBe("– Order total: you'll point to it");
+    await flow.press("next");
+    expect(flow.title()).toBe("Click the order total");
+    await flow.pick($(".x-total"));
+    expect(flow.text("result")).toBe("Order total selected: $84.20");
+    await flow.press("next");
+    expect(flow.title()).toBe("Learn the store's error message");
+    await flow.stop();
+  });
+
+  it("can be set aside to set the store up by clicking", async () => {
+    const flow = start(initialProgress(), onShopify());
+    await flush();
+    await flow.press("start");
+    await flush();
+    await flow.press("manual");
+    expect(flow.title()).toBe("Is this the checkout page?");
+    expect(flow.saved.at(-1)).toMatchObject({ picks: {}, step: 1 });
+    expect(flow.saved.at(-1)!.platform).toBeUndefined();
+    await flow.stop();
+  });
+
+  it("names a recognised platform that has no template, and sets it up by clicking", async () => {
+    const flow = start(initialProgress(), () => {
+      document.body.innerHTML = `<img src="https://static.wixstatic.com/media/a.jpg">${CHECKOUT}`;
+    });
+    await flush();
+    expect(flow.text("result")).toBe("This store runs on Wix.");
+    await flow.press("start");
+    expect(flow.title()).toBe("Is this the checkout page?");
+    await flow.stop();
+  });
+
+  it("keeps the admin's own picks when they come back to the start", async () => {
+    const progress = { ...initialProgress(), pattern: "/checkout", picks: { promoField: { selector: "#mine", strategy: "id" as const, exact: true } } };
+    const flow = start(progress, onShopify());
+    await flush();
+    expect(flow.text("body")).toMatch(/^Saverlly will walk you through this checkout/);
+    await flow.press("start");
+    expect(flow.title()).toBe("Is this the checkout page?");
+    expect(flow.saved.at(-1)!.picks.promoField!.selector).toBe("#mine");
+    await flow.stop();
+  });
+
+  it("refuses saved progress naming an unknown platform", () => {
+    expect(parseProgress({ ...initialProgress(), platform: "SHOPIFY" }).platform).toBe("SHOPIFY");
+    expect(parseProgress({ ...initialProgress(), step: 3, platform: "MYSPACE" })).toEqual(initialProgress());
+  });
+});

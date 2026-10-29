@@ -1,5 +1,5 @@
 import type { CheckoutRecipe } from "@saverlly/shared-types";
-import { CheckoutActions, readTotal, setFieldValue } from "./checkout-actions";
+import { CheckoutActions, POLL_MS, readTotal, setFieldValue, sleep, waitForApplyButton } from "./checkout-actions";
 import { element as findElement, isVisible } from "./checkout-dom";
 import { isButtonLike } from "./setup-heuristics";
 
@@ -11,11 +11,7 @@ import { isButtonLike } from "./setup-heuristics";
 const SETTLE_QUIET_MS = 700;
 const MIN_WAIT_MS = 600;
 const MAX_WAIT_MS = 8_000;
-const POLL_MS = 100;
-const BUTTON_READY_MS = 1_000;
 const MAX_MESSAGE_LENGTH = 300;
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** A code no store will accept, recognisable in logs and on screen. */
 export function testCode(random: () => number = Math.random): string {
@@ -151,15 +147,8 @@ export async function submitTestCode(
   if (!field) return { kind: "no-field" };
   const before = readTotal(recipe.cartTotalSelector);
   setFieldValue(field, code);
-  // Controlled forms enable Apply only after the input event: wait only as long as that takes.
-  const ready = Date.now() + BUTTON_READY_MS;
-  let button = findElement<HTMLButtonElement>(recipe.applyButtonSelector);
-  while ((!button || button.disabled || button.getAttribute("aria-disabled") === "true") && Date.now() < ready) {
-    await sleep(50);
-    checkActive();
-    button = findElement<HTMLButtonElement>(recipe.applyButtonSelector);
-  }
-  if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") {
+  const button = await waitForApplyButton(recipe.applyButtonSelector, checkActive);
+  if (!button) {
     setFieldValue(field, "");
     return { kind: "button-disabled" };
   }
@@ -314,25 +303,51 @@ export async function settle(
 /**
  * Remembers what the admin types into the promo box. Many stores empty the box once a code is
  * accepted (Shopify moves it into a chip), so the value is captured as it is typed.
+ *
+ * `onCode` (which saves progress) runs once typing pauses rather than on every keystroke, and at
+ * once when the admin clicks, presses Enter, submits a form or the page unloads: Apply can reload
+ * the page straight away, and the code must be saved by then to keep it out of selectors.
  */
-export function watchTypedCode(couponFieldSelector: string, onCode: (code: string) => void) {
+export function watchTypedCode(couponFieldSelector: string, onCode: (code: string) => void, quietMs = 400) {
   let last = "";
+  let reported = "";
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const report = () => {
+    clearTimeout(timer);
+    timer = undefined;
+    if (last && last !== reported) {
+      reported = last;
+      onCode(last);
+    }
+  };
   const onInput = (event: Event) => {
     const field = findElement(couponFieldSelector);
     if (!field || event.target !== field) return;
     const value = (field as HTMLInputElement).value.trim();
     if (value && value !== last) {
       last = value;
-      onCode(value);
+      clearTimeout(timer);
+      timer = setTimeout(report, quietMs);
     }
   };
+  const onKey = (event: Event) => {
+    if ((event as KeyboardEvent).key === "Enter") report();
+  };
+  const flushOn = ["pointerdown", "submit"] as const;
   document.addEventListener("input", onInput, true);
   document.addEventListener("change", onInput, true);
+  document.addEventListener("keydown", onKey, true);
+  for (const type of flushOn) document.addEventListener(type, report, true);
+  window.addEventListener("pagehide", report);
   return {
     current: () => last,
     stop: () => {
+      clearTimeout(timer);
       document.removeEventListener("input", onInput, true);
       document.removeEventListener("change", onInput, true);
+      document.removeEventListener("keydown", onKey, true);
+      for (const type of flushOn) document.removeEventListener(type, report, true);
+      window.removeEventListener("pagehide", report);
     },
   };
 }

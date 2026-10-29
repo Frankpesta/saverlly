@@ -168,3 +168,54 @@ export const oneCodeStore = (url: string) => {
   </script>
 </body></html>`;
 };
+
+/**
+ * A Shopify checkout as the platform builds it: Shopify's own field names and markers, so the
+ * Shopify template recognises it. Answers in place; SAVE10 takes $10 off.
+ */
+export const shopifyTemplateStore = () => `<!doctype html><html><head><meta charset="utf-8"><title>Checkout</title>
+  <link rel="preconnect" href="https://cdn.shopify.com"></head><body style="margin:40px">
+  <h1>Checkout</h1>
+  <form id="discount" onsubmit="event.preventDefault()">
+    <input id="ReductionsInput0" name="reductions" placeholder="Discount code or gift card" aria-describedby="">
+    <button type="submit" class="_1m2hr9ge">Apply</button>
+  </form>
+  <p>Total <span class="payment-due__price" data-checkout-payment-due-target="8420">$84.20</span></p>
+  <script>
+    const input = document.getElementById("ReductionsInput0");
+    document.getElementById("discount").addEventListener("submit", () => setTimeout(() => {
+      document.getElementById("error-for-reductions")?.remove();
+      if (input.value === "SAVE10") {
+        input.value = "";
+        document.querySelector(".payment-due__price").textContent = "$74.20";
+        return;
+      }
+      const p = document.createElement("p");
+      p.id = "error-for-reductions";
+      p.textContent = "Enter a valid discount code or gift card";
+      document.getElementById("discount").append(p);
+    }, 400));
+  </script>
+</body></html>`;
+
+/** WooCommerce's classic checkout: the coupon box hides behind the platform's own link and a
+ *  code is answered in place, as WooCommerce's checkout script does. */
+export const wooTemplateStore = () => `<!doctype html><html><head><meta charset="utf-8"><title>Checkout</title>
+  <link rel="stylesheet" href="/wp-content/plugins/woocommerce/assets/css/woocommerce.css"></head>
+  <body class="woocommerce-checkout woocommerce-page" style="margin:40px">
+  <div class="woocommerce-notices-wrapper"></div>
+  <div class="woocommerce-form-coupon-toggle"><div class="woocommerce-info">Have a coupon? <a href="#" class="showcoupon">Click here to enter your code</a></div></div>
+  <form class="checkout_coupon woocommerce-form-coupon" style="display:none" onsubmit="event.preventDefault()">
+    <input type="text" name="coupon_code" class="input-text" id="coupon_code" placeholder="Coupon code">
+    <button type="submit" class="button" name="apply_coupon" value="Apply coupon">Apply coupon</button>
+  </form>
+  <table><tr class="order-total"><th>Total</th><td><strong><span class="woocommerce-Price-amount amount">$84.20</span></strong></td></tr></table>
+  <script>
+    document.querySelector(".showcoupon").addEventListener("click", (e) => { e.preventDefault(); document.querySelector(".checkout_coupon").style.display = ""; });
+    document.querySelector(".checkout_coupon").addEventListener("submit", () => setTimeout(() => {
+      const code = document.getElementById("coupon_code").value;
+      document.querySelector(".woocommerce-notices-wrapper").innerHTML =
+        '<ul class="woocommerce-error" role="alert"><li>Coupon "' + code.replace(/[<&"]/g, "") + '" does not exist!</li></ul>';
+    }, 400));
+  </script>
+</body></html>`;
