@@ -12,6 +12,7 @@ const addListenerMocks = {
   onBeforeNavigate: jest.fn(),
   tabsOnActivated: jest.fn(),
   onMessage: jest.fn(),
+  onDOMContentLoaded: jest.fn(),
 };
 
 // In-memory chrome.storage.session, so stand-down records and deferred popups persist
@@ -53,6 +54,7 @@ const chromeMock = {
     get: jest.fn(),
     query: jest.fn(),
     update: jest.fn(),
+    sendMessage: jest.fn().mockResolvedValue(undefined),
   },
   webNavigation: {
     onCommitted: { addListener: addListenerMocks.onCommitted },
@@ -60,6 +62,7 @@ const chromeMock = {
       addListener: addListenerMocks.onHistoryStateUpdated,
     },
     onBeforeNavigate: { addListener: addListenerMocks.onBeforeNavigate },
+    onDOMContentLoaded: { addListener: addListenerMocks.onDOMContentLoaded },
   },
   action: {
     setBadgeText: jest.fn(),
@@ -90,6 +93,7 @@ jest.mock("../lib/store-setup", () => ({
   getStoreSetup: jest.fn(),
   fetchStoreSetupSession: jest.fn(),
   endStoreSetup: jest.fn(),
+  submitStoreSetupRecipe: jest.fn(),
 }));
 import {
   endStoreSetup,
@@ -97,6 +101,7 @@ import {
   getStoreSetup,
   redeemStoreSetupCode,
   StoreSetupEndedError,
+  submitStoreSetupRecipe,
 } from "../lib/store-setup";
 
 import {
@@ -190,6 +195,9 @@ const registeredOnBeforeNavigate =
   addListenerMocks.onBeforeNavigate.mock.calls[0]?.[0];
 const registeredOnActivated =
   addListenerMocks.tabsOnActivated.mock.calls[0]?.[0];
+const registeredOnDOMContentLoaded = addListenerMocks.onDOMContentLoaded.mock.calls[0]?.[0] as (
+  details: { tabId: number; frameId: number; url: string },
+) => void;
 const registeredOnMessage = addListenerMocks.onMessage.mock.calls[0]?.[0] as (
   message: unknown,
   sender: chrome.runtime.MessageSender,
@@ -305,6 +313,239 @@ describe("store setup messages", () => {
   it("ends the session from the options page", async () => {
     expect(await sendMessage({ type: "STORE_SETUP_END" }, optionsPage)).toEqual({ ended: true });
     expect(endStoreSetup).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("store setup on a tab pauses shopper mode there", () => {
+  const popup = { id: "test-extension", url: "chrome-extension://test-extension/popup/popup.html" };
+  const checkoutUrl = "https://shop.example.com/checkout";
+  const setup = {
+    token: "secret-token",
+    apiBaseUrl: "https://api.saverlly.test",
+    sessionId: "s1",
+    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    merchant: { id: "m1", name: "Test Merchant", domain: "shop.example.com" },
+  };
+  const detectorInjections = () =>
+    chromeMock.scripting.executeScript.mock.calls.filter(([arg]) =>
+      (arg as { files?: string[] }).files?.includes("content-scripts/checkout-detector.js"),
+    );
+  const start = (tabId = 7) => sendMessage({ type: "STORE_SETUP_START_TAB", tabId }, popup);
+  const confirm = (tabId = 7) =>
+    sendMessage(
+      { type: "CHECKOUT_CONFIRMED", merchantId: "m1", referrer: "" },
+      { tab: { id: tabId } } as chrome.runtime.MessageSender,
+    );
+
+  beforeEach(() => {
+    mockRunAttribution.mockReset().mockResolvedValue(null);
+    mockIsDormant.mockReset().mockResolvedValue(false);
+    mockGetCachedMerchant.mockReset().mockResolvedValue(null);
+    mockSetCachedMerchant.mockReset().mockResolvedValue(undefined);
+    // Only the store is a merchant, so other sites never get a detector of their own.
+    mockFetchMerchantByDomain
+      .mockReset()
+      .mockImplementation(async (domain) => (domain === "shop.example.com" ? merchant : null));
+    mockReportCouponTestEvent.mockReset().mockResolvedValue(undefined);
+    mockGetPersistedTabState.mockReset().mockResolvedValue(null);
+    jest.mocked(getStoreSetup).mockReset().mockResolvedValue(setup);
+    chromeMock.tabs.get.mockReset().mockResolvedValue({ id: 7, url: checkoutUrl, active: true });
+    chromeMock.tabs.query.mockReset().mockResolvedValue([{ id: 7 }]);
+    chromeMock.cookies.getAll.mockReset().mockResolvedValue([]);
+    chromeMock.scripting.executeScript.mockClear();
+    chromeMock.action.setBadgeText.mockClear();
+    chromeMock.action.openPopup.mockClear();
+    for (const key of Object.keys(sessionStore)) delete sessionStore[key];
+  });
+
+  it("starts only on the store's own site, during a live session", async () => {
+    chromeMock.tabs.get.mockResolvedValue({ id: 7, url: "https://evil-shop.example.com.attacker.test/checkout" });
+    expect(await start()).toEqual({ error: "Open shop.example.com in this tab first.", reason: "wrong-site" });
+    jest.mocked(getStoreSetup).mockResolvedValue(null);
+    expect(await start()).toEqual({
+      error: "Store setup has ended. Start a new one from the dashboard.",
+      reason: "no-session",
+    });
+    expect(sessionStore.storeSetupTabs).toBeUndefined();
+  });
+
+  it("refuses to start in the middle of a coupon run on that tab", async () => {
+    mockGetPersistedTabState.mockResolvedValue({
+      merchantId: "m1",
+      merchantName: "Test Merchant",
+      coupons: [],
+      suppressedStepdown: false,
+      applyProgress: { type: "COUPON_APPLY_PROGRESS", phase: "testing", code: "SAVE10", index: 1, total: 1 },
+      applyResult: null,
+    });
+    expect(await start(31)).toMatchObject({ reason: "busy" });
+  });
+
+  it("clears the tab's shopper state and pauses detection, popups, coupons and attribution", async () => {
+    await confirm();
+    expect(chromeMock.action.setBadgeText).toHaveBeenLastCalledWith({ tabId: 7, text: "%" });
+
+    expect(await start()).toEqual({ started: true });
+    expect(chromeMock.action.setBadgeText).toHaveBeenLastCalledWith({ tabId: 7, text: "" });
+    expect(await sendMessage({ type: "GET_TAB_STATE" })).toBeNull();
+
+    chromeMock.scripting.executeScript.mockClear();
+    chromeMock.action.setBadgeText.mockClear();
+    chromeMock.action.openPopup.mockClear();
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: checkoutUrl, transitionQualifiers: [] });
+    await confirm();
+    expect(detectorInjections()).toHaveLength(0);
+    expect(chromeMock.action.setBadgeText).not.toHaveBeenCalledWith({ tabId: 7, text: "%" });
+    expect(chromeMock.action.openPopup).not.toHaveBeenCalled();
+    expect(await sendMessage({ type: "APPLY_BEST_COUPON" })).toEqual({ started: false });
+    expect(mockRunAttribution).not.toHaveBeenCalled();
+  });
+
+  it("leaves every other tab working normally", async () => {
+    await start(7);
+    chromeMock.tabs.get.mockResolvedValue({ id: 8, url: checkoutUrl, active: true });
+    await registeredOnCommitted({ tabId: 8, frameId: 0, url: checkoutUrl, transitionQualifiers: [] });
+    expect(detectorInjections()).toHaveLength(1);
+    await confirm(8);
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({ tabId: 8, text: "%" });
+  });
+
+  it("records no affiliate stand-down from the admin's visit", async () => {
+    await start();
+    await registeredOnCommitted({
+      tabId: 7,
+      frameId: 0,
+      url: "https://shop.example.com/product?ranSiteID=pub-123&ranMID=999",
+      transitionQualifiers: [],
+    });
+    await flush();
+    expect(await sendMessage({ type: "STORE_SETUP_STOP_TAB", tabId: 7 }, popup)).toEqual({ stopped: true });
+    await confirm();
+    expect(chromeMock.action.setBadgeText).toHaveBeenCalledWith({ tabId: 7, text: "%" });
+    expect(chromeMock.action.setBadgeText).not.toHaveBeenCalledWith({ tabId: 7, text: "!" });
+  });
+
+  it("resumes shopper mode when stopped, when the tab leaves the store, and when the session ends", async () => {
+    await start();
+    chromeMock.scripting.executeScript.mockClear();
+    await sendMessage({ type: "STORE_SETUP_STOP_TAB", tabId: 7 }, popup);
+    expect(detectorInjections()).toHaveLength(1);
+
+    await start();
+    chromeMock.scripting.executeScript.mockClear();
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: "https://news.example/", transitionQualifiers: [] });
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: checkoutUrl, transitionQualifiers: [] });
+    expect(detectorInjections()).toHaveLength(1);
+
+    await start();
+    jest.mocked(getStoreSetup).mockResolvedValue(null);
+    chromeMock.scripting.executeScript.mockClear();
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: checkoutUrl, transitionQualifiers: [] });
+    expect(detectorInjections()).toHaveLength(1);
+  });
+
+  it("reports the tab's part in setup to the popup", async () => {
+    const status = () => sendMessage({ type: "STORE_SETUP_STATUS", tabId: 7 }, popup);
+    expect(await status()).toMatchObject({ tab: { onStore: true, running: false } });
+    await start();
+    expect(await status()).toMatchObject({ tab: { onStore: true, running: true } });
+    chromeMock.tabs.get.mockResolvedValue({ id: 7, url: "https://news.example/" });
+    expect(await status()).toMatchObject({ tab: { onStore: false, running: false } });
+  });
+
+  describe("the setup panel", () => {
+    const panelInjections = () =>
+      chromeMock.scripting.executeScript.mock.calls.filter(([arg]) =>
+        (arg as { files?: string[] }).files?.includes("content-scripts/store-setup.js"),
+      );
+    const fromTab = (overrides: Partial<chrome.runtime.MessageSender> = {}) =>
+      ({ id: "test-extension", tab: { id: 7 }, frameId: 0, url: checkoutUrl, ...overrides }) as chrome.runtime.MessageSender;
+
+    it("is drawn on the tab's top frame when setup starts, and on every new store page", async () => {
+      await start();
+      expect(panelInjections()).toEqual([
+        [{ target: { tabId: 7, frameIds: [0] }, files: ["content-scripts/store-setup.js"] }],
+      ]);
+      registeredOnDOMContentLoaded({ tabId: 7, frameId: 0, url: "https://shop.example.com/cart" });
+      registeredOnDOMContentLoaded({ tabId: 7, frameId: 3, url: "https://shop.example.com/frame" });
+      registeredOnDOMContentLoaded({ tabId: 8, frameId: 0, url: checkoutUrl });
+      await flush();
+      expect(panelInjections()).toHaveLength(2);
+    });
+
+    it("gives its context only to the setup tab's top frame on the store's site", async () => {
+      await start();
+      const context = () => sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab());
+      expect(await context()).toEqual({ sessionId: "s1", storeName: "Test Merchant", domain: "shop.example.com" });
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab({ frameId: 2 }))).toBeNull();
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab({ tab: { id: 8 } as chrome.tabs.Tab }))).toBeNull();
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab({ id: "another-extension" }))).toBeNull();
+      // A frame that has left the store ends setup on the tab.
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab({ url: "https://news.example/" }))).toBeNull();
+      expect(await context()).toBeNull();
+    });
+
+    it("keeps progress for the next page, within a size limit", async () => {
+      await start();
+      const progress = { version: 1, step: 1, picks: { promoField: { selector: "#code", strategy: "id", exact: true } } };
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_PROGRESS", progress }, fromTab())).toEqual({ saved: true });
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab())).toMatchObject({ progress });
+      expect(
+        await sendMessage({ type: "STORE_SETUP_TAB_PROGRESS", progress: { junk: "x".repeat(40_000) } }, fromTab()),
+      ).toEqual({ saved: false });
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab())).toMatchObject({ progress });
+    });
+
+    it("stops from the panel and hands the tab back to shopper mode", async () => {
+      await start();
+      chromeMock.scripting.executeScript.mockClear();
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_STOP" }, fromTab())).toEqual({ stopped: true });
+      expect(detectorInjections()).toHaveLength(1);
+      expect(await sendMessage({ type: "STORE_SETUP_TAB_CONTEXT" }, fromTab())).toBeNull();
+    });
+
+    it("sends the draft from the setup tab only, and says when the session has ended", async () => {
+      await start();
+      const payload = {
+        recipe: { couponFieldSelector: "#c", applyButtonSelector: "#a", cartTotalSelector: "#t", checkoutUrlPatterns: ["/checkout"] },
+        testResult: { passed: true, checks: [{ key: "promoField", outcome: "pass" }], testedAt: new Date().toISOString() },
+      };
+      const submitMessage = { type: "STORE_SETUP_TAB_SUBMIT", payload };
+      jest
+        .mocked(submitStoreSetupRecipe)
+        .mockReset()
+        .mockResolvedValueOnce({} as never)
+        .mockRejectedValueOnce(new StoreSetupEndedError())
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      expect(await sendMessage(submitMessage, fromTab())).toEqual({ ok: true });
+      expect(submitStoreSetupRecipe).toHaveBeenCalledWith(payload);
+      expect(await sendMessage(submitMessage, fromTab())).toEqual({
+        ok: false,
+        ended: true,
+        error: "This store setup session has ended. Start a new one from the dashboard.",
+      });
+      expect(await sendMessage(submitMessage, fromTab())).toEqual({
+        ok: false,
+        ended: false,
+        error: "Could not reach Saverlly. Check the connection and try again.",
+      });
+      expect(await sendMessage(submitMessage, fromTab({ tab: { id: 8 } as chrome.tabs.Tab }))).toBeNull();
+      expect(await sendMessage(submitMessage, fromTab({ frameId: 1 }))).toBeNull();
+      expect(submitStoreSetupRecipe).toHaveBeenCalledTimes(3);
+    });
+
+    it("is told to close when setup is stopped from the popup", async () => {
+      await start();
+      chromeMock.tabs.sendMessage.mockClear();
+      await sendMessage({ type: "STORE_SETUP_STOP_TAB", tabId: 7 }, popup);
+      expect(chromeMock.tabs.sendMessage).toHaveBeenCalledWith(7, { type: "STORE_SETUP_OVERLAY_CLOSE" }, { frameId: 0 });
+    });
+  });
+
+  it("only takes start and stop from Saverlly's own pages", async () => {
+    const page = { id: "test-extension", tab: { id: 7 } as chrome.tabs.Tab, url: checkoutUrl };
+    expect(await sendMessage({ type: "STORE_SETUP_START_TAB", tabId: 7 }, page)).toMatchObject({ error: expect.any(String) });
+    expect(sessionStore.storeSetupTabs).toBeUndefined();
   });
 });
 

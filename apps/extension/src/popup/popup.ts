@@ -7,6 +7,7 @@ import type {
   CouponApplyProgressMessage,
   CouponApplyResultMessage,
   ExtensionMessage,
+  StoreSetupTabStatus,
   TabCheckoutState,
 } from "../lib/messages";
 
@@ -57,7 +58,8 @@ type View =
   | "applying"
   | "success"
   | "failure"
-  | "coupon-list";
+  | "coupon-list"
+  | "setup";
 type PillStatus = "pending" | "testing" | "applying" | "failed" | "applied";
 
 let tabState: TabCheckoutState | null = null;
@@ -70,6 +72,11 @@ let applyError = false;
 let applyRequested = false;
 let deviceDormant = false;
 let reviewerFormOpen = false;
+// Admin store setup: the session (none for shoppers), this tab's part in it, and whether a
+// setup message is on screen that later renders must leave alone.
+let setupStatus: StoreSetupStatus | null = null;
+let setupTab: StoreSetupTabStatus | null = null;
+let setupViewPinned = false;
 let applyStalled = false;
 let applyWatchdog: ReturnType<typeof setTimeout> | undefined;
 // Every live progress update re-renders "applying" and so re-arms this. One code can take up
@@ -101,6 +108,9 @@ function buttonArrow(light = false): string {
 }
 
 function render(view: View): void {
+  // A setup message the admin is reading must not be replaced by the popup's own first render
+  // finishing late (the pill can be clicked before init() completes).
+  if (setupViewPinned && view !== "setup") return;
   clearTimeout(applyWatchdog);
   if (view === "applying")
     applyWatchdog = setTimeout(() => {
@@ -109,8 +119,9 @@ function render(view: View): void {
       render("failure");
     }, APPLY_STALL_MS);
   content.dataset.view = view;
-  // Nothing has been saved by a disconnected install, so "Lifetime Saved: —" is just noise.
-  if (lifetimeEl) lifetimeEl.hidden = view === "inactive";
+  // Nothing has been saved by a disconnected install, so "Lifetime Saved: —" is just noise; nor
+  // is it relevant to an admin setting a store up.
+  if (lifetimeEl) lifetimeEl.hidden = view === "inactive" || view === "setup";
   switch (view) {
     case "inactive":
       if (reviewerFormOpen) return;
@@ -143,7 +154,31 @@ function render(view: View): void {
     case "coupon-list":
       renderCouponList();
       return;
+    case "setup":
+      renderSetupTab();
+      return;
   }
+}
+
+/** Shown instead of shopper states on a tab where an admin is setting the store up. */
+function renderSetupTab(error?: string): void {
+  content.innerHTML = `
+    ${PAUSED_HERO}
+    <p class="popup__heading">Store setup in progress</p>
+    <p class="popup__subtext" id="setup-tab-text"></p>
+    <button class="popup__button" id="setup-stop-btn" type="button">Stop setup on this page ${buttonArrow()}</button>`;
+  // The domain comes from the server: text only.
+  document.getElementById("setup-tab-text")!.textContent =
+    error ??
+    `Coupons are paused on this tab while you set up ${setupStatus?.merchant.domain ?? "this store"}. Saverlly works normally on other tabs.`;
+  const stop = document.getElementById("setup-stop-btn") as HTMLButtonElement;
+  stop.addEventListener("click", () => {
+    if (activeTabId === undefined) return;
+    stop.disabled = true;
+    void send({ type: "STORE_SETUP_STOP_TAB", tabId: activeTabId })
+      .catch(() => undefined)
+      .then(() => init());
+  });
 }
 
 function renderNoOffer(): void {
@@ -486,25 +521,63 @@ function renderReviewerForm(): void {
   });
 }
 
+
 /** Local state only (no network call), so it never slows the popup down. */
-async function renderSetupPill(): Promise<void> {
-  if (!setupPillEl) return;
-  const response = (await send({ type: "STORE_SETUP_STATUS" }).catch(
+async function loadSetupStatus(tabId: number | undefined): Promise<void> {
+  const response = (await send({ type: "STORE_SETUP_STATUS", tabId }).catch(
     () => null,
-  )) as { setup?: StoreSetupStatus | null } | null | undefined;
-  const setup = response?.setup;
-  if (!setup) {
+  )) as { setup?: StoreSetupStatus | null; tab?: StoreSetupTabStatus } | null | undefined;
+  setupStatus = response?.setup ?? null;
+  setupTab = response?.tab ?? null;
+}
+
+/** The header pill an admin sees during store setup; shoppers never have a session, so for
+ *  them it stays hidden. On the store's own site it starts setup on this tab. */
+function renderSetupPill(): void {
+  if (!setupPillEl) return;
+  if (!setupStatus) {
     setupPillEl.hidden = true;
     return;
   }
-  setupPillEl.textContent = `Setting up ${setup.merchant.domain}`;
-  setupPillEl.title = `Store setup ends in ${formatTimeLeft(setup.expiresAt)}. Click to manage.`;
+  const timeLeft = `Store setup ends in ${formatTimeLeft(setupStatus.expiresAt)}.`;
+  if (setupTab?.running) {
+    setupPillEl.textContent = "Setup running here";
+    setupPillEl.title = `${timeLeft} Click to manage.`;
+    setupPillEl.dataset.action = "manage";
+  } else if (setupTab?.onStore) {
+    setupPillEl.textContent = "Set up this store";
+    setupPillEl.title = `${timeLeft} Click to start point-and-click setup on this page.`;
+    setupPillEl.dataset.action = "start";
+  } else {
+    setupPillEl.textContent = `Setting up ${setupStatus.merchant.domain}`;
+    setupPillEl.title = `${timeLeft} Click to manage.`;
+    setupPillEl.dataset.action = "manage";
+  }
   setupPillEl.hidden = false;
 }
 
 setupPillEl?.addEventListener("click", () => {
-  void chrome.runtime.openOptionsPage();
-  window.close();
+  if (setupPillEl.dataset.action !== "start" || activeTabId === undefined) {
+    void chrome.runtime.openOptionsPage();
+    window.close();
+    return;
+  }
+  setupPillEl.setAttribute("disabled", "");
+  void send({ type: "STORE_SETUP_START_TAB", tabId: activeTabId })
+    .then((result) => {
+      const response = result as { started?: boolean; error?: string } | undefined;
+      if (response?.started) {
+        window.close();
+        return;
+      }
+      setupPillEl.removeAttribute("disabled");
+      setupViewPinned = true;
+      render("setup");
+      renderSetupTab(response?.error ?? "Could not start setup on this page. Reload it and try again.");
+      const stop = document.getElementById("setup-stop-btn");
+      if (stop) stop.hidden = true;
+    })
+    .catch(() => setupPillEl.removeAttribute("disabled"));
 });
 
 async function renderPromo(): Promise<void> {
@@ -603,12 +676,18 @@ document
 
 async function init(): Promise<void> {
   void refreshLifetimeSaved();
-  void renderSetupPill();
   // Fire-and-forget alongside the view: the promo slot lives outside #content, so it is
   // independent of which view wins below and must not delay rendering that view.
   void renderPromo();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTabId = tab?.id;
+  await loadSetupStatus(activeTabId);
+  renderSetupPill();
+  // Shopper states don't apply where an admin is setting the store up, connected or not.
+  if (setupTab?.running) {
+    render("setup");
+    return;
+  }
   const status = (await send({ type: "GET_EXTENSION_STATUS" }).catch(
     () => null,
   )) as { dormant?: boolean } | null;

@@ -25,6 +25,7 @@ const entryPoints = [
   'src/background/service-worker.ts',
   'src/content-scripts/checkout-detector.ts',
   'src/content-scripts/coupon-applier.ts',
+  'src/content-scripts/store-setup.ts',
   'src/popup/popup.ts',
   'src/options/options.ts',
 ];

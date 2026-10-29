@@ -2,6 +2,7 @@ import type {
   CheckoutRecipe,
   CouponTestResult,
   PublicCoupon,
+  SubmitStoreSetupRecipePayload,
 } from "@saverlly/shared-types";
 
 export interface CheckoutConfirmedMessage {
@@ -77,11 +78,44 @@ export type StoreSetupMessage =
   | { type: "STORE_SETUP_REDEEM"; code: string }
   /** verify: also confirm with the backend that the session is still live (it may have been
    *  cancelled on the dashboard). Without it, only local state is read: no network call. */
-  | { type: "STORE_SETUP_STATUS"; verify?: boolean }
-  | { type: "STORE_SETUP_END" };
+  | { type: "STORE_SETUP_STATUS"; verify?: boolean; tabId?: number }
+  | { type: "STORE_SETUP_END" }
+  /** Start or stop point-and-click setup on a tab; shopper behaviour pauses there meanwhile. */
+  | { type: "STORE_SETUP_START_TAB" | "STORE_SETUP_STOP_TAB"; tabId: number };
+
+/** Sent by the setup content script on the tab being set up (top frame only). */
+export type StoreSetupTabMessage =
+  | { type: "STORE_SETUP_TAB_CONTEXT" }
+  | { type: "STORE_SETUP_TAB_STOP" }
+  | { type: "STORE_SETUP_TAB_PROGRESS"; progress: unknown }
+  | { type: "STORE_SETUP_TAB_SUBMIT"; payload: SubmitStoreSetupRecipePayload };
+
+/** The service worker's answer to STORE_SETUP_TAB_SUBMIT. */
+export type StoreSetupSubmitResult = { ok: true } | { ok: false; ended: boolean; error: string };
+
+/** What the setup content script needs to draw its panel and carry on where it left off. */
+export interface StoreSetupTabContext {
+  sessionId: string;
+  storeName: string;
+  domain: string;
+  progress?: unknown;
+}
+
+/** Sent by the service worker to the setup tab when setup ends there. */
+export const STORE_SETUP_OVERLAY_CLOSE = "STORE_SETUP_OVERLAY_CLOSE";
+
+/** STORE_SETUP_STATUS with a tabId also reports on that tab. */
+export interface StoreSetupTabStatus {
+  /** The tab is on the store being set up. */
+  onStore: boolean;
+  /** Point-and-click setup is running on the tab. */
+  running: boolean;
+}
 
 export type ExtensionMessage =
   | StoreSetupMessage
+  | StoreSetupTabMessage
+  | { type: typeof STORE_SETUP_OVERLAY_CLOSE }
   | { type: "ACTIVATE_REVIEWER"; code: string }
   | { type: "DEVICE_STATUS_CHANGED"; dormant: boolean }
   | {
@@ -130,6 +164,8 @@ export interface InjectedCheckoutContext {
 declare global {
   interface Window {
     __SAVERLLY_APPLYING__?: boolean;
+    /** Set while the store setup panel is running on this page. */
+    __SAVERLLY_SETUP__?: boolean;
     __SAVERLLY_DETECTOR__?: () => void;
     __SAVERLLY__?: InjectedCheckoutContext;
   }
