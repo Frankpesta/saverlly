@@ -87,6 +87,27 @@ input:focus-visible {
   height: 42px;
   margin-top: 16px;
 }
+.popup__setup-pill {
+  max-width: 270px;
+  height: 34px;
+  margin: 20px 18px 0 auto;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 17px;
+  background: var(--teal-tint);
+  color: var(--teal-dark);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 34px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.popup__setup-pill[hidden] {
+  display: none;
+}
 .popup__close {
   width: 24px;
   height: 24px;
@@ -628,7 +649,8 @@ input:focus-visible {
 /* --- States with no frame of their own (loading, no offer, not connected) ----------------------- */
 .popup__content[data-view="loading"],
 .popup__content[data-view="no-offer"],
-.popup__content[data-view="inactive"] {
+.popup__content[data-view="inactive"],
+.popup__content[data-view="setup"] {
   padding-left: 40px;
   padding-right: 40px;
 }
@@ -638,22 +660,30 @@ input:focus-visible {
   font-size: 18px;
 }
 .popup__content[data-view="no-offer"] .popup__hero,
-.popup__content[data-view="inactive"] .popup__hero {
+.popup__content[data-view="inactive"] .popup__hero,
+.popup__content[data-view="setup"] .popup__hero {
   margin-left: -40px;
 }
 .popup__content[data-view="no-offer"] .popup__heading,
-.popup__content[data-view="inactive"] .popup__heading {
+.popup__content[data-view="inactive"] .popup__heading,
+.popup__content[data-view="setup"] .popup__heading {
   margin-top: -6px;
   font-size: 36px;
   line-height: 43.2px;
 }
 .popup__content[data-view="no-offer"] .popup__subtext,
-.popup__content[data-view="inactive"] .popup__subtext {
+.popup__content[data-view="inactive"] .popup__subtext,
+.popup__content[data-view="setup"] .popup__subtext {
   margin-top: 16px;
   line-height: 22px;
 }
 .popup__content[data-view="inactive"] .popup__link {
   margin-top: 22px;
+}
+/* The setup view's button sits inside the 40px side padding, so it spans that width. */
+.popup__content[data-view="setup"] .popup__button {
+  width: 100%;
+  margin: 28px 0 8px;
 }
 .popup__reviewer-form {
   display: flex;

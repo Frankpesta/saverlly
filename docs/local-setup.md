@@ -106,15 +106,17 @@ database.
 
 ### Extension: build-time only (`apps/extension`)
 
-The extension gets its API address and device token from the desktop agent at runtime, so
-local builds need no variables.
+Every build bakes in a backend address, used whenever the desktop agent hasn't supplied one
+(admin laptops, reviewers). `npm run build` and `npm run build:reviewers` bake in the live
+backend; `npm run build:local` and `npm run dev` bake in `http://localhost:3000`.
 
 | Variable | Notes |
 | --- | --- |
-| `SAVERLLY_REVIEWER_API_URL` | Only for `npm run build:reviewers`, which bakes in the backend that reviewer codes talk to |
+| `SAVERLLY_API_URL` | Overrides the baked-in backend for any build. Must be HTTPS, localhost, or the approved live origin |
+| `SAVERLLY_REVIEWER_API_URL` | Older name for `SAVERLLY_API_URL` that also turns reviewer access on |
 
 Load it in Chrome via `chrome://extensions` > Developer mode > **Load unpacked** >
-`apps/extension/dist` (after `npm run build -w @saverlly/extension`).
+`apps/extension/dist` (after `npm run build:local -w @saverlly/extension`).
 
 ### Desktop agent (`apps/agent`)
 

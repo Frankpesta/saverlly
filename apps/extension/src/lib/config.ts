@@ -1,12 +1,15 @@
-// Swap for the deployed API origin at build/packaging time, or override at runtime via
-// setApiBaseUrl (the desktop agent will do this via native messaging in Phase 4).
-export const DEFAULT_API_BASE_URL = 'http://localhost:3000';
+declare const __API_BASE_URL__: string;
+declare const __REVIEWER_ACCESS__: boolean;
 
-declare const __REVIEWER_API_BASE_URL__: string;
-// Bundled at release time; reviewers never enter or choose a backend address.
+// The backend baked in at build time (scripts/build.js). The desktop agent can override it at
+// runtime via setApiBaseUrl; without an agent this is the backend the extension talks to.
+export const DEFAULT_API_BASE_URL =
+  typeof __API_BASE_URL__ === 'string' && __API_BASE_URL__ ? __API_BASE_URL__ : 'http://localhost:3000';
+
+// Only the reviewer build turns reviewer access on; reviewers never enter or choose a backend
+// address, they always use the bundled one.
 export function getReviewerApiBaseUrl(): string | null {
-  return typeof __REVIEWER_API_BASE_URL__ === 'string' && __REVIEWER_API_BASE_URL__
-    ? __REVIEWER_API_BASE_URL__ : null;
+  return typeof __REVIEWER_ACCESS__ === 'boolean' && __REVIEWER_ACCESS__ ? DEFAULT_API_BASE_URL : null;
 }
 
 export async function getApiBaseUrl(): Promise<string> {

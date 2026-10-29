@@ -15,6 +15,7 @@ import { CommissionsService } from '../src/commissions/commissions.service';
 import { PayoutsService } from '../src/payouts/payouts.service';
 import { DevicesService } from '../src/devices/devices.service';
 import { MerchantsService } from '../src/merchants/merchants.service';
+import { PlatformDetectionService } from '../src/merchants/platform-detection.service';
 import { PublicApiService } from '../src/public-api/public-api.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { AffiliateAdapterRegistryService } from '../src/affiliate-adapters/affiliate-adapter-registry.service';
@@ -471,7 +472,9 @@ describe('financial and sourcing reliability regressions', () => {
   });
 
   it('saves and updates the merchant sub-ID configuration', async () => {
-    const service = new MerchantsService(prisma);
+    const service = new MerchantsService(prisma, {
+      detectInBackground: jest.fn(),
+    } as unknown as PlatformDetectionService);
     const merchant = await service.create({
       name: 'Shop',
       domain: 'subid.test',

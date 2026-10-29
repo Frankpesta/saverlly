@@ -17,7 +17,7 @@ The reviewer build connects directly to the backend because the agent is not the
 npm run package:reviewers --workspace=@saverlly/extension
 ```
 
-`SAVERLLY_REVIEWER_API_URL` can override the reviewer default. HTTP is accepted for localhost development and the explicitly approved live origin above; other remote origins require HTTPS. A standard build without this variable hides reviewer activation and keeps the normal agent workflow. The reviewer extension was rebuilt with the confirmed live origin after local verification. Use the next extension version when preparing the release.
+`SAVERLLY_REVIEWER_API_URL` can override the reviewer default (and, set on its own, also turns reviewer access on). HTTP is accepted for localhost development and the explicitly approved live origin above; other remote origins require HTTPS. Every build bakes in the same live backend for when no agent supplies one, but only the reviewer build shows reviewer activation; a standard `npm run build` hides it and keeps the normal agent workflow. The reviewer extension was rebuilt with the confirmed live origin after local verification. Use the next extension version when preparing the release.
 
 ## Separation and access checks
 

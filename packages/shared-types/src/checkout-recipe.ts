@@ -1,8 +1,9 @@
 export interface CheckoutRecipe {
   couponFieldSelector: string;
   applyButtonSelector: string;
-  successIndicatorSelector: string;
-  failureIndicatorSelector: string;
+  /** Optional, like the backend's CheckoutRecipeDto: absent when a store shows no message. */
+  successIndicatorSelector?: string;
+  failureIndicatorSelector?: string;
   cartTotalSelector: string;
   checkoutUrlPatterns: string[];
   // Optional: some checkouts (e.g. Target) hide the coupon field/apply button behind a

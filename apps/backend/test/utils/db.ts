@@ -83,6 +83,7 @@ async function deleteAllInOrder(): Promise<void> {
   await testPrisma.couponTestEvent.deleteMany();
   await testPrisma.coupon.deleteMany();
   await testPrisma.scrapeSource.deleteMany();
+  await testPrisma.storeSetupSession.deleteMany();
   await testPrisma.merchant.deleteMany();
   await testPrisma.affiliateProgram.deleteMany();
   await testPrisma.announcement.deleteMany();

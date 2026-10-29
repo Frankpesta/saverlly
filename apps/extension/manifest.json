@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Saverlly",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "Finds and applies coupons at checkout. Requires the Saverlly desktop app for Windows. May earn affiliate commission on purchases.",
   "icons": {
     "16": "icons/icon16.png",
@@ -17,6 +17,10 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
   },
   "background": {
     "service_worker": "background/service-worker.js"

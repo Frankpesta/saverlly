@@ -9,10 +9,14 @@ import { deleteMerchantCascade } from '../common/prisma/cascade-delete.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
+import { PlatformDetectionService } from './platform-detection.service';
 
 @Injectable()
 export class MerchantsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platforms: PlatformDetectionService,
+  ) {}
 
   async create(dto: CreateMerchantDto) {
     if (dto.affiliateProgramId) {
@@ -20,7 +24,7 @@ export class MerchantsService {
     }
 
     try {
-      return await this.prisma.merchant.create({
+      const merchant = await this.prisma.merchant.create({
         data: {
           name: dto.name,
           domain: dto.domain.toLowerCase(),
@@ -33,11 +37,32 @@ export class MerchantsService {
           checkoutRecipe: dto.checkoutRecipe
             ? (dto.checkoutRecipe as unknown as Prisma.InputJsonValue)
             : undefined,
+          recipeSavedAt: dto.checkoutRecipe ? new Date() : undefined,
         },
       });
+      // Recognising the platform reads the store's site; the admin needn't wait for it.
+      this.platforms.detectInBackground(merchant.id, merchant.domain);
+      return merchant;
     } catch (err) {
       throw this.mapDomainConflict(err);
     }
+  }
+
+  /** Reads the store's homepage again now and records its platform. */
+  async checkPlatform(id: string) {
+    const merchant = await this.findOneOrThrow(id);
+    const { result, merchant: updated } = await this.platforms.detectAndSave(
+      merchant.id,
+      merchant.domain,
+    );
+    if (!result.reachable)
+      return { reachable: false as const, reason: result.reason };
+    return {
+      reachable: true as const,
+      platform: updated?.platform ?? null,
+      evidence: result.detection?.evidence ?? null,
+      checkedAt: (updated?.platformCheckedAt ?? new Date()).toISOString(),
+    };
   }
 
   findAll() {
@@ -76,12 +101,24 @@ export class MerchantsService {
         dto.affiliateUrlParamValue ?? existing.affiliateUrlParamValue,
     });
 
+    const domain = dto.domain?.toLowerCase();
+    const domainChanged = domain !== undefined && domain !== existing.domain;
     try {
-      return await this.prisma.merchant.update({
+      const merchant = await this.prisma.merchant.update({
         where: { id },
         data: {
           name: dto.name,
-          domain: dto.domain?.toLowerCase(),
+          domain,
+          // A new domain may be a different site: forget the old answer and check again.
+          ...(domainChanged ? { platform: null, platformCheckedAt: null } : {}),
+          // A new recipe starts with a clean bill of health.
+          ...(dto.checkoutRecipe !== undefined
+            ? {
+                recipeSavedAt: new Date(),
+                recipeNeedsRecheckAt: null,
+                recipeProblem: null,
+              }
+            : {}),
           attributionMethod: dto.attributionMethod,
           affiliateTrackingUrl: dto.affiliateTrackingUrl,
           affiliateUrlParamKey: dto.affiliateUrlParamKey,
@@ -97,6 +134,9 @@ export class MerchantsService {
                 : undefined,
         },
       });
+      if (domainChanged)
+        this.platforms.detectInBackground(merchant.id, merchant.domain);
+      return merchant;
     } catch (err) {
       throw this.mapDomainConflict(err);
     }

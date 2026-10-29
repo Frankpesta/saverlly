@@ -1,0 +1,65 @@
+name: Extension e2e
+
+on:
+  pull_request:
+    paths:
+      - "apps/extension/**"
+      - "packages/shared-types/**"
+      - "package-lock.json"
+      - ".github/workflows/extension-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/extension/**"
+      - "packages/shared-types/**"
+      - "package-lock.json"
+      - ".github/workflows/extension-e2e.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: extension-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  store-setup:
+    name: Store setup in a real browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # package.json pins npm 11, whose allowScripts lets Prisma and esbuild run their installs.
+      - run: npm install -g npm@11.16.0
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/extension
+
+      - name: Unit tests
+        run: npm test
+        working-directory: apps/extension
+
+      - name: Typecheck the browser tests
+        run: npx tsc -p e2e/tsconfig.json
+        working-directory: apps/extension
+
+      - name: Build the extension
+        run: npx turbo run build --filter=@saverlly/extension
+
+      - name: Real-browser tests
+        run: npm run test:e2e
+        working-directory: apps/extension
+
+      - name: Upload the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-e2e-report
+          path: coverage/extension-e2e/
+          retention-days: 14

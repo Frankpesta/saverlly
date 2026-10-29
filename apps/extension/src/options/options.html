@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Saverlly store setup</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <!-- Admin-only. Reached from the toolbar icon's right-click menu (Options), never from the
+         shopper-facing popup, so kiosk shoppers don't come across it. -->
+    <div class="setup">
+      <header class="setup__header">
+        <img class="setup__logo" src="../popup/assets/design-logo.svg" alt="Saverlly" />
+        <span class="setup__badge">Store setup</span>
+      </header>
+      <main id="app" class="setup__card" aria-live="polite">
+        <p class="setup__text">Loading…</p>
+      </main>
+      <p class="setup__footnote">
+        For Saverlly admins. Shoppers never see this page, and Saverlly keeps working normally
+        while a store is being set up.
+      </p>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>

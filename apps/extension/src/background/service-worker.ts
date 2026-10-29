@@ -1,9 +1,11 @@
-import type { PublicMerchant } from "@saverlly/shared-types";
+import type { CheckoutRecipe, PublicMerchant } from "@saverlly/shared-types";
 import {
   fetchActivePromotions,
   fetchLifetimeSaved,
   fetchMerchantByDomain,
+  reportRecipeHealth,
 } from "../lib/api-client";
+import type { BackupSelectors } from "../lib/backup-promo-box";
 import { runAttribution } from "../lib/attribution";
 import { usableCoupons } from "../lib/cart-total";
 import {
@@ -18,9 +20,16 @@ import {
 import type {
   CouponApplyResultMessage,
   ExtensionMessage,
+  RecipeHealthMessage,
   InjectedCheckoutContext,
+  StoreSetupMessage,
+  StoreSetupSubmitResult,
+  StoreSetupTabContext,
+  StoreSetupTabMessage,
+  StoreSetupTabStatus,
   TabCheckoutState,
 } from "../lib/messages";
+import { STORE_SETUP_OVERLAY_CLOSE } from "../lib/messages";
 import { connectToAgentAndReceiveToken } from "../lib/native-messaging";
 import {
   checkStepDown,
@@ -30,6 +39,24 @@ import {
 } from "../lib/step-down-check";
 import { checkDeviceStatus } from "../lib/status-check";
 import { activateReviewer } from "../lib/reviewer-access";
+import {
+  endStoreSetup,
+  fetchStoreSetupSession,
+  getStoreSetup,
+  redeemStoreSetupCode,
+  StoreSetupEndedError,
+  submitStoreSetupRecipe,
+  toStoreSetupStatus,
+} from "../lib/store-setup";
+import {
+  activeStoreSetupTab,
+  clearStoreSetupTabs,
+  isOnStoreDomain,
+  saveStoreSetupProgress,
+  startStoreSetupOnTab,
+  stopStoreSetupOnTab,
+  type StoreSetupTab,
+} from "../lib/store-setup-tabs";
 import { getReviewerAccess } from "../lib/storage";
 import {
   getCachedMerchant,
@@ -163,9 +190,17 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   void setAutoPopupPending(tabId, false);
   clearTabState(tabId);
   void takePendingApply(tabId);
+  void stopStoreSetupOnTab(tabId);
 });
 
 chrome.storage?.onChanged?.addListener((changes, area) => {
+  if (area === "local" && changes.storeSetupSession) {
+    // Setup ended, expired or moved to another store: every tab it paused goes back to normal.
+    const next = changes.storeSetupSession.newValue as { sessionId?: string } | undefined;
+    void clearStoreSetupTabs(next?.sessionId)
+      .then((ended) => Promise.all(ended.map(endSetupOnTab)))
+      .catch(() => {});
+  }
   if (area === "local" && (changes.deviceToken || changes.reviewerAccess)) {
     // A reviewer and an agent may use this installation at different times. Never
     // show one identity's completed checkout as a result belonging to the other.
@@ -196,8 +231,12 @@ async function getMerchantCached(
   fresh = false,
 ): Promise<PublicMerchant | null> {
   const cached = await getCachedMerchant(domain);
+  // A store without a checkout recipe can't be used yet either, so a Save on the dashboard
+  // reaches shoppers within a minute rather than ten.
   const usable =
-    cached?.merchant?.active && usableCoupons(cached.merchant.coupons).length;
+    cached?.merchant?.active &&
+    cached.merchant.checkoutRecipe &&
+    usableCoupons(cached.merchant.coupons).length;
   if (
     !fresh &&
     cached &&
@@ -273,6 +312,7 @@ async function detectTab(
   fresh = false,
 ): Promise<void> {
   if (!url.startsWith("http") || (await isDormant())) return;
+  if (await activeStoreSetupTab(tabId, url)) return;
   const version = navigationVersions.get(tabId);
   const merchant = await resolveMerchant(new URL(url).hostname, fresh);
   if (
@@ -301,6 +341,8 @@ async function handleTopFrameNavigation(
   sameDocument = false,
 ): Promise<void> {
   if (details.frameId !== 0) return;
+  // Leaving the store's site ends setup on this tab; on it, setup carries on across pages.
+  const settingUp = !!(await activeStoreSetupTab(details.tabId, details.url));
 
   if (!sameDocument) {
     const qualifiers = details.transitionQualifiers ?? [];
@@ -311,7 +353,9 @@ async function handleTopFrameNavigation(
         : undefined;
     navigationStarts.delete(details.tabId);
     lastCommittedUrls.set(details.tabId, details.url);
-    void noteAffiliateLanding(details.url, redirectedFrom).catch(() => {});
+    // An admin's setup visit must not leave a stand-down that pauses shoppers on this store.
+    if (!settingUp)
+      void noteAffiliateLanding(details.url, redirectedFrom).catch(() => {});
   }
 
   const previous = await loadTabState(details.tabId);
@@ -399,6 +443,15 @@ async function noteAffiliateLanding(
   await recordAffiliateLanding(merchant.domain);
 }
 
+// Each new page on the store gets the setup panel again; a same-document route change keeps
+// the one already there.
+chrome.webNavigation.onDOMContentLoaded?.addListener((details) => {
+  if (details.frameId !== 0) return;
+  void activeStoreSetupTab(details.tabId, details.url)
+    .then((tab) => (tab ? injectSetupPanel(details.tabId) : undefined))
+    .catch(() => {});
+});
+
 chrome.webNavigation.onBeforeNavigate?.addListener((details) => {
   if (details.frameId === 0) navigationStarts.set(details.tabId, details.url);
 });
@@ -438,6 +491,7 @@ async function onCheckoutConfirmed(
   merchantId: string,
   referrer: string,
   sender: chrome.runtime.MessageSender,
+  backup?: BackupSelectors,
 ): Promise<void> {
   if (await isDormant()) return;
   if (sender.documentId && chrome.webNavigation.getFrame) {
@@ -449,6 +503,8 @@ async function onCheckoutConfirmed(
 
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
   if (!tab?.url) return;
+
+  if (await activeStoreSetupTab(tabId, tab.url)) return;
 
   let hostname: string;
   try {
@@ -487,6 +543,7 @@ async function onCheckoutConfirmed(
     merchantName: merchant.name,
     coupons,
     suppressedStepdown: suppressed,
+    ...(backup ? { backup } : {}),
     applyProgress: null,
     applyResult:
       interrupted?.merchantId === merchant.id ? interrupted : null,
@@ -555,6 +612,71 @@ async function isAutoPopupPending(tabId: number): Promise<boolean> {
 // asked. Checkout detection also runs in background tabs (startup scan, recovery alarm, a cart
 // left open), so opening unconditionally put the popup over YouTube and other unrelated pages.
 // Only open it while the checkout tab is the one being looked at; otherwise defer until it is.
+/**
+ * The store's recipe with its promo box and apply button swapped for the obvious ones found on
+ * the page, while its saved ones are gone. Messages, reveal link and code removal belonged to
+ * the old layout, so they're dropped: the run goes by the order total and keeps the first code
+ * that works.
+ */
+function withBackupPromoBox(recipe: CheckoutRecipe, backup: BackupSelectors): CheckoutRecipe {
+  return {
+    couponFieldSelector: backup.couponFieldSelector,
+    applyButtonSelector: backup.applyButtonSelector,
+    cartTotalSelector: recipe.cartTotalSelector,
+    checkoutUrlPatterns: recipe.checkoutUrlPatterns,
+  };
+}
+
+// Each store's recipe is reported on at most once a day per outcome by this browser.
+const RECIPE_HEALTH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/** Passes a checkout's verdict on a store's recipe to the backend (keeping stores working). */
+async function onRecipeHealth(
+  message: RecipeHealthMessage,
+  sender: chrome.runtime.MessageSender,
+): Promise<void> {
+  const url = sender.tab?.url;
+  if (sender.tab?.id === undefined || sender.frameId !== 0 || !url) return;
+  // Reviewers use the store, not report on it; a dormant extension reports nothing.
+  if ((await isDormant()) || (await getReviewerAccess())) return;
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return;
+  }
+  const merchant = await resolveMerchant(hostname);
+  if (merchant?.id !== message.merchantId) return;
+  const key = `${message.merchantId}:${message.ok ? "ok" : message.problem}`;
+  const { recipeHealthSentAt = {} } = (await chrome.storage.local.get("recipeHealthSentAt")) as {
+    recipeHealthSentAt?: Record<string, number>;
+  };
+  if (Date.now() - (recipeHealthSentAt[key] ?? 0) < RECIPE_HEALTH_INTERVAL_MS) return;
+  const { type: _type, ...report } = message;
+  try {
+    await reportRecipeHealth(report);
+  } catch {
+    return; // tried again on a later visit
+  }
+  // Forget entries old enough to send again, so the record doesn't grow forever.
+  const kept = Object.fromEntries(
+    Object.entries(recipeHealthSentAt).filter(([, at]) => Date.now() - at < RECIPE_HEALTH_INTERVAL_MS),
+  );
+  await chrome.storage.local.set({ recipeHealthSentAt: { ...kept, [key]: Date.now() } });
+}
+
+/** What a store-setup request failure says to the admin. fetch() rejects with a TypeError when
+ *  offline and a TimeoutError on timeout; neither message is meant for people. */
+function storeSetupErrorMessage(error: unknown): string {
+  const unreachable =
+    !(error instanceof Error) ||
+    error instanceof TypeError ||
+    error.name === "TimeoutError";
+  return unreachable
+    ? "Could not reach Saverlly. Check the connection and try again."
+    : error.message;
+}
+
 async function openPopupWhenVisible(tabId: number): Promise<void> {
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
   const window = tab?.active
@@ -577,7 +699,12 @@ async function openPopupWhenVisible(tabId: number): Promise<void> {
   // the next tab switch or window focus tries again. The badge stays as the fallback throughout.
   for (const delay of POPUP_RETRY_DELAYS_MS) {
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
-    if (delay && !(await stillAwaitingPopup(tabId))) return;
+    const awaiting = delay ? await stillAwaitingPopup(tabId) : "now";
+    if (awaiting === "done") return;
+    if (awaiting === "later") {
+      await setAutoPopupPending(tabId, true);
+      return;
+    }
     try {
       await openPopup({ windowId: tab.windowId });
       return;
@@ -590,13 +717,15 @@ async function openPopupWhenVisible(tabId: number): Promise<void> {
 
 const POPUP_RETRY_DELAYS_MS = [0, 500, 1500, 3000];
 
-// The retries above must not open the popup over a different tab, or after the shopper has
-// already opened it themselves and started applying.
-async function stillAwaitingPopup(tabId: number): Promise<boolean> {
+// The retries above must not open the popup over a different tab ("later": it stays pending
+// for when the shopper comes back), or after the shopper has already opened it themselves and
+// started applying ("done").
+async function stillAwaitingPopup(tabId: number): Promise<"now" | "later" | "done"> {
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
-  if (!tab?.active) return false;
+  if (!tab) return "done";
   const state = await loadTabState(tabId);
-  return !!state && !state.applyProgress && !state.applyResult;
+  if (!state || state.applyProgress || state.applyResult) return "done";
+  return tab.active ? "now" : "later";
 }
 
 // A deferred popup only makes sense while that checkout is still waiting for the shopper.
@@ -604,6 +733,7 @@ async function openDeferredPopup(tabId: number): Promise<void> {
   if (!(await isAutoPopupPending(tabId))) return;
   const state = await loadTabState(tabId);
   if (
+    (await activeStoreSetupTab(tabId)) ||
     !state ||
     state.suppressedStepdown ||
     state.applyProgress ||
@@ -653,6 +783,7 @@ async function startApply(
   const state = await loadTabState(tabId);
   const tab = await chrome.tabs.get(tabId).catch(() => undefined);
   if (!state || !tab?.url) return false;
+  if (await activeStoreSetupTab(tabId, tab.url)) return false;
   if (state.checkoutUrl && state.checkoutUrl !== checkoutPath(tab.url))
     return false;
   if (state.applyProgress && !state.applyResult) return true;
@@ -744,7 +875,9 @@ async function startApply(
     ["content-scripts/coupon-applier.js"],
     {
       merchantId: merchant.id,
-      recipe: merchant.checkoutRecipe,
+      recipe: state.backup
+        ? withBackupPromoBox(merchant.checkoutRecipe, state.backup)
+        : merchant.checkoutRecipe,
       coupons,
       runId,
     },
@@ -773,11 +906,175 @@ async function patchTabState(
   saveTabState(tabId, { ...state, ...patch });
 }
 
+const STORE_SETUP_PAGES = ["options/options.html", "popup/popup.html"];
+
+/** Only the extension's own admin-facing pages, never a content script on a store's page. */
+function isStoreSetupPage(sender: chrome.runtime.MessageSender): boolean {
+  if (sender.id !== chrome.runtime.id || !sender.url) return false;
+  const url = sender.url.split(/[?#]/)[0];
+  return STORE_SETUP_PAGES.some((page) => url === chrome.runtime.getURL(page));
+}
+
+async function handleStoreSetupMessage(
+  message: StoreSetupMessage,
+): Promise<unknown> {
+  switch (message.type) {
+    case "STORE_SETUP_REDEEM":
+      try {
+        return { setup: toStoreSetupStatus(await redeemStoreSetupCode(message.code)) };
+      } catch (error) {
+        return { error: storeSetupErrorMessage(error) };
+      }
+    case "STORE_SETUP_STATUS": {
+      const record = await getStoreSetup();
+      if (record && message.verify) {
+        try {
+          await fetchStoreSetupSession();
+        } catch (error) {
+          // Ended on the backend: already cleared. Anything else (offline, timeout) is not
+          // proof the session ended, so the local one stands.
+          if (error instanceof StoreSetupEndedError) return { setup: null };
+        }
+      }
+      if (!record) return { setup: null };
+      if (message.tabId === undefined) return { setup: toStoreSetupStatus(record) };
+      const tab = await chrome.tabs.get(message.tabId).catch(() => undefined);
+      const status: StoreSetupTabStatus = {
+        onStore: isOnStoreDomain(tab?.url, record.merchant.domain),
+        running: !!tab?.url && !!(await activeStoreSetupTab(message.tabId, tab.url)),
+      };
+      return { setup: toStoreSetupStatus(record), tab: status };
+    }
+    case "STORE_SETUP_END":
+      await endStoreSetup();
+      return { ended: true };
+    case "STORE_SETUP_START_TAB":
+      return startSetupOnTab(message.tabId);
+    case "STORE_SETUP_STOP_TAB": {
+      const stopped = await stopStoreSetupOnTab(message.tabId);
+      if (stopped) await endSetupOnTab(message.tabId);
+      return { stopped };
+    }
+  }
+}
+
+/** The setup tab a message came from: only its top frame, only while setup runs there and the
+ *  frame is on the store's site. Anything else (another tab, a frame, another site) is null. */
+async function senderSetupTab(sender: chrome.runtime.MessageSender): Promise<StoreSetupTab | null> {
+  const tabId = sender.tab?.id;
+  if (sender.id !== chrome.runtime.id || tabId === undefined || sender.frameId !== 0 || !sender.url) return null;
+  return activeStoreSetupTab(tabId, sender.url);
+}
+
+async function handleStoreSetupTabMessage(
+  message: StoreSetupTabMessage,
+  sender: chrome.runtime.MessageSender,
+): Promise<unknown> {
+  const tab = await senderSetupTab(sender);
+  const tabId = sender.tab?.id;
+  if (!tab || tabId === undefined) return null;
+  switch (message.type) {
+    case "STORE_SETUP_TAB_CONTEXT": {
+      const setup = await getStoreSetup();
+      if (!setup) return null;
+      const context: StoreSetupTabContext = {
+        sessionId: tab.sessionId,
+        storeName: setup.merchant.name,
+        domain: setup.merchant.domain,
+        progress: tab.progress,
+      };
+      return context;
+    }
+    case "STORE_SETUP_TAB_PROGRESS":
+      return { saved: await saveStoreSetupProgress(tabId, tab.sessionId, message.progress) };
+    case "STORE_SETUP_TAB_STOP":
+      await stopStoreSetupOnTab(tabId);
+      await resumeShopperMode(tabId);
+      return { stopped: true };
+    case "STORE_SETUP_TAB_SUBMIT": {
+      let result: StoreSetupSubmitResult;
+      try {
+        await submitStoreSetupRecipe(message.payload);
+        result = { ok: true };
+      } catch (error) {
+        result = {
+          ok: false,
+          ended: error instanceof StoreSetupEndedError,
+          error: storeSetupErrorMessage(error),
+        };
+      }
+      return result;
+    }
+  }
+}
+
+/** Draws the setup panel on the tab's top frame. Safe to repeat: the script guards itself. */
+async function injectSetupPanel(tabId: number): Promise<void> {
+  await chrome.scripting
+    .executeScript({ target: { tabId, frameIds: [0] }, files: ["content-scripts/store-setup.js"] })
+    .catch(() => {
+      // Tab closed, or a page scripts can't run on (the Web Store, a browser page).
+    });
+}
+
+/** Setup has ended on a tab: take the panel down and give the tab back to shopper mode. */
+async function endSetupOnTab(tabId: number): Promise<void> {
+  await chrome.tabs
+    .sendMessage(tabId, { type: STORE_SETUP_OVERLAY_CLOSE }, { frameId: 0 })
+    .catch(() => {
+      // No panel there (another page, or the tab already closed).
+    });
+  await resumeShopperMode(tabId);
+}
+
+async function startSetupOnTab(tabId: number): Promise<unknown> {
+  const setup = await getStoreSetup();
+  if (!setup)
+    return { error: "Store setup has ended. Start a new one from the dashboard.", reason: "no-session" };
+  const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+  if (!isOnStoreDomain(tab?.url, setup.merchant.domain))
+    return { error: `Open ${setup.merchant.domain} in this tab first.`, reason: "wrong-site" };
+  // Never interleave setup with a coupon run already working on this checkout.
+  const state = await loadTabState(tabId);
+  if (starting.has(tabId) || (state?.applyProgress && !state.applyResult))
+    return { error: "Saverlly is trying coupons on this page. Wait for it to finish.", reason: "busy" };
+
+  await startStoreSetupOnTab(tabId, setup);
+  // Drop everything shopper mode had going on this tab, including detection still in flight.
+  navigationVersions.set(tabId, (navigationVersions.get(tabId) ?? 0) + 1);
+  clearTabState(tabId);
+  setBadge(tabId, null);
+  await setAutoPopupPending(tabId, false);
+  await takePendingApply(tabId);
+  await injectSetupPanel(tabId);
+  return { started: true };
+}
+
+/** Back to normal on a tab whose setup ended: detect its checkout as if just navigated to. */
+async function resumeShopperMode(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+  if (tab?.url) await detectTab(tabId, tab.url).catch(() => {});
+}
+
 async function handleMessage(
   message: ExtensionMessage,
   sender: chrome.runtime.MessageSender,
 ): Promise<unknown> {
   switch (message.type) {
+    // From the setup panel on the tab being set up; checked against that tab.
+    case "STORE_SETUP_TAB_CONTEXT":
+    case "STORE_SETUP_TAB_PROGRESS":
+    case "STORE_SETUP_TAB_STOP":
+    case "STORE_SETUP_TAB_SUBMIT":
+      return handleStoreSetupTabMessage(message, sender);
+    // From Saverlly's own pages only.
+    case "STORE_SETUP_REDEEM":
+    case "STORE_SETUP_STATUS":
+    case "STORE_SETUP_END":
+    case "STORE_SETUP_START_TAB":
+    case "STORE_SETUP_STOP_TAB":
+      if (!isStoreSetupPage(sender)) return { error: "Store setup is only available from Saverlly's options page." };
+      return handleStoreSetupMessage(message);
     case "ACTIVATE_REVIEWER": {
       if (sender.tab || sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup/popup.html")) return { error: "Open Saverlly to enter your access code." };
       try {
@@ -796,9 +1093,13 @@ async function handleMessage(
         message.merchantId,
         message.referrer,
         sender,
+        message.backup,
       );
       return;
     }
+    case "RECIPE_HEALTH":
+      await onRecipeHealth(message, sender);
+      return;
     case "COUPON_APPLY_RESULT": {
       if (sender.tab?.id === undefined) return;
       const state = await loadTabState(sender.tab.id);
@@ -855,6 +1156,7 @@ async function handleMessage(
     case "GET_TAB_STATE": {
       if (await isDormant()) return null;
       const tabId = await getActiveTabId();
+      if (tabId !== undefined && (await activeStoreSetupTab(tabId))) return null;
       if (tabId !== undefined && !(await loadTabState(tabId))) {
         const tab = await chrome.tabs.get(tabId).catch(() => undefined);
         if (tab?.url) await detectTab(tabId, tab.url, true);

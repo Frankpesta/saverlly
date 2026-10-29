@@ -30,5 +30,14 @@ export function buildSwaggerConfig() {
       },
       'reviewer-token',
     )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'store-setup-token',
+        description: 'Store-scoped token activated at /store-setup/redeem. Only accepted by /store-setup/session endpoints.',
+      },
+      'store-setup-token',
+    )
     .build();
 }

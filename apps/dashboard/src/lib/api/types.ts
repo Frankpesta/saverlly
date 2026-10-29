@@ -1,4 +1,4 @@
-import type { AnnouncementLayout } from "@saverlly/shared-types"
+import type { AnnouncementLayout, RecipeProblem, StorePlatform } from "@saverlly/shared-types"
 
 export type UserRole = "ADMIN" | "KIOSK_OWNER" | "LOCATION_MANAGER"
 
@@ -211,6 +211,12 @@ export type Merchant = {
   affiliateProgramId: string | null
   active: boolean
   checkoutRecipe: CheckoutRecipe | null
+  /** Read from the store's homepage; null when unrecognised or not checked yet. */
+  platform?: StorePlatform | null
+  platformCheckedAt?: string | null
+  /** Set when shoppers' checkouts report the saved recipe out of date. */
+  recipeNeedsRecheckAt?: string | null
+  recipeProblem?: RecipeProblem | null
   createdAt: string
 }
 
@@ -326,6 +332,7 @@ export type NotificationType =
   | "PAYOUT_PROCESSED"
   | "STRIPE_ONBOARDING_CHANGED"
   | "COMMISSION_DIGEST"
+  | "STORE_NEEDS_RECHECK"
 
 export type Notification = {
   id: string

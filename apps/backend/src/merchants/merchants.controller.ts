@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
+import type { PlatformCheckResponse } from '@saverlly/shared-types';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -50,6 +51,20 @@ export class MerchantsController {
   @ApiResponse({ status: 400, description: 'Tracking fields missing for the resulting attributionMethod' })
   update(@Param('id') id: string, @Body() dto: UpdateMerchantDto) {
     return this.merchantsService.update(id, dto);
+  }
+
+  @Post(':id/platform/check')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Recognise the store's shopping platform from its homepage",
+    description:
+      'Reads the public homepage (public addresses only) and records the platform, so store setup can ' +
+      "start from that platform's template. An unreachable site keeps its previous answer.",
+  })
+  @ApiResponse({ status: 200, description: '{ reachable, platform, evidence, checkedAt } or { reachable: false, reason }' })
+  @ApiResponse({ status: 404, description: 'Merchant not found' })
+  checkPlatform(@Param('id', ParseUUIDPipe) id: string): Promise<PlatformCheckResponse> {
+    return this.merchantsService.checkPlatform(id);
   }
 
   @Delete(':id')

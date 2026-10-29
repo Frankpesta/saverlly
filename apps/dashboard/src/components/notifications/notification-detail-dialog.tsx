@@ -20,6 +20,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   PAYOUT_PROCESSED: "Payout",
   STRIPE_ONBOARDING_CHANGED: "Stripe",
   COMMISSION_DIGEST: "Commissions",
+  STORE_NEEDS_RECHECK: "Stores",
 }
 
 // Every trigger that sets metadata today points at something on the Earnings/Payouts screen
@@ -42,6 +43,12 @@ function actionFor(
       return basePath === "/admin"
         ? { label: "View commissions", href: "/admin/commissions" }
         : { label: "View earnings", href: "/portal/earnings" }
+    case "STORE_NEEDS_RECHECK": {
+      const merchantId = notification.metadata?.merchantId
+      return basePath === "/admin" && typeof merchantId === "string"
+        ? { label: "Re-check the store", href: `/admin/merchants/${merchantId}#store-setup` }
+        : null
+    }
     case "KIOSK_OWNER_CREATED":
     case "LOCATION_MANAGER_CREATED":
       return null

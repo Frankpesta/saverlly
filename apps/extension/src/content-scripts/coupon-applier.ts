@@ -1,156 +1,16 @@
-import { couponsInTestOrder, parseCartTotal } from "../lib/cart-total";
+import { couponsInTestOrder } from "../lib/cart-total";
+import {
+  CheckoutActions,
+  ComparisonError,
+  cents,
+  readAppliedCodeFromRemoveControl,
+  readTotal,
+} from "../lib/checkout-actions";
 import { element, elements, isVisible } from "../lib/checkout-dom";
 import type {
   CouponApplyProgressMessage,
   CouponApplyResultMessage,
 } from "../lib/messages";
-
-// Timings dominate how long a run takes: every code pays them, so a 20-code store multiplies
-// each one by 20. Polling is cheap DOM reads, so it runs often; the settle windows are only as
-// long as checkouts have been observed to keep re-rendering after a response.
-const POLL_MS = 100;
-const RESPONSE_MS = 15_000;
-const STABLE_MS = 500;
-// A rejection message is itself the store's answer. Once it has shown (and the total has not
-// moved) only a short debounce is needed, not the full total-stability window.
-const FAILURE_SETTLE_MS = 300;
-// Upper bound on waiting for a controlled form to enable Apply after the code is typed.
-const BUTTON_READY_MS = 1_000;
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
-const cents = (value: number) => Math.round(value * 100);
-class ComparisonError extends Error {
-  constructor(
-    readonly reason: NonNullable<CouponApplyResultMessage["failureReason"]>,
-  ) {
-    super(reason);
-  }
-}
-function readTotal(selector: string): number | null {
-  let el = element(selector);
-  if (!el) return null;
-  // A discount can append a "TOTAL SAVINGS" row after the actual total (Shopify).
-  // Within the configured table, prefer its explicitly labelled total, never the
-  // subtotal or savings amount. Keep other merchant selectors unchanged.
-  const table = el.closest('[role="table"], table');
-  if (table) {
-    const totalRows = Array.from(
-      table.querySelectorAll('[role="row"], tr'),
-    ).filter((row) =>
-      /^(?:order\s+|grand\s+)?total\s*:?$/i.test(
-        row.querySelector('[role="rowheader"], th')?.textContent?.trim() ?? "",
-      ),
-    );
-    if (totalRows.length === 1) {
-      const cell = totalRows[0].querySelector<HTMLElement>('[role="cell"], td');
-      if (cell) el = cell;
-    }
-  }
-  // Shopify renders an animated old amount alongside the accessible current amount.
-  // Read a detached copy without aria-hidden duplicates; never edit merchant-owned DOM.
-  const copy = el.cloneNode(true) as HTMLElement;
-  copy
-    .querySelectorAll('[aria-hidden="true"], [hidden]')
-    .forEach((node) => node.remove());
-  return copy.textContent ? parseCartTotal(copy.textContent) : null;
-}
-// Many checkouts (Allbirds/Shopify included) move an already-applied code into a removable
-// chip once accepted, leaving the coupon <input> empty -- reading .value alone misses it.
-// The chip's own remove control commonly exposes the code in its accessible name
-// ("Remove COMEBACK10"), which is readable before we ever click it.
-function readAppliedCodeFromRemoveControl(
-  removeCouponSelector?: string,
-): string | null {
-  const removeControl = element(removeCouponSelector);
-  if (!removeControl) return null;
-  const label =
-    removeControl.getAttribute("aria-label") ?? removeControl.textContent ?? "";
-  const match = /remove\s+(.+)/i.exec(label.trim());
-  return match ? match[1].trim() : null;
-}
-function setFieldValue(field: HTMLInputElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value",
-  )?.set;
-  if (setter) setter.call(field, value);
-  else field.value = value;
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-  field.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-// Ignore unrelated ancestor re-renders: they are not a response to the submitted code.
-function observeIndicators(
-  success?: string,
-  failure?: string,
-  applySelector?: string,
-) {
-  const selectors = [success, failure].filter(Boolean).join(",");
-  const signature = (el: Element) =>
-    `${el.textContent}|${el.getAttribute("aria-label")}|${el.getAttribute("title")}`;
-  const stale = new Map(
-    elements(selectors)
-      .filter(isVisible)
-      .map((el) => [el, signature(el)]),
-  );
-  const changed = new Set<Element>();
-  let observedBusy = false;
-  const observer = new MutationObserver((records) => {
-    for (const record of records) {
-      const target =
-        record.target instanceof Element
-          ? record.target
-          : record.target.parentElement;
-      if (
-        record.type === "attributes" &&
-        target &&
-        elements(applySelector).includes(target as HTMLElement)
-      ) {
-        // A cached response can finish between 250ms polls. Attribute mutation history
-        // still proves that this submission entered processing and then completed.
-        const name = record.attributeName;
-        if (
-          (name === "disabled" &&
-            (record.oldValue !== null || target.hasAttribute("disabled"))) ||
-          ((name === "aria-busy" || name === "aria-disabled") &&
-            (record.oldValue === "true" ||
-              target.getAttribute(name) === "true"))
-        )
-          observedBusy = true;
-      }
-      for (const el of elements(selectors)) {
-        if (
-          target === el ||
-          (record.type !== "attributes" && target && el.contains(target))
-        )
-          changed.add(el);
-      }
-    }
-  });
-  observer.observe(document.documentElement, {
-    subtree: true,
-    childList: true,
-    characterData: true,
-    attributes: true,
-    attributeOldValue: true,
-    attributeFilter: [
-      "hidden",
-      "style",
-      "aria-hidden",
-      "disabled",
-      "aria-busy",
-      "aria-disabled",
-    ],
-  });
-  return {
-    fresh: (el: Element) =>
-      !stale.has(el as HTMLElement) ||
-      stale.get(el as HTMLElement) !== signature(el) ||
-      changed.has(el),
-    disconnect: () => observer.disconnect(),
-    wasBusy: () => observedBusy,
-  };
-}
 
 (async function main() {
   const context = window.__SAVERLLY__;
@@ -161,11 +21,9 @@ function observeIndicators(
   const testedCodes: Array<{ code: string; saved: boolean }> = [];
   let baseline: number | null = null;
   let startingTotal: number | null = null;
-  let currentCode: string | null = null;
   let originalCode: string | null = null;
   let originalTotal: number | null = null;
   let originalRemoved = false;
-  let pendingResponse = false;
   let best: { coupon: (typeof ordered)[number]; total: number } | null = null;
   const successfulQuotes: Array<{ coupon: (typeof ordered)[number]; total: number }> = [];
   let cancelled = false;
@@ -191,6 +49,7 @@ function observeIndicators(
       chrome.runtime.sendMessage({ ...message, runId }),
     ).catch(() => {});
   };
+  const actions = new CheckoutActions(recipe, checkActive);
   const finish = (
     result: CouponApplyResultMessage["result"],
     extra: Partial<CouponApplyResultMessage> = {},
@@ -207,218 +66,10 @@ function observeIndicators(
       ...extra,
     });
 
-  async function reveal(): Promise<void> {
-    checkActive();
-    const field = element<HTMLInputElement>(recipe.couponFieldSelector);
-    const reveal = element(recipe.couponFieldRevealSelector);
-    if (reveal && (!field || (!isVisible(field) && isVisible(reveal))))
-      reveal.click();
-    const deadline = Date.now() + RESPONSE_MS;
-    while (Date.now() < deadline) {
-      checkActive();
-      const input = element<HTMLInputElement>(recipe.couponFieldSelector);
-      const button = element<HTMLButtonElement>(recipe.applyButtonSelector);
-      if (input && button && !input.disabled) return;
-      if (!reveal) break;
-      await sleep(POLL_MS);
-    }
-    throw new ComparisonError("checkout_changed");
-  }
-
-  async function resetCart(): Promise<void> {
-    if (!currentCode) return;
-    checkActive();
-    const remove = element(recipe.removeCouponSelector);
-    if (!remove) throw new ComparisonError("restore_failed");
-    remove.click();
-    const deadline = Date.now() + RESPONSE_MS;
-    let stableSince = 0;
-    while (Date.now() < deadline) {
-      checkActive();
-      const total = readTotal(recipe.cartTotalSelector);
-      if (
-        total !== null &&
-        baseline !== null &&
-        cents(total) === cents(baseline)
-      ) {
-        if (!stableSince) stableSince = Date.now();
-        if (Date.now() - stableSince >= STABLE_MS) {
-          currentCode = null;
-          return;
-        }
-      } else stableSince = 0;
-      await sleep(POLL_MS);
-    }
-    throw new ComparisonError("restore_failed");
-  }
-
-  // Clears whatever discount is already active before Saverlly's own comparison starts.
-  // Unlike resetCart (which restores to an already-known baseline between our own attempts),
-  // there is no known target here -- just wait for the total to rise off its current,
-  // still-discounted reading and settle.
-  async function clearAppliedDiscount(): Promise<void> {
-    const remove = element(recipe.removeCouponSelector);
-    if (!remove) return;
-    checkActive();
-    const discounted = readTotal(recipe.cartTotalSelector);
-    remove.click();
-    const deadline = Date.now() + RESPONSE_MS;
-    let stableSince = 0;
-    let previous = discounted;
-    while (Date.now() < deadline) {
-      checkActive();
-      const total = readTotal(recipe.cartTotalSelector);
-      if (total !== previous) {
-        previous = total;
-        stableSince = Date.now();
-      }
-      const risen =
-        total !== null &&
-        (discounted === null || cents(total) > cents(discounted));
-      if (risen && Date.now() - stableSince >= STABLE_MS) {
-        currentCode = null;
-        return;
-      }
-      await sleep(POLL_MS);
-    }
-    throw new ComparisonError("restore_failed");
-  }
-
-  async function attempt(code: string): Promise<{
-    outcome: "success" | "failure" | "timeout";
-    total: number | null;
-  }> {
-    await reveal();
-    let field = element<HTMLInputElement>(recipe.couponFieldSelector)!;
-    const before = readTotal(recipe.cartTotalSelector);
-    // Retrying the same rejected value may be a no-op for controlled forms. Clear
-    // it through the merchant's input handler, allowing its validation to reset.
-    if (
-      field.value.trim() &&
-      elements(recipe.failureIndicatorSelector).some(isVisible)
-    ) {
-      setFieldValue(field, "");
-      await sleep(POLL_MS);
-      await reveal();
-      field = element<HTMLInputElement>(recipe.couponFieldSelector)!;
-    }
-    setFieldValue(field, code);
-    // Controlled checkouts enable/re-render their button after the input event. Wait only as
-    // long as that actually takes instead of a fixed delay per code.
-    const buttonDeadline = Date.now() + BUTTON_READY_MS;
-    for (;;) {
-      await sleep(50);
-      checkActive();
-      const ready = element<HTMLButtonElement>(recipe.applyButtonSelector);
-      if (
-        (ready &&
-          !ready.disabled &&
-          ready.getAttribute("aria-disabled") !== "true") ||
-        Date.now() >= buttonDeadline
-      )
-        break;
-    }
-    const button = element<HTMLButtonElement>(recipe.applyButtonSelector);
-    if (
-      !button ||
-      button.disabled ||
-      button.getAttribute("aria-disabled") === "true"
-    )
-      throw new ComparisonError("checkout_changed");
-    // Snapshot after editing so validation changes caused by typing cannot be
-    // mistaken for the response to the submission we are about to make.
-    const indicators = observeIndicators(
-      recipe.successIndicatorSelector,
-      recipe.failureIndicatorSelector,
-      recipe.applyButtonSelector,
-    );
-    try {
-      button.click();
-      let deadline = Date.now() + RESPONSE_MS;
-      const hardDeadline = Date.now() + 60_000;
-      let previous = before;
-      let stableSince = Date.now();
-      let success = false;
-      let failure = false;
-      let failureSince = 0;
-      let wasBusy = false;
-      while (Date.now() < deadline) {
-        checkActive();
-        const liveButton = element<HTMLButtonElement>(
-          recipe.applyButtonSelector,
-        );
-        const submittedValue = element<HTMLInputElement>(
-          recipe.couponFieldSelector,
-        )?.value.trim();
-        success ||= elements(recipe.successIndicatorSelector).some(
-          (el) => isVisible(el) && indicators.fresh(el),
-        );
-        const failureVisible = elements(recipe.failureIndicatorSelector).some(
-          (el) => isVisible(el) && indicators.fresh(el),
-        );
-        if (failureVisible && !failure) failureSince = Date.now();
-        failure ||= failureVisible;
-        // Many stores keep Apply disabled after rejecting a code until the input changes.
-        // That is an answered request, not one still in flight: treating it as busy kept every
-        // rejected code waiting out the 60s hard deadline.
-        const busy =
-          !liveButton ||
-          liveButton.getAttribute("aria-busy") === "true" ||
-          (!failureVisible &&
-            (liveButton.getAttribute("aria-disabled") === "true" ||
-              (liveButton.disabled && submittedValue === code)));
-        if (busy) deadline = Math.min(hardDeadline, Date.now() + RESPONSE_MS);
-        wasBusy ||= busy || indicators.wasBusy();
-        const total = readTotal(recipe.cartTotalSelector);
-        if (total !== previous) {
-          previous = total;
-          stableSince = Date.now();
-        }
-        const stable = total !== null && Date.now() - stableSince >= STABLE_MS;
-        const reduced =
-          total !== null && before !== null && cents(total) < cents(before);
-        // A settled reduction is useful when a store has no success banner. An unchanged
-        // prior discount cannot count as success for the newly submitted code.
-        if (!busy && stable && (success || (reduced && !failure))) {
-          // A success response can leave Apply disabled because the store clears the input.
-          if (total !== before || (!busy && Date.now() - stableSince >= 1500)) {
-            currentCode = code;
-            return { outcome: "success", total };
-          }
-        }
-        // A reused rejection can confirm a completed request with an unchanged
-        // total, but must not override a later price reduction or success marker.
-        const rejected =
-          failure ||
-          (wasBusy &&
-            elements(recipe.failureIndicatorSelector).some(isVisible));
-        const settled = failure
-          ? total !== null &&
-            Date.now() - Math.max(failureSince, stableSince) >= FAILURE_SETTLE_MS
-          : stable;
-        if (!busy && rejected && !success && settled && !reduced)
-          return { outcome: "failure", total };
-        await sleep(POLL_MS);
-      }
-      const liveButton = element<HTMLButtonElement>(recipe.applyButtonSelector);
-      pendingResponse =
-        !liveButton ||
-        liveButton.getAttribute("aria-busy") === "true" ||
-        liveButton.getAttribute("aria-disabled") === "true" ||
-        (liveButton.disabled &&
-          element<HTMLInputElement>(
-            recipe.couponFieldSelector,
-          )?.value.trim() === code);
-      return { outcome: "timeout", total: readTotal(recipe.cartTotalSelector) };
-    } finally {
-      indicators.disconnect();
-    }
-  }
-
   async function restoreOriginal(): Promise<void> {
     if (!originalCode || originalTotal === null) return;
-    if (recipe.couponApplyMode === "remove") await resetCart();
-    const restored = await attempt(originalCode);
+    if (recipe.couponApplyMode === "remove") await actions.resetCart(baseline);
+    const restored = await actions.attempt(originalCode);
     if (
       restored.outcome !== "success" ||
       restored.total === null ||
@@ -436,12 +87,12 @@ function observeIndicators(
     selections.add(best.coupon.id);
     const observed = readTotal(recipe.cartTotalSelector);
     if (
-      currentCode !== best.coupon.code ||
+      actions.currentCode !== best.coupon.code ||
       observed === null ||
       cents(observed) !== cents(best.total)
     ) {
-      if (recipe.couponApplyMode === "remove") await resetCart();
-      const reapplied = await attempt(best.coupon.code);
+      if (recipe.couponApplyMode === "remove") await actions.resetCart(baseline);
+      const reapplied = await actions.attempt(best.coupon.code);
       if (
         reapplied.outcome !== "success" ||
         reapplied.total === null ||
@@ -486,7 +137,7 @@ function observeIndicators(
       finish("no_coupons_available");
       return;
     }
-    await reveal();
+    await actions.reveal();
     startingTotal = readTotal(recipe.cartTotalSelector);
     // A shopper may already have a discount active -- a marketing code, a returning-customer
     // promo, or an earlier Saverlly run whose checkout session persisted. Our own comparison
@@ -514,9 +165,9 @@ function observeIndicators(
           originalTotal === null)
       )
         throw new ComparisonError("unconfirmed");
-      currentCode = originalCode;
+      actions.currentCode = originalCode;
       originalRemoved = activeRemoveControls.length > 0;
-      await clearAppliedDiscount();
+      await actions.clearAppliedDiscount();
     }
     baseline = readTotal(recipe.cartTotalSelector);
     if (baseline === null) throw new ComparisonError("unconfirmed");
@@ -527,7 +178,7 @@ function observeIndicators(
       (recipe.couponApplyMode === "remove" && !!recipe.removeCouponSelector);
     for (const [index, coupon] of ordered.entries()) {
       checkActive();
-      if (recipe.couponApplyMode === "remove") await resetCart();
+      if (recipe.couponApplyMode === "remove") await actions.resetCart(baseline);
       send({
         type: "COUPON_APPLY_PROGRESS",
         phase: "testing",
@@ -536,10 +187,10 @@ function observeIndicators(
         total: ordered.length,
         testedCodes: [...testedCodes],
       });
-      const trial = await attempt(coupon.code);
+      const trial = await actions.attempt(coupon.code);
       if (trial.outcome === "timeout") {
         comparisonComplete = false;
-        if (pendingResponse) throw new ComparisonError("unconfirmed");
+        if (actions.pendingResponse) throw new ComparisonError("unconfirmed");
         if (best) break;
         throw new ComparisonError("unconfirmed");
       }
@@ -587,9 +238,9 @@ function observeIndicators(
       await selectBest();
       return;
     }
-    if (originalCode && currentCode !== originalCode) {
+    if (originalCode && actions.currentCode !== originalCode) {
       await restoreOriginal();
-    } else if (currentCode && recipe.removeCouponSelector) await resetCart();
+    } else if (actions.currentCode && recipe.removeCouponSelector) await actions.resetCart(baseline);
     const finalTotal = readTotal(recipe.cartTotalSelector);
     if (finalTotal === null || cents(finalTotal) > cents(baseline))
       throw new ComparisonError("restore_failed");
@@ -598,10 +249,10 @@ function observeIndicators(
     // Deactivation cancels further DOM writes; it must not start a restoration request.
     if (
       !cancelled &&
-      !pendingResponse &&
+      !actions.pendingResponse &&
       location.pathname + location.hash === initialPath &&
       originalCode &&
-      (originalRemoved || (currentCode && currentCode !== originalCode))
+      (originalRemoved || (actions.currentCode && actions.currentCode !== originalCode))
     ) {
       try {
         await restoreOriginal();

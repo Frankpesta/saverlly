@@ -9,3 +9,6 @@ export * from './promotion';
 export * from './device';
 export * from './native-messaging';
 export * from './attribution';
+export * from './store-setup';
+export * from './store-platform';
+export * from './recipe-health';

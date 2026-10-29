@@ -175,6 +175,11 @@ function MerchantRow({
         <Link href={`/admin/merchants/${merchant.id}`} className="hover:underline">
           {merchant.name}
         </Link>
+        {merchant.recipeNeedsRecheckAt && (
+          <Badge variant="warning" className="ml-2">
+            Needs re-check
+          </Badge>
+        )}
       </TableCell>
       <TableCell>{merchant.domain}</TableCell>
       <TableCell>

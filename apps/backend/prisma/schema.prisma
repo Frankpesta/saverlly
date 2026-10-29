@@ -22,57 +22,59 @@ enum KioskStatus {
 }
 
 model User {
-  id                 String         @id @default(uuid())
-  email              String         @unique
-  name               String? // shown in greetings instead of the email local-part once set; nullable since older rows predate this field
-  avatarUrl          String? // profile photo, uploaded to /uploads/avatars; null falls back to initials
-  passwordHash       String
-  mustChangePassword Boolean        @default(true) // true for server-generated passwords; forces a change on next login
-  role               UserRole
-  kioskId            String? // null for ADMIN
-  kiosk              Kiosk?         @relation(fields: [kioskId], references: [id])
-  managedLocationIds String[] // used only for LOCATION_MANAGER role
-  disabled           Boolean        @default(false)
-  refreshTokenHash   String? // hashed current refresh token; cleared on logout, rotated on refresh
-  notifications      Notification[]
-  dismissedAlerts    DismissedAlert[]
-  announcements      Announcement[]
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                        String              @id @default(uuid())
+  email                     String              @unique
+  name                      String? // shown in greetings instead of the email local-part once set; nullable since older rows predate this field
+  avatarUrl                 String? // profile photo, uploaded to /uploads/avatars; null falls back to initials
+  passwordHash              String
+  mustChangePassword        Boolean             @default(true) // true for server-generated passwords; forces a change on next login
+  role                      UserRole
+  kioskId                   String? // null for ADMIN
+  kiosk                     Kiosk?              @relation(fields: [kioskId], references: [id])
+  managedLocationIds        String[] // used only for LOCATION_MANAGER role
+  disabled                  Boolean             @default(false)
+  refreshTokenHash          String? // hashed current refresh token; cleared on logout, rotated on refresh
+  notifications             Notification[]
+  storeSetupSessionsCreated StoreSetupSession[] @relation("StoreSetupSessionCreatedBy")
+  storeSetupSessionsApplied StoreSetupSession[] @relation("StoreSetupSessionAppliedBy")
+  dismissedAlerts           DismissedAlert[]
+  announcements             Announcement[]
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
 
   @@index([kioskId])
 }
 
 model Kiosk {
-  id                   String         @id @default(uuid())
-  name                 String
-  status               KioskStatus    @default(ACTIVE) // admin sets directly, no approval workflow
-  revenueSharePct      Decimal        @db.Decimal(5, 2) // e.g. 30.00 = 30%
-  stripeAccountId      String? // Stripe Connect Express account id, set once kiosk starts onboarding (Phase 5)
-  stripePayoutsEnabled Boolean        @default(false) // synced from Stripe's account.updated webhook. True once onboarding is fully complete and the account can actually receive transfers
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
-  locations            Location[]
-  users                User[]
-  announcements        Announcement[]
-  payouts              Payout[]
+  id                    String                 @id @default(uuid())
+  name                  String
+  status                KioskStatus            @default(ACTIVE) // admin sets directly, no approval workflow
+  revenueSharePct       Decimal                @db.Decimal(5, 2) // e.g. 30.00 = 30%
+  stripeAccountId       String? // Stripe Connect Express account id, set once kiosk starts onboarding (Phase 5)
+  stripePayoutsEnabled  Boolean                @default(false) // synced from Stripe's account.updated webhook. True once onboarding is fully complete and the account can actually receive transfers
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  locations             Location[]
+  users                 User[]
+  announcements         Announcement[]
+  payouts               Payout[]
   commissionAdjustments CommissionAdjustment[]
 }
 
 model Location {
-  id                 String              @id @default(uuid())
-  kioskId            String
-  kiosk              Kiosk               @relation(fields: [kioskId], references: [id])
-  name               String
-  address            String
-  city               String
-  state              String
-  zip                String? // US 5-digit ZIP. Validated by ZIP_PATTERN in create-location.dto.ts, deliberately a plain nullable string here so widening the accepted formats later stays a validation-only change
-  latitude           Float?
-  longitude          Float?
-  tags               String[] // e.g. ["mall", "downtown", "high-traffic"]. Used for future ad targeting
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                String             @id @default(uuid())
+  kioskId           String
+  kiosk             Kiosk              @relation(fields: [kioskId], references: [id])
+  name              String
+  address           String
+  city              String
+  state             String
+  zip               String? // US 5-digit ZIP. Validated by ZIP_PATTERN in create-location.dto.ts, deliberately a plain nullable string here so widening the accepted formats later stays a validation-only change
+  latitude          Float?
+  longitude         Float?
+  tags              String[] // e.g. ["mall", "downtown", "high-traffic"]. Used for future ad targeting
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   devices           Device[]
   locationSetupCode LocationSetupCode?
   employees         LocationEmployee[]
@@ -179,9 +181,51 @@ model Merchant {
   couponTestEvents       CouponTestEvent[]
   attributionAttempts    AttributionAttempt[]
   commissionEvents       CommissionEvent[]
+  storeSetupSessions     StoreSetupSession[]
+  // The shopping platform the store's site runs on, read from its homepage. Null = not
+  // recognised (a custom store) or not checked yet; platformCheckedAt says which.
+  platform               StorePlatform?
+  platformCheckedAt      DateTime?
+  // Keeping stores working: when the recipe was last saved, and since when shoppers' checkouts
+  // report it broken (set once enough devices agree; cleared by a working report or a new save).
+  recipeSavedAt          DateTime?
+  recipeNeedsRecheckAt   DateTime?
+  recipeProblem          RecipeProblem?
+  recipeHealthReports    RecipeHealthReport[]
   createdAt              DateTime             @default(now())
 
   @@index([affiliateProgramId])
+}
+
+/// What a shopper's checkout found wrong with a store's recipe. Mirrors RECIPE_PROBLEMS in
+/// @saverlly/shared-types.
+enum RecipeProblem {
+  PROMO_BOX_CHANGED
+  ORDER_TOTAL_CHANGED
+}
+
+/// One device's report on whether a store's recipe still finds its checkout. At most about one
+/// per device, store and outcome a day (the extension rate-limits itself).
+model RecipeHealthReport {
+  id         String         @id @default(uuid())
+  merchantId String
+  merchant   Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  deviceId   String
+  ok         Boolean
+  problem    RecipeProblem?
+  createdAt  DateTime       @default(now())
+
+  @@index([merchantId, createdAt])
+}
+
+/// Mirrors STORE_PLATFORMS in @saverlly/shared-types.
+enum StorePlatform {
+  SHOPIFY
+  WOOCOMMERCE
+  BIGCOMMERCE
+  MAGENTO
+  WIX
+  SQUARESPACE
 }
 
 enum CouponDiscountType {
@@ -191,9 +235,9 @@ enum CouponDiscountType {
 }
 
 model Coupon {
-  id               String            @id @default(uuid())
+  id               String              @id @default(uuid())
   merchantId       String
-  merchant         Merchant          @relation(fields: [merchantId], references: [id])
+  merchant         Merchant            @relation(fields: [merchantId], references: [id])
   code             String
   description      String?
   source           CouponSource
@@ -202,14 +246,14 @@ model Coupon {
   // which lowercases this enum at the boundary rather than changing that external contract.
   discountType     CouponDiscountType?
   discountValue    Float?
-  successCount     Int               @default(0)
-  failCount        Int               @default(0)
+  successCount     Int                 @default(0)
+  failCount        Int                 @default(0)
   lastTestedAt     DateTime?
   expiresAt        DateTime?
   lastSeenAt       DateTime?
   freshUntil       DateTime? // automated-source freshness, independent of admin's active switch
-  active           Boolean           @default(true)
-  createdAt        DateTime          @default(now())
+  active           Boolean             @default(true)
+  createdAt        DateTime            @default(now())
   couponTestEvents CouponTestEvent[]
   commissionEvents CommissionEvent[]
 
@@ -329,13 +373,13 @@ model CouponTestEvent {
 // conversion be matched back to a device even though the network only ever echoes the
 // subId, not our own internal ids. See 05-PHASE-5-commission-tracking.md "Attribution Logic".
 model AttributionAttempt {
-  id              String           @id @default(uuid())
-  deviceId        String
-  device          Device           @relation(fields: [deviceId], references: [id])
-  merchantId      String
-  merchant        Merchant         @relation(fields: [merchantId], references: [id])
-  subId           String           @unique
-  createdAt       DateTime         @default(now())
+  id               String            @id @default(uuid())
+  deviceId         String
+  device           Device            @relation(fields: [deviceId], references: [id])
+  merchantId       String
+  merchant         Merchant          @relation(fields: [merchantId], references: [id])
+  subId            String            @unique
+  createdAt        DateTime          @default(now())
   commissionEvents CommissionEvent[]
 
   @@index([deviceId])
@@ -349,29 +393,29 @@ enum CommissionStatus {
 }
 
 model CommissionEvent {
-  id                 String              @id @default(uuid())
+  id                 String                @id @default(uuid())
   deviceId           String
-  device             Device              @relation(fields: [deviceId], references: [id])
+  device             Device                @relation(fields: [deviceId], references: [id])
   merchantId         String
-  merchant           Merchant            @relation(fields: [merchantId], references: [id])
+  merchant           Merchant              @relation(fields: [merchantId], references: [id])
   couponId           String? // nullable, attribution-only sales (no coupon involved) are still valid commission events
-  coupon             Coupon?             @relation(fields: [couponId], references: [id])
+  coupon             Coupon?               @relation(fields: [couponId], references: [id])
   subId              String? // one click can generate multiple distinct network orders
-  attributionAttempt AttributionAttempt? @relation(fields: [subId], references: [subId])
+  attributionAttempt AttributionAttempt?   @relation(fields: [subId], references: [subId])
   networkReference   String // the affiliate network's own transaction/click ID, for reconciliation
-  orderValue         Decimal             @db.Decimal(10, 2)
-  commissionAmount   Decimal             @db.Decimal(10, 2) // total commission paid by network
-  kioskShareAmount   Decimal             @db.Decimal(10, 2) // computed: commissionAmount * kiosk.revenueSharePct, finalized only on CONFIRMED
-  status             CommissionStatus    @default(PENDING)
+  orderValue         Decimal               @db.Decimal(10, 2)
+  commissionAmount   Decimal               @db.Decimal(10, 2) // total commission paid by network
+  kioskShareAmount   Decimal               @db.Decimal(10, 2) // computed: commissionAmount * kiosk.revenueSharePct, finalized only on CONFIRMED
+  status             CommissionStatus      @default(PENDING)
   reportedAt         DateTime
   confirmedAt        DateTime?
   reversedAt         DateTime?
   lastReconciledAt   DateTime?
-  isTest            Boolean @default(false)
+  isTest             Boolean               @default(false)
   reversalAdjustment CommissionAdjustment?
-  createdAt          DateTime            @default(now())
+  createdAt          DateTime              @default(now())
   payoutId           String? // set once included in a Payout's aggregation. Excluded from future aggregation runs
-  payout             Payout?             @relation(fields: [payoutId], references: [id])
+  payout             Payout?               @relation(fields: [payoutId], references: [id])
 
   @@unique([merchantId, networkReference]) // dedup. Repeat ingestion/reconciliation runs must upsert, never duplicate a network's own conversion record
   @@index([deviceId])
@@ -386,15 +430,16 @@ model CommissionEvent {
 // A reversal after a transfer was claimed is recovered from future earnings. Never rewrite
 // the amount of an already submitted transfer or erase its original commission allocation.
 model CommissionAdjustment {
-  id                String @id @default(uuid())
-  commissionEventId String @unique
+  id                String          @id @default(uuid())
+  commissionEventId String          @unique
   commissionEvent   CommissionEvent @relation(fields: [commissionEventId], references: [id], onDelete: Restrict)
   kioskId           String
-  kiosk             Kiosk @relation(fields: [kioskId], references: [id], onDelete: Restrict)
-  amount            Decimal @db.Decimal(10, 2)
+  kiosk             Kiosk           @relation(fields: [kioskId], references: [id], onDelete: Restrict)
+  amount            Decimal         @db.Decimal(10, 2)
   payoutId          String?
-  payout            Payout? @relation(fields: [payoutId], references: [id], onDelete: Restrict)
-  createdAt         DateTime @default(now())
+  payout            Payout?         @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  createdAt         DateTime        @default(now())
+
   @@index([kioskId, payoutId])
 }
 
@@ -406,20 +451,20 @@ enum PayoutStatus {
 }
 
 model Payout {
-  id               String            @id @default(uuid())
-  kioskId          String
-  kiosk            Kiosk             @relation(fields: [kioskId], references: [id])
-  periodStart      DateTime
-  periodEnd        DateTime
-  totalAmount      Decimal           @db.Decimal(10, 2) // sum of CONFIRMED kioskShareAmount only, never includes pending
-  status           PayoutStatus      @default(PENDING)
-  stripeTransferId String?
-  transferStartedAt DateTime?
+  id                  String                 @id @default(uuid())
+  kioskId             String
+  kiosk               Kiosk                  @relation(fields: [kioskId], references: [id])
+  periodStart         DateTime
+  periodEnd           DateTime
+  totalAmount         Decimal                @db.Decimal(10, 2) // sum of CONFIRMED kioskShareAmount only, never includes pending
+  status              PayoutStatus           @default(PENDING)
+  stripeTransferId    String?
+  transferStartedAt   DateTime?
   transferDestination String? // immutable destination for retries of this transfer
-  paidAt           DateTime?
-  createdAt        DateTime          @default(now())
-  commissionEvents CommissionEvent[]
-  adjustments      CommissionAdjustment[]
+  paidAt              DateTime?
+  createdAt           DateTime               @default(now())
+  commissionEvents    CommissionEvent[]
+  adjustments         CommissionAdjustment[]
 
   // Guards against generating two payouts for the same kiosk+period -- e.g. a retried
   // generate-payouts run (cron re-fire, manual re-trigger after a timeout) -- at the DB level
@@ -435,18 +480,19 @@ enum NotificationType {
   PAYOUT_PROCESSED
   STRIPE_ONBOARDING_CHANGED
   COMMISSION_DIGEST
+  STORE_NEEDS_RECHECK
 }
 
 model Notification {
-  id        String            @id @default(uuid())
+  id        String           @id @default(uuid())
   userId    String
-  user      User              @relation(fields: [userId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
   type      NotificationType
   title     String
   body      String
   metadata  Json? // e.g. { payoutId } / { enabled }. For future deep-linking, not rendered raw
   readAt    DateTime?
-  createdAt DateTime          @default(now())
+  createdAt DateTime         @default(now())
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
@@ -482,53 +528,95 @@ model DismissedAlert {
 }
 
 model ReviewerAccessControl {
-  id String @id @default("global")
-  enabled Boolean @default(false)
+  id        String   @id @default("global")
+  enabled   Boolean  @default(false)
   updatedAt DateTime @updatedAt
 }
 
 model ReviewerInvite {
-  id String @id @default(uuid())
-  name String
-  email String?
-  codeHash String @unique
-  codeHint String
-  expiresAt DateTime
-  maxInstallations Int @default(1)
-  revokedAt DateTime?
-  createdAt DateTime @default(now())
-  sessions ReviewerSession[]
+  id               String            @id @default(uuid())
+  name             String
+  email            String?
+  codeHash         String            @unique
+  codeHint         String
+  expiresAt        DateTime
+  maxInstallations Int               @default(1)
+  revokedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  sessions         ReviewerSession[]
 }
 
 model ReviewerSession {
-  id String @id @default(uuid())
-  inviteId String
-  invite ReviewerInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
-  tokenHash String @unique
-  createdAt DateTime @default(now())
-  lastSeenAt DateTime?
-  events ReviewerEvent[]
+  id           String                @id @default(uuid())
+  inviteId     String
+  invite       ReviewerInvite        @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  tokenHash    String                @unique
+  createdAt    DateTime              @default(now())
+  lastSeenAt   DateTime?
+  events       ReviewerEvent[]
   attributions ReviewerAttribution[]
+
   @@index([inviteId])
 }
 
 model ReviewerEvent {
-  id String @id @default(uuid())
-  sessionId String
-  session ReviewerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  eventId String
-  payload Json
-  discountAmount Decimal @default(0) @db.Decimal(10,2)
-  createdAt DateTime @default(now())
+  id             String          @id @default(uuid())
+  sessionId      String
+  session        ReviewerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventId        String
+  payload        Json
+  discountAmount Decimal         @default(0) @db.Decimal(10, 2)
+  createdAt      DateTime        @default(now())
+
   @@unique([sessionId, eventId])
 }
 
 model ReviewerAttribution {
-  id String @id @default(uuid())
-  sessionId String
-  session ReviewerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id         String          @id @default(uuid())
+  sessionId  String
+  session    ReviewerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   merchantId String
-  subId String @unique
-  createdAt DateTime @default(now())
+  subId      String          @unique
+  createdAt  DateTime        @default(now())
+
   @@index([sessionId])
+}
+
+// Easy Store Setup: an admin creates a one-time code on the dashboard, the extension redeems it
+// for a session token scoped to this one merchant, then submits a draft recipe. The draft lives
+// here rather than on Merchant.checkoutRecipe, so a setup token can never change a live store;
+// only the admin's dashboard Save copies it across. Expiry is derived from codeExpiresAt and
+// sessionExpiresAt at read time rather than stored, so no sweeper job is needed.
+enum StoreSetupStatus {
+  PENDING // code issued, not yet redeemed
+  CONNECTED // redeemed by an extension install; no draft yet
+  SUBMITTED // extension submitted a draft recipe and test result
+  APPLIED // admin saved the draft onto the merchant (terminal)
+  CANCELLED // admin discarded it or issued a newer code (terminal)
+}
+
+model StoreSetupSession {
+  id               String           @id @default(uuid())
+  merchantId       String
+  merchant         Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  createdById      String?
+  createdBy        User?            @relation("StoreSetupSessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  status           StoreSetupStatus @default(PENDING)
+  codeHash         String           @unique // SHA-256 of the normalized one-time code. Never plaintext
+  codeExpiresAt    DateTime
+  tokenHash        String?          @unique // SHA-256 of the extension-generated session secret, set on redeem
+  sessionExpiresAt DateTime?
+  connectedAt      DateTime?
+  lastSeenAt       DateTime?
+  draftRecipe      Json? // CheckoutRecipe shape; validated on submit and again on apply
+  testResult       Json? // plain-language test outcome reported by the extension
+  submittedAt      DateTime?
+  appliedAt        DateTime?
+  appliedById      String?
+  appliedBy        User?            @relation("StoreSetupSessionAppliedBy", fields: [appliedById], references: [id], onDelete: SetNull)
+  cancelledAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([merchantId, status])
 }

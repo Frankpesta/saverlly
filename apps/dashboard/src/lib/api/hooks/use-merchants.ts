@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
+import type { PlatformCheckResponse } from "@saverlly/shared-types"
 import type { AttributionMethod, CheckoutRecipe, Merchant } from "@/lib/api/types"
 
 const merchantsKey = ["merchants"] as const
@@ -51,6 +52,16 @@ export function useCreateMerchant() {
 
 export type UpdateMerchantPayload = Partial<MerchantPayload> & {
   active?: boolean
+}
+
+/** Reads the store's homepage again and records which shopping platform it runs on. */
+export function useCheckMerchantPlatform(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<PlatformCheckResponse>(`/merchants/${id}/platform/check`, { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: merchantKey(id) }),
+  })
 }
 
 export function useUpdateMerchant(id: string) {

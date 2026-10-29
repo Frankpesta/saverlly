@@ -5,6 +5,7 @@ import type {
   DeviceStatusResponse,
   LifetimeSavingsResponse,
   PublicMerchant,
+  RecipeHealthReportPayload,
 } from '@saverlly/shared-types';
 import { getApiBaseUrl, getReviewerApiBaseUrl, STATUS_GRACE_PERIOD_MS } from './config';
 import { getDeviceToken, getReviewerAccess, setDormant } from './storage';
@@ -101,6 +102,16 @@ export async function reportCouponTestEvent(payload: CreateCouponTestEventPayloa
   });
   if (!res.ok) {
     throw new Error(`Unexpected status ${res.status} reporting coupon test event`);
+  }
+}
+
+export async function reportRecipeHealth(payload: RecipeHealthReportPayload): Promise<void> {
+  const res = await apiFetch('/public/recipe-health', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(`Unexpected status ${res.status} reporting recipe health`);
   }
 }
 
