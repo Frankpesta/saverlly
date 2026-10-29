@@ -31,6 +31,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { EmailModule } from './email/email.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { ReleasesModule } from './releases/releases.module';
+import { StoreSetupModule } from './store-setup/store-setup.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { ReleasesModule } from './releases/releases.module';
     PlatformSettingsModule,
     ReleasesModule,
     ReviewersModule,
+    StoreSetupModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

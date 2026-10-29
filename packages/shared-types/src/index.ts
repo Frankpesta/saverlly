@@ -9,3 +9,4 @@ export * from './promotion';
 export * from './device';
 export * from './native-messaging';
 export * from './attribution';
+export * from './store-setup';
