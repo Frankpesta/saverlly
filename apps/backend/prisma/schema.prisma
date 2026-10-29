@@ -35,6 +35,8 @@ model User {
   disabled           Boolean        @default(false)
   refreshTokenHash   String? // hashed current refresh token; cleared on logout, rotated on refresh
   notifications      Notification[]
+  storeSetupSessionsCreated StoreSetupSession[] @relation("StoreSetupSessionCreatedBy")
+  storeSetupSessionsApplied StoreSetupSession[] @relation("StoreSetupSessionAppliedBy")
   dismissedAlerts    DismissedAlert[]
   announcements      Announcement[]
   createdAt          DateTime       @default(now())
@@ -179,6 +181,7 @@ model Merchant {
   couponTestEvents       CouponTestEvent[]
   attributionAttempts    AttributionAttempt[]
   commissionEvents       CommissionEvent[]
+  storeSetupSessions     StoreSetupSession[]
   createdAt              DateTime             @default(now())
 
   @@index([affiliateProgramId])
@@ -531,4 +534,43 @@ model ReviewerAttribution {
   subId String @unique
   createdAt DateTime @default(now())
   @@index([sessionId])
+}
+
+// Easy Store Setup: an admin creates a one-time code on the dashboard, the extension redeems it
+// for a session token scoped to this one merchant, then submits a draft recipe. The draft lives
+// here rather than on Merchant.checkoutRecipe, so a setup token can never change a live store;
+// only the admin's dashboard Save copies it across. Expiry is derived from codeExpiresAt and
+// sessionExpiresAt at read time rather than stored, so no sweeper job is needed.
+enum StoreSetupStatus {
+  PENDING // code issued, not yet redeemed
+  CONNECTED // redeemed by an extension install; no draft yet
+  SUBMITTED // extension submitted a draft recipe and test result
+  APPLIED // admin saved the draft onto the merchant (terminal)
+  CANCELLED // admin discarded it or issued a newer code (terminal)
+}
+
+model StoreSetupSession {
+  id               String           @id @default(uuid())
+  merchantId       String
+  merchant         Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  createdById      String?
+  createdBy        User?            @relation("StoreSetupSessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  status           StoreSetupStatus @default(PENDING)
+  codeHash         String           @unique // SHA-256 of the normalized one-time code. Never plaintext
+  codeExpiresAt    DateTime
+  tokenHash        String?          @unique // SHA-256 of the extension-generated session secret, set on redeem
+  sessionExpiresAt DateTime?
+  connectedAt      DateTime?
+  lastSeenAt       DateTime?
+  draftRecipe      Json? // CheckoutRecipe shape; validated on submit and again on apply
+  testResult       Json? // plain-language test outcome reported by the extension
+  submittedAt      DateTime?
+  appliedAt        DateTime?
+  appliedById      String?
+  appliedBy        User?            @relation("StoreSetupSessionAppliedBy", fields: [appliedById], references: [id], onDelete: SetNull)
+  cancelledAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([merchantId, status])
 }
