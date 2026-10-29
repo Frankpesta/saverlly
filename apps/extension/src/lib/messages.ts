@@ -72,7 +72,16 @@ export interface GetActivePromotionsMessage {
   type: "GET_ACTIVE_PROMOTIONS";
 }
 
+/** Admin store setup. Accepted only from the extension's own options page and popup. */
+export type StoreSetupMessage =
+  | { type: "STORE_SETUP_REDEEM"; code: string }
+  /** verify: also confirm with the backend that the session is still live (it may have been
+   *  cancelled on the dashboard). Without it, only local state is read: no network call. */
+  | { type: "STORE_SETUP_STATUS"; verify?: boolean }
+  | { type: "STORE_SETUP_END" };
+
 export type ExtensionMessage =
+  | StoreSetupMessage
   | { type: "ACTIVATE_REVIEWER"; code: string }
   | { type: "DEVICE_STATUS_CHANGED"; dormant: boolean }
   | {

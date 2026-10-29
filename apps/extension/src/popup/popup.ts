@@ -1,5 +1,6 @@
 import type { ActivePromotion } from "@saverlly/shared-types";
 import { getReviewerApiBaseUrl } from "../lib/config";
+import { formatTimeLeft, type StoreSetupStatus } from "../lib/store-setup";
 import { couponsInTestOrder } from "../lib/cart-total";
 import { formatCurrency, summarizeBestDiscount } from "../lib/format";
 import type {
@@ -34,6 +35,7 @@ const lifetimeValueEl = document.getElementById(
 ) as HTMLElement;
 const promoEl = document.getElementById("promo") as HTMLElement;
 const lifetimeEl = document.querySelector<HTMLElement>(".popup__lifetime");
+const setupPillEl = document.getElementById("setup-pill");
 // Every icon is an original layer cut from the Figma exports (scripts/extract-design-*).
 const asset = (name: string, className = "") =>
   `<img${className ? ` class="${className}"` : ""} src="assets/${name}.svg" alt="" />`;
@@ -484,6 +486,27 @@ function renderReviewerForm(): void {
   });
 }
 
+/** Local state only (no network call), so it never slows the popup down. */
+async function renderSetupPill(): Promise<void> {
+  if (!setupPillEl) return;
+  const response = (await send({ type: "STORE_SETUP_STATUS" }).catch(
+    () => null,
+  )) as { setup?: StoreSetupStatus | null } | null | undefined;
+  const setup = response?.setup;
+  if (!setup) {
+    setupPillEl.hidden = true;
+    return;
+  }
+  setupPillEl.textContent = `Setting up ${setup.merchant.domain}`;
+  setupPillEl.title = `Store setup ends in ${formatTimeLeft(setup.expiresAt)}. Click to manage.`;
+  setupPillEl.hidden = false;
+}
+
+setupPillEl?.addEventListener("click", () => {
+  void chrome.runtime.openOptionsPage();
+  window.close();
+});
+
 async function renderPromo(): Promise<void> {
   const promos = (await send({ type: "GET_ACTIVE_PROMOTIONS" }).catch(
     () => [],
@@ -580,6 +603,7 @@ document
 
 async function init(): Promise<void> {
   void refreshLifetimeSaved();
+  void renderSetupPill();
   // Fire-and-forget alongside the view: the promo slot lives outside #content, so it is
   // independent of which view wins below and must not delay rendering that view.
   void renderPromo();

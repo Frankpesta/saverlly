@@ -9,6 +9,9 @@
     <div class="popup">
       <header class="popup__header">
         <img class="popup__logo" src="assets/design-logo.svg" alt="Saverlly" />
+        <!-- Shown only while an admin store setup session is active; shoppers never see it. Sits
+             in the header's free space so it adds no height to the popup. -->
+        <button class="popup__setup-pill" id="setup-pill" type="button" hidden></button>
         <button class="popup__close" id="close-btn" aria-label="Close" type="button"><img src="assets/design-close.svg" alt="" /></button>
       </header>
       <div class="popup__lifetime">

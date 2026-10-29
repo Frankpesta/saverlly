@@ -144,3 +144,47 @@ it("escapes quotes in sponsored URL attributes", async () => {
   await flush();
   expect(document.querySelector("[onclick], [onerror]")).toBeNull();
 });
+
+describe("store setup pill", () => {
+  const withPill = () => {
+    document.body.insertAdjacentHTML("afterbegin", '<button id="setup-pill" hidden></button>');
+    return document.getElementById("setup-pill") as HTMLButtonElement;
+  };
+  const respondWith = (setup: unknown) => {
+    const base = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation(async (message: { type: string }) =>
+      message.type === "STORE_SETUP_STATUS" ? { setup } : base(message),
+    );
+  };
+
+  it("stays hidden for shoppers", async () => {
+    const pill = withPill();
+    respondWith(null);
+    require("./popup");
+    await flush();
+    expect(pill.hidden).toBe(true);
+    expect(sendMessage).toHaveBeenCalledWith({ type: "STORE_SETUP_STATUS" });
+  });
+
+  it("shows the store being set up as text and opens the options page", async () => {
+    const pill = withPill();
+    const openOptionsPage = jest.fn().mockResolvedValue(undefined);
+    (chrome.runtime as unknown as { openOptionsPage: jest.Mock }).openOptionsPage = openOptionsPage;
+    const close = jest.spyOn(window, "close").mockImplementation(() => {});
+    respondWith({
+      sessionId: "s1",
+      expiresAt: new Date(Date.now() + 90 * 60_000).toISOString(),
+      merchant: { id: "m1", name: "Shop", domain: "<b>shop.test</b>" },
+    });
+    require("./popup");
+    await flush();
+    expect(pill.hidden).toBe(false);
+    expect(pill.textContent).toBe("Setting up <b>shop.test</b>");
+    expect(pill.querySelector("b")).toBeNull();
+    expect(pill.title).toMatch(/^Store setup ends in 1h (29|30)m\. Click to manage\.$/);
+    pill.click();
+    expect(openOptionsPage).toHaveBeenCalled();
+    expect(close).toHaveBeenCalled();
+    close.mockRestore();
+  });
+});

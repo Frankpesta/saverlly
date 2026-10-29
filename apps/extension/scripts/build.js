@@ -26,6 +26,7 @@ const entryPoints = [
   'src/content-scripts/checkout-detector.ts',
   'src/content-scripts/coupon-applier.ts',
   'src/popup/popup.ts',
+  'src/options/options.ts',
 ];
 
 function copyStatic() {
@@ -43,6 +44,10 @@ function copyStatic() {
   fs.mkdirSync(path.join(dist, 'popup/assets'), { recursive: true });
   for (const file of fs.readdirSync(path.join(root, 'src/popup/assets'))) {
     fs.copyFileSync(path.join(root, 'src/popup/assets', file), path.join(dist, 'popup/assets', file));
+  }
+  fs.mkdirSync(path.join(dist, 'options'), { recursive: true });
+  for (const file of ['options.html', 'options.css']) {
+    fs.copyFileSync(path.join(root, 'src/options', file), path.join(dist, 'options', file));
   }
   fs.mkdirSync(path.join(dist, 'popup/fonts'), { recursive: true });
   for (const file of fs.readdirSync(path.join(root, 'src/popup/fonts'))) {

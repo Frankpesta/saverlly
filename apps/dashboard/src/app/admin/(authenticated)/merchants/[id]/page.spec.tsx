@@ -72,6 +72,8 @@ const scrapeSources: ScrapeSource[] = [
   },
 ]
 
+let setupSession: Record<string, unknown> | null = null
+
 function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -82,6 +84,7 @@ function renderWithClient(ui: React.ReactElement) {
 describe("MerchantDetailPage", () => {
   beforeEach(() => {
     mockPush.mockClear()
+    setupSession = null
     global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       const method = init?.method ?? "GET"
@@ -107,6 +110,14 @@ describe("MerchantDetailPage", () => {
           status: 204,
           json: async () => undefined,
         } as Response
+      }
+      if (url === "/api/proxy/merchants/m-1/setup-sessions/current" && method === "GET") {
+        return { ok: true, status: 200, json: async () => ({ session: setupSession }) } as Response
+      }
+      if (url === "/api/proxy/merchants/m-1/setup-sessions/s-1/apply" && method === "POST") {
+        const saved = { ...merchant, checkoutRecipe: { ...merchant.checkoutRecipe, couponFieldSelector: "#promo-from-setup" } }
+        setupSession = { ...setupSession, state: "APPLIED", extensionActive: false, appliedAt: new Date().toISOString() }
+        return { ok: true, status: 200, json: async () => ({ session: setupSession, merchant: saved }) } as Response
       }
       if (url.startsWith("/api/proxy/coupons") && method === "GET") {
         return {
@@ -153,6 +164,37 @@ describe("MerchantDetailPage", () => {
         expect.objectContaining({ method: "PATCH" }),
       ),
     )
+  })
+
+  it("offers extension setup, and the recipe form shows a recipe saved from it", async () => {
+    const user = userEvent.setup()
+    setupSession = {
+      id: "s-1",
+      merchantId: "m-1",
+      state: "SUBMITTED",
+      extensionActive: false,
+      codeExpiresAt: new Date().toISOString(),
+      sessionExpiresAt: new Date().toISOString(),
+      connectedAt: null,
+      lastSeenAt: null,
+      submittedAt: new Date().toISOString(),
+      appliedAt: null,
+      cancelledAt: null,
+      createdAt: new Date().toISOString(),
+      createdById: "u-1",
+      appliedById: null,
+      draftRecipe: { couponFieldSelector: "#promo-from-setup", applyButtonSelector: "button", cartTotalSelector: ".total", checkoutUrlPatterns: ["/checkout"] },
+      testResult: { passed: true, checks: [{ key: "promoField", outcome: "pass" }], testedAt: new Date().toISOString() },
+    }
+    renderWithClient(<MerchantDetailPage />)
+
+    expect(await screen.findByText("Set up with extension")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("input[name='promoCode']")).toBeInTheDocument()
+    expect(await screen.findByText("Ready to save")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Save recipe to store" }))
+
+    expect(await screen.findByDisplayValue("#promo-from-setup")).toBeInTheDocument()
+    expect(screen.queryByDisplayValue("input[name='promoCode']")).not.toBeInTheDocument()
   })
 
   it("deletes the merchant and redirects to the list", async () => {

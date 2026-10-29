@@ -87,6 +87,27 @@ input:focus-visible {
   height: 42px;
   margin-top: 16px;
 }
+.popup__setup-pill {
+  max-width: 270px;
+  height: 34px;
+  margin: 20px 18px 0 auto;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 17px;
+  background: var(--teal-tint);
+  color: var(--teal-dark);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 34px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.popup__setup-pill[hidden] {
+  display: none;
+}
 .popup__close {
   width: 24px;
   height: 24px;

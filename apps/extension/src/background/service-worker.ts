@@ -19,6 +19,7 @@ import type {
   CouponApplyResultMessage,
   ExtensionMessage,
   InjectedCheckoutContext,
+  StoreSetupMessage,
   TabCheckoutState,
 } from "../lib/messages";
 import { connectToAgentAndReceiveToken } from "../lib/native-messaging";
@@ -30,6 +31,14 @@ import {
 } from "../lib/step-down-check";
 import { checkDeviceStatus } from "../lib/status-check";
 import { activateReviewer } from "../lib/reviewer-access";
+import {
+  endStoreSetup,
+  fetchStoreSetupSession,
+  getStoreSetup,
+  redeemStoreSetupCode,
+  StoreSetupEndedError,
+  toStoreSetupStatus,
+} from "../lib/store-setup";
 import { getReviewerAccess } from "../lib/storage";
 import {
   getCachedMerchant,
@@ -773,11 +782,63 @@ async function patchTabState(
   saveTabState(tabId, { ...state, ...patch });
 }
 
+const STORE_SETUP_PAGES = ["options/options.html", "popup/popup.html"];
+
+/** Only the extension's own admin-facing pages, never a content script on a store's page. */
+function isStoreSetupPage(sender: chrome.runtime.MessageSender): boolean {
+  if (sender.id !== chrome.runtime.id || !sender.url) return false;
+  const url = sender.url.split(/[?#]/)[0];
+  return STORE_SETUP_PAGES.some((page) => url === chrome.runtime.getURL(page));
+}
+
+async function handleStoreSetupMessage(
+  message: StoreSetupMessage,
+): Promise<unknown> {
+  switch (message.type) {
+    case "STORE_SETUP_REDEEM":
+      try {
+        return { setup: toStoreSetupStatus(await redeemStoreSetupCode(message.code)) };
+      } catch (error) {
+        // fetch() rejects with a TypeError when offline and a TimeoutError on timeout; neither
+        // message is meant for people.
+        const unreachable =
+          !(error instanceof Error) ||
+          error instanceof TypeError ||
+          error.name === "TimeoutError";
+        return {
+          error: unreachable
+            ? "Could not reach Saverlly. Check the connection and try again."
+            : error.message,
+        };
+      }
+    case "STORE_SETUP_STATUS": {
+      const record = await getStoreSetup();
+      if (!record || !message.verify) return { setup: record && toStoreSetupStatus(record) };
+      try {
+        await fetchStoreSetupSession();
+      } catch (error) {
+        // Ended on the backend: already cleared. Anything else (offline, timeout) is not proof
+        // the session ended, so the local one stands.
+        if (error instanceof StoreSetupEndedError) return { setup: null };
+      }
+      return { setup: toStoreSetupStatus(record) };
+    }
+    case "STORE_SETUP_END":
+      await endStoreSetup();
+      return { ended: true };
+  }
+}
+
 async function handleMessage(
   message: ExtensionMessage,
   sender: chrome.runtime.MessageSender,
 ): Promise<unknown> {
   switch (message.type) {
+    case "STORE_SETUP_REDEEM":
+    case "STORE_SETUP_STATUS":
+    case "STORE_SETUP_END":
+      if (!isStoreSetupPage(sender)) return { error: "Store setup is only available from Saverlly's options page." };
+      return handleStoreSetupMessage(message);
     case "ACTIVATE_REVIEWER": {
       if (sender.tab || sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL("popup/popup.html")) return { error: "Open Saverlly to enter your access code." };
       try {

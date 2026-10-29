@@ -84,6 +84,20 @@ jest.mock("../lib/storage");
 jest.mock("../lib/native-messaging");
 jest.mock("../lib/reviewer-access");
 import { activateReviewer } from "../lib/reviewer-access";
+jest.mock("../lib/store-setup", () => ({
+  ...jest.requireActual("../lib/store-setup"),
+  redeemStoreSetupCode: jest.fn(),
+  getStoreSetup: jest.fn(),
+  fetchStoreSetupSession: jest.fn(),
+  endStoreSetup: jest.fn(),
+}));
+import {
+  endStoreSetup,
+  fetchStoreSetupSession,
+  getStoreSetup,
+  redeemStoreSetupCode,
+  StoreSetupEndedError,
+} from "../lib/store-setup";
 
 import {
   fetchActivePromotions,
@@ -211,6 +225,87 @@ it("accepts activation messages only from the popup and returns useful failures"
   expect(await sendMessage({type:"ACTIVATE_REVIEWER",code:"REV-test"}, {
     id:"test-extension",url:"chrome-extension://test-extension/popup/popup.html",
   })).toEqual({error:"This code has expired"});
+});
+
+describe("store setup messages", () => {
+  const optionsPage = {
+    id: "test-extension",
+    url: "chrome-extension://test-extension/options/options.html",
+  };
+  const setupRecord = {
+    token: "secret-token",
+    apiBaseUrl: "https://api.saverlly.test",
+    sessionId: "s1",
+    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+    merchant: { id: "m1", name: "Shop", domain: "shop.test" },
+  };
+  const { token: _token, apiBaseUrl: _apiBaseUrl, ...publicStatus } = setupRecord;
+  beforeEach(() => {
+    jest.mocked(redeemStoreSetupCode).mockReset();
+    jest.mocked(getStoreSetup).mockReset().mockResolvedValue(setupRecord);
+    jest.mocked(fetchStoreSetupSession).mockReset();
+    jest.mocked(endStoreSetup).mockReset().mockResolvedValue(undefined);
+  });
+
+  it("refuses every setup message from a content script on a store page", async () => {
+    const contentScript = {
+      id: "test-extension",
+      tab: { id: 900 } as chrome.tabs.Tab,
+      url: "https://shop.test/checkout",
+    };
+    for (const message of [
+      { type: "STORE_SETUP_REDEEM", code: "SET-7K4Q-92MD" },
+      { type: "STORE_SETUP_STATUS" },
+      { type: "STORE_SETUP_END" },
+    ])
+      expect(await sendMessage(message, contentScript)).toEqual({
+        error: "Store setup is only available from Saverlly's options page.",
+      });
+    expect(
+      await sendMessage({ type: "STORE_SETUP_STATUS" }, { id: "another-extension", url: optionsPage.url }),
+    ).toEqual({ error: "Store setup is only available from Saverlly's options page." });
+    expect(redeemStoreSetupCode).not.toHaveBeenCalled();
+    expect(endStoreSetup).not.toHaveBeenCalled();
+  });
+
+  it("redeems from the options page without ever handing the token to the page", async () => {
+    jest.mocked(redeemStoreSetupCode).mockResolvedValueOnce(setupRecord);
+    const response = await sendMessage({ type: "STORE_SETUP_REDEEM", code: "SET-7K4Q-92MD" }, optionsPage);
+    expect(response).toEqual({ setup: publicStatus });
+    expect(JSON.stringify(response)).not.toContain("secret-token");
+  });
+
+  it("turns network failures into a readable message and passes backend messages through", async () => {
+    jest
+      .mocked(redeemStoreSetupCode)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(Object.assign(new Error("signal timed out"), { name: "TimeoutError" }))
+      .mockRejectedValueOnce(new Error("This setup code is invalid or has expired"));
+    const redeem = () => sendMessage({ type: "STORE_SETUP_REDEEM", code: "SET-7K4Q-92MD" }, optionsPage);
+    const unreachable = { error: "Could not reach Saverlly. Check the connection and try again." };
+    expect(await redeem()).toEqual(unreachable);
+    expect(await redeem()).toEqual(unreachable);
+    expect(await redeem()).toEqual({ error: "This setup code is invalid or has expired" });
+  });
+
+  it("answers the popup's status check locally, without a network call", async () => {
+    const popup = { id: "test-extension", url: "chrome-extension://test-extension/popup/popup.html" };
+    expect(await sendMessage({ type: "STORE_SETUP_STATUS" }, popup)).toEqual({ setup: publicStatus });
+    expect(fetchStoreSetupSession).not.toHaveBeenCalled();
+  });
+
+  it("drops the session on verify only when the backend says it has ended", async () => {
+    const verify = () => sendMessage({ type: "STORE_SETUP_STATUS", verify: true }, optionsPage);
+    jest.mocked(fetchStoreSetupSession).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    expect(await verify()).toEqual({ setup: publicStatus });
+    jest.mocked(fetchStoreSetupSession).mockRejectedValueOnce(new StoreSetupEndedError());
+    expect(await verify()).toEqual({ setup: null });
+  });
+
+  it("ends the session from the options page", async () => {
+    expect(await sendMessage({ type: "STORE_SETUP_END" }, optionsPage)).toEqual({ ended: true });
+    expect(endStoreSetup).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("top-frame navigation handling", () => {

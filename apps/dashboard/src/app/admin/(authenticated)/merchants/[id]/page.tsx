@@ -26,6 +26,7 @@ import { AttributionFields } from "../attribution-fields"
 import { attributionFieldsSchema, nameSchema } from "@/lib/validation/schemas"
 import { MerchantCouponsSection } from "./merchant-coupons-section"
 import { MerchantScrapeSourcesSection } from "./merchant-scrape-sources-section"
+import { StoreSetupSection } from "./store-setup-section"
 
 const merchantEditSchema = z.object({
   name: nameSchema,
@@ -131,8 +132,16 @@ export default function MerchantDetailPage() {
 
       {merchant && (
         <div className="detail-layout">
+          <div className="@min-[64rem]/workspace:col-span-2">
+            <StoreSetupSection merchant={merchant} />
+          </div>
           <MerchantEditForm key={merchant.id} merchant={merchant} />
-          <CheckoutRecipeForm key={`${merchant.id}-recipe`} merchant={merchant} />
+          {/* Keyed on the recipe itself: the form only reads its defaults once, so a recipe saved
+              from the setup panel above must remount it to show the new values. */}
+          <CheckoutRecipeForm
+            key={`${merchant.id}-recipe-${JSON.stringify(merchant.checkoutRecipe)}`}
+            merchant={merchant}
+          />
           <div className="@min-[64rem]/workspace:col-span-2">
             <MerchantCouponsSection merchantId={merchant.id} />
           </div>
