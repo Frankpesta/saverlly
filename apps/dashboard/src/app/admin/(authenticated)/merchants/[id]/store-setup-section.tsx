@@ -8,7 +8,6 @@ import {
   CopyIcon,
   Loader2Icon,
   RefreshCwIcon,
-  WandSparklesIcon,
   XCircleIcon,
 } from "lucide-react"
 import type {
@@ -136,10 +135,7 @@ export function StoreSetupSection({ merchant }: { merchant: Merchant }) {
     <Card id="store-setup">
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div className="flex flex-col gap-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <WandSparklesIcon className="size-4 text-primary" aria-hidden />
-            Set up with extension
-          </CardTitle>
+          <CardTitle>Set up with extension</CardTitle>
           <CardDescription>
             Point and click on the store&apos;s checkout instead of writing selectors. Nothing
             changes for shoppers until you save the result here.

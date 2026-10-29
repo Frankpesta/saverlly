@@ -9,6 +9,7 @@
     "dev": "node scripts/build.js --watch",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
+    "test:e2e": "playwright test",
     "test:browser": "node scripts/verify-browser.js",
     "package": "npm run build && node scripts/package.js"
   },
@@ -16,6 +17,7 @@
     "@saverlly/shared-types": "*"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/chrome": "^0.0.287",
     "@types/jest": "^30.0.0",
     "archiver": "^7.0.1",
