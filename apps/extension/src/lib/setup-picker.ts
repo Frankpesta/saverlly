@@ -56,18 +56,24 @@ function eventTarget(event: Event): Element | null {
 
 // Only one pick is ever live: a second one would fight the first over the same events.
 let cancelActivePick: (() => void) | null = null;
-// Set only while clickPastPicker dispatches its click (click() runs synchronously).
+// Set only while pastPicker runs its action (click() and dispatchEvent() run synchronously).
 let bypass = false;
+
+/** Runs `action` (a click or key press made on the admin's behalf) without the picker
+ *  treating its events as a pick or as Esc, e.g. closing a promo drawer from the panel. */
+export function pastPicker(action: () => void): void {
+  bypass = true;
+  try {
+    action();
+  } finally {
+    bypass = false;
+  }
+}
 
 /** Clicks `element` on the admin's behalf without it counting as a pick, e.g. re-opening a
  *  hidden promo box from the panel while the admin is choosing the box itself. */
 export function clickPastPicker(element: HTMLElement): void {
-  bypass = true;
-  try {
-    element.click();
-  } finally {
-    bypass = false;
-  }
+  pastPicker(() => element.click());
 }
 
 export function pick(options: PickOptions): Promise<PickOutcome> {
@@ -121,7 +127,7 @@ export function pick(options: PickOptions): Promise<PickOutcome> {
     };
 
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (bypass || event.key !== "Escape") return;
       event.preventDefault();
       event.stopImmediatePropagation();
       finish({ kind: "cancelled" });

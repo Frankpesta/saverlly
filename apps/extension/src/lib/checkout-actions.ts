@@ -194,6 +194,19 @@ export class CheckoutActions {
     private readonly checkActive: () => void,
   ) {}
 
+  /**
+   * A promo box behind a link (a drawer, a popup) that has gone away entirely: the store closed
+   * it, which it does after answering. Stores like Target swap Apply for a spinner while
+   * checking, so a missing button alone still means "in flight"; but a drawer that closed after
+   * accepting a code never brings it back, and waiting for it ran every working code into the
+   * 60s hard deadline.
+   */
+  private promoBoxClosed(field: HTMLInputElement | null): boolean {
+    return (
+      !!this.recipe.couponFieldRevealSelector && (!field || !isVisible(field))
+    );
+  }
+
   async reveal(): Promise<void> {
     this.checkActive();
     const field = element<HTMLInputElement>(this.recipe.couponFieldSelector);
@@ -317,9 +330,10 @@ export class CheckoutActions {
         const liveButton = element<HTMLButtonElement>(
           this.recipe.applyButtonSelector,
         );
-        const submittedValue = element<HTMLInputElement>(
+        const liveField = element<HTMLInputElement>(
           this.recipe.couponFieldSelector,
-        )?.value.trim();
+        );
+        const submittedValue = liveField?.value.trim();
         success ||= elements(this.recipe.successIndicatorSelector).some(
           (el) => isVisible(el) && indicators.fresh(el),
         );
@@ -331,12 +345,12 @@ export class CheckoutActions {
         // Many stores keep Apply disabled after rejecting a code until the input changes.
         // That is an answered request, not one still in flight: treating it as busy kept every
         // rejected code waiting out the 60s hard deadline.
-        const busy =
-          !liveButton ||
-          liveButton.getAttribute("aria-busy") === "true" ||
-          (!failureVisible &&
-            (liveButton.getAttribute("aria-disabled") === "true" ||
-              (liveButton.disabled && submittedValue === code)));
+        const busy = !liveButton
+          ? !this.promoBoxClosed(liveField)
+          : liveButton.getAttribute("aria-busy") === "true" ||
+            (!failureVisible &&
+              (liveButton.getAttribute("aria-disabled") === "true" ||
+                (liveButton.disabled && submittedValue === code)));
         if (busy) deadline = Math.min(hardDeadline, Date.now() + RESPONSE_MS);
         wasBusy ||= busy || indicators.wasBusy();
         const total = readTotal(this.recipe.cartTotalSelector);
@@ -371,14 +385,12 @@ export class CheckoutActions {
         await sleep(POLL_MS);
       }
       const liveButton = element<HTMLButtonElement>(this.recipe.applyButtonSelector);
-      this.pendingResponse =
-        !liveButton ||
-        liveButton.getAttribute("aria-busy") === "true" ||
-        liveButton.getAttribute("aria-disabled") === "true" ||
-        (liveButton.disabled &&
-          element<HTMLInputElement>(
-            this.recipe.couponFieldSelector,
-          )?.value.trim() === code);
+      const liveField = element<HTMLInputElement>(this.recipe.couponFieldSelector);
+      this.pendingResponse = !liveButton
+        ? !this.promoBoxClosed(liveField)
+        : liveButton.getAttribute("aria-busy") === "true" ||
+          liveButton.getAttribute("aria-disabled") === "true" ||
+          (liveButton.disabled && liveField?.value.trim() === code);
       return { outcome: "timeout", total: readTotal(this.recipe.cartTotalSelector) };
     } finally {
       indicators.disconnect();
