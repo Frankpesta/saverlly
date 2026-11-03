@@ -115,3 +115,63 @@ it("reads totals through framework input handlers and accessible duplicates", ()
   expect(readTotal("#total")).toBe(95.5);
   expect(readAppliedCodeFromRemoveControl("#remove")).toBe("SAVE10");
 });
+
+describe("a promo box in a drawer (Target)", () => {
+  // Target opens the box in a drawer from an "Add" link. While it checks a code it swaps the
+  // apply button for a spinner; a rejected code brings the button back with an error, an
+  // accepted one closes the whole drawer.
+  const DRAWER_RECIPE: CheckoutRecipe = {
+    couponFieldSelector: "#promo",
+    applyButtonSelector: "#apply",
+    couponFieldRevealSelector: "#open",
+    successIndicatorSelector: "",
+    failureIndicatorSelector: "#promo-error",
+    cartTotalSelector: "#total",
+    checkoutUrlPatterns: ["/checkout"],
+  };
+
+  function mountDrawer(): void {
+    document.body.innerHTML = `<div id="total">$100.00</div><button id="open">Add</button>`;
+    document.querySelector("#open")!.addEventListener("click", () => {
+      const drawer = document.createElement("div");
+      drawer.setAttribute("role", "dialog");
+      drawer.innerHTML = `<form><input id="promo"><span class="slot"><button id="apply" type="button">Add</button></span></form>`;
+      document.body.append(drawer);
+      const apply = drawer.querySelector<HTMLButtonElement>("#apply")!;
+      apply.addEventListener("click", () => {
+        const code = drawer.querySelector<HTMLInputElement>("#promo")!.value;
+        drawer.querySelector("#promo-error")?.remove();
+        apply.replaceWith(Object.assign(document.createElement("span"), { textContent: "Loading" }));
+        setTimeout(() => {
+          if (code === "SAVE10") {
+            drawer.remove();
+            document.querySelector("#total")!.textContent = "$90.00";
+            return;
+          }
+          drawer.querySelector(".slot")!.replaceChildren(apply);
+          drawer.querySelector("form")!.append(
+            Object.assign(document.createElement("span"), { id: "promo-error", textContent: "The code is invalid or expired" }),
+          );
+        }, 1_000);
+      });
+    });
+  }
+
+  beforeEach(mountDrawer);
+
+  it("counts an accepted code when the store closes the drawer instead of waiting it out", async () => {
+    const actions = new CheckoutActions(DRAWER_RECIPE, () => {});
+    const result = actions.attempt("SAVE10");
+    await jest.advanceTimersByTimeAsync(4_000);
+    await expect(result).resolves.toEqual({ outcome: "success", total: 90 });
+    expect(actions.currentCode).toBe("SAVE10");
+  });
+
+  it("still waits through the spinner and reports a rejected code", async () => {
+    const actions = new CheckoutActions(DRAWER_RECIPE, () => {});
+    const result = actions.attempt("NOPE");
+    await jest.advanceTimersByTimeAsync(4_000);
+    await expect(result).resolves.toEqual({ outcome: "failure", total: 100 });
+    expect(actions.currentCode).toBeNull();
+  });
+});

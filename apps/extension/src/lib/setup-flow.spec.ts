@@ -225,6 +225,81 @@ it("re-opens a hidden promo box from the panel without counting it as a pick", a
   await flow.stop();
 });
 
+describe("a promo box in a drawer over the page (Target)", () => {
+  const AT_TOTAL: SetupProgress = {
+    version: 2,
+    step: 5,
+    pattern: "/checkout",
+    reveal: "link",
+    picks: {
+      revealLink: { selector: "#reveal", strategy: "id", exact: true },
+      promoField: { selector: "#code", strategy: "id", exact: true },
+      applyButton: { selector: 'button[name="apply_discount"]', strategy: "attribute", exact: true },
+    },
+  };
+  const realWait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  /** Moves the box into an open modal drawer with a backdrop; `close` adds a Close button. */
+  const inDrawer = (withCloseButton: boolean) => () => {
+    const backdrop = document.createElement("div");
+    backdrop.id = "backdrop";
+    const drawer = document.createElement("div");
+    drawer.id = "drawer";
+    drawer.setAttribute("role", "dialog");
+    drawer.setAttribute("aria-modal", "true");
+    const form = $("#promo-form");
+    form.hidden = false;
+    drawer.append(form);
+    if (withCloseButton) {
+      const close = document.createElement("button");
+      close.type = "button";
+      close.textContent = "Close";
+      close.addEventListener("click", () => (backdrop.hidden = true));
+      drawer.append(close);
+    }
+    drawer.addEventListener("keydown", (event) => {
+      if (event.keyCode === 27) backdrop.hidden = true;
+    });
+    backdrop.append(drawer);
+    document.body.append(backdrop);
+    $("#reveal").addEventListener("click", () => (backdrop.hidden = false));
+  };
+
+  it("closes the drawer before asking for the order total", async () => {
+    const flow = start(JSON.parse(JSON.stringify(AT_TOTAL)), inDrawer(true));
+    await realWait(250);
+    await flush();
+    expect(flow.title()).toBe("Click the order total");
+    expect($("#backdrop").hidden).toBe(true);
+    await flow.pick($(".grand-total"));
+    expect(flow.text("result")).toBe("Order total selected: $84.20");
+    await flow.stop();
+  });
+
+  it("explains a click that lands on the drawer, and closes it from the panel", async () => {
+    // No close button: Esc is the only way out, which the picker would otherwise swallow.
+    const flow = start(JSON.parse(JSON.stringify(AT_TOTAL)), inDrawer(false));
+    await realWait(250);
+    await flush();
+    expect($("#backdrop").hidden).toBe(true);
+
+    $("#backdrop").hidden = false; // Opened again while choosing.
+    await flow.pick($("#drawer"));
+    expect(flow.text("result")).toBe(
+      'The promo box is covering the page. Press "Close the promo box", then click the order total.',
+    );
+    await flow.press("close-box");
+    await realWait(250);
+    await flush();
+    expect($("#backdrop").hidden).toBe(true);
+    expect(flow.title()).toBe("Click the order total");
+    expect(flow.text("result")).toBeUndefined();
+    await flow.pick($(".grand-total"));
+    expect(flow.text("result")).toBe("Order total selected: $84.20");
+    await flow.stop();
+  });
+});
+
 it("goes back through the steps and resumes on a saved pick", async () => {
   const flow = start({
     version: 2,

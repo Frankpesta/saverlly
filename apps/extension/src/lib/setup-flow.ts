@@ -19,6 +19,7 @@ import {
 } from "./setup-heuristics";
 import type { OverlayAction, SetupOverlay } from "./setup-overlay";
 import { actionable, clickPastPicker, pick, type PickOutcome } from "./setup-picker";
+import { closePromoBoxModal, isBackdrop, promoBoxModal } from "./setup-promo-box";
 import {
   clearTestCode,
   rankMessages,
@@ -209,6 +210,18 @@ function located(env: FlowEnv, key: PickKey): HTMLElement | null {
   return saved ? findElement(saved.selector) : null;
 }
 
+/** Picks of things on the checkout itself, which a promo drawer over the page would hide. */
+const PAGE_PICKS = new Set<PickKey>(["cartTotal", "successMessage", "removeControl"]);
+
+const PROMO_BOX_COVERING =
+  "The promo box is covering the page. Press \"Close the promo box\", then click the order total.";
+
+/** The drawer or popup the promo box is open in, when it covers the checkout. Only for boxes
+ *  behind a link: a box that's always shown can't be reopened once closed. */
+function openPromoModal(env: FlowEnv): HTMLElement | null {
+  return env.progress.reveal === "link" ? promoBoxModal(located(env, "promoField")) : null;
+}
+
 interface PickStepOptions {
   key: PickKey;
   index: number;
@@ -317,6 +330,8 @@ async function pickStep(env: FlowEnv, options: PickStepOptions): Promise<StepRes
     const stopPick = () => controller.abort();
     env.signal.addEventListener("abort", stopPick, { once: true });
     let backRequested = false;
+    let closeRequested = false;
+    const coveringModal = PAGE_PICKS.has(options.key) ? openPromoModal(env) : null;
     env.overlay.render({
       step,
       title: options.title,
@@ -325,6 +340,19 @@ async function pickStep(env: FlowEnv, options: PickStepOptions): Promise<StepRes
       tone: problem ? "error" : "info",
       actions: [
         ...(options.helpers?.() ?? []),
+        ...(coveringModal
+          ? [
+              {
+                id: "close-box",
+                label: "Close the promo box",
+                kind: "secondary" as const,
+                onClick: () => {
+                  closeRequested = true;
+                  controller.abort();
+                },
+              },
+            ]
+          : []),
         {
           id: "back",
           label: "Back",
@@ -350,6 +378,27 @@ async function pickStep(env: FlowEnv, options: PickStepOptions): Promise<StepRes
     }
     if (env.signal.aborted) throw stopped();
     if (backRequested) return "back";
+    if (closeRequested) {
+      const field = located(env, "promoField");
+      problem = undefined;
+      if (field && !(await closePromoBoxModal(field))) {
+        // Choosing is paused on this screen, so the admin can close it on the page by hand.
+        const choice = await choose(env, (on) =>
+          env.overlay.render({
+            step,
+            title: options.title,
+            body: "Saverlly couldn't close the promo box. Close it on the page, then press Continue.",
+            tone: "error",
+            actions: [
+              { id: "next", label: "Continue", kind: "primary", onClick: on("next") },
+              { id: "back", label: "Back", kind: "link", onClick: on("back") },
+            ],
+          }),
+        );
+        if (choice === "back") return "back";
+      }
+      continue;
+    }
     if (outcome.kind === "cancelled") {
       problem = "Stopped choosing. Click the item on the checkout when you're ready.";
       continue;
@@ -514,8 +563,12 @@ function priceText(target: Element | null): string {
 }
 
 const cartTotalStep: Step = {
-  run: (env) =>
-    pickStep(env, {
+  run: async (env) => {
+    // The promo box was just open for the last two steps. If it's a drawer covering the page,
+    // the total can't be clicked until it closes, so close it before asking.
+    const field = located(env, "promoField");
+    if (field && openPromoModal(env)) await closePromoBoxModal(field);
+    return pickStep(env, {
       key: "cartTotal",
       index: 5,
       title: "Click the order total",
@@ -523,9 +576,14 @@ const cartTotalStep: Step = {
       label: "Order total",
       found: (target) => (target ? `Order total selected: ${priceText(target)}` : "Order total selected."),
       resolve: (target) => target,
+      checkElement: (el) => {
+        const modal = openPromoModal(env);
+        return modal && (modal.contains(el) || isBackdrop(el)) ? PROMO_BOX_COVERING : null;
+      },
       checkSelector: (selector) =>
         readTotal(selector) === null ? "That doesn't look like a price. Click the order total amount itself." : null,
-    }),
+    });
+  },
 };
 
 
