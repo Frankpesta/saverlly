@@ -3,9 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { CouponSource, Prisma } from '@prisma/client';
 import { parseAnnouncementLayout } from '@saverlly/shared-types';
 import { generateSubId } from '../common/crypto/sub-id.util';
+import { COUPON_FRESHNESS_DAYS } from '../coupons/automated-coupon.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
 import { ActivePromotionDto } from './dto/active-promotion.dto';
@@ -213,6 +214,26 @@ export class PublicApiService {
               failCount: dto.result === 'failed' ? { increment: 1 } : undefined,
               lastTestedAt: new Date(),
             },
+          });
+        }
+        // A store accepting a scraped/API code at a real checkout is as good as a sync seeing it
+        // again: keep it offered for another full window, so working codes don't go stale just
+        // because the scrapers can't reach their source. Only ever extends; manual codes
+        // (freshUntil NULL), the active switch and expiry dates are untouched.
+        if (
+          dto.couponId &&
+          (dto.result === 'valid' || dto.result === 'applied')
+        ) {
+          const freshUntil = new Date(
+            Date.now() + COUPON_FRESHNESS_DAYS * 86400_000,
+          );
+          await tx.coupon.updateMany({
+            where: {
+              id: dto.couponId,
+              source: { in: [CouponSource.SCRAPE, CouponSource.API] },
+              freshUntil: { not: null, lt: freshUntil },
+            },
+            data: { freshUntil },
           });
         }
         return created;
