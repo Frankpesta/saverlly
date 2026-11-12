@@ -594,6 +594,20 @@ describe("top-frame navigation handling", () => {
     expect(mockFetchMerchantByDomain).not.toHaveBeenCalled();
   });
 
+  it("still detects the checkout of a store with no usable coupons", async () => {
+    mockIsDormant.mockResolvedValue(false);
+    mockGetCachedMerchant.mockResolvedValue(null);
+    mockSetCachedMerchant.mockResolvedValue(undefined);
+    mockFetchMerchantByDomain.mockResolvedValue({ ...merchant, coupons: [] });
+    mockRunAttribution.mockResolvedValue(null);
+
+    await registeredOnCommitted({ tabId: 7, frameId: 0, url: "https://shop.example.com/checkout" });
+
+    expect(chromeMock.scripting.executeScript).toHaveBeenLastCalledWith(
+      expect.objectContaining({ files: ["content-scripts/checkout-detector.js"] }),
+    );
+  });
+
   it("injects the checkout-detector on a plain onCommitted document load too", async () => {
     mockIsDormant.mockResolvedValue(false);
     mockGetCachedMerchant.mockResolvedValue(null);
