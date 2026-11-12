@@ -315,9 +315,10 @@ async function detectTab(
   if (await activeStoreSetupTab(tabId, url)) return;
   const version = navigationVersions.get(tabId);
   const merchant = await resolveMerchant(new URL(url).hostname, fresh);
+  // Coupons are deliberately not required: a store's checkout is still detected with none, so
+  // the popup can tell the shopper there are no coupons for it rather than staying silent.
   if (
     !merchant?.active ||
-    !usableCoupons(merchant.coupons).length ||
     !merchant.checkoutRecipe ||
     version !== navigationVersions.get(tabId)
   )
