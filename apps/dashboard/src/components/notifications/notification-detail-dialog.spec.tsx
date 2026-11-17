@@ -21,3 +21,20 @@ it("takes an admin straight to the store's setup to re-check it", () => {
     "/admin/merchants/m-1#store-setup",
   )
 })
+
+it("sends an admin to the coupon sites panel when a site looks down", () => {
+  const down: Notification = {
+    ...recheck,
+    id: "n-2",
+    type: "COUPON_SITE_DOWN",
+    title: "CouponFollow looks down",
+    body: "6 of its last 8 runs in 24 hours were blocked by its bot protection.",
+    metadata: { strategy: "COUPONFOLLOW" },
+  }
+  render(<NotificationDetailDialog notification={down} basePath="/admin" open onOpenChange={() => {}} />)
+  expect(screen.getByText("Scrapers")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "View coupon sites" })).toHaveAttribute(
+    "href",
+    "/admin/scrape-sources",
+  )
+})

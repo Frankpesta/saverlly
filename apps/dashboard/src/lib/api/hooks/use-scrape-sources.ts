@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
-import type { ScrapeStrategyName } from "@saverlly/shared-types"
+import type { CouponSiteHealth, ScrapeStrategyName } from "@saverlly/shared-types"
 import type { ScrapeSource, SelectorConfig } from "@/lib/api/types"
 
 const scrapeSourcesKey = ["scrape-sources"] as const
@@ -91,5 +91,14 @@ export function useBackfillCouponSites() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scrapeSourcesKey })
     },
+  })
+}
+
+/** The coupon sites panel: each site's last 24 hours of runs. Refreshed every minute. */
+export function useCouponSiteHealth() {
+  return useQuery({
+    queryKey: [...scrapeSourcesKey, "sites"],
+    queryFn: () => apiFetch<CouponSiteHealth[]>("/scrape-sources/sites"),
+    refetchInterval: 60_000,
   })
 }

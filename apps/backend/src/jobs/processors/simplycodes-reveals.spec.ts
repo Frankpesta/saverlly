@@ -7,6 +7,8 @@ import { launchDetachedChromium } from './scrape-browser';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CouponSiteRegistry } from '../../coupon-sites/coupon-site-registry';
 import { ScrapeRunnerService } from '../../coupon-sites/scrape-runner.service';
+import { ScrapeHealthService } from '../../coupon-sites/scrape-health.service';
+import { fakeHealth } from '../../coupon-sites/fake-health.testing';
 
 jest.mock('./scrape-browser', () => ({ launchDetachedChromium: jest.fn() }));
 
@@ -243,6 +245,7 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
         prisma as unknown as PrismaService,
         new CouponSiteRegistry(),
         jest.fn(),
+        fakeHealth() as unknown as ScrapeHealthService,
       );
       const run = () => runner.run('source', { id: 'job', attemptsMade: 0 });
       await run();

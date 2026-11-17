@@ -21,6 +21,7 @@ const TYPE_LABEL: Record<NotificationType, string> = {
   STRIPE_ONBOARDING_CHANGED: "Stripe",
   COMMISSION_DIGEST: "Commissions",
   STORE_NEEDS_RECHECK: "Stores",
+  COUPON_SITE_DOWN: "Scrapers",
 }
 
 // Every trigger that sets metadata today points at something on the Earnings/Payouts screen
@@ -49,6 +50,10 @@ function actionFor(
         ? { label: "Re-check the store", href: `/admin/merchants/${merchantId}#store-setup` }
         : null
     }
+    case "COUPON_SITE_DOWN":
+      return basePath === "/admin"
+        ? { label: "View coupon sites", href: "/admin/scrape-sources" }
+        : null
     case "KIOSK_OWNER_CREATED":
     case "LOCATION_MANAGER_CREATED":
       return null

@@ -2,6 +2,8 @@ import { UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponSiteRegistry } from './coupon-site-registry';
 import { HttpFetcher } from './coupon-site.types';
+import { fakeHealth } from './fake-health.testing';
+import { ScrapeHealthService } from './scrape-health.service';
 import { couponFollowScraper } from './couponfollow.scraper';
 import { genericCssScraper } from './generic-css.scraper';
 import {
@@ -19,7 +21,10 @@ const LISTING =
 function setup(
   responses: Record<string, { status: number; body: string }>,
   existing: Record<string, unknown> | null = null,
+  sourceOverrides: Record<string, unknown> = {},
+  job: Parameters<ScrapeRunnerService['run']>[1] = {},
 ) {
+  const health = fakeHealth();
   const prisma = {
     scrapeSource: {
       findUnique: jest.fn().mockResolvedValue({
@@ -30,6 +35,8 @@ function setup(
         intervalMinutes: 360,
         url: STORE,
         selectorConfig: null,
+        consecutiveBlocks: 0,
+        ...sourceOverrides,
       }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -50,6 +57,7 @@ function setup(
     prisma as unknown as PrismaService,
     new CouponSiteRegistry(),
     http,
+    health as unknown as ScrapeHealthService,
   );
   // CouponFollow waits a second between offers; not in a unit test.
   jest.spyOn(global, 'setTimeout').mockImplementation(((fn: () => void) => {
@@ -58,7 +66,7 @@ function setup(
   }) as unknown as typeof setTimeout);
   const lastUpdate = () =>
     prisma.scrapeSource.updateMany.mock.calls.at(-1)![0].data;
-  return { prisma, run: () => runner.run('source'), lastUpdate };
+  return { prisma, health, run: () => runner.run('source', job), lastUpdate };
 }
 
 const offer = (id: string, extra: Record<string, unknown> = {}) => ({
@@ -148,27 +156,99 @@ describe('ScrapeRunnerService', () => {
     );
   });
 
-  it('records a block without retrying it inside the job', async () => {
-    const { prisma, run, lastUpdate } = setup({
-      [STORE]: { status: 403, body: '<title>Just a moment...</title>' },
+  const BLOCK_PAGE = {
+    [STORE]: { status: 403, body: '<title>Just a moment...</title>' },
+  };
+
+  it('records a block without retrying it, and backs off more with each block in a row', async () => {
+    const { prisma, health, run, lastUpdate } = setup(BLOCK_PAGE, null, {
+      consecutiveBlocks: 2,
     });
+    const before = Date.now();
     const error = await run().catch((e: unknown) => e);
     expect(error).toBeInstanceOf(UnrecoverableError);
     expect(prisma.coupon.create).not.toHaveBeenCalled();
-    expect(lastUpdate()).toMatchObject({
+    const data = lastUpdate();
+    expect(data).toMatchObject({
       status: 'BLOCKED',
       lastError: expect.stringContaining('Blocked by bot-detection'),
-      consecutiveFailures: { increment: 1 },
+      consecutiveBlocks: 3,
+    });
+    // A block is the site's doing, not a failure of ours.
+    expect(data.consecutiveFailures).toBeUndefined();
+    // Third block in a row on a 6-hour source: 6 h x 4 = 24 h.
+    expect(data.nextRunAt.getTime() - before).toBeGreaterThanOrEqual(
+      24 * 3_600_000 - 1_000,
+    );
+    expect(data.nextRunAt.getTime() - before).toBeLessThan(
+      24 * 3_600_000 + 60_000,
+    );
+    expect(health.recordRun).toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: 'COUPONFOLLOW', outcome: 'BLOCKED' }),
+    );
+    expect(health.afterBlock).toHaveBeenCalledWith('COUPONFOLLOW');
+    expect(health.checkSiteDown).toHaveBeenCalledWith('COUPONFOLLOW');
+  });
+
+  it('resets the block count once the site lets us in again', async () => {
+    const { run, lastUpdate } = setup(
+      {
+        [STORE]: { status: 200, body: LISTING.split('</article>')[0] },
+        [`${API}/C1`]: offer('C1'),
+      },
+      null,
+      { consecutiveBlocks: 4, status: 'BLOCKED' },
+    );
+    await run();
+    expect(lastUpdate()).toMatchObject({
+      status: 'ACTIVE',
+      consecutiveBlocks: 0,
+      consecutiveFailures: 0,
     });
   });
 
-  it('counts a thrown error as a failure without touching status or next run', async () => {
-    const { run, lastUpdate } = setup({});
-    await expect(run()).rejects.toThrow('unexpected request');
-    const data = lastUpdate();
+  it('counts a failure only on the last try BullMQ gives the job', async () => {
+    const retried = setup({}, null, {}, { attemptsMade: 0, attempts: 3 });
+    await expect(retried.run()).rejects.toThrow('unexpected request');
+    const data = retried.lastUpdate();
     expect(data.status).toBeUndefined();
     expect(data.nextRunAt).toBeUndefined();
-    expect(data.consecutiveFailures).toEqual({ increment: 1 });
+    expect(data.consecutiveFailures).toBeUndefined();
+    expect(retried.health.recordRun).not.toHaveBeenCalled();
+
+    const last = setup({}, null, {}, { attemptsMade: 2, attempts: 3 });
+    await expect(last.run()).rejects.toThrow('unexpected request');
+    expect(last.lastUpdate().consecutiveFailures).toEqual({ increment: 1 });
+    expect(last.health.recordRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'FAILED',
+        error: expect.stringContaining('unexpected request'),
+      }),
+    );
+  });
+
+  it('moves a queued run to the end of a site-wide pause, unless an admin asked for it', async () => {
+    const until = new Date(Date.now() + 3 * 3_600_000);
+    const queued = setup(BLOCK_PAGE);
+    queued.health.pausedUntil.mockResolvedValue(until);
+    await queued.run();
+    expect(queued.prisma.scrapeSource.updateMany).toHaveBeenCalledTimes(1);
+    expect(queued.lastUpdate()).toEqual({ nextRunAt: until });
+    expect(queued.health.recordRun).not.toHaveBeenCalled();
+
+    const manual = setup(BLOCK_PAGE, null, {}, { manual: true });
+    manual.health.pausedUntil.mockResolvedValue(until);
+    await expect(manual.run()).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(manual.health.pausedUntil).not.toHaveBeenCalled();
+  });
+
+  it('still finishes the run when recording its history fails', async () => {
+    const { health, run, lastUpdate } = setup({
+      [STORE]: { status: 404, body: 'Page not found' },
+    });
+    health.recordRun.mockRejectedValue(new Error('db down'));
+    await run();
+    expect(lastUpdate()).toMatchObject({ status: 'NOT_LISTED' });
   });
 });
 
@@ -181,6 +261,20 @@ describe('nextRunAfter', () => {
     expect(nextRunAfter({ intervalMinutes: 360 }, 'not_listed', now)).toEqual(
       new Date('2026-12-17T00:00:00Z'),
     );
+  });
+
+  it('doubles the wait with each block in a row, up to 7 days', () => {
+    const hours = (source: { intervalMinutes: number }, blocks: number) =>
+      (nextRunAfter(source, 'blocked', now, blocks).getTime() - now.getTime()) /
+      3_600_000;
+    const sixHourly = { intervalMinutes: 360 };
+    expect([1, 2, 3, 4, 5].map((n) => hours(sixHourly, n))).toEqual([
+      6, 12, 24, 48, 96,
+    ]);
+    expect(hours(sixHourly, 10)).toBe(7 * 24);
+    expect(hours({ intervalMinutes: 1440 }, 2)).toBe(48);
+    // A source that already runs less often than weekly keeps its own interval.
+    expect(hours({ intervalMinutes: 14 * 1440 }, 3)).toBe(14 * 24);
   });
 });
 

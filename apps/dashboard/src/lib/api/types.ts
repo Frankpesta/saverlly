@@ -270,7 +270,10 @@ export type ScrapeSource = {
   /** What the coupon site said last time, separate from the `active` switch. */
   status: ScrapeSourceStatusName
   nextRunAt: string | null
+  /** Failed runs in a row (blocks not counted); flagged at SCRAPE_SOURCE_FAILING_AFTER. */
   consecutiveFailures: number
+  /** Blocked runs in a row; each one doubles the wait before the next try. */
+  consecutiveBlocks: number
   autoCreated: boolean
   lastRunAt: string | null
   lastSucceededAt?: string | null
@@ -349,6 +352,7 @@ export type NotificationType =
   | "STRIPE_ONBOARDING_CHANGED"
   | "COMMISSION_DIGEST"
   | "STORE_NEEDS_RECHECK"
+  | "COUPON_SITE_DOWN"
 
 export type Notification = {
   id: string

@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import ScrapeSourcesPage from "./page"
+import type { CouponSiteHealth } from "@saverlly/shared-types"
 import type { Merchant, ScrapeSource } from "@/lib/api/types"
 
 const merchants: Merchant[] = [
@@ -29,6 +30,7 @@ const scrapeSources: ScrapeSource[] = [
     status: "ACTIVE",
     nextRunAt: null,
     consecutiveFailures: 0,
+    consecutiveBlocks: 0,
     autoCreated: false,
     selectorConfig: { codeSelector: ".coupon-code" },
     intervalMinutes: 1440,
@@ -43,11 +45,31 @@ const scrapeSources: ScrapeSource[] = [
     status: "ACTIVE",
     nextRunAt: null,
     consecutiveFailures: 0,
+    consecutiveBlocks: 0,
     autoCreated: false,
     selectorConfig: { codeSelector: ".code" },
     intervalMinutes: 720,
     lastRunAt: null,
     active: false,
+  },
+]
+
+const sites: CouponSiteHealth[] = [
+  {
+    strategy: "SIMPLYCODES",
+    label: "SimplyCodes",
+    runs: { succeeded: 2, blocked: 9, notListed: 0, failed: 0 },
+    codesFound: 11,
+    lastSucceededAt: "2026-11-17T08:00:00.000Z",
+    pausedUntil: new Date(Date.now() + 5 * 3_600_000).toISOString(),
+  },
+  {
+    strategy: "COUPONFOLLOW",
+    label: "CouponFollow",
+    runs: { succeeded: 40, blocked: 0, notListed: 3, failed: 1 },
+    codesFound: 212,
+    lastSucceededAt: null,
+    pausedUntil: null,
   },
 ]
 
@@ -69,6 +91,9 @@ describe("ScrapeSourcesPage", () => {
       }
       if (url === "/api/proxy/merchants" && method === "GET") {
         return { ok: true, status: 200, json: async () => merchants } as Response
+      }
+      if (url === "/api/proxy/scrape-sources/sites" && method === "GET") {
+        return { ok: true, status: 200, json: async () => sites } as Response
       }
       if (url === "/api/proxy/scrape-sources/backfill" && method === "POST") {
         return { ok: true, status: 201, json: async () => ({ merchants: 4, created: 7 }) } as Response
@@ -118,5 +143,19 @@ describe("ScrapeSourcesPage", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     )
+  })
+
+  it("shows how each coupon site did over the last day, and a paused site", async () => {
+    renderWithClient(<ScrapeSourcesPage />)
+
+    const simply = (await screen.findByText("SimplyCodes")).closest("tr")!
+    expect(within(simply).getByText("9")).toBeInTheDocument()
+    expect(within(simply).getByText("11")).toBeInTheDocument()
+    expect(within(simply).getByText(/^Paused for/)).toBeInTheDocument()
+
+    const follow = screen.getByText("CouponFollow").closest("tr")!
+    expect(within(follow).getByText("212")).toBeInTheDocument()
+    expect(within(follow).getByText("Never")).toBeInTheDocument()
+    expect(within(follow).queryByText(/^Paused/)).not.toBeInTheDocument()
   })
 })

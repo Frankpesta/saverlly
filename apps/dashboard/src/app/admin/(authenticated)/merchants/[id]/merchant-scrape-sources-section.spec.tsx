@@ -10,6 +10,7 @@ const base = {
   intervalMinutes: 1440,
   nextRunAt: null,
   consecutiveFailures: 0,
+  consecutiveBlocks: 0,
   autoCreated: true,
   lastRunAt: null,
   active: true,

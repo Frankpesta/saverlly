@@ -15,6 +15,7 @@ import {
   disabledCouponSites,
 } from '../coupon-sites/coupon-site-sources.service';
 import { ScrapeDispatcherService } from '../coupon-sites/scrape-dispatcher.service';
+import { ScrapeHealthService } from '../coupon-sites/scrape-health.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateScrapeSourceDto } from './dto/create-scrape-source.dto';
 import { UpdateScrapeSourceDto } from './dto/update-scrape-source.dto';
@@ -30,7 +31,13 @@ export class ScrapeSourcesService {
     private readonly prisma: PrismaService,
     private readonly dispatcher: ScrapeDispatcherService,
     private readonly couponSites: CouponSiteSourcesService,
+    private readonly health: ScrapeHealthService,
   ) {}
+
+  /** The coupon sites panel: each site's last 24 hours of runs. */
+  siteHealth() {
+    return this.health.siteHealth();
+  }
 
   /** Gives every active merchant its sources on the built-in coupon sites. */
   backfill() {

@@ -34,6 +34,16 @@ export class ScrapeSourcesController {
     return this.scrapeSourcesService.backfill();
   }
 
+  @Get('sites')
+  @ApiOperation({
+    summary:
+      "Each coupon site's last 24 hours: runs by outcome, codes found, last success, and any site-wide pause",
+  })
+  @ApiResponse({ status: 200, description: 'One row per coupon site, then custom pages' })
+  siteHealth() {
+    return this.scrapeSourcesService.siteHealth();
+  }
+
   @Get()
   @ApiOperation({ summary: 'List all scrape sources' })
   @ApiResponse({ status: 200, description: 'Scrape sources' })

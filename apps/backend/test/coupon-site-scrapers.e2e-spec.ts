@@ -5,7 +5,11 @@ import { createServer, Server } from 'http';
 import { AddressInfo } from 'net';
 import request from 'supertest';
 import { ScrapeDispatcherService } from '../src/coupon-sites/scrape-dispatcher.service';
-import { COUPON_SITE_HTTP } from '../src/coupon-sites/scrape-runner.service';
+import {
+  COUPON_SITE_HTTP,
+  ScrapeRunnerService,
+} from '../src/coupon-sites/scrape-runner.service';
+import { ScrapeHealthService } from '../src/coupon-sites/scrape-health.service';
 import { HttpFetcher } from '../src/coupon-sites/coupon-site.types';
 import { QUEUE_NAMES } from '../src/jobs/queue-names';
 import { resetDatabase, resetRedisTestDb, testPrisma } from './utils/db';
@@ -48,6 +52,9 @@ const fakeCouponFollow: HttpFetcher = async (url) => {
         discountInfo: { type: 'PercentageReduction', value: 15 },
       }),
     );
+  // Stores under "walled-" sit behind a bot wall.
+  if (url.startsWith('https://couponfollow.com/site/walled-'))
+    return reply(403, '<title>Just a moment...</title>');
   return reply(404, 'Page not found');
 };
 
@@ -470,6 +477,130 @@ describe('Coupon site scrapers (e2e, real BullMQ + Redis)', () => {
       expect(
         (await app.get(ScrapeDispatcherService).dispatchDue()).queued,
       ).toBe(0);
+    });
+  });
+
+  describe('back-off and monitoring (Phase 4)', () => {
+    const walled = async (n: number) => {
+      const merchant = await seedMerchant({ domain: `walled-${n}.test` });
+      return testPrisma.scrapeSource.create({
+        data: {
+          strategy: 'COUPONFOLLOW',
+          merchantId: merchant.id,
+          url: `https://couponfollow.com/site/walled-${n}.test`,
+          intervalMinutes: 360,
+        },
+      });
+    };
+    const run = (id: string, manual = false) =>
+      app
+        .get(ScrapeRunnerService)
+        .run(id, { manual })
+        .catch(() => undefined);
+
+    it('pauses a coupon site after 3 sources are blocked within an hour, then tells admins once it looks down', async () => {
+      const sources = await Promise.all([1, 2, 3, 4, 5, 6].map(walled));
+      const started = Date.now();
+
+      for (const source of sources.slice(0, 3)) await run(source.id);
+
+      const state = await testPrisma.couponSiteState.findUniqueOrThrow({
+        where: { strategy: 'COUPONFOLLOW' },
+      });
+      expect(state.pausedUntil!.getTime()).toBeGreaterThanOrEqual(
+        started + 6 * 3_600_000 - 1_000,
+      );
+      const first = await testPrisma.scrapeSource.findUniqueOrThrow({
+        where: { id: sources[0].id },
+      });
+      expect(first).toMatchObject({
+        status: 'BLOCKED',
+        consecutiveBlocks: 1,
+        consecutiveFailures: 0,
+      });
+
+      // While paused: nothing on the site is queued, and a job queued earlier waits it out.
+      await testPrisma.scrapeSource.updateMany({
+        data: { nextRunAt: new Date(Date.now() - 60_000) },
+      });
+      expect(
+        (await app.get(ScrapeDispatcherService).dispatchDue()).queued,
+      ).toBe(0);
+      const requestsBefore = couponFollowRequests.length;
+      await run(sources[3].id);
+      expect(couponFollowRequests.length).toBe(requestsBefore);
+      expect(
+        (
+          await testPrisma.scrapeSource.findUniqueOrThrow({
+            where: { id: sources[3].id },
+          })
+        ).nextRunAt,
+      ).toEqual(state.pausedUntil);
+
+      // Admins' "Run now" still goes through. Five blocked runs of five: the site looks down,
+      // and admins hear about it once, however many more runs agree.
+      await run(sources[3].id, true);
+      await run(sources[4].id, true);
+      await run(sources[5].id, true);
+      const alerts = await testPrisma.notification.findMany({
+        where: { type: 'COUPON_SITE_DOWN' },
+      });
+      expect(alerts).toEqual([
+        expect.objectContaining({
+          title: 'CouponFollow looks down',
+          body: expect.stringContaining('blocked'),
+          metadata: { strategy: 'COUPONFOLLOW' },
+        }),
+      ]);
+
+      const panel = await request(app.getHttpServer())
+        .get('/scrape-sources/sites')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(panel.body).toEqual([
+        expect.objectContaining({ strategy: 'SIMPLYCODES', label: 'SimplyCodes' }),
+        {
+          strategy: 'COUPONFOLLOW',
+          label: 'CouponFollow',
+          runs: { succeeded: 0, blocked: 6, notListed: 0, failed: 0 },
+          codesFound: 0,
+          lastSucceededAt: null,
+          pausedUntil: state.pausedUntil!.toISOString(),
+        },
+        expect.objectContaining({ strategy: 'GENERIC_CSS', label: 'Custom pages' }),
+      ]);
+    }, 60_000);
+
+    it('tells admins when a site finds no codes on most stores it lists', async () => {
+      const merchant = await seedMerchant();
+      const source = await testPrisma.scrapeSource.create({
+        data: {
+          strategy: 'SIMPLYCODES',
+          merchantId: merchant.id,
+          url: 'https://simplycodes.com/store/empty.test',
+        },
+      });
+      await testPrisma.scrapeRun.createMany({
+        data: [0, 0, 0, 0, 0, 3].map((codeCount) => ({
+          sourceId: source.id,
+          strategy: 'SIMPLYCODES' as const,
+          outcome: 'SUCCEEDED' as const,
+          codeCount,
+        })),
+      });
+      const health = app.get(ScrapeHealthService);
+      await health.checkSiteDown('SIMPLYCODES');
+      // Old history is dropped after 30 days; recent history stays.
+      await health.prune(new Date(Date.now() + 31 * 86_400_000));
+      expect(await testPrisma.scrapeRun.count()).toBe(0);
+
+      const [alert] = await testPrisma.notification.findMany({
+        where: { type: 'COUPON_SITE_DOWN' },
+      });
+      expect(alert).toMatchObject({
+        title: 'SimplyCodes looks down',
+        body: expect.stringContaining('found no codes on 5 of 6 stores'),
+      });
     });
   });
 });
