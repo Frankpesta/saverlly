@@ -1,18 +1,40 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ScrapeStrategy } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUrl, IsUUID, Min, ValidateNested } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsUrl,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { SelectorConfigDto } from './selector-config.dto';
 
 export class CreateScrapeSourceDto {
-  @ApiProperty()
-  @IsUrl({ require_tld: false })
-  url: string;
+  @ApiPropertyOptional({
+    enum: ScrapeStrategy,
+    default: ScrapeStrategy.GENERIC_CSS,
+    description:
+      'Which scraper reads the source. GENERIC_CSS uses selectorConfig; a coupon site ' +
+      '(SIMPLYCODES, COUPONFOLLOW) needs only a merchant, and its store page URL is built from ' +
+      "the merchant's domain when url is omitted.",
+  })
+  @IsOptional()
+  @IsEnum(ScrapeStrategy)
+  strategy?: ScrapeStrategy;
 
-  // Required except for a multi-merchant source (selectorConfig.rowSelector set) -- the
-  // processor now has a per-row merchant resolution strategy (exact case-insensitive name
-  // match) for that case, and a fixed merchantId would be meaningless there since each row
-  // belongs to a different merchant. The processor itself is the real enforcement point for
-  // "one or the other, not neither/both" -- see its merchantId/rowSelector branch.
+  @ApiPropertyOptional({
+    description:
+      "Required for GENERIC_CSS. For a coupon site, defaults to the merchant's store page.",
+  })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  url?: string;
+
+  // Required except for a multi-merchant feed (selectorConfig.rowSelector set), which resolves
+  // the merchant per row by exact case-insensitive name instead.
   @ApiPropertyOptional({
     description:
       'The merchant this scrape source belongs to. Required unless selectorConfig.rowSelector ' +
@@ -22,12 +44,21 @@ export class CreateScrapeSourceDto {
   @IsUUID()
   merchantId?: string;
 
-  @ApiProperty({ type: SelectorConfigDto })
+  @ApiPropertyOptional({
+    type: SelectorConfigDto,
+    description:
+      'Required for GENERIC_CSS. Optional overrides for SIMPLYCODES; not used by other sites.',
+  })
+  @IsOptional()
   @ValidateNested()
   @Type(() => SelectorConfigDto)
-  selectorConfig: SelectorConfigDto;
+  selectorConfig?: SelectorConfigDto;
 
-  @ApiPropertyOptional({ default: 1440, description: 'Scrape cadence in minutes. Defaults to daily (1440)' })
+  @ApiPropertyOptional({
+    description:
+      "Scrape cadence in minutes. Defaults to daily (1440), or the coupon site's own default " +
+      '(every 6 hours for sites read without a browser).',
+  })
   @IsOptional()
   @IsInt()
   @Min(1)

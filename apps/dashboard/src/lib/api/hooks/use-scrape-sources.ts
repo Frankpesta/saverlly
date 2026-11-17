@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api/client"
+import type { ScrapeStrategyName } from "@saverlly/shared-types"
 import type { ScrapeSource, SelectorConfig } from "@/lib/api/types"
 
 const scrapeSourcesKey = ["scrape-sources"] as const
@@ -14,12 +15,15 @@ export function useScrapeSources() {
 }
 
 export type ScrapeSourcePayload = {
-  url: string
+  /** Omitted = GENERIC_CSS. A coupon site needs only merchantId; the backend builds the URL. */
+  strategy?: ScrapeStrategyName
+  url?: string
   /** Omitted (create) or explicitly null (edit, clearing a previous value) for a multi-merchant
    * source (selectorConfig.rowSelector set) — the backend resolves the merchant per row instead
    * of from a fixed id. */
   merchantId?: string | null
-  selectorConfig: SelectorConfig
+  /** Required for GENERIC_CSS; never sent for a coupon site. */
+  selectorConfig?: SelectorConfig
   intervalMinutes?: number
 }
 

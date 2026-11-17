@@ -17,8 +17,9 @@ export class ScrapeSourcesController {
   constructor(private readonly scrapeSourcesService: ScrapeSourcesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Add a scrape source (URL + selector config), scheduled on creation' })
-  @ApiResponse({ status: 201, description: 'Scrape source created and scheduled' })
+  @ApiOperation({ summary: 'Add a scrape source: a coupon site page for a merchant, or a URL + selector config. First run within 5 minutes' })
+  @ApiResponse({ status: 201, description: 'Scrape source created' })
+  @ApiResponse({ status: 409, description: 'The merchant already has a source on that coupon site' })
   create(@Body() dto: CreateScrapeSourceDto) {
     return this.scrapeSourcesService.create(dto);
   }
@@ -31,7 +32,7 @@ export class ScrapeSourcesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a scrape source. Reschedules automatically if interval or active state changes' })
+  @ApiOperation({ summary: 'Update a scrape source. A new interval or switching it back on takes effect at once' })
   @ApiResponse({ status: 200, description: 'Scrape source updated' })
   @ApiResponse({ status: 404, description: 'Scrape source not found' })
   update(@Param('id') id: string, @Body() dto: UpdateScrapeSourceDto) {
@@ -40,7 +41,7 @@ export class ScrapeSourcesController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a scrape source. Unschedules its repeat job' })
+  @ApiOperation({ summary: 'Delete a scrape source' })
   @ApiResponse({ status: 204, description: 'Scrape source deleted' })
   @ApiResponse({ status: 404, description: 'Scrape source not found' })
   remove(@Param('id') id: string) {

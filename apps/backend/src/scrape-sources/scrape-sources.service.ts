@@ -1,63 +1,90 @@
-import { InjectQueue } from '@nestjs/bullmq';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
-  OnModuleInit,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { Queue } from 'bullmq';
-import { QUEUE_NAMES } from '../jobs/queue-names';
+import { Prisma, ScrapeSourceStatus, ScrapeStrategy } from '@prisma/client';
+import {
+  couponSiteInfo,
+  couponSiteStoreUrl,
+  CouponSiteStrategy,
+} from '@saverlly/shared-types';
+import { ScrapeDispatcherService } from '../coupon-sites/scrape-dispatcher.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateScrapeSourceDto } from './dto/create-scrape-source.dto';
 import { UpdateScrapeSourceDto } from './dto/update-scrape-source.dto';
 
-const SCRAPE_JOB_NAME = 'scrape-coupons';
+type SelectorShape = {
+  rowSelector?: string;
+  merchantSelector?: string;
+} | null;
 
 @Injectable()
-export class ScrapeSourcesService implements OnModuleInit {
-  private readonly logger = new Logger(ScrapeSourcesService.name);
-
+export class ScrapeSourcesService {
   constructor(
     private readonly prisma: PrismaService,
-    @InjectQueue(QUEUE_NAMES.SCRAPE_COUPONS)
-    private readonly scrapeQueue: Queue,
+    private readonly dispatcher: ScrapeDispatcherService,
   ) {}
 
-  /** Resyncs repeatable jobs on boot. Self-healing if Redis's job schedule was ever lost/reset. */
-  async onModuleInit() {
-    try {
-      const activeSources = await this.prisma.scrapeSource.findMany({
-        where: { active: true },
-      });
-      await Promise.all(
-        activeSources.map((s) => this.scheduleRepeat(s.id, s.intervalMinutes)),
-      );
-    } catch (err) {
-      this.logger.error(
-        'Failed to resync scrape-source repeat jobs on boot. Continuing without scheduling',
-        err,
-      );
-    }
-  }
-
   async create(dto: CreateScrapeSourceDto) {
-    this.validateSource(dto.merchantId, dto.selectorConfig);
-    if (dto.merchantId) {
-      await this.assertMerchantExists(dto.merchantId);
+    const strategy = dto.strategy ?? ScrapeStrategy.GENERIC_CSS;
+    const site = couponSiteInfo(strategy);
+    let url = dto.url;
+    if (site) {
+      // A coupon site's source is always one store's page there.
+      if (!dto.merchantId)
+        throw new BadRequestException(
+          `Choose the merchant whose ${site.label} page to read`,
+        );
+      if (dto.selectorConfig && strategy !== ScrapeStrategy.SIMPLYCODES)
+        throw new BadRequestException(
+          `${site.label} sources don't take selectors`,
+        );
+      if (dto.selectorConfig?.rowSelector)
+        throw new BadRequestException(
+          'A coupon site source reads one store, not a multi-merchant feed',
+        );
+      const merchant = await this.findMerchantOrThrow(dto.merchantId);
+      url ??= couponSiteStoreUrl(
+        strategy as CouponSiteStrategy,
+        merchant.domain,
+      );
+    } else {
+      if (!dto.selectorConfig)
+        throw new BadRequestException(
+          'Add the CSS selectors this page is read with',
+        );
+      if (!url) throw new BadRequestException('Page URL is required');
+      this.validateSelectors(dto.merchantId, dto.selectorConfig);
+      if (dto.merchantId) await this.findMerchantOrThrow(dto.merchantId);
     }
 
-    const source = await this.prisma.scrapeSource.create({
-      data: {
-        url: dto.url,
-        merchantId: dto.merchantId,
-        selectorConfig: dto.selectorConfig as unknown as Prisma.InputJsonValue,
-        intervalMinutes: dto.intervalMinutes ?? 1440,
-      },
-    });
-    await this.scheduleRepeat(source.id, source.intervalMinutes);
-    return source;
+    try {
+      return await this.prisma.scrapeSource.create({
+        data: {
+          strategy,
+          url: url,
+          merchantId: dto.merchantId,
+          selectorConfig: dto.selectorConfig
+            ? (dto.selectorConfig as unknown as Prisma.InputJsonValue)
+            : undefined,
+          intervalMinutes:
+            dto.intervalMinutes ?? site?.defaultIntervalMinutes ?? 1440,
+          // First run on the dispatcher's next tick.
+          nextRunAt: new Date(),
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      )
+        throw new ConflictException(
+          `This merchant already has a ${site?.label ?? strategy} source`,
+        );
+      throw error;
+    }
   }
 
   findAll() {
@@ -74,43 +101,68 @@ export class ScrapeSourcesService implements OnModuleInit {
 
   async update(id: string, dto: UpdateScrapeSourceDto) {
     const existing = await this.findOneOrThrow(id);
-    this.validateSource(
-      dto.merchantId === undefined ? existing.merchantId : dto.merchantId,
-      dto.selectorConfig ??
-        (existing.selectorConfig as unknown as {
-          rowSelector?: string;
-          merchantSelector?: string;
-        }),
-    );
+    const isSite = existing.strategy !== ScrapeStrategy.GENERIC_CSS;
+    if (isSite) {
+      if (dto.merchantId === null || dto.selectorConfig?.rowSelector)
+        throw new BadRequestException(
+          'A coupon site source reads one store, not a multi-merchant feed',
+        );
+      if (
+        dto.selectorConfig &&
+        existing.strategy !== ScrapeStrategy.SIMPLYCODES
+      )
+        throw new BadRequestException(
+          "This coupon site doesn't take selectors",
+        );
+    } else {
+      this.validateSelectors(
+        dto.merchantId === undefined ? existing.merchantId : dto.merchantId,
+        dto.selectorConfig ?? (existing.selectorConfig as SelectorShape),
+      );
+    }
     if (dto.merchantId) {
-      await this.assertMerchantExists(dto.merchantId);
+      await this.findMerchantOrThrow(dto.merchantId);
     }
 
-    const updated = await this.prisma.scrapeSource.update({
-      where: { id },
-      data: {
-        url: dto.url,
-        merchantId: dto.merchantId,
-        selectorConfig: dto.selectorConfig
-          ? (dto.selectorConfig as unknown as Prisma.InputJsonValue)
-          : undefined,
-        intervalMinutes: dto.intervalMinutes,
-        active: dto.active,
-      },
-    });
-
-    // Reschedule unconditionally. Cheap, and avoids subtly missing an interval/active-state change.
-    await this.unscheduleRepeat(id, existing.intervalMinutes);
-    if (updated.active) {
-      await this.scheduleRepeat(id, updated.intervalMinutes);
+    const now = Date.now();
+    const reactivated = dto.active === true && !existing.active;
+    const intervalChanged =
+      dto.intervalMinutes !== undefined &&
+      dto.intervalMinutes !== existing.intervalMinutes;
+    try {
+      return await this.prisma.scrapeSource.update({
+        where: { id },
+        data: {
+          url: dto.url,
+          merchantId: dto.merchantId,
+          selectorConfig: dto.selectorConfig
+            ? (dto.selectorConfig as unknown as Prisma.InputJsonValue)
+            : undefined,
+          intervalMinutes: dto.intervalMinutes,
+          active: dto.active,
+          // Switched back on: run on the next tick, and forget what the site said last time.
+          // A new interval takes effect from now rather than after the old one runs out.
+          ...(reactivated
+            ? { nextRunAt: new Date(now), status: ScrapeSourceStatus.ACTIVE }
+            : intervalChanged
+              ? { nextRunAt: new Date(now + dto.intervalMinutes! * 60_000) }
+              : {}),
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      )
+        throw new ConflictException(
+          'That merchant already has a source on this coupon site',
+        );
+      throw error;
     }
-
-    return updated;
   }
 
   async remove(id: string) {
-    const existing = await this.findOneOrThrow(id);
-    await this.unscheduleRepeat(id, existing.intervalMinutes);
+    await this.findOneOrThrow(id);
     await this.prisma.scrapeSource.delete({ where: { id } });
   }
 
@@ -118,36 +170,13 @@ export class ScrapeSourcesService implements OnModuleInit {
     const source = await this.findOneOrThrow(id);
     if (!source.active)
       throw new BadRequestException('Activate this source before running it');
-    await this.scrapeQueue.add(SCRAPE_JOB_NAME, { scrapeSourceId: id });
+    await this.dispatcher.runNow(source);
     return { queued: true };
   }
 
-  private async scheduleRepeat(id: string, intervalMinutes: number) {
-    await this.scrapeQueue.add(
-      SCRAPE_JOB_NAME,
-      { scrapeSourceId: id },
-      {
-        jobId: this.repeatJobId(id),
-        repeat: { every: intervalMinutes * 60_000 },
-      },
-    );
-  }
-
-  private async unscheduleRepeat(id: string, intervalMinutes: number) {
-    await this.scrapeQueue.removeRepeatable(
-      SCRAPE_JOB_NAME,
-      { every: intervalMinutes * 60_000 },
-      this.repeatJobId(id),
-    );
-  }
-
-  private repeatJobId(id: string): string {
-    return `scrape-source-${id}`;
-  }
-
-  private validateSource(
+  private validateSelectors(
     merchantId: string | null | undefined,
-    config: { rowSelector?: string; merchantSelector?: string },
+    config: SelectorShape,
   ) {
     if (
       !config ||
@@ -161,13 +190,14 @@ export class ScrapeSourcesService implements OnModuleInit {
     }
   }
 
-  private async assertMerchantExists(merchantId: string) {
+  private async findMerchantOrThrow(merchantId: string) {
     const merchant = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
-      select: { id: true },
+      select: { id: true, domain: true },
     });
     if (!merchant) {
       throw new NotFoundException('Merchant not found');
     }
+    return merchant;
   }
 }

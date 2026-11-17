@@ -13,7 +13,20 @@ import { FormField, FormGrid, FormSection } from "@/components/dashboard/form-se
 import { SelectorHelp } from "@/components/dashboard/selector-help"
 import { useCreateScrapeSource, useUpdateScrapeSource } from "@/lib/api/hooks/use-scrape-sources"
 import { ApiError } from "@/lib/api/client"
+import {
+  COUPON_SITES,
+  couponSiteInfo,
+  couponSiteStoreUrl,
+  type CouponSiteStrategy,
+} from "@saverlly/shared-types"
 import type { Merchant, ScrapeSource } from "@/lib/api/types"
+
+const CUSTOM = "GENERIC_CSS"
+
+const SITE_OPTIONS = [
+  ...COUPON_SITES.map((site) => ({ value: site.strategy, label: site.label })),
+  { value: CUSTOM, label: "Custom page (CSS selectors)" },
+]
 
 const UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440, weeks: 10080 } as const
 type IntervalUnit = keyof typeof UNIT_MINUTES
@@ -37,10 +50,11 @@ const UNIT_MAX: Record<IntervalUnit, number> = {
 
 const scrapeSourceSchema = z
   .object({
+    strategy: z.string(),
     sourceMode: z.enum(["single", "multi"]),
     merchantId: z.string(),
-    url: z.string().trim().min(1, "Page URL is required"),
-    codeSelector: z.string().trim().min(1, "Coupon code selector is required"),
+    url: z.string().trim(),
+    codeSelector: z.string().trim(),
     descriptionSelector: z.string().trim(),
     revealSelector: z.string().trim(),
     rowSelector: z.string().trim(),
@@ -53,10 +67,21 @@ const scrapeSourceSchema = z
     intervalUnit: z.enum(["minutes", "hours", "days", "weeks"]),
   })
   .superRefine((data, ctx) => {
-    if (data.sourceMode === "single" && !data.merchantId) {
+    const isCustom = data.strategy === CUSTOM
+    if ((!isCustom || data.sourceMode === "single") && !data.merchantId) {
       ctx.addIssue({ code: "custom", message: "Choose a merchant", path: ["merchantId"] })
     }
-    if (data.sourceMode === "multi") {
+    if (isCustom && !data.url) {
+      ctx.addIssue({ code: "custom", message: "Page URL is required", path: ["url"] })
+    }
+    if (isCustom && !data.codeSelector) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Coupon code selector is required",
+        path: ["codeSelector"],
+      })
+    }
+    if (isCustom && data.sourceMode === "multi") {
       if (!data.rowSelector) {
         ctx.addIssue({ code: "custom", message: "Row selector is required", path: ["rowSelector"] })
       }
@@ -130,7 +155,10 @@ export function ScrapeSourceForm({
   const isEdit = !!source
   const createSource = useCreateScrapeSource()
   const updateSource = useUpdateScrapeSource(source?.id ?? "")
-  const initialInterval = decomposeMinutes(source?.intervalMinutes ?? 1440)
+  const initialStrategy = source?.strategy ?? COUPON_SITES[0].strategy
+  const initialInterval = decomposeMinutes(
+    source?.intervalMinutes ?? couponSiteInfo(initialStrategy)?.defaultIntervalMinutes ?? 1440,
+  )
 
   const {
     register,
@@ -144,6 +172,7 @@ export function ScrapeSourceForm({
     mode: "onTouched",
     reValidateMode: "onChange",
     defaultValues: {
+      strategy: initialStrategy,
       // A locked flow (started from a merchant's own page) is always single-merchant — a fixed
       // merchantId and a per-row-resolved merchant are mutually exclusive. Otherwise infer from
       // what's already there when editing: a merchant-less source only exists because it was
@@ -152,16 +181,16 @@ export function ScrapeSourceForm({
       // setup".
       sourceMode: lockedMerchantId
         ? "single"
-        : source && !source.merchantId && source.selectorConfig.rowSelector
+        : source && !source.merchantId && source.selectorConfig?.rowSelector
           ? "multi"
           : "single",
       merchantId: lockedMerchantId ?? source?.merchantId ?? "",
       url: source?.url ?? "",
-      codeSelector: source?.selectorConfig.codeSelector ?? "",
-      descriptionSelector: source?.selectorConfig.descriptionSelector ?? "",
-      revealSelector: source?.selectorConfig.revealSelector ?? "",
-      rowSelector: source?.selectorConfig.rowSelector ?? "",
-      merchantSelector: source?.selectorConfig.merchantSelector ?? "",
+      codeSelector: source?.selectorConfig?.codeSelector ?? "",
+      descriptionSelector: source?.selectorConfig?.descriptionSelector ?? "",
+      revealSelector: source?.selectorConfig?.revealSelector ?? "",
+      rowSelector: source?.selectorConfig?.rowSelector ?? "",
+      merchantSelector: source?.selectorConfig?.merchantSelector ?? "",
       intervalAmount: initialInterval.amount,
       intervalUnit: initialInterval.unit,
     },
@@ -170,11 +199,37 @@ export function ScrapeSourceForm({
   const intervalAmount = watch("intervalAmount")
   const intervalUnit = watch("intervalUnit")
   const cadence = errors.intervalAmount ? null : describeCadence(intervalAmount, intervalUnit)
+  const strategy = watch("strategy")
+  const site = couponSiteInfo(strategy)
+  const merchantId = watch("merchantId")
+  const merchantDomain = merchants?.find((m) => m.id === merchantId)?.domain
   const sourceMode = watch("sourceMode")
-  const isMulti = sourceMode === "multi"
+  const isMulti = !site && sourceMode === "multi"
+
+  /** A new source starts on its site's own cadence until someone changes it. */
+  function chooseStrategy(next: string) {
+    setValue("strategy", next)
+    if (!isEdit) {
+      const interval = decomposeMinutes(couponSiteInfo(next)?.defaultIntervalMinutes ?? 1440)
+      setValue("intervalAmount", interval.amount)
+      setValue("intervalUnit", interval.unit)
+    }
+  }
 
   function onSubmit(values: ScrapeSourceFormValues) {
-    const shared = {
+    const intervalMinutes = Number(values.intervalAmount) * UNIT_MINUTES[values.intervalUnit]
+    // A coupon site source is one merchant's page there: the backend builds its URL, and it has
+    // no selectors to send. Once created, only its schedule changes.
+    const siteValues = couponSiteInfo(values.strategy)
+      ? isEdit
+        ? { intervalMinutes }
+        : {
+            strategy: values.strategy as CouponSiteStrategy,
+            merchantId: values.merchantId,
+            intervalMinutes,
+          }
+      : null
+    const shared = siteValues ?? {
       url: values.url,
       // Explicit null (not omitted) in multi mode -- an edit that switches an existing
       // single-merchant source over needs to actually clear its old fixed merchantId, not just
@@ -192,7 +247,7 @@ export function ScrapeSourceForm({
               descriptionSelector: values.descriptionSelector || undefined,
               revealSelector: values.revealSelector || undefined,
             },
-      intervalMinutes: Number(values.intervalAmount) * UNIT_MINUTES[values.intervalUnit],
+      intervalMinutes,
     }
 
     const onSuccess = (message: string) => () => {
@@ -223,7 +278,7 @@ export function ScrapeSourceForm({
         backHref={backHref}
         backLabel={backLabel}
         heading={isEdit ? "Edit scrape source" : "New scrape source"}
-        description="A page URL plus CSS selectors the scraper uses to extract coupon codes."
+        description="Where the scraper looks for coupon codes, and how often."
       />
 
       <EntityFormCard
@@ -233,10 +288,44 @@ export function ScrapeSourceForm({
         isPending={isPending}
       >
         <FormSection label="Source">
-          <FormField label="Page URL" htmlFor="scrape-url" error={errors.url?.message}>
-            <Input id="scrape-url" type="url" placeholder="https://…" {...register("url")} />
+          <FormField
+            label="Coupon site"
+            htmlFor="scrape-strategy"
+            hint={
+              site
+                ? `Codes are read from the merchant's own ${site.label} page. No selectors needed.`
+                : "Any page, read with CSS selectors you write."
+            }
+          >
+            {isEdit ? (
+              <p id="scrape-strategy" className="text-sm font-medium">
+                {SITE_OPTIONS.find((o) => o.value === strategy)?.label ?? strategy}
+              </p>
+            ) : (
+              <Combobox
+                id="scrape-strategy"
+                value={strategy}
+                onValueChange={(value) => value && chooseStrategy(value)}
+                options={SITE_OPTIONS}
+              />
+            )}
           </FormField>
-          {!lockedMerchantId && (
+          {site ? (
+            <FormField label="Page" htmlFor="scrape-url-preview">
+              <p id="scrape-url-preview" className="truncate text-sm text-muted-foreground">
+                {isEdit
+                  ? source?.url
+                  : merchantDomain
+                    ? couponSiteStoreUrl(site.strategy, merchantDomain)
+                    : "Built from the merchant's domain"}
+              </p>
+            </FormField>
+          ) : (
+            <FormField label="Page URL" htmlFor="scrape-url" error={errors.url?.message}>
+              <Input id="scrape-url" type="url" placeholder="https://…" {...register("url")} />
+            </FormField>
+          )}
+          {!lockedMerchantId && !site && (
             <FormField label="Source type" htmlFor="scrape-source-mode">
               <Controller
                 name="sourceMode"
@@ -252,7 +341,7 @@ export function ScrapeSourceForm({
               />
             </FormField>
           )}
-          {!lockedMerchantId && !isMulti && (
+          {!lockedMerchantId && !isMulti && !(site && isEdit) && (
             <FormField label="Merchant" htmlFor="scrape-merchant" error={errors.merchantId?.message}>
               <Controller
                 name="merchantId"
@@ -283,49 +372,51 @@ export function ScrapeSourceForm({
           )}
         </FormSection>
 
-        <FormSection label="Selectors">
-          <FormGrid>
-            <FormField
-              label={isMulti ? "Coupon code selector (within a row)" : "Coupon code selector"}
-              htmlFor="scrape-code-selector"
-              error={errors.codeSelector?.message}
-            >
-              <Input id="scrape-code-selector" placeholder=".coupon-code" {...register("codeSelector")} />
-              <SelectorHelp />
-            </FormField>
-            {isMulti ? (
+        {!site && (
+          <FormSection label="Selectors">
+            <FormGrid>
               <FormField
-                label="Store name selector (within a row)"
-                htmlFor="scrape-merchant-selector"
-                error={errors.merchantSelector?.message}
+                label={isMulti ? "Coupon code selector (within a row)" : "Coupon code selector"}
+                htmlFor="scrape-code-selector"
+                error={errors.codeSelector?.message}
               >
-                <Input
-                  id="scrape-merchant-selector"
-                  placeholder=".feed-merchant"
-                  {...register("merchantSelector")}
-                />
+                <Input id="scrape-code-selector" placeholder=".coupon-code" {...register("codeSelector")} />
+                <SelectorHelp />
               </FormField>
-            ) : (
-              <FormField label="Description selector (optional)" htmlFor="scrape-description-selector">
+              {isMulti ? (
+                <FormField
+                  label="Store name selector (within a row)"
+                  htmlFor="scrape-merchant-selector"
+                  error={errors.merchantSelector?.message}
+                >
+                  <Input
+                    id="scrape-merchant-selector"
+                    placeholder=".feed-merchant"
+                    {...register("merchantSelector")}
+                  />
+                </FormField>
+              ) : (
+                <FormField label="Description selector (optional)" htmlFor="scrape-description-selector">
+                  <Input
+                    id="scrape-description-selector"
+                    placeholder=".coupon-description"
+                    {...register("descriptionSelector")}
+                  />
+                </FormField>
+              )}
+            </FormGrid>
+            {!isMulti && (
+              <FormField label="Reveal button selector (optional)" htmlFor="scrape-reveal-selector">
                 <Input
-                  id="scrape-description-selector"
-                  placeholder=".coupon-description"
-                  {...register("descriptionSelector")}
+                  id="scrape-reveal-selector"
+                  placeholder=".reveal-code-button"
+                  {...register("revealSelector")}
                 />
+                <SelectorHelp label="When do I need this?" variant="reveal" />
               </FormField>
             )}
-          </FormGrid>
-          {!isMulti && (
-            <FormField label="Reveal button selector (optional)" htmlFor="scrape-reveal-selector">
-              <Input
-                id="scrape-reveal-selector"
-                placeholder=".reveal-code-button"
-                {...register("revealSelector")}
-              />
-              <SelectorHelp label="When do I need this?" variant="reveal" />
-            </FormField>
-          )}
-        </FormSection>
+          </FormSection>
+        )}
 
         <FormSection label="Schedule">
           {/* The hint used to read "Defaults to daily", which sounded like a promise about an

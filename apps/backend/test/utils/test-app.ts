@@ -2,12 +2,15 @@ import { CommissionsSyncSchedulerService } from '../../src/commissions/commissio
 import { CommissionDigestSchedulerService } from '../../src/commissions/commission-digest-scheduler.service';
 import { PayoutGenerationSchedulerService } from '../../src/payouts/payout-generation-scheduler.service';
 import { AffiliateSyncSchedulerService } from '../../src/affiliate-sync/affiliate-sync-scheduler.service';
+import { ScrapeDispatchSchedulerService } from '../../src/coupon-sites/scrape-dispatcher.service';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
 
-export async function createTestApp(): Promise<INestApplication> {
+export async function createTestApp(
+  configure?: (builder: TestingModuleBuilder) => void,
+): Promise<INestApplication> {
   // Scheduled jobs are exercised explicitly; background schedules must not race fixture resets.
   const builder = Test.createTestingModule({ imports: [AppModule] });
   for (const scheduler of [
@@ -15,11 +18,13 @@ export async function createTestApp(): Promise<INestApplication> {
     CommissionDigestSchedulerService,
     PayoutGenerationSchedulerService,
     AffiliateSyncSchedulerService,
+    ScrapeDispatchSchedulerService,
   ]) {
     builder
       .overrideProvider(scheduler)
       .useValue({ onModuleInit: async () => {} });
   }
+  configure?.(builder);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication({ rawBody: true });
   app.useGlobalPipes(

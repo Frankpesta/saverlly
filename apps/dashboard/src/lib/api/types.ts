@@ -1,4 +1,10 @@
-import type { AnnouncementLayout, RecipeProblem, StorePlatform } from "@saverlly/shared-types"
+import type {
+  AnnouncementLayout,
+  RecipeProblem,
+  ScrapeSourceStatusName,
+  ScrapeStrategyName,
+  StorePlatform,
+} from "@saverlly/shared-types"
 
 export type UserRole = "ADMIN" | "KIOSK_OWNER" | "LOCATION_MANAGER"
 
@@ -254,8 +260,16 @@ export type ScrapeSource = {
   id: string
   url: string
   merchantId: string | null
-  selectorConfig: SelectorConfig
+  /** GENERIC_CSS = admin-written selectors; anything else is a built-in coupon site scraper. */
+  strategy: ScrapeStrategyName
+  /** Always set for GENERIC_CSS; null (or optional overrides) for a coupon site. */
+  selectorConfig: SelectorConfig | null
   intervalMinutes: number
+  /** What the coupon site said last time, separate from the `active` switch. */
+  status: ScrapeSourceStatusName
+  nextRunAt: string | null
+  consecutiveFailures: number
+  autoCreated: boolean
   lastRunAt: string | null
   lastSucceededAt?: string | null
   lastError?: string | null

@@ -264,20 +264,45 @@ model Coupon {
   @@index([merchantId, active])
 }
 
-model ScrapeSource {
-  id              String    @id @default(uuid())
-  url             String
-  merchantId      String? // optional. Some scrape sources cover multiple merchants
-  merchant        Merchant? @relation(fields: [merchantId], references: [id])
-  selectorConfig  Json // CSS selectors for code extraction
-  intervalMinutes Int       @default(1440) // schedule cadence, configurable per source. Default daily
-  lastRunAt       DateTime?
-  lastSucceededAt DateTime?
-  lastError       String?
-  lastCodeCount   Int?
-  active          Boolean   @default(true)
+// Which scraper reads a source. GENERIC_CSS is the admin-configured selector scraper; the others
+// are built in for one coupon site each and need no selectors.
+enum ScrapeStrategy {
+  GENERIC_CSS
+  SIMPLYCODES
+  COUPONFOLLOW
+}
 
+// What the coupon site said last time, separate from the admin's active switch.
+enum ScrapeSourceStatus {
+  ACTIVE
+  NOT_LISTED // the site has no page for this store; rechecked rarely
+  BLOCKED // the site's bot protection turned us away
+}
+
+model ScrapeSource {
+  id                  String             @id @default(uuid())
+  url                 String
+  merchantId          String? // optional. Some scrape sources cover multiple merchants
+  merchant            Merchant?          @relation(fields: [merchantId], references: [id])
+  strategy            ScrapeStrategy     @default(GENERIC_CSS)
+  selectorConfig      Json? // CSS selectors; required for GENERIC_CSS, optional overrides for SIMPLYCODES
+  intervalMinutes     Int                @default(1440) // schedule cadence, configurable per source. Default daily
+  status              ScrapeSourceStatus @default(ACTIVE)
+  // When the dispatcher should next queue this source. Null = as soon as possible.
+  nextRunAt           DateTime?
+  consecutiveFailures Int                @default(0)
+  autoCreated         Boolean            @default(false)
+  lastRunAt           DateTime?
+  lastSucceededAt     DateTime?
+  lastError           String?
+  lastCodeCount       Int?
+  active              Boolean            @default(true)
+
+  // Also a partial unique index on (merchantId, strategy) for every strategy but GENERIC_CSS,
+  // created in raw SQL (migration 20261117120000_coupon_site_scrapers): one source per store per
+  // coupon site.
   @@index([merchantId])
+  @@index([active, nextRunAt])
 }
 
 enum AnnouncementRepeatPolicy {

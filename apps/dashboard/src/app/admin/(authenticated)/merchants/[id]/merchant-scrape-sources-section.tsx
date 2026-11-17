@@ -2,6 +2,7 @@
 
 import { InlineQueryError } from "@/components/dashboard/query-state"
 import { ScrapeError } from "@/components/dashboard/scrape-error"
+import { ScrapeSourceStatusBadge, scrapeSiteLabel } from "@/components/dashboard/scrape-source-site"
 
 import * as React from "react"
 import Link from "next/link"
@@ -63,6 +64,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Site</TableHead>
               <TableHead>URL</TableHead>
               <TableHead>Last run</TableHead>
               <TableHead className="w-32" />
@@ -72,7 +74,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
             {isLoading &&
               Array.from({ length: 2 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={3}>
+                  <TableCell colSpan={4}>
                     <Skeleton className="h-6 w-full" />
                   </TableCell>
                 </TableRow>
@@ -80,7 +82,7 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
 
             {!isLoading && sources.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground">
+                <TableCell colSpan={4} className="text-center text-muted-foreground">
                   No scrape sources yet.
                 </TableCell>
               </TableRow>
@@ -88,7 +90,13 @@ export function MerchantScrapeSourcesSection({ merchantId }: { merchantId: strin
 
             {pageItems.map((source, index) => (
               <TableRow key={source.id} index={index}>
-                <TableCell className="max-w-48 truncate font-medium" title={source.url}>
+                <TableCell>
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="font-medium">{scrapeSiteLabel(source)}</span>
+                    <ScrapeSourceStatusBadge source={source} />
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-48 truncate" title={source.url}>
                   {source.url}
                 </TableCell>
                 <TableCell>

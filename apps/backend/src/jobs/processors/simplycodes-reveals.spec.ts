@@ -1,12 +1,12 @@
 import { Browser, BrowserContext, chromium } from 'playwright';
-import { Job } from 'bullmq';
 import {
   collectSimplyCodesReveals,
   codeFromRevealUrl,
 } from './simplycodes-reveals';
 import { launchDetachedChromium } from './scrape-browser';
-import { ScrapeCouponsProcessor } from './scrape-coupons.processor';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CouponSiteRegistry } from '../../coupon-sites/coupon-site-registry';
+import { ScrapeRunnerService } from '../../coupon-sites/scrape-runner.service';
 
 jest.mock('./scrape-browser', () => ({ launchDetachedChromium: jest.fn() }));
 
@@ -192,7 +192,7 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
     }
   }, 20_000);
 
-  it('runs the actual processor and deduplicates persisted codes across retries', async () => {
+  it('runs the actual scrape runner and deduplicates persisted codes across retries', async () => {
     const createContext = browser.newContext.bind(browser);
     const spy = jest
       .spyOn(browser, 'newContext')
@@ -206,6 +206,7 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
       scrapeSource: {
         findUnique: jest.fn().mockResolvedValue({
           id: 'source',
+          strategy: 'SIMPLYCODES',
           intervalMinutes: 1440,
           active: true,
           merchantId: 'merchant',
@@ -236,30 +237,27 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
       },
     });
     try {
-      const processor = new ScrapeCouponsProcessor(
+      const runner = new ScrapeRunnerService(
         prisma as unknown as PrismaService,
+        new CouponSiteRegistry(),
+        jest.fn(),
       );
-      const job = {
-        id: 'job',
-        data: { scrapeSourceId: 'source' },
-        attemptsMade: 0,
-      } as Job;
-      await processor.process(job);
-      await processor.process(job);
+      const run = () => runner.run('source', { id: 'job', attemptsMade: 0 });
+      await run();
+      await run();
       expect([...saved].sort()).toEqual(['SAVE10', 'SAVE20']);
       expect(prisma.coupon.create).toHaveBeenCalledTimes(2);
       expect(prisma.coupon.update).toHaveBeenCalledTimes(2);
       expect(prisma.scrapeSource.updateMany).toHaveBeenCalledTimes(2);
       mode = 'partial';
-      await expect(processor.process(job)).rejects.toThrow(
-        'SimplyCodes scrape incomplete: saved 1',
-      );
+      await expect(run()).rejects.toThrow('Saved 1 code(s);');
       expect(prisma.coupon.create).toHaveBeenCalledTimes(2);
       expect(prisma.scrapeSource.updateMany).toHaveBeenLastCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             lastCodeCount: 1,
-            lastError: expect.stringContaining('incomplete'),
+            lastError: expect.stringContaining('Saved 1 code(s)'),
+            status: 'ACTIVE',
           }),
         }),
       );

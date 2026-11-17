@@ -2,6 +2,7 @@
 
 import { InlineQueryError } from "@/components/dashboard/query-state"
 import { ScrapeError } from "@/components/dashboard/scrape-error"
+import { ScrapeSourceStatusBadge, scrapeSiteLabel } from "@/components/dashboard/scrape-source-site"
 
 import * as React from "react"
 import Link from "next/link"
@@ -51,7 +52,11 @@ export default function ScrapeSourcesPage() {
 
   const view = useCollectionView(sources, {
     searchText: (item) =>
-      [item.url, item.merchantId ? merchantNameById.get(item.merchantId) : undefined].join(" "),
+      [
+        item.url,
+        scrapeSiteLabel(item),
+        item.merchantId ? merchantNameById.get(item.merchantId) : undefined,
+      ].join(" "),
     sorts: [
       {
         label: "Name: A to Z",
@@ -117,6 +122,7 @@ export default function ScrapeSourcesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Site</TableHead>
               <TableHead>URL</TableHead>
               <TableHead>Merchant</TableHead>
               <TableHead>Run interval</TableHead>
@@ -129,14 +135,14 @@ export default function ScrapeSourcesPage() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <Skeleton className="h-6 w-full" />
                   </TableCell>
                 </TableRow>
               ))}
 
             {!isLoading && !isError && view.items.length === 0 && (
-              <TableEmptyRow colSpan={6} hasFilters={view.hasFilters}>
+              <TableEmptyRow colSpan={7} hasFilters={view.hasFilters}>
                 No scrape sources yet.
               </TableEmptyRow>
             )}
@@ -149,7 +155,7 @@ export default function ScrapeSourcesPage() {
                 merchantName={
                   source.merchantId ? merchantNameById.get(source.merchantId) : undefined
                 }
-                isMultiMerchant={!source.merchantId && !!source.selectorConfig.rowSelector}
+                isMultiMerchant={!source.merchantId && !!source.selectorConfig?.rowSelector}
               />
             ))}
           </TableBody>
@@ -211,7 +217,13 @@ function ScrapeSourceRow({
 
   return (
     <TableRow index={index}>
-      <TableCell className="max-w-64 truncate font-medium" title={source.url}>
+      <TableCell>
+        <div className="flex flex-col items-start gap-1">
+          <span className="font-medium">{scrapeSiteLabel(source)}</span>
+          <ScrapeSourceStatusBadge source={source} />
+        </div>
+      </TableCell>
+      <TableCell className="max-w-64 truncate" title={source.url}>
         {source.url}
       </TableCell>
       <TableCell>
@@ -221,7 +233,15 @@ function ScrapeSourceRow({
           </Badge>
         )}
       </TableCell>
-      <TableCell>{source.intervalMinutes} min</TableCell>
+      <TableCell>
+        {source.intervalMinutes} min
+        {source.active && source.nextRunAt && (
+          <p className="text-xs text-muted-foreground">
+            Next{" "}
+            {new Date(source.nextRunAt) > new Date() ? relativeTime(source.nextRunAt) : "due now"}
+          </p>
+        )}
+      </TableCell>
       <TableCell>
         {source.lastRunAt ? relativeTime(source.lastRunAt) : "Never"}
         {source.lastError && <ScrapeError message={source.lastError} />}

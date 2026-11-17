@@ -1,8 +1,11 @@
 # SimplyCodes scraping
 
-The `simplycodes-url-v1` strategy applies only to HTTPS `simplycodes.com/store/*`
-sources with a reveal selector and without a row selector. Existing feed and other
-aggregator strategies remain separate. No database migration is required.
+SimplyCodes is read by the `SIMPLYCODES` scrape strategy
+(`apps/backend/src/coupon-sites/simplycodes.scraper.ts`), which builds the store page
+URL from the merchant's domain and uses built-in selectors (`.btn-show-code`,
+`#sc-modal-code`) unless the source carries its own. A hand-made `GENERIC_CSS` source
+on an HTTPS `simplycodes.com/store/*` URL with a reveal selector and no row selector
+still uses the same collector.
 
 The collector observes the clicked page and its popups before clicking. It reads
 `sc_code` from navigation requests and URLs for the exact configured store, with
@@ -26,7 +29,7 @@ BullMQ attempts/backoff can recover remaining offers without duplicate coupons.
 From the repository root:
 
 ```sh
-npm test --workspace @saverlly/backend -- --runInBand simplycodes-reveals.spec.ts scrape-browser.spec.ts
+npm test --workspace @saverlly/backend -- --runInBand simplycodes-reveals.spec.ts scrape-browser.spec.ts coupon-sites
 npm run build --workspace @saverlly/backend
 ```
 
@@ -41,7 +44,7 @@ After deploying the reviewed build using the existing deployment workflow:
 
 1. Record the running image ID, deployed Git commit, and compiled processor checksum.
 2. Trigger one existing SimplyCodes source through the authenticated run-now endpoint.
-3. Confirm logs identify `strategy=simplycodes-url-v1`, browser version, job attempt,
+3. Confirm logs identify `strategy=SIMPLYCODES`, browser version, job attempt,
    stage elapsed times, and each offer's capture/failure outcome.
 4. Check the saved merchant/code rows and BullMQ outcome. A partial result must be
    reported as a failed attempt, not a successful zero-code scrape.

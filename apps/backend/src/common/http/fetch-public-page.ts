@@ -89,6 +89,8 @@ interface FetchOptions {
    *  reach a local server; everything else gets the public internet on standard ports. */
   isAllowed?: (address: string) => boolean;
   isAllowedPort?: (port: string) => boolean;
+  /** Replaces or adds request headers (e.g. Accept for a JSON endpoint). */
+  headers?: Record<string, string>;
 }
 
 const isStandardPort = (port: string) =>
@@ -125,6 +127,7 @@ function requestOnce(
   timeoutMs: number,
   maxBytes: number,
   isAllowed: (address: string) => boolean,
+  extraHeaders: Record<string, string> = {},
 ): Promise<PublicPage & { location?: string }> {
   return new Promise<PublicPage & { location?: string }>((done, fail) => {
     // One deadline for the whole exchange; the socket's own timeout only catches silence.
@@ -152,6 +155,7 @@ function requestOnce(
           Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
           'Accept-Encoding': 'gzip, deflate, br',
           'Accept-Language': 'en-US,en;q=0.8',
+          ...extraHeaders,
         },
       },
       (response) => {
@@ -233,11 +237,18 @@ export async function fetchPublicPage(
     maxRedirects = 3,
     isAllowed = isPublicAddress,
     isAllowedPort = isStandardPort,
+    headers = {},
   }: FetchOptions = {},
 ): Promise<PublicPage> {
   let url = checkUrl(raw, isAllowed, isAllowedPort);
   for (let hop = 0; ; hop++) {
-    const page = await requestOnce(url, timeoutMs, maxBytes, isAllowed);
+    const page = await requestOnce(
+      url,
+      timeoutMs,
+      maxBytes,
+      isAllowed,
+      headers,
+    );
     if (page.location === undefined) return page;
     if (hop >= maxRedirects)
       throw new PageFetchError('The site redirected too many times');
