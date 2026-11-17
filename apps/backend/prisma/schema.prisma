@@ -278,6 +278,37 @@ model CouponSighting {
   @@unique([couponId, strategy])
 }
 
+// How one scrape run ended. Kept 30 days, for the coupon sites panel and the "site down" alert.
+enum ScrapeRunOutcome {
+  SUCCEEDED
+  BLOCKED
+  NOT_LISTED
+  FAILED
+}
+
+model ScrapeRun {
+  id         String           @id @default(uuid())
+  sourceId   String
+  source     ScrapeSource     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  // The scraper that ran (a hand-made SimplyCodes source counts as SIMPLYCODES).
+  strategy   ScrapeStrategy
+  outcome    ScrapeRunOutcome
+  codeCount  Int              @default(0)
+  error      String?
+  finishedAt DateTime         @default(now())
+
+  @@index([strategy, finishedAt])
+  @@index([sourceId, finishedAt])
+}
+
+// One row per coupon site: a site-wide pause after a burst of blocks, and when admins were last
+// told it looks down (so they hear once a day at most).
+model CouponSiteState {
+  strategy       ScrapeStrategy @id
+  pausedUntil    DateTime?
+  downNotifiedAt DateTime?
+}
+
 // Which scraper reads a source. GENERIC_CSS is the admin-configured selector scraper; the others
 // are built in for one coupon site each and need no selectors.
 enum ScrapeStrategy {
@@ -304,13 +335,15 @@ model ScrapeSource {
   status              ScrapeSourceStatus @default(ACTIVE)
   // When the dispatcher should next queue this source. Null = as soon as possible.
   nextRunAt           DateTime?
-  consecutiveFailures Int                @default(0)
+  consecutiveFailures Int                @default(0) // failed runs in a row, blocks not counted
+  consecutiveBlocks   Int                @default(0) // blocked runs in a row; drives back-off
   autoCreated         Boolean            @default(false)
   lastRunAt           DateTime?
   lastSucceededAt     DateTime?
   lastError           String?
   lastCodeCount       Int?
   active              Boolean            @default(true)
+  runs                ScrapeRun[]
 
   // Also a partial unique index on (merchantId, strategy) for every strategy but GENERIC_CSS,
   // created in raw SQL (migration 20261117120000_coupon_site_scrapers): one source per store per
@@ -520,6 +553,7 @@ enum NotificationType {
   STRIPE_ONBOARDING_CHANGED
   COMMISSION_DIGEST
   STORE_NEEDS_RECHECK
+  COUPON_SITE_DOWN
 }
 
 model Notification {

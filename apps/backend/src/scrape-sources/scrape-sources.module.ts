@@ -2,6 +2,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { CouponSiteRegistry } from '../coupon-sites/coupon-site-registry';
 import { CouponSiteSourcesService } from '../coupon-sites/coupon-site-sources.service';
+import { ScrapeHealthService } from '../coupon-sites/scrape-health.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 import {
   ScrapeDispatcherService,
   ScrapeDispatchSchedulerService,
@@ -29,6 +31,7 @@ const scrapeJobOptions = {
 
 @Module({
   imports: [
+    NotificationsModule,
     BullModule.registerQueue(
       { name: QUEUE_NAMES.SCRAPE_HTTP, defaultJobOptions: scrapeJobOptions },
       { name: QUEUE_NAMES.SCRAPE_BROWSER, defaultJobOptions: scrapeJobOptions },
@@ -44,6 +47,7 @@ const scrapeJobOptions = {
     ScrapeSourcesService,
     CouponSiteRegistry,
     CouponSiteSourcesService,
+    ScrapeHealthService,
     ScrapeRunnerService,
     ScrapeDispatcherService,
     ScrapeDispatchSchedulerService,

@@ -69,6 +69,7 @@ const scrapeSources: ScrapeSource[] = [
     status: "ACTIVE",
     nextRunAt: null,
     consecutiveFailures: 0,
+    consecutiveBlocks: 0,
     autoCreated: false,
     selectorConfig: { codeSelector: ".coupon-code" },
     intervalMinutes: 1440,

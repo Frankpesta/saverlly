@@ -6,6 +6,7 @@ import { QUEUE_NAMES } from '../jobs/queue-names';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponSiteRegistry } from './coupon-site-registry';
 import { disabledCouponSites } from './coupon-site-sources.service';
+import { ScrapeHealthService } from './scrape-health.service';
 
 export const SCRAPE_JOB_NAME = 'scrape-coupons';
 const DISPATCH_JOB_NAME = 'dispatch-due-sources';
@@ -16,6 +17,8 @@ const DISPATCH_BATCH = 500;
 
 export interface ScrapeJobData {
   scrapeSourceId: string;
+  /** An admin's "Run now": runs even while its coupon site is paused. */
+  manual?: boolean;
 }
 
 /**
@@ -33,14 +36,19 @@ export class ScrapeDispatcherService {
     @InjectQueue(QUEUE_NAMES.SCRAPE_HTTP) private readonly httpQueue: Queue,
     @InjectQueue(QUEUE_NAMES.SCRAPE_BROWSER)
     private readonly browserQueue: Queue,
+    private readonly health: ScrapeHealthService,
   ) {}
 
   async dispatchDue(now = new Date()): Promise<{ queued: number }> {
+    // Switched off everywhere, or paused after a burst of blocks: not queued at all.
+    const skipped = [
+      ...disabledCouponSites(),
+      ...(await this.health.pausedStrategies(now)),
+    ];
     const due = await this.prisma.scrapeSource.findMany({
       where: {
         active: true,
-        // A coupon site switched off everywhere (COUPON_SITES_DISABLED) isn't run at all.
-        strategy: { notIn: disabledCouponSites() },
+        strategy: { notIn: skipped },
         OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }],
         AND: [{ OR: [{ merchantId: null }, { merchant: { active: true } }] }],
       },
@@ -75,18 +83,26 @@ export class ScrapeDispatcherService {
 
   /** The dashboard's "Run now": straight onto the right queue, outside the schedule. */
   async runNow(source: ScrapeSource): Promise<void> {
-    await this.enqueue(source, { jobId: `src_${source.id}_now_${Date.now()}` });
+    await this.enqueue(
+      source,
+      { jobId: `src_${source.id}_now_${Date.now()}` },
+      true,
+    );
   }
 
   private enqueue(
     source: Pick<ScrapeSource, 'id' | 'strategy' | 'url' | 'selectorConfig'>,
     options: { jobId: string; delay?: number },
+    manual = false,
   ) {
     const queue =
       this.registry.forSource(source).fetchMode === 'http'
         ? this.httpQueue
         : this.browserQueue;
-    const data: ScrapeJobData = { scrapeSourceId: source.id };
+    const data: ScrapeJobData = {
+      scrapeSourceId: source.id,
+      ...(manual ? { manual } : {}),
+    };
     return queue.add(SCRAPE_JOB_NAME, data, {
       ...options,
       removeOnComplete: 1000,

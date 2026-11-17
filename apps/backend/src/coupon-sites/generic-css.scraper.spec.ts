@@ -1,6 +1,8 @@
 import { launchDetachedChromium } from '../jobs/processors/scrape-browser';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponSiteRegistry } from './coupon-site-registry';
+import { fakeHealth } from './fake-health.testing';
+import { ScrapeHealthService } from './scrape-health.service';
 import { ScrapeRunnerService } from './scrape-runner.service';
 
 jest.mock('../jobs/processors/scrape-browser', () => ({
@@ -78,6 +80,7 @@ describe('generic scrape error reporting', () => {
           prisma as unknown as PrismaService,
           new CouponSiteRegistry(),
           jest.fn(),
+          fakeHealth() as unknown as ScrapeHealthService,
         ).run('source', { id: 'job', attemptsMade: 0 }),
     };
   }

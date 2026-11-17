@@ -39,6 +39,7 @@ import { useCollectionView } from "@/hooks/use-collection-view"
 import { CollectionToolbar } from "@/components/dashboard/collection-toolbar"
 import { usePagination } from "@/hooks/use-pagination"
 import type { ScrapeSource } from "@/lib/api/types"
+import { CouponSitesPanel } from "./coupon-sites-panel"
 import { cn } from "@/lib/utils"
 
 export default function ScrapeSourcesPage() {
@@ -143,6 +144,8 @@ export default function ScrapeSourcesPage() {
           { label: "Active", value: stats.active },
         ]}
       />
+
+      <CouponSitesPanel />
 
       <CollectionToolbar view={view} label="Scrape sources" />
 

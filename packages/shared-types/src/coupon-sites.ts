@@ -55,3 +55,17 @@ export function couponSiteStoreUrl(
   if (!site) throw new Error(`Unknown coupon site ${strategy}`);
   return site.storeUrlTemplate.replace('{domain}', couponSiteDomain(domain));
 }
+
+/** A source failing this many runs in a row (blocks not counted) is flagged on the dashboard. */
+export const SCRAPE_SOURCE_FAILING_AFTER = 5;
+
+/** One row of the dashboard's coupon sites panel: the last 24 hours of runs for one scraper. */
+export interface CouponSiteHealth {
+  strategy: ScrapeStrategyName;
+  label: string;
+  runs: { succeeded: number; blocked: number; notListed: number; failed: number };
+  codesFound: number;
+  lastSucceededAt: string | null;
+  /** Set while the whole site is paused after a burst of blocks. */
+  pausedUntil: string | null;
+}
