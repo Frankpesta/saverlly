@@ -1,9 +1,11 @@
-import { Job } from 'bullmq';
-import { ScrapeCouponsProcessor } from './scrape-coupons.processor';
-import { launchDetachedChromium } from './scrape-browser';
-import { PrismaService } from '../../prisma/prisma.service';
+import { launchDetachedChromium } from '../jobs/processors/scrape-browser';
+import { PrismaService } from '../prisma/prisma.service';
+import { CouponSiteRegistry } from './coupon-site-registry';
+import { ScrapeRunnerService } from './scrape-runner.service';
 
-jest.mock('./scrape-browser', () => ({ launchDetachedChromium: jest.fn() }));
+jest.mock('../jobs/processors/scrape-browser', () => ({
+  launchDetachedChromium: jest.fn(),
+}));
 
 describe('generic scrape error reporting', () => {
   function fixture(
@@ -35,19 +37,18 @@ describe('generic scrape error reporting', () => {
     };
     const prisma = {
       scrapeSource: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            id: 'source',
-            active: true,
-            merchantId: 'merchant',
-            intervalMinutes: 1440,
-            url: 'https://coupons.test/store',
-            selectorConfig: {
-              codeSelector: '.code',
-              ...(revealFails ? { revealSelector: '.reveal' } : {}),
-            },
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'source',
+          strategy: 'GENERIC_CSS',
+          active: true,
+          merchantId: 'merchant',
+          intervalMinutes: 1440,
+          url: 'https://coupons.test/store',
+          selectorConfig: {
+            codeSelector: '.code',
+            ...(revealFails ? { revealSelector: '.reveal' } : {}),
+          },
+        }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       coupon: {
@@ -72,11 +73,11 @@ describe('generic scrape error reporting', () => {
       prisma,
       cleanup,
       run: () =>
-        new ScrapeCouponsProcessor(prisma as unknown as PrismaService).process({
-          id: 'job',
-          attemptsMade: 0,
-          data: { scrapeSourceId: 'source' },
-        } as Job),
+        new ScrapeRunnerService(
+          prisma as unknown as PrismaService,
+          new CouponSiteRegistry(),
+          jest.fn(),
+        ).run('source', { id: 'job', attemptsMade: 0 }),
     };
   }
   it('fails and records extraction errors instead of reporting a successful empty scrape', async () => {

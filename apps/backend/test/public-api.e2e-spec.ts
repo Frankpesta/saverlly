@@ -97,6 +97,31 @@ describe('Public device-facing API (e2e)', () => {
     expect(savings.body.lifetimeSaved).toBe(8);
   });
 
+  it('keeps a scraped code offered for another 20 days when a checkout accepts it', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant();
+    const day = 86400_000;
+    const make = (code: string, source: 'SCRAPE' | 'API' | 'MANUAL', freshUntil: Date | null) =>
+      testPrisma.coupon.create({ data: { merchantId: merchant.id, code, source, freshUntil } });
+    const scraped = await make('WORKS', 'SCRAPE', new Date(Date.now() + 2 * day));
+    const rejected = await make('NOPE', 'API', new Date(Date.now() + 2 * day));
+    const manual = await make('HAND', 'MANUAL', null);
+    const send = (couponId: string, result: string) =>
+      request(app.getHttpServer())
+        .post('/public/coupon-test-events')
+        .set('Authorization', `Bearer ${rawToken}`)
+        .send({ eventId: crypto.randomUUID(), merchantId: merchant.id, couponId, result })
+        .expect(201);
+    await send(scraped.id, 'valid');
+    await send(rejected.id, 'failed');
+    await send(manual.id, 'valid');
+    const after = async (id: string) =>
+      (await testPrisma.coupon.findUniqueOrThrow({ where: { id } })).freshUntil;
+    expect((await after(scraped.id))!.getTime()).toBeGreaterThan(Date.now() + 19 * day);
+    expect((await after(rejected.id))!.getTime()).toBeLessThan(Date.now() + 3 * day);
+    expect(await after(manual.id)).toBeNull();
+  });
+
   it('does not replay another device’s event or change a previously stored event', async () => {
     const first = await seedDeviceToken();
     const second = await seedDeviceToken();

@@ -12,3 +12,4 @@ export * from './attribution';
 export * from './store-setup';
 export * from './store-platform';
 export * from './recipe-health';
+export * from './coupon-sites';

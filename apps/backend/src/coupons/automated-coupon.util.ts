@@ -37,11 +37,31 @@ export async function saveAutomatedCoupon(
             source: CouponSource.API,
           }
         : {};
+    // A scraped code's description and discount only fill fields that are still empty, so an
+    // admin's edit or an affiliate network's own wording is never replaced by a scraped one.
+    const scraped =
+      source === 'SCRAPE'
+        ? {
+            description: coupon.description || undefined,
+            discountType: coupon.discountType
+              ? normalizeDiscountType(coupon.discountType)
+              : undefined,
+            discountValue: coupon.discountValue,
+          }
+        : {};
+    const fillEmpty = Object.fromEntries(
+      Object.entries(scraped).filter(
+        ([key, value]) =>
+          value !== undefined &&
+          existing?.[key as keyof typeof scraped] == null,
+      ),
+    );
     if (existing) {
       await tx.coupon.update({
         where: { id: existing.id },
         data: {
           ...details,
+          ...fillEmpty,
           lastSeenAt: now,
           freshUntil,
           ...(source === 'SCRAPE' && existing.source === CouponSource.SCRAPE
@@ -57,6 +77,7 @@ export async function saveAutomatedCoupon(
           code: coupon.code,
           source,
           ...details,
+          ...fillEmpty,
           lastSeenAt: now,
           freshUntil,
         },
