@@ -10,6 +10,10 @@ import {
   couponSiteStoreUrl,
   CouponSiteStrategy,
 } from '@saverlly/shared-types';
+import {
+  CouponSiteSourcesService,
+  disabledCouponSites,
+} from '../coupon-sites/coupon-site-sources.service';
 import { ScrapeDispatcherService } from '../coupon-sites/scrape-dispatcher.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateScrapeSourceDto } from './dto/create-scrape-source.dto';
@@ -25,7 +29,13 @@ export class ScrapeSourcesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dispatcher: ScrapeDispatcherService,
+    private readonly couponSites: CouponSiteSourcesService,
   ) {}
+
+  /** Gives every active merchant its sources on the built-in coupon sites. */
+  backfill() {
+    return this.couponSites.backfill();
+  }
 
   async create(dto: CreateScrapeSourceDto) {
     const strategy = dto.strategy ?? ScrapeStrategy.GENERIC_CSS;
@@ -33,6 +43,10 @@ export class ScrapeSourcesService {
     let url = dto.url;
     if (site) {
       // A coupon site's source is always one store's page there.
+      if (disabledCouponSites().includes(strategy))
+        throw new BadRequestException(
+          `${site.label} is switched off (COUPON_SITES_DISABLED)`,
+        );
       if (!dto.merchantId)
         throw new BadRequestException(
           `Choose the merchant whose ${site.label} page to read`,

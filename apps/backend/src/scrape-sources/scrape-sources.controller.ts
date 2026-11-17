@@ -24,6 +24,16 @@ export class ScrapeSourcesController {
     return this.scrapeSourcesService.create(dto);
   }
 
+  @Post('backfill')
+  @ApiOperation({
+    summary:
+      'Give every active merchant a source on each built-in coupon site. Creates only missing ones; first runs spread over 24 hours',
+  })
+  @ApiResponse({ status: 201, description: 'Merchants checked and sources created' })
+  backfill() {
+    return this.scrapeSourcesService.backfill();
+  }
+
   @Get()
   @ApiOperation({ summary: 'List all scrape sources' })
   @ApiResponse({ status: 200, description: 'Scrape sources' })

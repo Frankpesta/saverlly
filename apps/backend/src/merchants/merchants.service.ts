@@ -2,10 +2,12 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AttributionMethod, Prisma } from '@prisma/client';
 import { deleteMerchantCascade } from '../common/prisma/cascade-delete.util';
+import { CouponSiteSourcesService } from '../coupon-sites/coupon-site-sources.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMerchantDto } from './dto/create-merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';
@@ -13,9 +15,12 @@ import { PlatformDetectionService } from './platform-detection.service';
 
 @Injectable()
 export class MerchantsService {
+  private readonly logger = new Logger(MerchantsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly platforms: PlatformDetectionService,
+    private readonly couponSites: CouponSiteSourcesService,
   ) {}
 
   async create(dto: CreateMerchantDto) {
@@ -42,6 +47,16 @@ export class MerchantsService {
       });
       // Recognising the platform reads the store's site; the admin needn't wait for it.
       this.platforms.detectInBackground(merchant.id, merchant.domain);
+      // Every merchant gets codes from the built-in coupon sites with no setup. A failure here
+      // must not undo the merchant: the backfill creates whatever is missing later.
+      await this.couponSites
+        .ensureForMerchant(merchant)
+        .catch((error: unknown) =>
+          this.logger.error(
+            `Could not create coupon site sources for merchant ${merchant.id}`,
+            error,
+          ),
+        );
       return merchant;
     } catch (err) {
       throw this.mapDomainConflict(err);
@@ -134,8 +149,14 @@ export class MerchantsService {
                 : undefined,
         },
       });
-      if (domainChanged)
+      if (domainChanged) {
         this.platforms.detectInBackground(merchant.id, merchant.domain);
+        await this.couponSites.moveToDomain(
+          merchant.id,
+          existing.domain,
+          merchant.domain,
+        );
+      }
       return merchant;
     } catch (err) {
       throw this.mapDomainConflict(err);

@@ -5,6 +5,7 @@ import { Queue } from 'bullmq';
 import { QUEUE_NAMES } from '../jobs/queue-names';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponSiteRegistry } from './coupon-site-registry';
+import { disabledCouponSites } from './coupon-site-sources.service';
 
 export const SCRAPE_JOB_NAME = 'scrape-coupons';
 const DISPATCH_JOB_NAME = 'dispatch-due-sources';
@@ -38,6 +39,8 @@ export class ScrapeDispatcherService {
     const due = await this.prisma.scrapeSource.findMany({
       where: {
         active: true,
+        // A coupon site switched off everywhere (COUPON_SITES_DISABLED) isn't run at all.
+        strategy: { notIn: disabledCouponSites() },
         OR: [{ nextRunAt: null }, { nextRunAt: { lte: now } }],
         AND: [{ OR: [{ merchantId: null }, { merchant: { active: true } }] }],
       },

@@ -152,6 +152,7 @@ export class ScrapeRunnerService {
           },
           'SCRAPE',
           source.intervalMinutes,
+          scraper.key,
         );
         codeCount++;
       }

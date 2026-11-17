@@ -1,19 +1,26 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
+// Loads .env.test (the test database and Redis DB) before the app reads its config. Without
+// it this suite connected with the dev .env like no other e2e file, and failed whenever the
+// dev database wasn't reachable with those credentials.
+import { resetRedisTestDb, testPrisma } from './utils/db';
+import { createTestApp } from './utils/test-app';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    await resetRedisTestDb();
+    app = (await createTestApp()) as INestApplication<App>;
+  });
 
-    app = moduleFixture.createNestApplication();
-    await app.init();
+  afterEach(async () => {
+    await app.close();
+  });
+
+  afterAll(async () => {
+    await testPrisma.$disconnect();
   });
 
   it('/ (GET)', () => {
@@ -21,9 +28,5 @@ describe('AppController (e2e)', () => {
       .get('/')
       .expect(200)
       .expect('Hello World!');
-  });
-
-  afterEach(async () => {
-    await app.close();
   });
 });

@@ -35,6 +35,13 @@ export class CouponsService {
   findAll(merchantId?: string, limit = 50, cursor?: string) {
     return this.prisma.coupon.findMany({
       where: merchantId ? { merchantId } : undefined,
+      // Which coupon sites list each code, shown beside its source on the dashboard.
+      include: {
+        sightings: {
+          select: { strategy: true, lastSeenAt: true },
+          orderBy: { lastSeenAt: 'desc' },
+        },
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

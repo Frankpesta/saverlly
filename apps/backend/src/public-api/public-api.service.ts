@@ -7,6 +7,7 @@ import { CouponSource, Prisma } from '@prisma/client';
 import { parseAnnouncementLayout } from '@saverlly/shared-types';
 import { generateSubId } from '../common/crypto/sub-id.util';
 import { COUPON_FRESHNESS_DAYS } from '../coupons/automated-coupon.util';
+import { rankCoupons } from '../coupons/coupon-ranking';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActiveAnnouncementDto } from './dto/active-announcement.dto';
 import { ActivePromotionDto } from './dto/active-promotion.dto';
@@ -131,6 +132,7 @@ export class PublicApiService {
   }
 
   async getMerchantByDomain(domain: string) {
+    const sitesSince = new Date(Date.now() - COUPON_FRESHNESS_DAYS * 86400_000);
     const merchant = await this.prisma.merchant.findUnique({
       where: { domain: domain.toLowerCase() },
       include: {
@@ -144,7 +146,6 @@ export class PublicApiService {
               },
             ],
           },
-          orderBy: [{ successCount: 'desc' }, { failCount: 'asc' }],
         },
       },
     });
@@ -153,6 +154,19 @@ export class PublicApiService {
       throw new NotFoundException('Merchant not found or inactive');
     }
 
+    // How many coupon sites saw each code within the freshness window.
+    const sightings = await this.prisma.couponSighting.groupBy({
+      by: ['couponId'],
+      where: {
+        couponId: { in: merchant.coupons.map((coupon) => coupon.id) },
+        lastSeenAt: { gte: sitesSince },
+      },
+      _count: { _all: true },
+    });
+    const sitesByCoupon = new Map(
+      sightings.map((row) => [row.couponId, row._count._all]),
+    );
+
     return {
       ...merchant,
       // discountType is CouponDiscountType (an uppercase enum) internally, but the extension
@@ -160,7 +174,12 @@ export class PublicApiService {
       // "percent"|"fixed"|"unknown" strings -- lowercase at this external boundary rather
       // than changing that contract, so an already-installed extension build isn't broken by
       // a backend-only schema change.
-      coupons: merchant.coupons.map((coupon) => ({
+      // Ranked here rather than in SQL: the order mixes a smoothed success rate with how many
+      // coupon sites saw the code (see coupon-ranking.ts). The response keeps its shape.
+      coupons: rankCoupons(
+        merchant.coupons,
+        (coupon) => sitesByCoupon.get(coupon.id) ?? 0,
+      ).map((coupon) => ({
         ...coupon,
         discountType: coupon.discountType?.toLowerCase() ?? null,
       })),

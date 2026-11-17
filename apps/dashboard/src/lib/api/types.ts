@@ -243,6 +243,8 @@ export type Coupon = {
   expiresAt: string | null
   active: boolean
   createdAt: string
+  /** Coupon sites that listed this code, most recently seen first (admin list only). */
+  sightings?: { strategy: ScrapeStrategyName; lastSeenAt: string }[]
 }
 
 export type SelectorConfig = {

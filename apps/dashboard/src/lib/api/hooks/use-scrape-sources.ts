@@ -78,3 +78,18 @@ export function useRunScrapeSourceNow() {
       }),
   })
 }
+
+/** Gives every active merchant its sources on the built-in coupon sites. Creates only missing
+ * ones, so running it again is harmless. */
+export function useBackfillCouponSites() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ merchants: number; created: number }>("/scrape-sources/backfill", {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: scrapeSourcesKey })
+    },
+  })
+}

@@ -214,6 +214,54 @@ describe('Public device-facing API (e2e)', () => {
     expect(res.body.coupons[0].code).toBe('ACTIVE1');
   });
 
+  it('ranks codes by smoothed success, then by how many coupon sites list them', async () => {
+    const { rawToken } = await seedDeviceToken();
+    const merchant = await seedMerchant({ domain: 'ranked.test' });
+    const seed = async (
+      code: string,
+      successCount: number,
+      failCount: number,
+      sites: ('SIMPLYCODES' | 'COUPONFOLLOW')[] = [],
+      seenDaysAgo = 1,
+    ) => {
+      const coupon = await testPrisma.coupon.update({
+        where: { id: (await seedCoupon(merchant.id, { code })).id },
+        data: { successCount, failCount },
+      });
+      const seen = new Date(Date.now() - seenDaysAgo * 86_400_000);
+      for (const strategy of sites)
+        await testPrisma.couponSighting.create({
+          data: { couponId: coupon.id, strategy, lastSeenAt: seen },
+        });
+    };
+    // Worked once, failed ten times: the old order put it first.
+    await seed('MOSTLYFAILS', 1, 10);
+    await seed('NEWONESITE', 0, 0, ['COUPONFOLLOW']);
+    await seed('NEWTWOSITES', 0, 0, ['SIMPLYCODES', 'COUPONFOLLOW']);
+    // Two sightings, but both older than the 20-day freshness window: they don't count.
+    await seed('NEWSTALESITES', 0, 0, ['SIMPLYCODES', 'COUPONFOLLOW'], 30);
+    await seed('PROVEN', 4, 0);
+
+    const res = await request(app.getHttpServer())
+      .get('/public/merchants/by-domain/ranked.test')
+      .set('Authorization', `Bearer ${rawToken}`)
+      .expect(200);
+
+    expect(res.body.coupons.map((c: { code: string }) => c.code)).toEqual([
+      'PROVEN',
+      'NEWTWOSITES',
+      'NEWONESITE',
+      'NEWSTALESITES',
+      'MOSTLYFAILS',
+    ]);
+    // The response shape the extension reads is unchanged.
+    expect(Object.keys(res.body.coupons[0]).sort()).toEqual(
+      Object.keys(res.body.coupons[4]).sort(),
+    );
+    expect(res.body.coupons[0]).not.toHaveProperty('sightings');
+    expect(res.body.coupons[0]).not.toHaveProperty('_count');
+  });
+
   it('404s for an inactive merchant', async () => {
     const { rawToken } = await seedDeviceToken();
     await seedMerchant({ domain: 'inactive.test', active: false });

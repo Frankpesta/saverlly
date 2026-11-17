@@ -55,6 +55,7 @@ describe('generic scrape error reporting', () => {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({}),
       },
+      couponSighting: { upsert: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn().mockImplementation(async (work) => work(prisma)),
     };
     const cleanup = jest.fn().mockResolvedValue(undefined);

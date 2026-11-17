@@ -210,6 +210,23 @@ describe('Coupon site scrapers (e2e, real BullMQ + Redis)', () => {
         discountValue: 15,
       }),
     ]);
+    // Each scraper records that it saw the code, and the admin list shows it.
+    expect(
+      await testPrisma.couponSighting.findMany({
+        select: { strategy: true, coupon: { select: { code: true } } },
+        orderBy: { strategy: 'asc' },
+      }),
+    ).toEqual([
+      { strategy: 'GENERIC_CSS', coupon: { code: 'BROWSER10' } },
+      { strategy: 'COUPONFOLLOW', coupon: { code: 'Shoes15' } },
+    ]);
+    const listed = await request(app.getHttpServer())
+      .get(`/coupons?merchantId=${shoes.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(listed.body[0].sightings).toEqual([
+      { strategy: 'COUPONFOLLOW', lastSeenAt: expect.any(String) },
+    ]);
     expect(
       await testPrisma.coupon.findMany({
         where: { merchantId: browserStore.id },
@@ -259,4 +276,200 @@ describe('Coupon site scrapers (e2e, real BullMQ + Redis)', () => {
       Date.now() + 29 * 86_400_000,
     );
   }, 30_000);
+
+  describe('automatic sources (Phase 2)', () => {
+    const admin = () => ({ Authorization: `Bearer ${adminToken}` });
+    const sitesOf = (merchantId: string) =>
+      testPrisma.scrapeSource.findMany({
+        where: { merchantId },
+        orderBy: { strategy: 'asc' },
+      });
+
+    afterEach(() => {
+      delete process.env.COUPON_SITES_DISABLED;
+    });
+
+    it('gives a new merchant one active source per coupon site, first run within the hour', async () => {
+      const before = Date.now();
+      const res = await request(app.getHttpServer())
+        .post('/merchants')
+        .set(admin())
+        .send({
+          name: 'Allbirds',
+          domain: 'WWW.Allbirds.com',
+          attributionMethod: 'COOKIE',
+          affiliateTrackingUrl: 'https://track.allbirds.test',
+        })
+        .expect(201);
+
+      const sources = await sitesOf(res.body.id);
+      expect(sources).toEqual([
+        expect.objectContaining({
+          strategy: 'SIMPLYCODES',
+          url: 'https://simplycodes.com/store/allbirds.com',
+          intervalMinutes: 1440,
+          active: true,
+          status: 'ACTIVE',
+          autoCreated: true,
+          selectorConfig: null,
+        }),
+        expect.objectContaining({
+          strategy: 'COUPONFOLLOW',
+          url: 'https://couponfollow.com/site/allbirds.com',
+          intervalMinutes: 360,
+          active: true,
+          autoCreated: true,
+        }),
+      ]);
+      for (const source of sources) {
+        expect(source.nextRunAt!.getTime()).toBeGreaterThanOrEqual(before);
+        expect(source.nextRunAt!.getTime()).toBeLessThanOrEqual(
+          Date.now() + 60 * 60_000,
+        );
+      }
+    });
+
+    it('backfills active merchants once, and never revives a source an admin switched off', async () => {
+      const shop = await seedMerchant({ domain: 'shop.test' });
+      const inactive = await seedMerchant({ active: false });
+      // The admin already made one CouponFollow source for this shop and switched it off.
+      const off = await testPrisma.scrapeSource.create({
+        data: {
+          strategy: 'COUPONFOLLOW',
+          merchantId: shop.id,
+          url: 'https://couponfollow.com/site/shop.test',
+          active: false,
+        },
+      });
+
+      const first = await request(app.getHttpServer())
+        .post('/scrape-sources/backfill')
+        .set(admin())
+        .expect(201);
+      expect(first.body).toEqual({ merchants: 1, created: 1 });
+      const second = await request(app.getHttpServer())
+        .post('/scrape-sources/backfill')
+        .set(admin())
+        .expect(201);
+      expect(second.body).toEqual({ merchants: 1, created: 0 });
+
+      const sources = await sitesOf(shop.id);
+      expect(sources.map((s) => [s.strategy, s.active])).toEqual([
+        ['SIMPLYCODES', true],
+        ['COUPONFOLLOW', false],
+      ]);
+      expect(sources.find((s) => s.id === off.id)?.active).toBe(false);
+      // A backfill's first runs are spread over a day.
+      expect(sources[0].nextRunAt!.getTime()).toBeLessThanOrEqual(
+        Date.now() + 24 * 3_600_000,
+      );
+      expect(await sitesOf(inactive.id)).toEqual([]);
+    });
+
+    it('moves coupon site pages with a domain change and leaves a hand-set URL alone', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/merchants')
+        .set(admin())
+        .send({
+          name: 'Mover',
+          domain: 'old-shop.test',
+          attributionMethod: 'COOKIE',
+          affiliateTrackingUrl: 'https://track.mover.test',
+        })
+        .expect(201);
+      // Pretend SimplyCodes said "not listed" for the old domain, and an admin pointed the
+      // CouponFollow source at a page of their own.
+      await testPrisma.scrapeSource.updateMany({
+        where: { merchantId: res.body.id, strategy: 'SIMPLYCODES' },
+        data: { status: 'NOT_LISTED' },
+      });
+      await testPrisma.scrapeSource.updateMany({
+        where: { merchantId: res.body.id, strategy: 'COUPONFOLLOW' },
+        data: { url: 'https://couponfollow.com/site/the-real-shop.test' },
+      });
+
+      await request(app.getHttpServer())
+        .patch(`/merchants/${res.body.id}`)
+        .set(admin())
+        .send({ domain: 'new-shop.test' })
+        .expect(200);
+
+      const [simply, follow] = await sitesOf(res.body.id);
+      expect(simply).toMatchObject({
+        url: 'https://simplycodes.com/store/new-shop.test',
+        status: 'ACTIVE',
+      });
+      expect(follow.url).toBe(
+        'https://couponfollow.com/site/the-real-shop.test',
+      );
+    });
+
+    it('deletes coupon site sources with their merchant but keeps custom ones', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/merchants')
+        .set(admin())
+        .send({
+          name: 'Gone',
+          domain: 'gone.test',
+          attributionMethod: 'COOKIE',
+          affiliateTrackingUrl: 'https://track.gone.test',
+        })
+        .expect(201);
+      const custom = await testPrisma.scrapeSource.create({
+        data: {
+          merchantId: res.body.id,
+          url: 'https://gone.test/deals',
+          selectorConfig: { codeSelector: '.code' },
+        },
+      });
+
+      await request(app.getHttpServer())
+        .delete(`/merchants/${res.body.id}`)
+        .set(admin())
+        .expect(204);
+
+      const left = await testPrisma.scrapeSource.findMany();
+      expect(left).toEqual([
+        expect.objectContaining({ id: custom.id, merchantId: null }),
+      ]);
+    });
+
+    it('neither creates nor runs a coupon site switched off by COUPON_SITES_DISABLED', async () => {
+      process.env.COUPON_SITES_DISABLED = 'couponfollow';
+      const res = await request(app.getHttpServer())
+        .post('/merchants')
+        .set(admin())
+        .send({
+          name: 'Quiet',
+          domain: 'quiet.test',
+          attributionMethod: 'COOKIE',
+          affiliateTrackingUrl: 'https://track.quiet.test',
+        })
+        .expect(201);
+      expect((await sitesOf(res.body.id)).map((s) => s.strategy)).toEqual([
+        'SIMPLYCODES',
+      ]);
+      await post({ strategy: 'COUPONFOLLOW', merchantId: res.body.id }).expect(
+        400,
+      );
+
+      // An existing CouponFollow source stays put but isn't queued while the site is off.
+      const shoes = await seedMerchant({ domain: 'shoes.test' });
+      await testPrisma.scrapeSource.create({
+        data: {
+          strategy: 'COUPONFOLLOW',
+          merchantId: shoes.id,
+          url: 'https://couponfollow.com/site/shoes.test',
+          nextRunAt: new Date(Date.now() - 60_000),
+        },
+      });
+      await testPrisma.scrapeSource.updateMany({
+        where: { merchantId: res.body.id },
+        data: { nextRunAt: new Date(Date.now() + 3_600_000) },
+      });
+      expect(
+        (await app.get(ScrapeDispatcherService).dispatchDue()).queued,
+      ).toBe(0);
+    });
+  });
 });

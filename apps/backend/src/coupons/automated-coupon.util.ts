@@ -1,4 +1,4 @@
-import { CouponSource } from '@prisma/client';
+import { CouponSource, ScrapeStrategy } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { serializable } from '../common/prisma/serializable.util';
 import { AffiliateCouponDto } from '../affiliate-adapters/affiliate-network-adapter.interface';
@@ -15,6 +15,8 @@ export async function saveAutomatedCoupon(
   coupon: AffiliateCouponDto,
   source: 'SCRAPE' | 'API',
   intervalMinutes = 1440,
+  /** The scraper that saw the code, recorded as a sighting for ranking. */
+  sightedBy?: ScrapeStrategy,
 ): Promise<void> {
   const now = new Date();
   const freshUntil = new Date(
@@ -25,8 +27,22 @@ export async function saveAutomatedCoupon(
     const existing = await tx.coupon.findUnique({
       where: { merchantId_code: { merchantId, code: coupon.code } },
     });
+    // A sighting counts for any code, a manual one included: it says a coupon site lists it.
+    const sight = async (couponId: string) => {
+      if (!sightedBy) return;
+      await tx.couponSighting.upsert({
+        where: { couponId_strategy: { couponId, strategy: sightedBy } },
+        create: {
+          couponId,
+          strategy: sightedBy,
+          firstSeenAt: now,
+          lastSeenAt: now,
+        },
+        update: { lastSeenAt: now },
+      });
+    };
     // Manual curation wins; an automated observation must not erase its source or expiry.
-    if (existing?.source === CouponSource.MANUAL) return;
+    if (existing?.source === CouponSource.MANUAL) return sight(existing.id);
     const details =
       source === 'API'
         ? {
@@ -70,8 +86,9 @@ export async function saveAutomatedCoupon(
           // Deliberately omit active: false is an explicit operator decision.
         },
       });
+      await sight(existing.id);
     } else {
-      await tx.coupon.create({
+      const created = await tx.coupon.create({
         data: {
           merchantId,
           code: coupon.code,
@@ -82,6 +99,7 @@ export async function saveAutomatedCoupon(
           freshUntil,
         },
       });
+      await sight(created.id);
     }
   });
 }

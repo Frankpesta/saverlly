@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { CouponSiteRegistry } from '../coupon-sites/coupon-site-registry';
+import { CouponSiteSourcesService } from '../coupon-sites/coupon-site-sources.service';
 import {
   ScrapeDispatcherService,
   ScrapeDispatchSchedulerService,
@@ -42,6 +43,7 @@ const scrapeJobOptions = {
   providers: [
     ScrapeSourcesService,
     CouponSiteRegistry,
+    CouponSiteSourcesService,
     ScrapeRunnerService,
     ScrapeDispatcherService,
     ScrapeDispatchSchedulerService,
@@ -50,6 +52,6 @@ const scrapeJobOptions = {
     ScrapeBrowserProcessor,
     ScrapeDispatchProcessor,
   ],
-  exports: [ScrapeSourcesService],
+  exports: [ScrapeSourcesService, CouponSiteSourcesService],
 })
 export class ScrapeSourcesModule {}

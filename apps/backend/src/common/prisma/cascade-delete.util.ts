@@ -66,6 +66,11 @@ export async function deleteMerchantCascade(tx: Tx, merchantId: string) {
   }
   await tx.couponTestEvent.deleteMany({ where });
   await tx.coupon.deleteMany({ where });
+  // A coupon site source is that merchant's page on the site and means nothing without it.
+  // Custom (GENERIC_CSS) sources are kept, unlinked by ON DELETE SET NULL, as before.
+  await tx.scrapeSource.deleteMany({
+    where: { merchantId, strategy: { not: 'GENERIC_CSS' } },
+  });
   await tx.merchant.delete({ where: { id: merchantId } });
 }
 

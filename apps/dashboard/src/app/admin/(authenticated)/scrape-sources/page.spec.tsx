@@ -70,6 +70,9 @@ describe("ScrapeSourcesPage", () => {
       if (url === "/api/proxy/merchants" && method === "GET") {
         return { ok: true, status: 200, json: async () => merchants } as Response
       }
+      if (url === "/api/proxy/scrape-sources/backfill" && method === "POST") {
+        return { ok: true, status: 201, json: async () => ({ merchants: 4, created: 7 }) } as Response
+      }
       if (url === "/api/proxy/scrape-sources/s-2/run-now" && method === "POST") {
         return { ok: true, status: 201, json: async () => ({ queued: true }) } as Response
       }
@@ -96,6 +99,22 @@ describe("ScrapeSourcesPage", () => {
     await waitFor(() =>
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/proxy/scrape-sources/s-2/run-now",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    )
+  })
+
+  it("sets up coupon sites for every merchant in one click", async () => {
+    const user = userEvent.setup()
+    renderWithClient(<ScrapeSourcesPage />)
+
+    await user.click(
+      await screen.findByRole("button", { name: /set up coupon sites for all merchants/i }),
+    )
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/proxy/scrape-sources/backfill",
         expect.objectContaining({ method: "POST" }),
       ),
     )
