@@ -1,5 +1,6 @@
 "use client"
 
+import { CouponSourceCell } from "@/components/dashboard/coupon-source-cell"
 import { InlineQueryError } from "@/components/dashboard/query-state"
 
 import * as React from "react"
@@ -194,7 +195,7 @@ export default function CouponsPage() {
                 </TableCell>
                 <TableCell>{coupon.code}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{coupon.source}</Badge>
+                  <CouponSourceCell coupon={coupon} />
                 </TableCell>
                 <TableCell>
                   {coupon.successCount} / {coupon.failCount}

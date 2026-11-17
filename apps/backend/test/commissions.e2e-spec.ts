@@ -30,6 +30,11 @@ describe('Commission events API (e2e)', () => {
     await resetDatabase();
   });
 
+  /** Treats the mock adapter's synced conversions as if a real network had reported them. */
+  async function markReal() {
+    await testPrisma.commissionEvent.updateMany({ data: { isTest: false } });
+  }
+
   async function seedScenario() {
     const kioskA = await seedKiosk({ revenueSharePct: 30 });
     const kioskB = await seedKiosk({ revenueSharePct: 30 });
@@ -133,24 +138,40 @@ describe('Commission events API (e2e)', () => {
     const { adminToken, ownerAToken } = await seedScenario();
     await request(app.getHttpServer()).post('/commission-events/sync-now').set('Authorization', `Bearer ${adminToken}`).expect(200);
 
-    const res = await request(app.getHttpServer())
-      .get('/my/balance')
-      .set('Authorization', `Bearer ${ownerAToken}`)
-      .expect(200);
+    const balance = async () =>
+      (
+        await request(app.getHttpServer())
+          .get('/my/balance')
+          .set('Authorization', `Bearer ${ownerAToken}`)
+          .expect(200)
+      ).body;
 
-    // 1 CONFIRMED event: commissionAmount 5.00 * 30% = 1.50 available. The REVERSED event
-    // contributes nothing to either bucket, and nothing is left PENDING after sync-now.
-    expect(res.body).toEqual({ pendingAmount: 0, confirmedAvailableAmount: 1.5 });
+    // The mock adapter's conversions are test commissions (isTest): never money a kiosk owner
+    // is owed, so they stay out of the balance and payouts entirely.
+    expect(await balance()).toEqual({ pendingAmount: 0, confirmedAvailableAmount: 0 });
+
+    // The same conversions from a real network: 1 CONFIRMED event, commissionAmount
+    // 5.00 * 30% = 1.50 available. The REVERSED event contributes nothing to either bucket,
+    // and nothing is left PENDING after sync-now.
+    await markReal();
+    expect(await balance()).toEqual({ pendingAmount: 0, confirmedAvailableAmount: 1.5 });
   });
 
   it('excludes a CONFIRMED event already swept into a payout from confirmedAvailableAmount', async () => {
     const { kioskA, adminToken, ownerAToken } = await seedScenario();
     await request(app.getHttpServer()).post('/commission-events/sync-now').set('Authorization', `Bearer ${adminToken}`).expect(200);
 
+    await markReal();
     const confirmedEvent = await testPrisma.commissionEvent.findFirstOrThrow({ where: { status: 'CONFIRMED' } });
     const payout = await testPrisma.payout.create({
       data: { kioskId: kioskA.id, periodStart: new Date(), periodEnd: new Date(), totalAmount: 1.5 },
     });
+    // Available until swept into the payout, so the 0 below is the sweep's doing.
+    const before = await request(app.getHttpServer())
+      .get('/my/balance')
+      .set('Authorization', `Bearer ${ownerAToken}`)
+      .expect(200);
+    expect(before.body.confirmedAvailableAmount).toBe(1.5);
     await testPrisma.commissionEvent.update({ where: { id: confirmedEvent.id }, data: { payoutId: payout.id } });
 
     const res = await request(app.getHttpServer())

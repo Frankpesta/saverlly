@@ -7,7 +7,7 @@ import { ScrapeSourceStatusBadge, scrapeSiteLabel } from "@/components/dashboard
 import * as React from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { PencilIcon, PlayIcon, PlusIcon } from "lucide-react"
+import { PencilIcon, PlayIcon, PlusIcon, RefreshCwIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,6 +26,7 @@ import { CollectionSummary } from "@/components/dashboard/page-layout"
 import { DeleteRowButton } from "@/components/dashboard/delete-row-button"
 import { TablePagination } from "@/components/dashboard/table-pagination"
 import {
+  useBackfillCouponSites,
   useDeleteScrapeSource,
   useRunScrapeSourceNow,
   useScrapeSources,
@@ -43,6 +44,22 @@ import { cn } from "@/lib/utils"
 export default function ScrapeSourcesPage() {
   const { data: sources, isLoading, isError, refetch } = useScrapeSources()
   const { data: merchants } = useMerchants()
+  const backfill = useBackfillCouponSites()
+
+  function handleBackfill() {
+    backfill.mutate(undefined, {
+      onSuccess: ({ merchants, created }) =>
+        toast.success(
+          created
+            ? `Added ${created} coupon site source${created === 1 ? "" : "s"} across ${merchants} merchant${merchants === 1 ? "" : "s"}. First runs are spread over the next day.`
+            : "Every active merchant already has its coupon site sources.",
+        ),
+      onError: (error) =>
+        toast.error(
+          error instanceof ApiError ? error.message : "Could not add coupon site sources.",
+        ),
+    })
+  }
 
   const merchantNameById = React.useMemo(() => {
     const map = new Map<string, string>()
@@ -99,10 +116,23 @@ export default function ScrapeSourcesPage() {
             Pages the scraper checks on a schedule for new coupon codes.
           </p>
         </div>
-        <Link href="/admin/scrape-sources/new" className={cn(buttonVariants(), "gap-1.5")}>
-          <PlusIcon className="size-4" />
-          New Scrape Source
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-1.5"
+            onClick={handleBackfill}
+            disabled={backfill.isPending}
+            title="Gives every active merchant a source on each coupon site. Only missing ones are added."
+          >
+            <RefreshCwIcon className="size-4" />
+            Set up coupon sites for all merchants
+          </Button>
+          <Link href="/admin/scrape-sources/new" className={cn(buttonVariants(), "gap-1.5")}>
+            <PlusIcon className="size-4" />
+            New Scrape Source
+          </Link>
+        </div>
       </div>
 
       <CollectionSummary
@@ -186,6 +216,7 @@ function ScrapeSourceRow({
   const updateSource = useUpdateScrapeSource(source.id)
   const runNow = useRunScrapeSourceNow()
   const deleteSource = useDeleteScrapeSource()
+  const notListed = source.status === "NOT_LISTED"
 
   function handleDelete() {
     deleteSource.mutate(source.id, {
@@ -209,14 +240,14 @@ function ScrapeSourceRow({
 
   function handleRunNow() {
     runNow.mutate(source.id, {
-      onSuccess: () => toast.success("Scrape queued."),
+      onSuccess: () => toast.success(notListed ? "Check queued." : "Scrape queued."),
       onError: (error) =>
         toast.error(error instanceof ApiError ? error.message : "Could not queue scrape."),
     })
   }
 
   return (
-    <TableRow index={index}>
+    <TableRow index={index} className={cn(notListed && "text-muted-foreground")}>
       <TableCell>
         <div className="flex flex-col items-start gap-1">
           <span className="font-medium">{scrapeSiteLabel(source)}</span>
@@ -279,7 +310,8 @@ function ScrapeSourceRow({
             className="text-primary"
             onClick={handleRunNow}
             disabled={runNow.isPending}
-            aria-label="Run now"
+            aria-label={notListed ? "Check now" : "Run now"}
+            title={notListed ? "Check whether the site lists this store now" : undefined}
           >
             <PlayIcon className="size-3.5" />
           </Button>

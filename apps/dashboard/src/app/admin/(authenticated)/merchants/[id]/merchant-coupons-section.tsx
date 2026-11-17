@@ -1,5 +1,6 @@
 "use client"
 
+import { CouponSourceCell } from "@/components/dashboard/coupon-source-cell"
 import { InlineQueryError } from "@/components/dashboard/query-state"
 
 import * as React from "react"
@@ -17,7 +18,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
@@ -106,7 +106,7 @@ export function MerchantCouponsSection({ merchantId }: { merchantId: string }) {
               <TableRow key={coupon.id} index={index}>
                 <TableCell className="font-medium">{coupon.code}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{coupon.source}</Badge>
+                  <CouponSourceCell coupon={coupon} />
                 </TableCell>
                 <TableCell>
                   {coupon.successCount} / {coupon.failCount}

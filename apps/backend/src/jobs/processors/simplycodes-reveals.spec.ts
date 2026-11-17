@@ -225,9 +225,11 @@ describe('SimplyCodes reveal extraction (real browser, offline fixtures)', () =>
           ),
         create: jest.fn().mockImplementation(async (args) => {
           saved.add(args.data.code);
+          return { id: args.data.code };
         }),
         update: jest.fn().mockResolvedValue({}),
       },
+      couponSighting: { upsert: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn().mockImplementation(async (work) => work(prisma)),
     };
     jest.mocked(launchDetachedChromium).mockResolvedValue({

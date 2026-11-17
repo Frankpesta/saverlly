@@ -38,6 +38,7 @@ function setup(
       create: jest.fn().mockResolvedValue({}),
       update: jest.fn().mockResolvedValue({}),
     },
+    couponSighting: { upsert: jest.fn().mockResolvedValue({}) },
     $transaction: jest.fn().mockImplementation(async (work) => work(prisma)),
   };
   const http: HttpFetcher = async (url) => {
@@ -83,6 +84,12 @@ describe('ScrapeRunnerService', () => {
     const before = Date.now();
     await run();
     expect(prisma.coupon.create).toHaveBeenCalledTimes(1);
+    // The code is recorded as seen by CouponFollow, for ranking.
+    expect(prisma.couponSighting.upsert).toHaveBeenCalledTimes(1);
+    expect(prisma.couponSighting.upsert.mock.calls[0][0]).toMatchObject({
+      create: { strategy: 'COUPONFOLLOW' },
+      update: { lastSeenAt: expect.any(Date) },
+    });
     expect(prisma.coupon.create.mock.calls[0][0].data).toMatchObject({
       merchantId: 'merchant',
       code: 'CODEC1',

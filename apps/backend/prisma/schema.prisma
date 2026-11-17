@@ -256,12 +256,26 @@ model Coupon {
   createdAt        DateTime            @default(now())
   couponTestEvents CouponTestEvent[]
   commissionEvents CommissionEvent[]
+  sightings        CouponSighting[]
 
   @@unique([merchantId, code]) // dedup across sources. Repeat scrape/sync runs must upsert, never duplicate
   // Supports the extension's hot coupon-apply query path (public-api's getMerchantByDomain:
   // WHERE merchantId = ? AND active = true), which the merchantId-leading unique index above
   // only partially serves.
   @@index([merchantId, active])
+}
+
+// Which scrapers have seen a code, and when: a code several coupon sites agree on is likelier to
+// work, and ranks ahead of one only a single site lists (public-api coupon ranking).
+model CouponSighting {
+  id          String         @id @default(uuid())
+  couponId    String
+  coupon      Coupon         @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  strategy    ScrapeStrategy
+  firstSeenAt DateTime       @default(now())
+  lastSeenAt  DateTime       @default(now())
+
+  @@unique([couponId, strategy])
 }
 
 // Which scraper reads a source. GENERIC_CSS is the admin-configured selector scraper; the others
