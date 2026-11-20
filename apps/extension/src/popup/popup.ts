@@ -95,6 +95,7 @@ function send(message: ExtensionMessage): Promise<unknown> {
 }
 
 const DISCLOSURE_URL = "https://saverlly.com/affiliate-disclosure/";
+const SUPPORT_URL = "https://saverlly.com/contact/";
 
 function openDisclosurePage(): void {
   void chrome.tabs.create({ url: DISCLOSURE_URL });
@@ -671,12 +672,39 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender) => {
 document
   .getElementById("close-btn")
   ?.addEventListener("click", () => window.close());
-document
-  .getElementById("disclosure-link")
-  ?.addEventListener("click", (event) => {
+const settingsBtn = document.getElementById("settings-btn");
+const settingsMenu = document.getElementById("settings-menu");
+
+function setSettingsMenuOpen(open: boolean): void {
+  if (!settingsBtn || !settingsMenu) return;
+  settingsMenu.hidden = !open;
+  settingsBtn.setAttribute("aria-expanded", String(open));
+  if (open) settingsMenu.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+}
+
+settingsBtn?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setSettingsMenuOpen(settingsMenu?.hidden ?? false);
+});
+document.addEventListener("click", (event) => {
+  if (settingsMenu && !settingsMenu.hidden && !settingsMenu.contains(event.target as Node))
+    setSettingsMenuOpen(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && settingsMenu && !settingsMenu.hidden) {
     event.preventDefault();
-    openDisclosurePage();
-  });
+    setSettingsMenuOpen(false);
+    settingsBtn?.focus();
+  }
+});
+document.getElementById("support-link")?.addEventListener("click", () => {
+  setSettingsMenuOpen(false);
+  void chrome.tabs.create({ url: SUPPORT_URL });
+});
+document.getElementById("legal-link")?.addEventListener("click", () => {
+  setSettingsMenuOpen(false);
+  openDisclosurePage();
+});
 
 async function init(): Promise<void> {
   void refreshLifetimeSaved();

@@ -599,7 +599,7 @@ const server = http.createServer((req, res) => {
         .join("");
       fs.writeFileSync(
         path.join(output, "comparison.html"),
-        `<!doctype html><meta charset="utf-8"><title>Extension design comparison</title><style>body{font:14px system-ui;background:#e9ecef;margin:24px}h1{font-size:24px}section{display:inline-block;vertical-align:top;margin:0 20px 24px 0}section div{display:flex;gap:12px}figure{margin:0}figcaption{padding:8px;background:white}img{display:block}</style><h1>Saverlly extension — Figma comparison</h1><p>Settings and accounts intentionally omitted. Affiliate disclosure and live coupon values retained.</p>${panels}`,
+        `<!doctype html><meta charset="utf-8"><title>Extension design comparison</title><style>body{font:14px system-ui;background:#e9ecef;margin:24px}h1{font-size:24px}section{display:inline-block;vertical-align:top;margin:0 20px 24px 0}section div{display:flex;gap:12px}figure{margin:0}figcaption{padding:8px;background:white}img{display:block}</style><h1>Saverlly extension — Figma comparison</h1><p>Account settings intentionally omitted (menu has Support and Legal only). Live coupon values retained.</p>${panels}`,
       );
     }
   } finally {

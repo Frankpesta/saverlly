@@ -12,6 +12,16 @@
         <!-- Shown only while an admin store setup session is active; shoppers never see it. Sits
              in the header's free space so it adds no height to the popup. -->
         <button class="popup__setup-pill" id="setup-pill" type="button" hidden></button>
+        <!-- Settings menu from the Figma "Settings" frame. The Legal item is the extension's in-UI
+             affiliate disclosure (Chrome Web Store policy), so it must stay reachable from every
+             view -- which is why it lives in the header rather than in any one view. -->
+        <div class="popup__menu">
+          <button class="popup__settings" id="settings-btn" aria-label="Settings" aria-haspopup="menu" aria-expanded="false" aria-controls="settings-menu" type="button"><img src="assets/design-settings.svg" alt="" /></button>
+          <div class="popup__menu-list" id="settings-menu" role="menu" aria-label="Settings" hidden>
+            <button class="popup__menu-item" id="support-link" role="menuitem" type="button">Support</button>
+            <button class="popup__menu-item" id="legal-link" role="menuitem" type="button">Legal</button>
+          </div>
+        </div>
         <button class="popup__close" id="close-btn" aria-label="Close" type="button"><img src="assets/design-close.svg" alt="" /></button>
       </header>
       <div class="popup__lifetime">
@@ -25,12 +35,6 @@
            rather than being wiped whenever render() replaces the main panel. Stays empty and
            takes up no space when there is no active promotion for this device. -->
       <aside id="promo" class="popup__promo" hidden></aside>
-      <!-- Chrome Web Store policy: the affiliate relationship must be disclosed in the extension's
-           own UI. The Figma frames have no settings menu to hold it (the extension has no
-           account or settings), so it stays as this footer. -->
-      <footer class="popup__disclosure">
-        <a href="#" id="disclosure-link">Learn how Saverlly earns money</a>
-      </footer>
     </div>
     <script src="popup.js"></script>
   </body>

@@ -152,17 +152,11 @@ function clearTabState(tabId: number): void {
     .catch(() => {});
 }
 
-chrome.runtime.onInstalled.addListener((details) => {
+// No tab is opened on install: the agent's force-install reinstalls count as "install" too, so a
+// disclosure tab kept popping up on kiosks. The affiliate disclosure lives in the popup's
+// settings menu (Legal) instead, and in the Web Store listing / agent installer before install.
+chrome.runtime.onInstalled.addListener(() => {
   void initialize();
-  // Chrome Web Store policy requires affiliate-program use to be disclosed in the product's
-  // UI, not just the store listing -- opening this on first install (not on every update) is
-  // the earliest point an extension itself can show anything, since nothing in its own UI can
-  // render before the user has actually installed it.
-  if (details.reason === "install") {
-    void chrome.tabs.create({
-      url: "https://saverlly.com/affiliate-disclosure/",
-    });
-  }
 });
 
 chrome.runtime.onStartup.addListener(() => {

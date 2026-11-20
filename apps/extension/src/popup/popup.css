@@ -108,6 +108,59 @@ input:focus-visible {
 .popup__setup-pill[hidden] {
   display: none;
 }
+/* Settings gear: glyph box (483, 23) in the "Settings" frame, 31px left of the close glyph. The
+   menu drops from under the header rule flush to the frame's right edge, 267px wide, 52px rows. */
+.popup__menu {
+  position: relative;
+  margin: 22.5px 31px 0 auto;
+}
+.popup__setup-pill:not([hidden]) + .popup__menu {
+  margin-left: 0;
+}
+.popup__settings {
+  display: block;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.popup__settings img {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+.popup__menu-list {
+  position: absolute;
+  z-index: 10;
+  top: 51.5px;
+  right: -91px;
+  width: 267px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+.popup__menu-list[hidden] {
+  display: none;
+}
+.popup__menu-item {
+  display: block;
+  width: 100%;
+  height: 52px;
+  padding: 0 10px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+}
+.popup__menu-item:first-child {
+  border-top: 0;
+}
+.popup__menu-item:hover {
+  background: var(--row);
+}
 .popup__close {
   width: 24px;
   height: 24px;
@@ -712,7 +765,7 @@ input:focus-visible {
   align-self: center;
 }
 
-/* --- Sponsored slot and disclosure (outside the Figma frame) ------------------------------------ */
+/* --- Sponsored slot (outside the Figma frame) ------------------------------------ */
 .popup__promo {
   display: block;
   padding: 20px 34px 22px;
@@ -739,18 +792,6 @@ input:focus-visible {
   width: 532px;
   height: 166px;
   object-fit: contain;
-}
-/* Chrome Web Store policy: the affiliate relationship is disclosed in the extension UI. */
-.popup__disclosure {
-  padding: 5px 20px 6px;
-  border-top: 2px solid var(--border);
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 17px;
-  text-align: center;
-}
-.popup__disclosure a {
-  color: inherit;
 }
 @media (prefers-reduced-motion: reduce) {
   *,
